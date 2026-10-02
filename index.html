@@ -1,0 +1,1686 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supinkly.AI - ตลาดซื้อขายบัญชี AI และเครื่องมือดิจิทัลอันดับ 1 (Digital Marketplace)</title>
+    
+    <!-- Google Fonts: Prompt & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        supink: '#FF2E7E',
+                        supurple: '#8B5CF6',
+                        sucyan: '#06B6D4',
+                        sugold: '#F59E0B',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white">
+
+    <!-- ==========================================
+         TOP NOTIFICATION BAR (Vibrant & Cheerful)
+         ========================================== -->
+    <div class="bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-500 text-white py-2 px-4 text-center text-xs sm:text-sm font-semibold shadow-sm flex items-center justify-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-yellow-300 animate-ping"></span>
+        <span>🎉 ยินดีต้อนรับสู่ <b>Supinkly.AI</b> — ชำระเงินผ่าน Thai QR PromptPay ตรวจสลิปอัตโนมัติ ส่งมอบรหัสเข้าคลังทันที 24 ชม.</span>
+    </div>
+
+    <!-- ==========================================
+         NAVIGATION HEADER (Bright & High Contrast)
+         ========================================== -->
+    <header class="sticky top-0 z-40 glass-header">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+            
+            <!-- Brand Logo with Mascot -->
+            <a href="index.html" class="flex items-center gap-3.5 group">
+                <div class="relative w-13 h-13 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md shadow-pink-500/20 group-hover:scale-105 transition-transform bg-white shrink-0">
+                    <img src="images/logo.jpg" 
+                         alt="Supinkly.AI Logo" 
+                         class="w-full h-full object-cover"
+                         onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=Supinkly'">
+                </div>
+                <div>
+                    <div class="text-2xl sm:text-3xl font-black tracking-tight gradient-supinkly font-['Outfit'] drop-shadow-sm">
+                        Supinkly<span class="text-pink-500">.AI</span>
+                    </div>
+                    <div class="text-xs text-slate-500 font-bold tracking-wider -mt-0.5 flex items-center gap-1">
+                        <span class="text-amber-500">★</span> DIGITAL MARKETPLACE
+                    </div>
+                </div>
+            </a>
+
+            <!-- Search Bar (Desktop) -->
+            <div class="hidden md:flex flex-1 max-w-md mx-6">
+                <div class="relative w-full">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
+                    <input type="text" id="search-input" placeholder="ค้นหาบัญชี เช่น CapCut, Claude, Grok, Windows..." 
+                           class="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
+                </div>
+            </div>
+
+            <!-- Actions: Cart & User Account & Protected Admin -->
+            <div class="flex items-center gap-3">
+                <!-- Cart Button -->
+                <button onclick="openCartDrawer()" class="relative p-2.5 sm:px-4 sm:py-2.5 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-cart-shopping text-lg text-pink-500"></i>
+                    <span class="text-sm font-bold text-slate-800 hidden sm:inline">ตะกร้า</span>
+                    <span id="cart-count-badge" class="hidden absolute -top-1.5 -right-1.5 sm:static sm:w-auto sm:h-auto px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-xs flex items-center justify-center shadow-md">
+                        0
+                    </span>
+                </button>
+
+                <!-- User & Protected Admin Section -->
+                <div id="user-header-section">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Bar (Mobile) -->
+        <div class="md:hidden px-4 pb-3">
+            <div class="relative w-full">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
+                <input type="text" oninput="state.searchQuery = this.value.toLowerCase().trim(); applyFilters();" placeholder="ค้นหาบัญชี AI และคีย์..." 
+                       class="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 outline-none font-medium">
+            </div>
+        </div>
+    </header>
+
+    <!-- ==========================================
+         HERO SECTION (Vibrant, Friendly, Clean)
+         ========================================== -->
+    <section class="relative overflow-hidden pt-8 pb-10 px-4 sm:px-6 lg:px-8 border-b border-pink-100 bg-gradient-to-b from-pink-50/60 via-purple-50/40 to-transparent">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            
+            <div class="lg:col-span-8 space-y-4">
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-pink-100 border border-pink-300 text-pink-700 text-xs sm:text-sm font-bold shadow-sm">
+                        <span class="text-amber-500 text-base">⚡</span> สแกนจ่ายด้วย Thai QR Code พร้อมเพย์ ได้รับรหัสทันที
+                    </div>
+                    <div id="g2g-sync-status-badge" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs sm:text-sm font-bold shadow-xs">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span id="g2g-last-sync-time">สินค้าแท้ 100% พร้อมส่งมอบตลอด 24 ชม.</span>
+                    </div>
+                </div>
+                <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 leading-tight">
+                    ตลาดซื้อขายบัญชี <span class="gradient-supinkly">AI & สินค้าดิจิทัล</span> ครบวงจร
+                </h1>
+                <p class="text-slate-600 text-sm sm:text-base max-w-2xl leading-relaxed font-medium">
+                    ศูนย์รวมบัญชีและคีย์แท้ <b>CapCut, Google AI, Google, Grok, Claude, Adobe, Microsoft</b> คุณภาพมาตรฐานสากล มีระบบตรวจสลิปโอนเงินอัตโนมัติ ส่งมอบรหัสเข้าคลังทันที พร้อมประกันทุกคำสั่งซื้อ
+                </p>
+
+                <!-- Value Props Badges (Bright Cards) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+                    <div class="bg-white p-3.5 rounded-2xl border-2 border-pink-100 shadow-sm flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-bolt"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs sm:text-sm font-bold text-slate-900">ส่งรหัสใน 5 วินาที</div>
+                            <div class="text-xs text-slate-500">ระบบ AI Vault</div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-3.5 rounded-2xl border-2 border-cyan-100 shadow-sm flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs sm:text-sm font-bold text-slate-900">รับประกันทุกคำสั่ง</div>
+                            <div class="text-xs text-slate-500">เคลมง่าย คืนเงินไว</div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-3.5 rounded-2xl border-2 border-purple-100 shadow-sm flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-qrcode"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs sm:text-sm font-bold text-slate-900">Thai QR Code</div>
+                            <div class="text-xs text-slate-500">สแกนจ่ายได้ทุกแอป</div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-3.5 rounded-2xl border-2 border-emerald-100 shadow-sm flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-receipt"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs sm:text-sm font-bold text-slate-900">ตรวจสลิปอัตโนมัติ</div>
+                            <div class="text-xs text-slate-500">ตัดสต็อกทันที 24 ชม.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Supported Payment Apps Showcase (Easy to understand with authentic app logos) -->
+                <div class="pt-4 border-t border-pink-100/90 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-xs sm:text-sm font-black text-slate-800 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-sm shadow-xs shrink-0">
+                                <i class="fa-solid fa-wallet"></i>
+                            </span>
+                            <span>รองรับการชำระเงิน <b class="text-pink-600">สแกนจ่ายได้ทุกแอปในไทย</b></span>
+                        </span>
+                        <div class="flex items-center gap-2 text-[11px] font-bold">
+                            <span class="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                                <i class="fa-solid fa-circle-check text-[10px]"></i> ฟรีค่าธรรมเนียม 0%
+                            </span>
+                            <span class="text-pink-700 bg-pink-50 border border-pink-200 px-2.5 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1 shadow-xs">
+                                <i class="fa-solid fa-bolt text-[10px]"></i> ยอดเงินเข้าทันที
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Payment Apps Grid with Authentic Google Drive Bank Logos -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <!-- K PLUS -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=11YTla6Dx8Bwh4iguJosSqkWpBlapwP8c&sz=w120" 
+                                     alt="K PLUS กสิกรไทย" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#00A950] flex items-center justify-center text-white">
+                                    <svg class="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                        <path d="M14 11V37M14 24L26 11M16 22L27 37M31 24H39M35 20V28" stroke="white" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">K PLUS</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">กสิกรไทย (KBANK)</div>
+                            </div>
+                        </div>
+
+                        <!-- SCB EASY -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-purple-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=11PC96rkQGmkmVuot2fJ6j9AMcAkYsDvh&sz=w120" 
+                                     alt="SCB EASY ไทยพาณิชย์" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#4E2A84] flex items-center justify-center text-white">
+                                    <svg class="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                        <path d="M24 10C16 10 11 16 11 23C11 31 19 37 24 39C29 37 37 31 37 23C37 16 32 10 24 10Z" fill="#F8C300"/>
+                                        <path d="M24 15C19 15 15 19 15 24C15 29 20 33 24 35C28 33 33 29 33 24C33 19 29 15 24 15Z" fill="#4E2A84"/>
+                                        <circle cx="24" cy="24" r="3" fill="#F8C300"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">SCB EASY</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">ไทยพาณิชย์ (SCB)</div>
+                            </div>
+                        </div>
+
+                        <!-- Krungthai NEXT -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=11HAnBPyrNjiS9ufLMbytcqmi9aPpVYmk&sz=w120" 
+                                     alt="Krungthai NEXT กรุงไทย" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#00A3E0] flex items-center justify-center text-white">
+                                    <svg class="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                        <path d="M24 11L13 22L17 26L24 19L31 26L35 22L24 11Z" fill="white"/>
+                                        <path d="M24 23L16 31L19 34L24 29L29 34L32 31L24 23Z" fill="white" opacity="0.9"/>
+                                        <circle cx="24" cy="37" r="2.5" fill="white"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">Krungthai NEXT</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">กรุงไทย (KTB)</div>
+                            </div>
+                        </div>
+
+                        <!-- KMA Krungsri -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=11GYq50TAuOiup-Kuv1BE8MvPWBgaPPWl&sz=w120" 
+                                     alt="KMA กรุงศรี" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#FECB00] flex items-center justify-center text-slate-900">
+                                    <svg class="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                        <path d="M24 10L12 24H20V37H28V24H36L24 10Z" fill="#4A3C31"/>
+                                        <circle cx="24" cy="23" r="3" fill="#FECB00"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">KMA กรุงศรี</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">กรุงศรีอยุธยา (BAY)</div>
+                            </div>
+                        </div>
+
+                        <!-- Bangkok Bank -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=11ANn2uRq1tNSMym0q71QF2fcIQ4-uvVR&sz=w120" 
+                                     alt="กรุงเทพ Bualuang" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#1E3A8A] flex items-center justify-center text-white">
+                                    <svg class="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                        <path d="M24 11C18 17 14 24 14 31C14 34 18 36 24 37C30 36 34 34 34 31C34 24 30 17 24 11Z" fill="#E11D48"/>
+                                        <path d="M24 16C20 20 18 25 18 30C19 32 21 33 24 33C27 33 29 32 30 30C30 25 28 20 24 16Z" fill="white"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">โมบายแบงก์กิ้ง</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">กรุงเทพ (BBL)</div>
+                            </div>
+                        </div>
+
+                        <!-- ttb touch -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=10WEtk5M-uQ2BUpjEYJFvsI8eIv5wb0To&sz=w120" 
+                                     alt="ttb touch ทีเอ็มบีธนชาต" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#002D62] flex items-center justify-center text-white">
+                                    <span class="font-black text-white text-xs tracking-tighter">ttb</span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">ttb touch</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">ทีเอ็มบีธนชาต (TTB)</div>
+                            </div>
+                        </div>
+
+                        <!-- MyMo GSB -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-pink-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=11XzV4TUZ9u957IHjgkdSGWwsCLHbYGoD&sz=w120" 
+                                     alt="MyMo ธนาคารออมสิน" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#EB008B] flex items-center justify-center text-white">
+                                    <svg class="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                        <path d="M24 12C17 12 13 17 13 22C13 27 18 31 24 35C30 31 35 27 35 22C35 17 31 12 24 12Z" fill="white"/>
+                                        <circle cx="24" cy="22" r="4" fill="#EB008B"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">MyMo</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">ออมสิน (GSB)</div>
+                            </div>
+                        </div>
+
+                        <!-- TrueMoney Wallet -->
+                        <div class="bg-white p-2.5 rounded-2xl border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all flex items-center gap-2.5 group">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform overflow-hidden p-1">
+                                <img src="https://drive.google.com/thumbnail?id=11Gei_OO4Dihu6H6q1jjf6mBHOy78OhDH&sz=w120" 
+                                     alt="TrueMoney Wallet ทรูมันนี่" 
+                                     class="w-full h-full object-contain rounded-lg"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                <div class="hidden w-full h-full rounded-lg bg-[#F37024] flex items-center justify-center text-white">
+                                    <svg class="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                        <path d="M12 24L24 12L36 24L24 36L12 24Z" fill="white"/>
+                                        <circle cx="24" cy="24" r="2.5" fill="#F8C300"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-black text-slate-900 truncate text-xs">TrueMoney</div>
+                                <div class="text-[10px] text-slate-500 truncate font-medium">ทรูมันนี่วอลเล็ท</div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Additional Supported Banks Row from Google Drive -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 text-[11px]">
+                        <span class="font-bold text-slate-600 flex items-center gap-1.5">
+                            <i class="fa-solid fa-building-columns text-pink-500"></i>
+                            <span>และรองรับทุกธนาคารไทย:</span>
+                        </span>
+                        <div class="flex flex-wrap items-center gap-1.5 font-semibold text-slate-700">
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=10VeAHJTWkeEDH63YZca58PSuwNhHpUX8&sz=w60" class="w-4 h-4 object-contain rounded" alt="ธ.ก.ส."> ธ.ก.ส.
+                            </span>
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=10Sckxre9RzwVgMW4-sZUx0s8AxS4KPdP&sz=w60" class="w-4 h-4 object-contain rounded" alt="ธอส."> ธอส.
+                            </span>
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=10QPnubfTMNWMdS6C64SjTaDHUofIBMEp&sz=w60" class="w-4 h-4 object-contain rounded" alt="เกียรตินาคิน"> เกียรตินาคินภัทร
+                            </span>
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=10GGx8ZfEJexKibVTww6ifHjdj7jaTOtm&sz=w60" class="w-4 h-4 object-contain rounded" alt="ทิสโก้"> ทิสโก้
+                            </span>
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=10MBcLcEz2fljsorwyJO8L-lpuOkhtIER&sz=w60" class="w-4 h-4 object-contain rounded" alt="UOB"> UOB
+                            </span>
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=10JtWq40_EhD_L276vbVB4PhdNlI9lilk&sz=w60" class="w-4 h-4 object-contain rounded" alt="CIMB"> CIMB Thai
+                            </span>
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=10Fy4bAbRDun-flOtirIahUcD7qfRvOrr&sz=w60" class="w-4 h-4 object-contain rounded" alt="LH Bank"> LH Bank
+                            </span>
+                            <span class="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                                <img src="https://drive.google.com/thumbnail?id=11rtIRH7bGYBcb__yAIEBLsKwP9GYF-0i&sz=w60" class="w-4 h-4 object-contain rounded" alt="ICBC"> ICBC
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 3 Easy Payment Steps Helper -->
+                    <div class="bg-white/95 rounded-2xl p-3 border border-pink-100/90 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs shadow-xs">
+                        <div class="flex items-center gap-2 text-slate-700 font-semibold w-full sm:w-auto">
+                            <span class="w-6 h-6 rounded-full bg-pink-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">1</span>
+                            <span>เปิดแอปธนาคารหรือ TrueMoney</span>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-pink-300 text-xs hidden sm:inline"></i>
+                        <div class="flex items-center gap-2 text-slate-700 font-semibold w-full sm:w-auto">
+                            <span class="w-6 h-6 rounded-full bg-pink-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">2</span>
+                            <span>กดปุ่ม <b class="text-pink-600">"สแกน (Scan QR)"</b></span>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-pink-300 text-xs hidden sm:inline"></i>
+                        <div class="flex items-center gap-2 text-slate-700 font-semibold w-full sm:w-auto">
+                            <span class="w-6 h-6 rounded-full bg-emerald-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">3</span>
+                            <span>แนบสลิป รับรหัสเข้าคลังทันที!</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mascot Banner Showcase -->
+            <div class="lg:col-span-4 flex justify-center">
+                <div class="relative w-64 h-64 sm:w-72 sm:h-72 rounded-3xl p-2 bg-gradient-to-tr from-pink-400 via-purple-500 to-cyan-400 shadow-xl shadow-pink-500/20 mascot-float">
+                    <div class="w-full h-full rounded-[20px] overflow-hidden bg-white flex items-center justify-center relative">
+                        <img src="images/logo.jpg" 
+                             alt="Supinkly Mascot" 
+                             class="w-full h-full object-cover"
+                             onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=Supinkly'">
+                        <div class="absolute bottom-3 inset-x-3 bg-white/95 backdrop-blur-md p-2 rounded-xl border border-pink-200 flex items-center justify-between text-xs shadow-md">
+                            <span class="text-slate-800 font-bold">✨ ของแท้ 100% ส่งด่วน</span>
+                            <span class="text-pink-600 font-extrabold">1,350+ รายการ</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ==========================================
+         BRAND TABS & FILTER BAR (Bright, Legible, Chunky)
+         ========================================== -->
+    <div class="sticky top-20 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 py-3.5 px-4 sm:px-6 lg:px-8 shadow-sm">
+        <div class="max-w-7xl mx-auto space-y-3">
+            
+            <!-- Brands Scrollable Bar -->
+            <div class="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none" id="brand-tabs-container">
+                <!-- Rendered by JavaScript -->
+            </div>
+
+            <!-- Secondary Filters: Types & Sort -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-1 text-sm font-medium">
+                <!-- Type filters -->
+                <div class="flex items-center gap-2 overflow-x-auto">
+                    <span class="text-slate-600 font-bold mr-1 hidden sm:inline"><i class="fa-solid fa-filter text-pink-500"></i> รูปแบบ:</span>
+                    <button onclick="selectType('all')" data-type="all" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white shadow-md shadow-pink-500/30 transition-all">ทั้งหมด</button>
+                    <button onclick="selectType('private')" data-type="private" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">บัญชีส่วนตัว (Private)</button>
+                    <button onclick="selectType('shared')" data-type="shared" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">บัญชีแชร์ (Shared)</button>
+                    <button onclick="selectType('link')" data-type="link" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">ลิงก์เปิดใช้งาน (Link)</button>
+                    <button onclick="selectType('key')" data-type="key" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">คีย์แท้ (License Key)</button>
+                    <button onclick="selectType('topup')" data-type="topup" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">เติมเงิน (Top-up)</button>
+                </div>
+
+                <!-- Sort & Counter -->
+                <div class="flex items-center gap-3 ml-auto">
+                    <span id="product-count-display" class="text-slate-600 text-xs font-semibold"></span>
+                    <select id="sort-select" class="bg-white border-2 border-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl px-3 py-1.5 outline-none focus:border-pink-500 shadow-sm">
+                        <option value="popular">ยอดนิยม / ขายดีสุด</option>
+                        <option value="price_asc">ราคา: ต่ำสุด - สูงสุด</option>
+                        <option value="price_desc">ราคา: สูงสุด - ต่ำสุด</option>
+                        <option value="stock">จำนวนคงเหลือในสต็อก</option>
+                    </select>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PRODUCT CATALOG GRID
+         ========================================== -->
+    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Product Cards Rendered Dynamically via app.js -->
+        </div>
+    </main>
+
+    <!-- ==========================================
+         FOOTER (Bright, Clean, Informative)
+         ========================================== -->
+    <footer class="border-t border-slate-200 bg-white py-12 px-4 sm:px-6 lg:px-8 mt-16 text-slate-600 text-sm">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div class="space-y-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl overflow-hidden border border-pink-400 shrink-0">
+                        <img src="images/logo.jpg" 
+                             alt="Logo" class="w-full h-full object-cover"
+                             onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=Supinkly'">
+                    </div>
+                    <span class="text-lg font-black gradient-supinkly font-['Outfit']">Supinkly.AI</span>
+                </div>
+                <p class="text-slate-500 text-xs leading-relaxed font-medium">
+                    แพลตฟอร์มตัวกลางจำหน่ายบัญชี AI ซอฟต์แวร์ และสินค้าดิจิทัลแท้ระดับสากล ปลอดภัย รวดเร็ว รับประกันทุกคำสั่งซื้อ
+                </p>
+            </div>
+            <div>
+                <h4 class="font-bold text-slate-900 mb-3 text-sm">แบรนด์ที่จำหน่าย</h4>
+                <ul class="space-y-2 text-xs text-slate-600 font-medium">
+                    <li><a href="javascript:void(0)" onclick="selectBrand('CapCut')" class="hover:text-pink-600 transition-colors">CapCut Pro & Team</a></li>
+                    <li><a href="javascript:void(0)" onclick="selectBrand('Google AI')" class="hover:text-pink-600 transition-colors">Google AI & Gemini Advanced</a></li>
+                    <li><a href="javascript:void(0)" onclick="selectBrand('Grok')" class="hover:text-pink-600 transition-colors">xAI Grok & SuperGrok</a></li>
+                    <li><a href="javascript:void(0)" onclick="selectBrand('Claude')" class="hover:text-pink-600 transition-colors">Anthropic Claude Pro</a></li>
+                    <li><a href="javascript:void(0)" onclick="selectBrand('Adobe')" class="hover:text-pink-600 transition-colors">Adobe Creative Cloud & Acrobat</a></li>
+                    <li><a href="javascript:void(0)" onclick="selectBrand('Microsoft')" class="hover:text-pink-600 transition-colors">Windows 11 & Copilot Pro</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-bold text-slate-900 mb-3 text-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-shield-halved text-pink-600"></i> ข้อมูลการชำระเงิน
+                </h4>
+                <div class="p-3.5 rounded-2xl bg-pink-50/60 border border-pink-200 space-y-2.5">
+                    <div class="text-slate-900 font-extrabold text-xs flex items-center gap-1.5">
+                        <i class="fa-solid fa-qrcode text-pink-600"></i> Thai QR PromptPay
+                    </div>
+                    <div class="text-[11px] text-slate-600 font-medium leading-relaxed">
+                        สแกนจ่ายได้ทุกแอปธนาคารไทย และ TrueMoney Wallet ฟรีค่าธรรมเนียม 100%
+                    </div>
+                    <!-- Mini Bank Logos in Footer from Google Drive -->
+                    <div class="flex flex-wrap items-center gap-1.5 pt-1">
+                        <img src="https://drive.google.com/thumbnail?id=11YTla6Dx8Bwh4iguJosSqkWpBlapwP8c&sz=w60" title="กสิกรไทย (K PLUS)" alt="KBANK" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=11PC96rkQGmkmVuot2fJ6j9AMcAkYsDvh&sz=w60" title="ไทยพาณิชย์ (SCB)" alt="SCB" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=11HAnBPyrNjiS9ufLMbytcqmi9aPpVYmk&sz=w60" title="กรุงไทย (KTB)" alt="KTB" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=11GYq50TAuOiup-Kuv1BE8MvPWBgaPPWl&sz=w60" title="กรุงศรีอยุธยา (BAY)" alt="BAY" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=11ANn2uRq1tNSMym0q71QF2fcIQ4-uvVR&sz=w60" title="กรุงเทพ (BBL)" alt="BBL" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=10WEtk5M-uQ2BUpjEYJFvsI8eIv5wb0To&sz=w60" title="ทีเอ็มบีธนชาต (TTB)" alt="TTB" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=11XzV4TUZ9u957IHjgkdSGWwsCLHbYGoD&sz=w60" title="ออมสิน (GSB)" alt="GSB" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=11Gei_OO4Dihu6H6q1jjf6mBHOy78OhDH&sz=w60" title="ทรูมันนี่ (TrueMoney)" alt="TrueMoney" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=10VeAHJTWkeEDH63YZca58PSuwNhHpUX8&sz=w60" title="ธ.ก.ส." alt="BAAC" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=10Sckxre9RzwVgMW4-sZUx0s8AxS4KPdP&sz=w60" title="ธอส." alt="GHB" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=10QPnubfTMNWMdS6C64SjTaDHUofIBMEp&sz=w60" title="เกียรตินาคินภัทร (KKP)" alt="KKP" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                        <img src="https://drive.google.com/thumbnail?id=10MBcLcEz2fljsorwyJO8L-lpuOkhtIER&sz=w60" title="UOB" alt="UOB" class="w-6 h-6 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs">
+                    </div>
+                    <div class="text-[11px] font-extrabold text-emerald-700 flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check text-[10px]"></i> ตรวจสลิปอัตโนมัติ ส่งรหัสทันที 24 ชม.
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h4 class="font-bold text-slate-900 mb-3 text-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-headset text-pink-500"></i> ติดต่อและช่วยเหลือ
+                </h4>
+                <p class="text-slate-500 text-xs mb-3 font-medium leading-relaxed">ฝ่ายสนับสนุนลูกค้าเปิดให้บริการตลอด 24 ชั่วโมง สอบถามข้อมูล แจ้งปัญหา หรือติดตามคำสั่งซื้อได้ที่เพจทางการ</p>
+                <div class="flex items-center gap-2">
+                    <a href="https://www.facebook.com/profile.php?id=61594837747580" target="_blank" rel="noopener noreferrer" 
+                       class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02]">
+                        <i class="fa-brands fa-facebook text-base"></i>
+                        <span>ติดต่อทางเพจ Facebook</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto mt-8 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-slate-500 text-xs font-medium gap-2">
+            <span>&copy; 2026 Supinkly.AI Marketplace. All rights reserved.</span>
+            <button onclick="promptAdminLogin()" class="text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5 text-[11px]" title="เข้าสู่ระบบจัดการร้านค้า (หรือกด Ctrl+Shift+A)">
+                <i class="fa-solid fa-lock text-[10px]"></i>
+                <span>ระบบจัดการร้านค้า</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- ==========================================
+         CART SLIDE-OVER DRAWER (Bright White)
+         ========================================== -->
+    <div id="drawer-overlay" onclick="closeCartDrawer()" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 transition-opacity"></div>
+    <div id="cart-drawer" class="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white border-l border-slate-200 z-50 transform translate-x-full transition-transform duration-300 flex flex-col shadow-2xl">
+        <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-bag-shopping text-pink-500 text-xl"></i>
+                <h3 class="text-base font-extrabold text-slate-900">ตะกร้าสินค้าของฉัน</h3>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="clearAllCart()" title="ล้างตะกร้าทั้งหมด" class="px-2.5 py-1.5 rounded-xl bg-slate-200/80 hover:bg-rose-100 text-slate-600 hover:text-rose-600 text-xs font-bold flex items-center gap-1 transition-all">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span>ล้าง</span>
+                </button>
+                <button onclick="closeCartDrawer()" class="w-8 h-8 rounded-full bg-slate-200/80 hover:bg-slate-300 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="cart-items-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/40"></div>
+
+        <div class="p-4 border-t border-slate-200 bg-white space-y-3 shadow-lg">
+            <div class="flex items-center justify-between text-sm text-slate-600 font-medium">
+                <span>ราคารวมสินค้า:</span>
+                <span id="cart-subtotal" class="font-bold text-slate-900">฿0.00</span>
+            </div>
+            <div class="flex items-center justify-between text-base font-black text-slate-900 border-t border-slate-100 pt-2">
+                <span>ยอดชำระสุทธิ:</span>
+                <span id="cart-total" class="text-2xl text-pink-600">฿0.00</span>
+            </div>
+            <button id="cart-checkout-btn" onclick="startCheckout()" class="w-full py-3.5 rounded-2xl gradient-btn text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30">
+                <i class="fa-solid fa-lock"></i>
+                <span>ไปขั้นตอนชำระเงิน (Checkout)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         CHECKOUT & PAYMENT MODAL (Bright White & Clear)
+         ========================================== -->
+    <div id="checkout-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-xl w-full rounded-3xl p-6 sm:p-7 border border-pink-200 relative max-h-[94vh] overflow-y-auto shadow-2xl">
+            
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-qrcode"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">ชำระเงินผ่าน Thai QR PromptPay</h3>
+                        <p class="text-xs text-slate-500 font-medium">Ref: <span id="checkout-ref-code" class="font-mono text-pink-600 font-bold"></span></p>
+                    </div>
+                </div>
+                <button onclick="closeCheckoutModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Email for delivery -->
+            <div class="mt-4">
+                <label class="block text-xs sm:text-sm font-bold text-slate-800 mb-1.5">
+                    อีเมลสำหรับจัดส่งสำรอง (Email Delivery):
+                </label>
+                <div class="relative">
+                    <i class="fa-regular fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="email" id="checkout-email-input" placeholder="youremail@example.com" required
+                           class="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-sm text-slate-900 font-medium focus:border-pink-500 focus:bg-white outline-none">
+                </div>
+            </div>
+
+            <!-- Dynamic PromptPay QR Card (EMVCo Official Thai QR Style) -->
+            <div class="mt-4 p-5 rounded-2xl bg-gradient-to-b from-slate-50 to-pink-50/30 border-2 border-slate-200 flex flex-col md:flex-row items-center gap-5 shadow-sm">
+                <!-- Thai QR Official Frame -->
+                <div class="bg-white rounded-2xl shadow-md border-2 border-[#002D62] overflow-hidden shrink-0 text-center w-52">
+                    <div class="bg-[#002D62] text-white py-1.5 px-3 flex items-center justify-center gap-1.5 text-[11px] font-black tracking-wider">
+                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-3 2h2v2h-2v-2zm3 2h3v4h-2v-2h-1v-2zm-5 0h2v4h-2v-4z"/></svg>
+                        <span>THAI QR PAYMENT</span>
+                    </div>
+                    <div class="p-2.5 bg-white">
+                        <img id="promptpay-qr-img" src="" alt="PromptPay QR Code" class="w-40 h-40 object-contain mx-auto">
+                    </div>
+                    <div class="bg-slate-100 py-1.5 px-2 border-t border-slate-200 text-[10px] font-black text-[#002D62] flex items-center justify-center gap-1.5">
+                        <img src="https://drive.google.com/thumbnail?id=1189yBPZA1gdiZIHyUS7_H-p-WhZsHf0Q&sz=w100" 
+                             alt="พร้อมเพย์ PromptPay" 
+                             class="h-4 w-auto object-contain"
+                             onerror="this.style.display='none';" />
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#00A3E0]"></span>
+                        <span>พร้อมเพย์ PROMPTPAY</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 space-y-2.5 text-center md:text-left">
+                    <div class="text-xs text-slate-500 font-semibold">ขั้นตอนชำระเงินด้วย QR Code:</div>
+                    <div class="p-3 rounded-xl bg-white border border-slate-200 shadow-xs space-y-1.5">
+                        <div class="flex items-center justify-center md:justify-start gap-1.5 text-xs font-black text-[#002D62]">
+                            <i class="fa-solid fa-qrcode text-pink-600"></i>
+                            <span>Thai QR PromptPay (สแกนจ่ายได้ทุกแอป)</span>
+                        </div>
+                        <div class="text-xs text-slate-600 font-medium flex items-center justify-center md:justify-start gap-1">
+                            <span>ชื่อบัญชีรับเงิน:</span>
+                            <b id="checkout-account-name" class="text-slate-900 font-extrabold bg-pink-100/70 text-pink-900 px-2 py-0.5 rounded-lg border border-pink-200">สุพัฒน์ มีสมบัติ</b>
+                        </div>
+                        <div class="text-[11px] text-emerald-700 font-extrabold flex items-center justify-center md:justify-start gap-1">
+                            <i class="fa-solid fa-circle-check text-[10px]"></i> เงินเข้าบัญชีตรง ตรวจสลิปอัตโนมัติ
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">ยอดที่ต้องโอนชำระตรงเป๊ะ:</div>
+                        <div id="checkout-total-amount" class="text-3xl font-black text-pink-600">฿0.00</div>
+                    </div>
+                    <div id="qr-timer-text" class="text-xs font-mono font-bold text-amber-600">
+                        กรุณาชำระเงินภายใน 15:00 นาที
+                    </div>
+                </div>
+            </div>
+
+            <!-- Supported Apps List & Clear Payment Guide -->
+            <div class="mt-4 p-4 rounded-2xl bg-slate-50/90 border-2 border-slate-200/90 shadow-sm space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-mobile-screen-button text-pink-600"></i>
+                        <span>เปิดแอปเหล่านี้ แล้วกด "สแกน" จ่ายได้ทันที:</span>
+                    </span>
+                    <span class="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                        ฟรีค่าธรรมเนียม 0%
+                    </span>
+                </div>
+                
+                <!-- 8 Real Bank & Wallet App Cards with Google Drive Logos & Fallbacks -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <!-- K PLUS -->
+                    <div class="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=11YTla6Dx8Bwh4iguJosSqkWpBlapwP8c&sz=w100" 
+                                 alt="K PLUS กสิกรไทย" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#00A950] flex items-center justify-center text-white">
+                                <svg class="w-4 h-4" viewBox="0 0 48 48" fill="none">
+                                    <path d="M14 11V37M14 24L26 11M16 22L27 37M31 24H39M35 20V28" stroke="white" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 truncate text-[11px]">K PLUS</div>
+                            <div class="text-[9px] text-slate-500 truncate">กสิกรไทย</div>
+                        </div>
+                    </div>
+
+                    <!-- SCB EASY -->
+                    <div class="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=11PC96rkQGmkmVuot2fJ6j9AMcAkYsDvh&sz=w100" 
+                                 alt="SCB EASY ไทยพาณิชย์" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#4E2A84] flex items-center justify-center text-white">
+                                <svg class="w-4 h-4" viewBox="0 0 48 48" fill="none">
+                                    <path d="M24 10C16 10 11 16 11 23C11 31 19 37 24 39C29 37 37 31 37 23C37 16 32 10 24 10Z" fill="#F8C300"/>
+                                    <circle cx="24" cy="24" r="3" fill="#F8C300"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 truncate text-[11px]">SCB EASY</div>
+                            <div class="text-[9px] text-slate-500 truncate">ไทยพาณิชย์</div>
+                        </div>
+                    </div>
+
+                    <!-- Krungthai NEXT -->
+                    <div class="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=11HAnBPyrNjiS9ufLMbytcqmi9aPpVYmk&sz=w100" 
+                                 alt="Krungthai NEXT กรุงไทย" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#00A3E0] flex items-center justify-center text-white">
+                                <svg class="w-4 h-4" viewBox="0 0 48 48" fill="none">
+                                    <path d="M24 11L13 22L17 26L24 19L31 26L35 22L24 11Z" fill="white"/>
+                                    <path d="M24 23L16 31L19 34L24 29L29 34L32 31L24 23Z" fill="white"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 truncate text-[11px]">Krungthai</div>
+                            <div class="text-[9px] text-slate-500 truncate">กรุงไทย</div>
+                        </div>
+                    </div>
+
+                    <!-- KMA Krungsri -->
+                    <div class="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=11GYq50TAuOiup-Kuv1BE8MvPWBgaPPWl&sz=w100" 
+                                 alt="KMA กรุงศรี" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#FECB00] flex items-center justify-center text-slate-900">
+                                <svg class="w-4 h-4" viewBox="0 0 48 48" fill="none">
+                                    <path d="M24 10L12 24H20V37H28V24H36L24 10Z" fill="#4A3C31"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 truncate text-[11px]">KMA</div>
+                            <div class="text-[9px] text-slate-500 truncate">กรุงศรีอยุธยา</div>
+                        </div>
+                    </div>
+
+                    <!-- Bangkok Bank (BBL) -->
+                    <div class="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=11ANn2uRq1tNSMym0q71QF2fcIQ4-uvVR&sz=w100" 
+                                 alt="กรุงเทพ BBL" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#1E3A8A] flex items-center justify-center text-white">
+                                <svg class="w-4 h-4" viewBox="0 0 48 48" fill="none">
+                                    <path d="M24 11C18 17 14 24 14 31C14 34 18 36 24 37C30 36 34 34 34 31C34 24 30 17 24 11Z" fill="#E11D48"/>
+                                    <circle cx="24" cy="24" r="3" fill="white"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 truncate text-[11px]">Bualuang</div>
+                            <div class="text-[9px] text-slate-500 truncate">กรุงเทพ (BBL)</div>
+                        </div>
+                    </div>
+
+                    <!-- ttb touch -->
+                    <div class="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=10WEtk5M-uQ2BUpjEYJFvsI8eIv5wb0To&sz=w100" 
+                                 alt="ttb touch ทีเอ็มบีธนชาต" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#002D62] flex items-center justify-center text-white">
+                                <span class="font-black text-white text-[10px] tracking-tighter">ttb</span>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 truncate text-[11px]">ttb touch</div>
+                            <div class="text-[9px] text-slate-500 truncate">ทีเอ็มบีธนชาต</div>
+                        </div>
+                    </div>
+
+                    <!-- MyMo GSB -->
+                    <div class="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=11XzV4TUZ9u957IHjgkdSGWwsCLHbYGoD&sz=w100" 
+                                 alt="MyMo ออมสิน" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#EB008B] flex items-center justify-center text-white">
+                                <svg class="w-4 h-4" viewBox="0 0 48 48" fill="none">
+                                    <path d="M24 12C17 12 13 17 13 22C13 27 18 31 24 35C30 31 35 27 35 22C35 17 31 12 24 12Z" fill="white"/>
+                                    <circle cx="24" cy="22" r="4" fill="#EB008B"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 truncate text-[11px]">MyMo</div>
+                            <div class="text-[9px] text-slate-500 truncate">ออมสิน (GSB)</div>
+                        </div>
+                    </div>
+
+                    <!-- TrueMoney Wallet -->
+                    <div class="bg-white p-2 rounded-xl border-2 border-orange-300 bg-orange-50/40 flex items-center gap-2 shadow-xs">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-orange-200 flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-xs">
+                            <img src="https://drive.google.com/thumbnail?id=11Gei_OO4Dihu6H6q1jjf6mBHOy78OhDH&sz=w100" 
+                                 alt="TrueMoney ทรูมันนี่" 
+                                 class="w-full h-full object-contain rounded-md"
+                                 loading="lazy"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                            <div class="hidden w-full h-full rounded-md bg-[#F37024] flex items-center justify-center text-white">
+                                <svg class="w-4 h-4" viewBox="0 0 48 48" fill="none">
+                                    <path d="M12 24L24 12L36 24L24 36L12 24Z" fill="white"/>
+                                    <circle cx="24" cy="24" r="2.5" fill="#F8C300"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-orange-950 truncate text-[11px]">TrueMoney</div>
+                            <div class="text-[9px] text-orange-700 truncate font-extrabold">ทรูมันนี่</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Banks Badge in Modal -->
+                <div class="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-white border border-slate-200 text-[10px] text-slate-600 font-bold">
+                    <span class="text-pink-600 flex items-center gap-1"><i class="fa-solid fa-check-double"></i> รองรับเพิ่มเติม:</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200">
+                        <img src="https://drive.google.com/thumbnail?id=10VeAHJTWkeEDH63YZca58PSuwNhHpUX8&sz=w60" class="w-3.5 h-3.5 object-contain rounded" alt="ธกส"> ธ.ก.ส.
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200">
+                        <img src="https://drive.google.com/thumbnail?id=10Sckxre9RzwVgMW4-sZUx0s8AxS4KPdP&sz=w60" class="w-3.5 h-3.5 object-contain rounded" alt="ธอส"> ธอส.
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200">
+                        <img src="https://drive.google.com/thumbnail?id=10QPnubfTMNWMdS6C64SjTaDHUofIBMEp&sz=w60" class="w-3.5 h-3.5 object-contain rounded" alt="เกียรตินาคิน"> KKP
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200">
+                        <img src="https://drive.google.com/thumbnail?id=10MBcLcEz2fljsorwyJO8L-lpuOkhtIER&sz=w60" class="w-3.5 h-3.5 object-contain rounded" alt="UOB"> UOB
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200">
+                        <img src="https://drive.google.com/thumbnail?id=10JtWq40_EhD_L276vbVB4PhdNlI9lilk&sz=w60" class="w-3.5 h-3.5 object-contain rounded" alt="CIMB"> CIMB
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200">
+                        <img src="https://drive.google.com/thumbnail?id=10Fy4bAbRDun-flOtirIahUcD7qfRvOrr&sz=w60" class="w-3.5 h-3.5 object-contain rounded" alt="LH Bank"> LH Bank
+                    </span>
+                </div>
+
+                <!-- Step-by-Step Payment Instructions -->
+                <div class="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 text-xs">
+                    <div class="font-black text-slate-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-list-check text-pink-600"></i>
+                        <span>3 ขั้นตอนการชำระเงินที่ง่ายที่สุด:</span>
+                    </div>
+                    <ol class="space-y-1 text-slate-600 pl-1 font-medium text-[11px] leading-relaxed">
+                        <li class="flex items-start gap-1.5">
+                            <b class="text-pink-600 shrink-0">1.</b>
+                            <span>เปิดแอปธนาคารที่คุณใช้ หรือแอป <b>TrueMoney</b></span>
+                        </li>
+                        <li class="flex items-start gap-1.5">
+                            <b class="text-pink-600 shrink-0">2.</b>
+                            <span>กดปุ่ม <b>"สแกน (Scan QR)"</b> แล้วส่องที่รูป QR ด้านบน ยอดเงินจะระบุอัตโนมัติ (ชื่อบัญชีผู้รับ: <b>สุพัฒน์ มีสมบัติ</b>)</span>
+                        </li>
+                        <li class="flex items-start gap-1.5">
+                            <b class="text-pink-600 shrink-0">3.</b>
+                            <span>กดยืนยันโอนเงิน แล้วนำรูปสลิปมา <b>แนบในกล่องด้านล่าง</b> เพื่อรับรหัสทันที!</span>
+                        </li>
+                    </ol>
+                </div>
+
+                <!-- TrueMoney Special Guide -->
+                <div class="text-[11px] text-amber-900 bg-amber-50 p-2.5 rounded-xl border border-amber-200 flex items-center gap-2 font-medium">
+                    <div class="w-5 h-5 rounded-md bg-[#F37024] flex items-center justify-center shrink-0 text-white text-[10px] font-bold">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <span><b>วิธีใช้ TrueMoney:</b> เปิดแอป &gt; กดเมนู <b>"สแกน"</b> ที่แถบด้านบน &gt; สแกนจ่าย QR Code นี้ได้ทันที ฟรีค่าธรรมเนียม 100%</span>
+                </div>
+            </div>
+
+            <!-- SLIP VERIFICATION DROPZONE -->
+            <div class="mt-4 p-4.5 rounded-2xl bg-pink-50/70 border-2 border-pink-200">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-receipt text-pink-600"></i>
+                        <span>แนบสลิปการโอนเงิน (ระบบตรวจสลิปอัตโนมัติ):</span>
+                    </label>
+                    <span class="text-xs text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">⚡ ปล่อยรหัสทันที</span>
+                </div>
+
+                <div id="slip-dropzone" onclick="document.getElementById('slip-file-input').click()" 
+                     class="border-2 border-dashed border-pink-300 hover:border-pink-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-white shadow-sm">
+                    
+                    <input type="file" id="slip-file-input" accept="image/jpeg,image/png,image/webp" class="hidden">
+                    
+                    <div id="slip-upload-placeholder" class="space-y-1.5">
+                        <div class="w-10 h-10 mx-auto rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800">คลิกเพื่อเลือกรูปสลิป หรือลากไฟล์มาวางที่นี่</div>
+                        <div class="text-xs text-slate-500">รองรับไฟล์ภาพ JPG, PNG จากแอปธนาคารทุกแห่ง</div>
+                    </div>
+
+                    <div id="slip-preview-container" class="hidden relative inline-block text-center">
+                        <img id="slip-preview-img" src="" alt="Slip Preview" class="max-h-44 rounded-xl border border-slate-300 mx-auto shadow-md">
+                        <button type="button" onclick="event.stopPropagation(); SlipVerifier.clearSlip();" 
+                                class="mt-2.5 px-3 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold transition-all">
+                            <i class="fa-solid fa-trash-can mr-1"></i> เปลี่ยนรูปสลิป
+                        </button>
+                    </div>
+                </div>
+
+                <button id="verify-slip-btn" onclick="submitSlipVerification()" 
+                        class="mt-3.5 w-full py-3.5 rounded-xl gradient-btn text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30">
+                    <i class="fa-solid fa-circle-check text-base"></i>
+                    <span>ตรวจสอบสลิปและรับรหัสทันที</span>
+                </button>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-200">
+                <span class="text-xs font-bold text-slate-600 block mb-1">รายการสินค้าในคำสั่งซื้อนี้:</span>
+                <div id="checkout-items-summary" class="max-h-24 overflow-y-auto space-y-1"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==========================================
+         INSTANT DELIVERY VAULT MODAL (Bright & Clear)
+         ========================================== -->
+    <div id="vault-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-xl w-full rounded-3xl p-6 sm:p-7 border-2 border-pink-400 relative max-h-[92vh] overflow-y-auto shadow-2xl">
+            
+            <div class="text-center pb-4 border-b border-slate-200">
+                <div id="vault-status-icon" class="w-14 h-14 mx-auto mb-2.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl border border-emerald-300 shadow-sm">
+                    <i class="fa-solid fa-shield-cat"></i>
+                </div>
+                <h2 id="vault-status-title" class="text-xl font-black text-slate-900">ตรวจสอบสลิปผ่าน & ส่งมอบรหัสเข้าคลังเรียบร้อย!</h2>
+                <p id="vault-status-desc" class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+                    คำสั่งซื้อ: <span id="vault-order-id" class="font-mono text-pink-600 font-bold"></span> | 
+                    วันที่: <span id="vault-order-date" class="font-bold text-slate-700"></span> |
+                    ยอดชำระ: <span id="vault-order-total" class="font-extrabold text-pink-600"></span>
+                </p>
+                <div class="text-xs font-bold text-cyan-700 mt-1">
+                    สำรองข้อมูลจัดส่งไปที่: <span id="vault-order-email" class="underline"></span>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 id="vault-items-section-title" class="text-sm font-extrabold text-slate-900 mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-key text-pink-500"></i>
+                    <span>ข้อมูลบัญชี / คีย์ของคุณ (กดคัดลอกเพื่อใช้งาน):</span>
+                </h3>
+                <div id="vault-items-list"></div>
+            </div>
+
+            <div class="mt-6 flex flex-col sm:flex-row items-center gap-3">
+                <button onclick="closeVaultModal()" class="w-full sm:flex-1 py-3 rounded-2xl gradient-btn text-white text-sm font-extrabold flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-check"></i>
+                    <span>รับทราบและปิดหน้านี้</span>
+                </button>
+                <button onclick="closeVaultModal(); openOrdersModal();" class="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-100 border border-slate-300 text-slate-700 hover:text-slate-900 text-sm font-bold flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>ดูประวัติคำสั่งซื้อทั้งหมด</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==========================================
+         ORDERS HISTORY & MY KEYS MODAL ("คีย์ของฉัน")
+         ========================================== -->
+    <div id="orders-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white max-w-2xl w-full rounded-3xl p-5 sm:p-6 border border-slate-200 relative max-h-[92vh] flex flex-col shadow-2xl">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-slate-200 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-pink-500 to-purple-600 text-white flex items-center justify-center text-xl shadow-md shadow-pink-500/20 shrink-0">
+                        <i class="fa-solid fa-key"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base sm:text-lg font-black text-slate-900">คีย์และบัญชีของฉัน</h3>
+                            <span id="customer-keys-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-100 text-pink-700">0 รายการ</span>
+                        </div>
+                        <p class="text-xs text-slate-500 font-medium">คลังรหัสและบัญชีที่คุณซื้อไว้ ดูและคัดลอกรหัสเข้าใช้งานได้ทันที</p>
+                    </div>
+                </div>
+                <button onclick="closeOrdersModal()" class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-base transition-colors shrink-0" title="ปิดหน้าต่าง">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Guarantee & Support Reassurance Banner -->
+            <div class="mt-3 p-3 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-blue-50 border border-pink-200 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
+                <div class="flex items-center gap-2 text-slate-700 font-bold">
+                    <span class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </span>
+                    <span>รับประกันสินค้า 30 วัน เคลมง่าย บริการ 24 ชม.</span>
+                </div>
+                <a href="https://www.facebook.com/profile.php?id=61594837747580" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-blue-200 text-[#1877F2] font-bold hover:bg-blue-50 transition-colors shadow-xs">
+                    <i class="fa-brands fa-facebook"></i>
+                    <span>ติดต่อขอความช่วยเหลือ</span>
+                </a>
+            </div>
+
+            <!-- Search Bar & Filter Chips -->
+            <div class="mt-3 space-y-2 shrink-0">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="customer-keys-search" oninput="handleCustomerKeysSearch(this.value)"
+                           placeholder="🔍 ค้นหาชื่อสินค้า, อีเมล, เลขที่คำสั่งซื้อ (เช่น CapCut, Windows, ORD-)..."
+                           class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-pink-500 outline-none transition-all font-medium">
+                    <button id="customer-keys-clear-search" onclick="clearCustomerKeysSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                    <button onclick="setCustomerKeysFilter('all')" id="ck-filter-all" class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-pink-500 text-white shadow-xs">
+                        ทั้งหมด (<span id="ck-cnt-all">0</span>)
+                    </button>
+                    <button onclick="setCustomerKeysFilter('delivered')" id="ck-filter-delivered" class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
+                        🟢 พร้อมใช้งาน (<span id="ck-cnt-delivered">0</span>)
+                    </button>
+                    <button onclick="setCustomerKeysFilter('pending')" id="ck-filter-pending" class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
+                        🟡 รอจัดเตรียม (<span id="ck-cnt-pending">0</span>)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Orders / Keys List -->
+            <div id="orders-history-list" class="mt-3 space-y-3 overflow-y-auto flex-1 pr-1"></div>
+
+        </div>
+    </div>
+
+    <!-- ==========================================
+         ADMIN PIN AUTHENTICATION MODAL (SECURITY GATE)
+         ========================================== -->
+    <div id="admin-pin-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-sm w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl text-center">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h3 class="text-base font-black text-slate-900 mb-1">ยืนยันสิทธิ์ผู้ดูแลระบบ (Admin)</h3>
+            <p class="text-xs text-slate-500 mb-4 font-medium">กรุณากรอกรหัส PIN เพื่อเข้าจัดการสต็อกและการตั้งค่าร้านค้า</p>
+
+            <form onsubmit="handleAdminPinSubmit(event)" class="space-y-3">
+                <div>
+                    <input type="password" id="admin-pin-input" maxlength="8" placeholder="กรอกรหัส PIN ผู้ดูแลร้าน" required autofocus
+                           class="w-full text-center tracking-widest text-xl font-mono px-3 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-pink-600 font-bold focus:border-pink-500 outline-none">
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="submit" id="admin-pin-submit-btn" class="flex-1 py-2.5 rounded-xl gradient-btn text-white text-sm font-bold">
+                        เข้าสู่ระบบ
+                    </button>
+                    <button type="button" onclick="closeAdminPinModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-600 text-sm font-medium">
+                        ยกเลิก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SECURED ADMIN MODAL (Clean Bright Layout)
+         ========================================== -->
+    <div id="admin-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-3xl w-full rounded-3xl p-6 sm:p-7 border border-slate-200 relative max-h-[92vh] overflow-y-auto shadow-2xl">
+            
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-gears"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">ระบบจัดการหลังบ้าน & คลังสต็อก (Admin)</h3>
+                        <p class="text-xs text-emerald-700 font-bold flex items-center gap-1">
+                            <i class="fa-solid fa-lock"></i> สิทธิ์ผู้ดูแลระบบได้รับการยืนยันแล้ว
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="handleAdminLogout()" class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <span>ออกจากระบบ</span>
+                    </button>
+                    <button onclick="closeAdminModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Dashboard KPI Stat Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5 pb-3 border-b border-slate-100">
+                <div class="p-3 rounded-2xl bg-pink-50/60 border border-pink-200 flex flex-col justify-between shadow-2xs">
+                    <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                        <i class="fa-solid fa-coins text-pink-500"></i> ยอดขายสะสม
+                    </span>
+                    <span id="admin-stat-sales" class="text-base sm:text-lg font-black text-pink-600 mt-1">฿0.00</span>
+                </div>
+                <div class="p-3 rounded-2xl bg-amber-50/70 border border-amber-300 flex flex-col justify-between shadow-2xs">
+                    <span class="text-[11px] font-bold text-amber-800 flex items-center gap-1">
+                        <i class="fa-solid fa-hourglass-half text-amber-600"></i> รอส่งมอบรหัส
+                    </span>
+                    <span id="admin-stat-pending" class="text-base sm:text-lg font-black text-amber-900 mt-1">0 ออเดอร์</span>
+                </div>
+                <div class="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex flex-col justify-between shadow-2xs">
+                    <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check text-emerald-600"></i> จัดส่งสำเร็จแล้ว
+                    </span>
+                    <span id="admin-stat-delivered" class="text-base sm:text-lg font-black text-emerald-700 mt-1">0 รายการ</span>
+                </div>
+                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between shadow-2xs">
+                    <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                        <i class="fa-solid fa-receipt text-cyan-600"></i> ออเดอร์ทั้งหมด
+                    </span>
+                    <span id="admin-stat-total-orders" class="text-base sm:text-lg font-black text-slate-900 mt-1">0 รายการ</span>
+                </div>
+            </div>
+
+            <!-- Admin Navigation Tabs -->
+            <div class="flex items-center gap-2 border-b border-slate-200 py-3 overflow-x-auto">
+                <button id="admin-tab-btn-orders" onclick="switchAdminTab('orders')" 
+                        class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white flex items-center gap-2 shadow-sm transition-all shrink-0">
+                    <i class="fa-solid fa-box-open"></i>
+                    <span>📦 จัดการออเดอร์ (Fulfill)</span>
+                    <span id="admin-pending-badge" class="px-2 py-0.5 rounded-full bg-white text-pink-600 text-xs font-black">0</span>
+                </button>
+                <button id="admin-tab-btn-stock" onclick="switchAdminTab('stock')" 
+                        class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    <span>🏷️ สต็อก & กำไรราคา</span>
+                </button>
+                <button id="admin-tab-btn-settings" onclick="switchAdminTab('settings')" 
+                        class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>⚙️ ตั้งค่าระบบ</span>
+                </button>
+            </div>
+
+            <!-- TAB 1: ORDERS & ON-DEMAND FULFILLMENT -->
+            <div id="admin-tab-orders" class="mt-4 space-y-3.5">
+                <!-- Model 1 Guide Pill -->
+                <div class="p-3.5 rounded-2xl bg-gradient-to-r from-pink-50 to-amber-50 border border-pink-200 text-xs text-slate-700 space-y-1">
+                    <div class="font-extrabold text-slate-900 flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-black">1</span>
+                        <span>คู่มือจัดส่งตามออเดอร์ (Zero-Stock On-Demand):</span>
+                    </div>
+                    <p class="text-[11px] text-slate-600 leading-relaxed font-medium">
+                        ลูกค้าจ่ายเงินเรียบร้อยแล้ว &gt; แอดมินกด <b>"🛒 ไปซื้อใน G2G"</b> &gt; นำ Email:Password หรือ Key มากด <b>"🔑 ส่งมอบรหัส"</b> ลูกค้าจะได้รับรหัสทันทีแบบ Real-time
+                    </p>
+                </div>
+
+                <!-- Orders Filter & Search Toolbar -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="admin-order-search" oninput="handleAdminOrderSearch(this.value)" 
+                               placeholder="ค้นหาเลขออเดอร์ (SPK-...), อีเมลลูกค้า, หรือชื่อสินค้า..." 
+                               class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
+                        <button id="admin-order-clear-search" onclick="clearAdminOrderSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <div class="flex items-center gap-1 text-xs font-bold">
+                            <button onclick="filterAdminOrders('all')" id="admin-order-filter-all" class="px-3 py-2 rounded-xl bg-pink-100 text-pink-700 font-bold transition-all">ทั้งหมด</button>
+                            <button onclick="filterAdminOrders('pending')" id="admin-order-filter-pending" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all">🟡 รอจัดส่ง</button>
+                            <button onclick="filterAdminOrders('delivered')" id="admin-order-filter-delivered" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all">🟢 จัดส่งสำเร็จ</button>
+                        </div>
+                        <button onclick="exportOrdersToCSV()" title="ส่งออกรายงานคำสั่งซื้อเป็นไฟล์ CSV" 
+                                class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs">
+                            <i class="fa-solid fa-file-csv text-emerald-600 text-sm"></i>
+                            <span class="hidden sm:inline">ส่งออก CSV</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
+                    <span id="admin-orders-count-label"></span>
+                    <button onclick="renderAdminOrdersList()" class="hover:text-pink-600 flex items-center gap-1">
+                        <i class="fa-solid fa-rotate text-[10px]"></i> รีเฟรชรายการ
+                    </button>
+                </div>
+
+                <!-- Orders List Container -->
+                <div id="admin-orders-list" class="space-y-3 max-h-[58vh] overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- TAB 2: STOCK & PRICING -->
+            <div id="admin-tab-stock" class="hidden mt-4 space-y-3.5">
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="admin-stock-search" oninput="handleAdminStockSearch(this.value)" 
+                               placeholder="ค้นหาชื่อสินค้าในระบบ..." 
+                               class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
+                    </div>
+                    <div class="flex items-center gap-1 overflow-x-auto py-1">
+                        <button onclick="filterAdminStockBrand('all')" id="admin-stock-chip-all" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0">ทั้งหมด</button>
+                        <button onclick="filterAdminStockBrand('CapCut')" id="admin-stock-chip-CapCut" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">CapCut</button>
+                        <button onclick="filterAdminStockBrand('Google AI')" id="admin-stock-chip-Google-AI" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Google AI</button>
+                        <button onclick="filterAdminStockBrand('Google')" id="admin-stock-chip-Google" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Google Drive</button>
+                        <button onclick="filterAdminStockBrand('Grok')" id="admin-stock-chip-Grok" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Grok</button>
+                        <button onclick="filterAdminStockBrand('Claude')" id="admin-stock-chip-Claude" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Claude</button>
+                        <button onclick="filterAdminStockBrand('Adobe')" id="admin-stock-chip-Adobe" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Adobe</button>
+                        <button onclick="filterAdminStockBrand('Microsoft')" id="admin-stock-chip-Microsoft" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Microsoft</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600">
+                            <tr>
+                                <th class="py-3 px-3.5">รายการสินค้า</th>
+                                <th class="py-3 px-3.5 text-center">ต้นทุนตลาด G2G</th>
+                                <th class="py-3 px-3.5 text-center">ราคาขายหน้าร้าน</th>
+                                <th class="py-3 px-3.5 text-center">กำไรโดยประมาณ</th>
+                                <th class="py-3 px-3.5 text-center">คงเหลือ (คลัง / ตลาด)</th>
+                                <th class="py-3 px-3.5 text-right">การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-stock-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 3: SETTINGS FORM -->
+            <div id="admin-tab-settings" class="hidden mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <h4 class="text-xs sm:text-sm font-bold text-pink-600 flex items-center gap-1.5">
+                    <i class="fa-solid fa-sliders"></i> ตั้งค่าบัญชีและระบบความปลอดภัย
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-700 block mb-1">ชื่อบัญชีรับเงิน:</label>
+                        <input type="text" id="admin-account-name" value="สุพัฒน์ มีสมบัติ" placeholder="ชื่อ-นามสกุล เจ้าของบัญชี" 
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 outline-none focus:border-pink-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-700 block mb-1">เบอร์พร้อมเพย์รับเงิน (ซ่อน):</label>
+                        <input type="password" id="admin-promptpay-input" placeholder="กรอกเบอร์พร้อมเพย์รับเงิน"
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 font-mono outline-none focus:border-pink-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK Branch ID:</label>
+                        <input type="text" id="admin-slipok-branch" value="77491" placeholder="เช่น 77491" 
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:border-pink-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK API Key:</label>
+                        <input type="text" id="admin-slipok-key" value="SLIPOK2Q3HR6B" placeholder="ใส่ API Key" 
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:border-pink-500">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="text-xs font-bold text-slate-700 block mb-1">เปลี่ยนรหัส PIN แอดมิน:</label>
+                        <input type="password" id="admin-new-pin" placeholder="PIN ใหม่ 4-8 หลัก (เว้นว่างไว้หากไม่ต้องการเปลี่ยน)" 
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:border-pink-500">
+                    </div>
+                </div>
+                <div class="flex items-center justify-between pt-1">
+                    <button onclick="saveAdminSettings()" class="px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm">
+                        บันทึกการตั้งค่า
+                    </button>
+                    <span class="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check"></i> พร้อมใช้งาน SlipOK Real-time API
+                    </span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==========================================
+         ADMIN FULFILL ORDER MODAL (ON-DEMAND DISPATCH)
+         ========================================== -->
+    <div id="admin-fulfill-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-lg w-full rounded-3xl p-6 border-2 border-pink-400 relative shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">ส่งมอบรหัส / บัญชีให้ลูกค้า</h3>
+                        <p class="text-xs text-slate-500 font-medium">นำข้อมูลบัญชีจริงที่ซื้อจาก G2G มาส่งมอบตรงนี้</p>
+                    </div>
+                </div>
+                <button onclick="closeFulfillModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <input type="hidden" id="fulfill-order-id">
+            <input type="hidden" id="fulfill-item-index">
+
+            <!-- Order Summary Pill -->
+            <div class="p-3.5 rounded-2xl bg-pink-50/60 border border-pink-200 mb-4 text-xs space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-slate-500 font-bold">เลขออเดอร์:</span>
+                    <span id="fulfill-order-id-label" class="font-mono font-bold text-pink-600"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-slate-500 font-bold">ลูกค้า / อีเมล:</span>
+                    <span id="fulfill-customer-email-label" class="font-bold text-slate-800"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-slate-500 font-bold">สินค้าที่สั่ง:</span>
+                    <span id="fulfill-product-title-label" class="font-bold text-slate-900"></span>
+                </div>
+                <div class="pt-1 flex items-center justify-end">
+                    <button type="button" id="fulfill-g2g-btn" class="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1">
+                        <i class="fa-solid fa-cart-shopping"></i> เปิดดูสินค้าใน G2G
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fulfill Form -->
+            <form onsubmit="handleFulfillSubmit(event)" class="space-y-3.5">
+                <!-- Mode Quick Selection -->
+                <div class="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+                    <button type="button" onclick="setFulfillType('account')" id="fulfill-type-account" class="flex-1 py-1.5 rounded-lg bg-white text-pink-600 shadow-2xs transition-all flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-user-lock"></i> บัญชี (Email:Pass)
+                    </button>
+                    <button type="button" onclick="setFulfillType('key')" id="fulfill-type-key" class="flex-1 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-key"></i> License Key
+                    </button>
+                    <button type="button" onclick="setFulfillType('link')" id="fulfill-type-link" class="flex-1 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-link"></i> ลิงก์ Invite
+                    </button>
+                </div>
+
+                <!-- Quick Paste Box (e.g. email:pass) -->
+                <div>
+                    <label class="text-xs font-bold text-slate-700 block mb-1 flex items-center justify-between">
+                        <span>⚡ วางข้อมูลด่วน (Email:Password หรือคีย์):</span>
+                        <span class="text-[10px] text-pink-600 font-bold">แยกช่องให้อัตโนมัติ</span>
+                    </label>
+                    <input type="text" id="fulfill-quick-paste" oninput="handleFulfillQuickPaste(this.value)" placeholder="เช่น capcut_user@gmail.com:pass1234 หรือคีย์" 
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono font-bold text-slate-900 outline-none focus:border-pink-500">
+                </div>
+
+                <div id="fulfill-fields-account" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="text-xs font-bold text-slate-700 block mb-1">อีเมลบัญชี (Email):</label>
+                        <input type="text" id="fulfill-email" placeholder="example@gmail.com"
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 outline-none focus:border-pink-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-700 block mb-1">รหัสผ่าน (Password):</label>
+                        <input type="text" id="fulfill-password" placeholder="รหัสผ่าน"
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 outline-none focus:border-pink-500">
+                    </div>
+                </div>
+
+                <div id="fulfill-fields-key" class="hidden">
+                    <label class="text-xs font-bold text-slate-700 block mb-1">รหัสคีย์ / ลิงก์เปิดสิทธิ์ (License Key / Link):</label>
+                    <input type="text" id="fulfill-key" placeholder="กรอกรหัส License Key หรือ ลิงก์ Invite"
+                           class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 outline-none focus:border-pink-500">
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-slate-700">คำแนะนำการใช้งานให้ลูกค้า:</label>
+                        <div class="flex items-center gap-1">
+                            <button type="button" onclick="autoFillDefaultInstruction('standard')" class="text-[10px] text-pink-600 hover:text-pink-700 font-bold bg-pink-50 px-2 py-0.5 rounded-md border border-pink-200">
+                                + มาตรฐาน 30 วัน
+                            </button>
+                            <button type="button" onclick="autoFillDefaultInstruction('invite')" class="text-[10px] text-cyan-700 hover:text-cyan-800 font-bold bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-200">
+                                + ลิงก์ครอบครัว
+                            </button>
+                        </div>
+                    </div>
+                    <textarea id="fulfill-instructions" rows="2" placeholder="เช่น เข้าสู่ระบบผ่าน capcut.com หรือแอปพลิเคชัน CapCut ได้ทันที รับประกัน 30 วัน"
+                              class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 outline-none focus:border-pink-500"></textarea>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2">
+                    <button type="submit" class="flex-1 py-3 rounded-2xl gradient-btn text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/20">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>ยืนยันและส่งมอบให้ลูกค้าทันที</span>
+                    </button>
+                    <button type="button" onclick="closeFulfillModal()" class="px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold">
+                        ยกเลิก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         EDIT PRICE MODAL
+         ========================================== -->
+    <div id="edit-price-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-3xl p-6 border-2 border-amber-300 relative shadow-2xl">
+            <h3 class="text-base font-extrabold text-slate-900 mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-tag text-amber-500"></i>
+                <span>แก้ไขราคาขายสินค้า</span>
+            </h3>
+            <p id="edit-price-product-title" class="text-xs font-bold text-pink-600 mb-3"></p>
+            <input type="hidden" id="edit-price-product-id">
+
+            <!-- Live Profit & Cost Preview -->
+            <div class="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 mb-4 text-xs space-y-1.5">
+                <div class="flex items-center justify-between text-slate-600">
+                    <span class="font-medium">ต้นทุนตลาด G2G โดยประมาณ:</span>
+                    <span id="edit-price-cost-preview" class="font-bold text-slate-900">฿0.00</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-600">
+                    <span class="font-medium">กำไรสุทธิโดยประมาณ:</span>
+                    <span id="edit-price-margin-preview" class="font-black text-emerald-600">฿0.00 (+0%)</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-500 text-[11px] pt-1 border-t border-amber-200/60">
+                    <span>สถานะราคานี้:</span>
+                    <span id="edit-price-status-badge" class="font-bold text-pink-600"></span>
+                </div>
+            </div>
+
+            <!-- Reset to Auto-Sync Button -->
+            <button type="button" id="edit-price-reset-btn" onclick="handleResetToAutoPrice()" 
+                    class="w-full mb-3.5 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs">
+                <i class="fa-solid fa-arrows-rotate text-pink-600"></i>
+                <span>คืนค่าราคาตลาด Auto-Sync อัจฉริยะ (ยกเลิกราคาตั้งเอง)</span>
+            </button>
+
+            <div class="space-y-3 mb-5">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">
+                        ราคาขายจริง (฿) <span class="text-pink-600">*ลูกค้าชำระราคานี้</span>
+                    </label>
+                    <input type="number" id="edit-price-sale" oninput="updateEditPricePreview()" step="0.01" min="0" 
+                           class="w-full p-3 rounded-xl bg-slate-50 border-2 border-slate-200 text-base font-black text-pink-600 outline-none focus:border-pink-500 focus:bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">
+                        ราคาปกติก่อนลด (฿) <span class="text-slate-400">*ขีดฆ่าแสดงส่วนลด</span>
+                    </label>
+                    <input type="number" id="edit-price-original" step="0.01" min="0" 
+                           class="w-full p-3 rounded-xl bg-slate-50 border-2 border-slate-200 text-sm font-bold text-slate-500 outline-none focus:border-pink-500 focus:bg-white">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button onclick="handleSaveEditedPrice()" class="flex-1 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-md">
+                    <i class="fa-solid fa-check mr-1"></i> บันทึกราคาใหม่
+                </button>
+                <button onclick="closeEditPriceModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-xs font-medium">
+                    ยกเลิก
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         ADD STOCK MODAL
+         ========================================== -->
+    <div id="add-stock-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl">
+            <h3 class="text-base font-extrabold text-slate-900 mb-1">เติมสต็อกสินค้า</h3>
+            <p id="add-stock-product-title" class="text-xs font-bold text-pink-600 mb-3"></p>
+            <input type="hidden" id="add-stock-product-id">
+
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                กรอกข้อมูลบัญชี / คีย์ (1 บรรทัด = 1 ชิ้น):
+            </label>
+            <textarea id="add-stock-textarea" rows="6" placeholder="ตัวอย่างสำหรับบัญชี:
+user1@gmail.com:Password123
+user2@gmail.com:Password456
+
+หรือตัวอย่างสำหรับ License Key:
+W11PR-XXXX-XXXX-XXXX" 
+                      class="w-full p-3 rounded-xl bg-slate-50 border-2 border-slate-200 text-xs font-bold text-slate-900 font-mono outline-none focus:border-pink-500 focus:bg-white"></textarea>
+
+            <div class="mt-4 flex items-center gap-2">
+                <button onclick="handleSaveAddedStock()" class="flex-1 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold">
+                    ยืนยันเพิ่มสต็อก
+                </button>
+                <button onclick="closeAddStockModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-600 text-xs font-medium">
+                    ยกเลิก
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PRODUCT DETAILS MODAL (Bright & Readable)
+         ========================================== -->
+    <div id="product-detail-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-lg w-full rounded-3xl p-6 sm:p-7 border border-slate-200 relative max-h-[90vh] overflow-y-auto shadow-2xl">
+            
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
+                <div class="flex items-center gap-2">
+                    <span id="modal-product-brand" class="px-3 py-1 rounded-full text-xs font-bold bg-pink-100 text-pink-700 border border-pink-300"></span>
+                    <span id="modal-product-type" class="text-xs font-bold text-slate-600"></span>
+                </div>
+                <button onclick="closeProductDetailModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="mt-4 space-y-4">
+                <h2 id="modal-product-title" class="text-lg font-black text-slate-900 leading-snug"></h2>
+                
+                <p id="modal-product-desc" class="text-xs sm:text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200 font-medium"></p>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                        <span class="text-slate-500 block text-[11px] font-medium">ระยะเวลารับประกัน:</span>
+                        <span id="modal-product-warranty" class="font-extrabold text-cyan-700 text-sm"></span>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                        <span class="text-slate-500 block text-[11px] font-medium">การจัดส่ง:</span>
+                        <span class="font-extrabold text-amber-700 text-sm">⚡ ทันทีผ่าน AI Vault</span>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                        <span class="text-slate-500 block text-[11px] font-medium">สินค้าคงเหลือ:</span>
+                        <span id="modal-product-stock" class="font-extrabold text-emerald-700 text-sm"></span>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                        <span class="text-slate-500 block text-[11px] font-medium">ยอดจำหน่ายแล้ว:</span>
+                        <span id="modal-product-sold" class="font-extrabold text-slate-800 text-sm"></span>
+                    </div>
+                </div>
+
+                <!-- Mini Payment Method Reassurance with Bank Logos -->
+                <div class="p-3 rounded-2xl bg-pink-50/70 border border-pink-200 space-y-2 text-xs">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-qrcode text-pink-600"></i> สแกนจ่ายได้ทุกแอปธนาคาร & TrueMoney
+                        </span>
+                        <span class="text-emerald-700 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-[10px]">
+                            ฟรีค่าธรรมเนียม 0%
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                        <img src="https://drive.google.com/thumbnail?id=11YTla6Dx8Bwh4iguJosSqkWpBlapwP8c&sz=w60" title="K PLUS กสิกรไทย" alt="KBANK" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <img src="https://drive.google.com/thumbnail?id=11PC96rkQGmkmVuot2fJ6j9AMcAkYsDvh&sz=w60" title="SCB EASY ไทยพาณิชย์" alt="SCB" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <img src="https://drive.google.com/thumbnail?id=11HAnBPyrNjiS9ufLMbytcqmi9aPpVYmk&sz=w60" title="Krungthai NEXT กรุงไทย" alt="KTB" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <img src="https://drive.google.com/thumbnail?id=11GYq50TAuOiup-Kuv1BE8MvPWBgaPPWl&sz=w60" title="KMA กรุงศรี" alt="BAY" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <img src="https://drive.google.com/thumbnail?id=11ANn2uRq1tNSMym0q71QF2fcIQ4-uvVR&sz=w60" title="โมบายแบงก์กิ้ง กรุงเทพ" alt="BBL" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <img src="https://drive.google.com/thumbnail?id=10WEtk5M-uQ2BUpjEYJFvsI8eIv5wb0To&sz=w60" title="ttb touch ทีเอ็มบีธนชาต" alt="TTB" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <img src="https://drive.google.com/thumbnail?id=11XzV4TUZ9u957IHjgkdSGWwsCLHbYGoD&sz=w60" title="MyMo ออมสิน" alt="GSB" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <img src="https://drive.google.com/thumbnail?id=11Gei_OO4Dihu6H6q1jjf6mBHOy78OhDH&sz=w60" title="ทรูมันนี่วอลเล็ท" alt="TrueMoney" class="w-5 h-5 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs shrink-0">
+                        <span class="text-[10px] text-slate-500 font-bold ml-1 shrink-0">+ รองรับทุกธนาคาร</span>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-4">
+                    <div>
+                        <span id="modal-product-original-price" class="text-xs text-slate-400 line-through block font-medium"></span>
+                        <span id="modal-product-price" class="text-3xl font-black text-pink-600"></span>
+                    </div>
+                    <button id="modal-add-cart-btn" class="flex-1 py-3.5 rounded-2xl gradient-btn text-white text-sm font-extrabold flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-cart-plus"></i>
+                        <span>ใส่ตะกร้าสินค้า</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ==========================================
+         ADMIN LIVE CHAT PANEL (injected by app.js via Admin Panel)
+         ========================================== -->
+    <div id="admin-chat-panel" class="hidden fixed inset-0 z-[200] flex">
+        <!-- Overlay -->
+        <div onclick="closeAdminChatPanel()" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+
+        <!-- Panel -->
+        <div class="relative ml-auto w-full max-w-2xl h-full bg-white flex flex-col shadow-2xl">
+            <!-- Header -->
+            <div class="gradient-btn px-5 py-4 flex items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white text-lg">
+                        <i class="fa-solid fa-comments"></i>
+                    </div>
+                    <div>
+                        <div class="text-white font-extrabold text-base">Live Chat — แผงแอดมิน</div>
+                        <div class="text-white/70 text-xs font-medium" id="admin-chat-status">กำลังเชื่อมต่อ...</div>
+                    </div>
+                </div>
+                <button onclick="closeAdminChatPanel()" class="text-white/80 hover:text-white text-2xl p-1 transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-1 min-h-0">
+                <!-- Room List -->
+                <div class="w-48 shrink-0 border-r border-slate-200 flex flex-col bg-slate-50">
+                    <div class="px-3 py-2.5 text-xs font-black text-slate-700 border-b border-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-users text-pink-500"></i> ลูกค้า
+                        <span id="admin-room-count" class="ml-auto px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-700 font-black text-[10px]">0</span>
+                    </div>
+                    <div id="admin-room-list" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+                        <div class="px-3 py-3 text-[11px] text-slate-400 text-center font-medium">ยังไม่มีลูกค้าเชื่อมต่อ</div>
+                    </div>
+                </div>
+
+                <!-- Chat Area -->
+                <div class="flex-1 flex flex-col min-h-0">
+                    <!-- Selected room header -->
+                    <div id="admin-active-room-header" class="px-4 py-2.5 border-b border-slate-200 flex items-center gap-2 bg-white shrink-0">
+                        <div class="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <span id="admin-active-room-name" class="text-sm font-bold text-slate-800">เลือกลูกค้าจากรายการ</span>
+                        <span id="admin-active-online-dot" class="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse hidden"></span>
+                    </div>
+
+                    <!-- Messages -->
+                    <div id="admin-messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/60">
+                        <div class="text-center">
+                            <span class="inline-block px-3 py-1.5 rounded-full bg-slate-100 text-slate-400 text-xs font-medium">เลือกลูกค้าเพื่อดูแชท</span>
+                        </div>
+                    </div>
+
+                    <!-- Typing indicator -->
+                    <div id="admin-typing-indicator" class="hidden px-4 py-1.5 text-[11px] text-slate-400 font-medium italic bg-white border-t border-slate-100">
+                        ลูกค้ากำลังพิมพ์...
+                    </div>
+
+                    <!-- Input -->
+                    <div id="admin-input-area" class="px-3 py-3 bg-white border-t border-slate-200 flex items-end gap-2 shrink-0">
+                        <textarea id="admin-msg-input"
+                            placeholder="พิมพ์ข้อความตอบกลับ... (Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่)"
+                            rows="1"
+                            class="flex-1 px-3 py-2.5 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none resize-none transition-colors leading-snug"
+                            style="max-height: 100px;"></textarea>
+                        <button id="admin-send-btn"
+                            class="w-11 h-11 rounded-2xl gradient-btn text-white flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Scripts -->
+    <script src="js/data.js"></script>
+    <script src="js/promptpay.js"></script>
+    <script src="js/g2g-sync.js"></script>
+    <script src="js/app.js"></script>
+    <!-- Live Chat Widget (Customer) — only loads when server is available -->
+    <script src="js/chat-widget.js"></script>
+</body>
+</html>
