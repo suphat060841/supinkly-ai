@@ -282,12 +282,10 @@ function initHeader() {
     if (!userContainer) return;
 
     userContainer.innerHTML = `
-        <div class="flex items-center gap-2 sm:gap-3">
-            <button onclick="openOrdersModal()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 transition-all shadow-sm">
-                <i class="fa-solid fa-box-open text-pink-500"></i>
-                <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
-            </button>
-        </div>
+        <button onclick="openOrdersModal()" class="h-11 px-3.5 sm:px-4 rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-2 shrink-0">
+            <i class="fa-solid fa-box-open text-base text-pink-500"></i>
+            <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
+        </button>
     `;
 }
 

@@ -81,19 +81,18 @@
                 </div>
             </div>
 
-            <!-- Actions: Cart & User Account & Protected Admin -->
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 sm:gap-3">
                 <!-- Cart Button -->
-                <button onclick="openCartDrawer()" class="relative p-2.5 sm:px-4 sm:py-2.5 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center gap-2">
-                    <i class="fa-solid fa-cart-shopping text-lg text-pink-500"></i>
-                    <span class="text-sm font-bold text-slate-800 hidden sm:inline">ตะกร้า</span>
+                <button onclick="openCartDrawer()" class="relative h-11 px-3.5 sm:px-4 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center justify-center gap-2 shrink-0">
+                    <i class="fa-solid fa-cart-shopping text-base text-pink-500"></i>
+                    <span class="text-xs sm:text-sm font-bold text-slate-800 hidden sm:inline">ตะกร้า</span>
                     <span id="cart-count-badge" class="hidden absolute -top-1.5 -right-1.5 sm:static sm:w-auto sm:h-auto px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-xs flex items-center justify-center shadow-md">
                         0
                     </span>
                 </button>
 
                 <!-- User & Protected Admin Section -->
-                <div id="user-header-section">
+                <div id="user-header-section" class="flex items-center">
                     <!-- Populated by JavaScript -->
                 </div>
             </div>
