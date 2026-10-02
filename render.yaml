@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: supinkly-ai
+    runtime: node
+    region: singapore
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: ADMIN_PIN
+        value: "8899"

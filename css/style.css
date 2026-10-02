@@ -1,0 +1,173 @@
+/* ==========================================================
+   Supinkly.AI - Bright, Vibrant & High-Contrast Pastel Theme
+   Colors inspired by Mascot: Bright Pink, Vivid Purple, Electric Cyan, Pure White
+   ========================================================== */
+
+:root {
+    --bg-main: #F8FAFC;
+    --bg-surface: #FFFFFF;
+    --primary-pink: #FF2E7E;
+    --primary-purple: #8B5CF6;
+    --primary-cyan: #06B6D4;
+    --accent-yellow: #F59E0B;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #64748B;
+    --border-light: #E2E8F0;
+    --border-pink: #FECDD3;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Prompt', 'Outfit', sans-serif;
+    overflow-x: hidden;
+    background-image: 
+        radial-gradient(circle at 5% 15%, rgba(255, 46, 126, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 95% 25%, rgba(139, 92, 246, 0.09) 0%, transparent 45%),
+        radial-gradient(circle at 50% 65%, rgba(6, 182, 212, 0.07) 0%, transparent 50%),
+        radial-gradient(circle at 15% 85%, rgba(245, 158, 11, 0.06) 0%, transparent 35%);
+    background-attachment: fixed;
+}
+
+/* Bright Glass Panel with High Contrast */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(244, 114, 182, 0.25);
+    box-shadow: 0 4px 20px -2px rgba(225, 29, 72, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+}
+
+.glass-panel:hover {
+    border-color: rgba(255, 46, 126, 0.45);
+    box-shadow: 0 12px 30px -4px rgba(255, 46, 126, 0.15), 0 4px 10px -2px rgba(0, 0, 0, 0.04);
+}
+
+.glass-header {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(244, 114, 182, 0.2);
+    box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.04);
+}
+
+/* Gradient Text */
+.gradient-supinkly {
+    background: linear-gradient(135deg, #FF1361 0%, #B000B5 50%, #00B4D8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Chunky Clickable Buttons */
+.gradient-btn {
+    background: linear-gradient(135deg, #FF2E7E 0%, #9333EA 100%);
+    color: #FFFFFF !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(255, 46, 126, 0.35);
+}
+
+.gradient-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(255, 46, 126, 0.5);
+    filter: brightness(1.05);
+}
+
+.gradient-btn-cyan {
+    background: linear-gradient(135deg, #0284C7 0%, #06B6D4 100%);
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+}
+
+.gradient-btn-cyan:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(2, 132, 199, 0.45);
+}
+
+/* Mascot Floating effect */
+@keyframes floatAnimation {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-8px) rotate(1.5deg);
+    }
+}
+
+.mascot-float {
+    animation: floatAnimation 4s ease-in-out infinite;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #FF2E7E;
+}
+
+/* Tab active style */
+.brand-tab {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    color: #334155;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
+}
+
+.brand-tab:hover {
+    border-color: #F43F5E;
+    color: #E11D48;
+    background: #FFF1F2;
+    transform: translateY(-1px);
+}
+
+.brand-tab.active {
+    background: linear-gradient(135deg, #FF2E7E 0%, #A855F7 100%) !important;
+    border-color: transparent !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 15px rgba(255, 46, 126, 0.35) !important;
+    transform: translateY(-1px);
+}
+
+.brand-tab.active span,
+.brand-tab.active i {
+    color: #FFFFFF !important;
+}
+
+/* Toast container */
+#toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.toast {
+    animation: slideIn 0.3s ease-out forwards;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
