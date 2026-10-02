@@ -82,19 +82,9 @@ const G2G_SYNC = {
 
         // Iterate through all 17 catalog products
         for (const [prodId, g2gItem] of Object.entries(G2G_MARKET_FEED.benchmarks)) {
-            // Keep cpc-01 as the 1.00 Baht test product for checkout testing
-            if (prodId === 'cpc-01') {
-                if (!customPrices[prodId] || !customPrices[prodId].manualOverride) {
-                    customPrices[prodId] = {
-                        price: 1.00,
-                        originalPrice: 199.00,
-                        marketCostTHB: 1.00,
-                        g2gStockAvailable: 99,
-                        lastMarketSync: new Date().toISOString()
-                    };
-                }
-                updatedCount++;
-                continue;
+            // Clean up any legacy 1.00 Baht test price on cpc-01
+            if (prodId === 'cpc-01' && customPrices[prodId] && customPrices[prodId].price === 1.00 && !customPrices[prodId].manualOverride) {
+                delete customPrices[prodId];
             }
 
             // Check if admin has set manual price override

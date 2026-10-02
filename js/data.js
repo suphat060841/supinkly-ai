@@ -39,18 +39,18 @@ const PRODUCTS = [
         brand: "CapCut",
         brandCode: "CPC",
         brandBadgeColor: "from-cyan-500 to-blue-600",
-        title: "CapCut Pro Subscription (iOS, Android, PC) 1 Month - Private Account [Flash Sale 1 บาท]",
+        title: "CapCut Pro Subscription (iOS, Android, PC) 1 Month - Private Account",
         type: "Private Account",
         typeKey: "private",
         duration: "1 เดือน",
         region: "Global",
-        price: 1.00,
+        price: 89.00,
         originalPrice: 199.00,
         soldCount: 29343,
         rating: 5.0,
         deliveryType: "instant",
         warranty: "30 วัน",
-        description: "บัญชี CapCut Pro ส่วนตัว 1 เดือน ใช้งานได้ทั้งบน iOS, Android และ PC ไม่แชร์ร่วมกับผู้อื่น เปลี่ยนรหัสผ่านได้ ฟีเจอร์ตัดต่อระดับ Pro ครบทุกฟังก์ชัน ปลดล็อกเอฟเฟกต์ เสียง และ Export 4K ไม่มีลายน้ำ (โปรโมชั่นพิเศษ Flash Sale ต้อนรับสมาชิกใหม่ เพียง 1.00 บาท)"
+        description: "บัญชี CapCut Pro ส่วนตัว 1 เดือน ใช้งานได้ทั้งบน iOS, Android และ PC ไม่แชร์ร่วมกับผู้อื่น เปลี่ยนรหัสผ่านได้ ฟีเจอร์ตัดต่อระดับ Pro ครบทุกฟังก์ชัน ปลดล็อกเอฟเฟกต์ เสียง และ Export 4K ไม่มีลายน้ำ"
     },
     {
         id: "cpc-02",

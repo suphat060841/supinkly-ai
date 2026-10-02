@@ -203,15 +203,9 @@ function getCustomPrices() {
 
 function applyCustomPricesToProducts() {
     const customPrices = getCustomPrices();
-    // Enforce 1.00 Baht test price on cpc-01 if not manually customized
-    if (!customPrices['cpc-01'] || !customPrices['cpc-01'].manualOverride) {
-        customPrices['cpc-01'] = {
-            price: 1.00,
-            originalPrice: 199.00,
-            marketCostTHB: 1.00,
-            g2gStockAvailable: (customPrices['cpc-01'] && customPrices['cpc-01'].g2gStockAvailable) || 99,
-            lastMarketSync: new Date().toISOString()
-        };
+    // Clean up any legacy 1.00 Baht test price on cpc-01
+    if (customPrices['cpc-01'] && customPrices['cpc-01'].price === 1.00 && !customPrices['cpc-01'].manualOverride) {
+        delete customPrices['cpc-01'];
         try {
             localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
         } catch (e) {}
