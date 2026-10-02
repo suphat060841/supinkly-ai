@@ -42,32 +42,33 @@
 
     <!-- ==========================================
          TOP NOTIFICATION BAR (Vibrant & Cheerful)
-         ========================================== -->
-    <div class="bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-500 text-white py-2 px-4 text-center text-xs sm:text-sm font-semibold shadow-sm flex items-center justify-center gap-2">
-        <span class="w-2.5 h-2.5 rounded-full bg-yellow-300 animate-ping"></span>
-        <span>🎉 ยินดีต้อนรับสู่ <b>Supinkly.AI</b> — ชำระเงินผ่าน Thai QR PromptPay ตรวจสลิปอัตโนมัติ ส่งมอบรหัสเข้าคลังทันที 24 ชม.</span>
+          ========================================== -->
+    <div class="bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-500 text-white py-1.5 px-3 text-center text-[11px] sm:text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-yellow-300 animate-ping shrink-0"></span>
+        <span class="sm:hidden">⚡ สแกนจ่าย PromptPay ตรวจสลิปอัตโนมัติ ส่งรหัสทันที 24 ชม.</span>
+        <span class="hidden sm:inline">🎉 ยินดีต้อนรับสู่ <b>Supinkly.AI</b> — ชำระเงินผ่าน Thai QR PromptPay ตรวจสลิปอัตโนมัติ ส่งมอบรหัสเข้าคลังทันที 24 ชม.</span>
     </div>
 
     <!-- ==========================================
          NAVIGATION HEADER (Bright & High Contrast)
          ========================================== -->
     <header class="sticky top-0 z-40 glass-header">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
             
             <!-- Brand Logo with Mascot -->
-            <a href="index.html" class="flex items-center gap-3.5 group">
-                <div class="relative w-13 h-13 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md shadow-pink-500/20 group-hover:scale-105 transition-transform bg-white shrink-0">
+            <a href="index.html" class="flex items-center gap-2 sm:gap-3.5 group shrink-0">
+                <div class="relative w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md shadow-pink-500/20 group-hover:scale-105 transition-transform bg-white shrink-0">
                     <img src="images/logo.jpg" 
                          alt="Supinkly.AI Logo" 
                          class="w-full h-full object-cover"
                          onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=Supinkly'">
                 </div>
                 <div>
-                    <div class="text-2xl sm:text-3xl font-black tracking-tight gradient-supinkly font-['Outfit'] drop-shadow-sm">
+                    <div class="text-xl sm:text-3xl font-black tracking-tight gradient-supinkly font-['Outfit'] drop-shadow-sm">
                         Supinkly<span class="text-pink-500">.AI</span>
                     </div>
-                    <div class="text-xs text-slate-500 font-bold tracking-wider -mt-0.5 flex items-center gap-1">
-                        <span class="text-amber-500">★</span> DIGITAL MARKETPLACE
+                    <div class="text-[10px] sm:text-xs text-slate-500 font-bold tracking-wider -mt-0.5 flex items-center gap-1">
+                        <span class="text-amber-500">★</span> DIGITAL SHOP
                     </div>
                 </div>
             </a>
@@ -81,12 +82,12 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-2 sm:gap-3">
+            <div class="flex items-center gap-1.5 sm:gap-3">
                 <!-- Cart Button -->
-                <button onclick="openCartDrawer()" class="relative h-11 px-3.5 sm:px-4 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center justify-center gap-2 shrink-0">
-                    <i class="fa-solid fa-cart-shopping text-base text-pink-500"></i>
+                <button onclick="openCartDrawer()" class="relative h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                    <i class="fa-solid fa-cart-shopping text-sm sm:text-base text-pink-500"></i>
                     <span class="text-xs sm:text-sm font-bold text-slate-800 hidden sm:inline">ตะกร้า</span>
-                    <span id="cart-count-badge" class="hidden absolute -top-1.5 -right-1.5 sm:static sm:w-auto sm:h-auto px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-xs flex items-center justify-center shadow-md">
+                    <span id="cart-count-badge" class="hidden absolute -top-1 -right-1 sm:static sm:w-auto sm:h-auto px-1.5 py-0.5 sm:px-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-[10px] sm:text-xs flex items-center justify-center shadow-md">
                         0
                     </span>
                 </button>
@@ -99,11 +100,11 @@
         </div>
 
         <!-- Search Bar (Mobile) -->
-        <div class="md:hidden px-4 pb-3">
+        <div class="md:hidden px-3 pb-2.5 pt-0.5">
             <div class="relative w-full">
-                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
-                <input type="text" oninput="state.searchQuery = this.value.toLowerCase().trim(); applyFilters();" placeholder="ค้นหาบัญชี AI และคีย์..." 
-                       class="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 outline-none font-medium">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-xs"></i>
+                <input type="text" oninput="state.searchQuery = this.value.toLowerCase().trim(); applyFilters();" placeholder="ค้นหา เช่น CapCut, Claude, Windows..." 
+                       class="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs sm:text-sm text-slate-900 placeholder-slate-400 outline-none font-medium focus:bg-white focus:border-pink-400 transition-all">
             </div>
         </div>
     </header>
@@ -414,8 +415,8 @@
                 </div>
             </div>
 
-            <!-- Mascot Banner Showcase -->
-            <div class="lg:col-span-4 flex justify-center">
+            <!-- Mascot Banner Showcase (Desktop) -->
+            <div class="hidden lg:flex lg:col-span-4 justify-center">
                 <div class="relative w-64 h-64 sm:w-72 sm:h-72 rounded-3xl p-2 bg-gradient-to-tr from-pink-400 via-purple-500 to-cyan-400 shadow-xl shadow-pink-500/20 mascot-float">
                     <div class="w-full h-full rounded-[20px] overflow-hidden bg-white flex items-center justify-center relative">
                         <img src="images/logo.jpg" 
@@ -436,31 +437,31 @@
     <!-- ==========================================
          BRAND TABS & FILTER BAR (Bright, Legible, Chunky)
          ========================================== -->
-    <div class="sticky top-20 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 py-3.5 px-4 sm:px-6 lg:px-8 shadow-sm">
-        <div class="max-w-7xl mx-auto space-y-3">
+    <div class="sticky top-0 sm:top-20 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 py-2 sm:py-3.5 px-3 sm:px-6 lg:px-8 shadow-sm">
+        <div class="max-w-7xl mx-auto space-y-2 sm:space-y-3">
             
             <!-- Brands Scrollable Bar -->
-            <div class="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none" id="brand-tabs-container">
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" id="brand-tabs-container">
                 <!-- Rendered by JavaScript -->
             </div>
 
             <!-- Secondary Filters: Types & Sort -->
-            <div class="flex flex-wrap items-center justify-between gap-3 pt-1 text-sm font-medium">
-                <!-- Type filters -->
-                <div class="flex items-center gap-2 overflow-x-auto">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm font-medium">
+                <!-- Type filters (Swipeable on Mobile) -->
+                <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 -mx-3 px-3 sm:mx-0 sm:px-0">
                     <span class="text-slate-600 font-bold mr-1 hidden sm:inline"><i class="fa-solid fa-filter text-pink-500"></i> รูปแบบ:</span>
-                    <button onclick="selectType('all')" data-type="all" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white shadow-md shadow-pink-500/30 transition-all">ทั้งหมด</button>
-                    <button onclick="selectType('private')" data-type="private" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">บัญชีส่วนตัว (Private)</button>
-                    <button onclick="selectType('shared')" data-type="shared" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">บัญชีแชร์ (Shared)</button>
-                    <button onclick="selectType('link')" data-type="link" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">ลิงก์เปิดใช้งาน (Link)</button>
-                    <button onclick="selectType('key')" data-type="key" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">คีย์แท้ (License Key)</button>
-                    <button onclick="selectType('topup')" data-type="topup" class="type-filter-btn px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all">เติมเงิน (Top-up)</button>
+                    <button onclick="selectType('all')" data-type="all" class="type-filter-btn px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white shadow-md shadow-pink-500/30 transition-all whitespace-nowrap shrink-0">ทั้งหมด</button>
+                    <button onclick="selectType('private')" data-type="private" class="type-filter-btn px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all whitespace-nowrap shrink-0">ส่วนตัว (Private)</button>
+                    <button onclick="selectType('shared')" data-type="shared" class="type-filter-btn px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all whitespace-nowrap shrink-0">แชร์ (Shared)</button>
+                    <button onclick="selectType('link')" data-type="link" class="type-filter-btn px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all whitespace-nowrap shrink-0">ลิงก์ (Link)</button>
+                    <button onclick="selectType('key')" data-type="key" class="type-filter-btn px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all whitespace-nowrap shrink-0">คีย์ (Key)</button>
+                    <button onclick="selectType('topup')" data-type="topup" class="type-filter-btn px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all whitespace-nowrap shrink-0">เติมเงิน</button>
                 </div>
 
                 <!-- Sort & Counter -->
-                <div class="flex items-center gap-3 ml-auto">
-                    <span id="product-count-display" class="text-slate-600 text-xs font-semibold"></span>
-                    <select id="sort-select" class="bg-white border-2 border-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl px-3 py-1.5 outline-none focus:border-pink-500 shadow-sm">
+                <div class="flex items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                    <span id="product-count-display" class="text-slate-500 text-[11px] sm:text-xs font-semibold"></span>
+                    <select id="sort-select" class="bg-white border-2 border-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 outline-none focus:border-pink-500 shadow-xs">
                         <option value="popular">ยอดนิยม / ขายดีสุด</option>
                         <option value="price_asc">ราคา: ต่ำสุด - สูงสุด</option>
                         <option value="price_desc">ราคา: สูงสุด - ต่ำสุด</option>
@@ -475,8 +476,8 @@
     <!-- ==========================================
          PRODUCT CATALOG GRID
          ========================================== -->
-    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <main class="flex-1 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 w-full">
+        <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-6">
             <!-- Product Cards Rendered Dynamically via app.js -->
         </div>
     </main>
@@ -606,8 +607,8 @@
     <!-- ==========================================
          CHECKOUT & PAYMENT MODAL (Bright White & Clear)
          ========================================== -->
-    <div id="checkout-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white max-w-xl w-full rounded-3xl p-6 sm:p-7 border border-pink-200 relative max-h-[94vh] overflow-y-auto shadow-2xl">
+    <div id="checkout-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border border-pink-200 relative max-h-[95vh] overflow-y-auto shadow-2xl">
             
             <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
                 <div class="flex items-center gap-3">
@@ -964,8 +965,8 @@
     <!-- ==========================================
          INSTANT DELIVERY VAULT MODAL (Bright & Clear)
          ========================================== -->
-    <div id="vault-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white max-w-xl w-full rounded-3xl p-6 sm:p-7 border-2 border-pink-400 relative max-h-[92vh] overflow-y-auto shadow-2xl">
+    <div id="vault-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border-2 border-pink-400 relative max-h-[95vh] overflow-y-auto shadow-2xl">
             
             <div class="text-center pb-4 border-b border-slate-200">
                 <div id="vault-status-icon" class="w-14 h-14 mx-auto mb-2.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl border border-emerald-300 shadow-sm">
@@ -1526,8 +1527,8 @@ W11PR-XXXX-XXXX-XXXX"
     <!-- ==========================================
          PRODUCT DETAILS MODAL (Bright & Readable)
          ========================================== -->
-    <div id="product-detail-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white max-w-lg w-full rounded-3xl p-6 sm:p-7 border border-slate-200 relative max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div id="product-detail-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white max-w-lg w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border border-slate-200 relative max-h-[92vh] overflow-y-auto shadow-2xl">
             
             <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
                 <div class="flex items-center gap-2">

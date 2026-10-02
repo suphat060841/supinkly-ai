@@ -282,8 +282,8 @@ function initHeader() {
     if (!userContainer) return;
 
     userContainer.innerHTML = `
-        <button onclick="openOrdersModal()" class="h-11 px-3.5 sm:px-4 rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-2 shrink-0">
-            <i class="fa-solid fa-box-open text-base text-pink-500"></i>
+        <button onclick="openOrdersModal()" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+            <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
             <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
         </button>
     `;
@@ -307,10 +307,10 @@ function renderBrandTabs() {
 
     container.innerHTML = brands.map(b => `
         <button onclick="selectBrand('${b.key}')" 
-            class="brand-tab flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold border transition-all whitespace-nowrap ${state.filterBrand === b.key ? 'active' : ''}">
-            <i class="${b.icon} ${state.filterBrand === b.key ? 'text-white' : 'text-pink-500'}"></i>
+            class="brand-tab flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold border transition-all whitespace-nowrap shrink-0 ${state.filterBrand === b.key ? 'active' : ''}">
+            <i class="${b.icon} ${state.filterBrand === b.key ? 'text-white' : 'text-pink-500'} text-xs sm:text-sm"></i>
             <span>${escapeHTML(b.name)}</span>
-            <span class="ml-1 px-2 py-0.5 rounded-full text-xs ${state.filterBrand === b.key ? 'bg-white/25 text-white font-black' : 'bg-slate-100 text-slate-600 font-bold'}">${b.count}</span>
+            <span class="ml-0.5 sm:ml-1 px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full text-[10px] sm:text-xs ${state.filterBrand === b.key ? 'bg-white/25 text-white font-black' : 'bg-slate-100 text-slate-600 font-bold'}">${b.count}</span>
         </button>
     `).join('');
 }
@@ -425,42 +425,42 @@ function renderProducts() {
         // ❌ Before: onclick="addToCart('${product.id}')" ← single quote ใน id → XSS
         // ✅ After:  data-product-id="${escapeHTML(product.id)}" + event delegation
         return `
-            <div class="bg-white rounded-3xl p-5 border-2 border-slate-100 hover:border-pink-300 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
                 
                 <div>
                     <!-- Header of Card -->
-                    <div class="flex items-center justify-between gap-2 mb-3">
-                        <div class="flex items-center gap-2">
-                            <span class="w-8 h-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-xs font-black text-pink-600 shadow-inner">
+                    <div class="flex items-center justify-between gap-1.5 mb-2.5 sm:mb-3">
+                        <div class="flex items-center gap-1.5 sm:gap-2">
+                            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[11px] sm:text-xs font-black text-pink-600 shadow-inner">
                                 ${escapeHTML(product.brandCode)}
                             </span>
                             <span class="text-xs font-bold text-slate-700">${escapeHTML(product.brand)}</span>
                         </div>
-                        <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${typeBadgeClass}">
+                        <span class="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border ${typeBadgeClass}">
                             ${escapeHTML(product.type)}
                         </span>
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-base font-extrabold text-slate-900 line-clamp-2 min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <h3 class="text-sm sm:text-base font-extrabold text-slate-900 line-clamp-2 min-h-[40px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
                     <!-- Specs -->
-                    <div class="flex flex-wrap items-center gap-2 mt-3.5 text-xs text-slate-600 font-medium">
-                        <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 sm:mt-3.5 text-[11px] sm:text-xs text-slate-600 font-medium">
+                        <span class="flex items-center gap-1 bg-slate-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg border border-slate-200">
                             <i class="fa-solid fa-bolt text-amber-500"></i> ส่งทันที
                         </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                        <span class="flex items-center gap-1 bg-slate-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg border border-slate-200">
                             <i class="fa-solid fa-shield-halved text-cyan-600"></i> ประกัน ${escapeHTML(product.warranty)}
                         </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                        <span class="flex items-center gap-1 bg-slate-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg border border-slate-200">
                             <i class="fa-solid fa-globe text-purple-600"></i> ${escapeHTML(product.region)}
                         </span>
                     </div>
 
                     <!-- Stock Counter -->
-                    <div class="flex items-center justify-between mt-4 text-xs font-semibold border-t border-slate-100 pt-2.5">
+                    <div class="flex items-center justify-between mt-3 sm:mt-4 text-[11px] sm:text-xs font-semibold border-t border-slate-100 pt-2 sm:pt-2.5">
                         <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
                             <span class="w-2 h-2 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
                             ${inStock ? `สต็อกพร้อมส่ง ${product.stock} ชิ้น` : 'สินค้าหมดชั่วคราว'}
@@ -470,21 +470,21 @@ function renderProducts() {
                 </div>
 
                 <!-- Price and Buttons -->
-                <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
+                <div class="mt-3 sm:mt-4 pt-2.5 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2 sm:gap-3">
                     <div>
-                        <div class="text-xs text-slate-400 line-through font-medium">฿${product.originalPrice.toFixed(2)}</div>
-                        <div class="text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
-                            <span class="text-sm">฿</span>${product.price.toFixed(2)}
+                        <div class="text-[11px] sm:text-xs text-slate-400 line-through font-medium">฿${product.originalPrice.toFixed(2)}</div>
+                        <div class="text-xl sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
+                            <span class="text-xs sm:text-sm">฿</span>${product.price.toFixed(2)}
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5 sm:gap-2">
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียด" 
-                            class="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-sm transition-all shadow-sm">
+                            class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-xs">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-4 h-10 rounded-2xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            class="gradient-btn px-3 sm:px-4 h-9 sm:h-10 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
                             <i class="fa-solid fa-cart-plus"></i>
                             <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>

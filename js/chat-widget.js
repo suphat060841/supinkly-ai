@@ -26,9 +26,9 @@ const CHAT = (() => {
         el.innerHTML = `
         <!-- Bubble Button -->
         <button id="spk-chat-btn"
-            class="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full gradient-btn shadow-xl hover:scale-110 transition-all flex items-center justify-center"
+            class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
             title="แชทกับเราได้เลย" aria-label="เปิดแชท">
-            <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-2xl text-white"></i>
+            <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-xl sm:text-2xl text-white"></i>
             <span id="spk-chat-badge"
                 class="hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-black flex items-center justify-center">
             </span>
@@ -36,8 +36,8 @@ const CHAT = (() => {
 
         <!-- Chat Window -->
         <div id="spk-chat-window"
-            class="hidden fixed bottom-24 right-6 z-50 w-80 sm:w-96 flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-slate-200 bg-white"
-            style="max-height: 520px;">
+            class="hidden fixed inset-x-2 bottom-18 sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-96 z-50 flex flex-col rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-200 bg-white"
+            style="max-height: calc(100vh - 90px);">
 
             <!-- Header -->
             <div class="gradient-btn px-4 py-3.5 flex items-center justify-between gap-3 shrink-0">
