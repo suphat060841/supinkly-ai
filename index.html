@@ -115,7 +115,7 @@
     <section class="relative overflow-hidden pt-8 pb-10 px-4 sm:px-6 lg:px-8 border-b border-pink-100 bg-gradient-to-b from-pink-50/60 via-purple-50/40 to-transparent">
         <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             
-            <div class="lg:col-span-8 space-y-4">
+            <div class="lg:col-span-7 space-y-4">
                 <div class="flex flex-wrap items-center gap-2">
                     <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-pink-100 border border-pink-300 text-pink-700 text-xs sm:text-sm font-bold shadow-sm">
                         <span class="text-amber-500 text-base">⚡</span> สแกนจ่ายด้วย Thai QR Code พร้อมเพย์ ได้รับรหัสทันที
@@ -125,9 +125,6 @@
                         <span id="g2g-last-sync-time">สินค้าแท้ 100% พร้อมส่งมอบตลอด 24 ชม.</span>
                     </div>
                 </div>
-                <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 leading-tight">
-                    ตลาดซื้อขายบัญชี <span class="gradient-supinkly">AI & สินค้าดิจิทัล</span> ครบวงจร
-                </h1>
                 <p class="text-slate-600 text-sm sm:text-base max-w-2xl leading-relaxed font-medium">
                     ศูนย์รวมบัญชีและคีย์แท้ <b>CapCut, Google AI, Google, Grok, Claude, Adobe, Microsoft</b> คุณภาพมาตรฐานสากล มีระบบตรวจสลิปโอนเงินอัตโนมัติ ส่งมอบรหัสเข้าคลังทันที พร้อมประกันทุกคำสั่งซื้อ
                 </p>
@@ -136,10 +133,10 @@
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
                     <div class="bg-white p-3.5 rounded-2xl border-2 border-pink-100 shadow-sm flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-lg shrink-0">
-                            <i class="fa-solid fa-bolt"></i>
+                            <i class="fa-solid fa-clock-rotate-left"></i>
                         </div>
                         <div>
-                            <div class="text-xs sm:text-sm font-bold text-slate-900">ส่งรหัสใน 5 วินาที</div>
+                            <div class="text-xs sm:text-sm font-bold text-slate-900">ส่งมอบตลอด 24 ชม.</div>
                             <div class="text-xs text-slate-500">ระบบ AI Vault</div>
                         </div>
                     </div>
@@ -415,17 +412,20 @@
                 </div>
             </div>
 
-            <!-- Mascot Banner Showcase (Desktop) -->
-            <div class="hidden lg:flex lg:col-span-4 justify-center">
-                <div class="relative w-64 h-64 sm:w-72 sm:h-72 rounded-3xl p-2 bg-gradient-to-tr from-pink-400 via-purple-500 to-cyan-400 shadow-xl shadow-pink-500/20 mascot-float">
-                    <div class="w-full h-full rounded-[20px] overflow-hidden bg-white flex items-center justify-center relative">
-                        <img src="images/logo.jpg" 
-                             alt="Supinkly Mascot" 
-                             class="w-full h-full object-cover"
-                             onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=Supinkly'">
-                        <div class="absolute bottom-3 inset-x-3 bg-white/95 backdrop-blur-md p-2 rounded-xl border border-pink-200 flex items-center justify-between text-xs shadow-md">
-                            <span class="text-slate-800 font-bold">✨ ของแท้ 100% ส่งด่วน</span>
-                            <span class="text-pink-600 font-extrabold">1,350+ รายการ</span>
+            <!-- Mascot Banner Showcase -->
+            <div class="flex justify-center items-center lg:col-span-5 my-2 lg:my-0">
+                <div class="relative w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[440px] aspect-square rounded-[32px] p-2.5 sm:p-3 bg-gradient-to-tr from-pink-400 via-purple-500 to-cyan-400 shadow-2xl shadow-pink-500/25 mascot-float transition-all duration-300 hover:scale-[1.02]">
+                    <div class="w-full h-full rounded-[24px] sm:rounded-[26px] overflow-hidden bg-slate-950 flex items-center justify-center relative group">
+                        <img src="images/pop_new.png" 
+                             alt="Supinkly.AI Mascot" 
+                             class="w-full h-full object-contain p-2 hover:scale-105 transition-transform duration-500"
+                             onerror="if(!this.dataset.t){this.dataset.t='1';this.src='images/pop_new.jpg'}else if(this.dataset.t==='1'){this.dataset.t='2';this.src='images/logo.jpg'}">
+                        <div class="absolute bottom-3 sm:bottom-4 inset-x-3 sm:inset-x-4 bg-white/95 backdrop-blur-md py-2 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-pink-200/80 flex items-center justify-between text-xs sm:text-sm shadow-lg">
+                            <div class="flex items-center gap-1.5 sm:gap-2">
+                                <span class="text-amber-500 text-sm sm:text-base animate-bounce">✨</span>
+                                <span class="text-slate-800 font-bold">ของแท้ 100% ส่งด่วน</span>
+                            </div>
+                            <span class="px-2.5 py-0.5 rounded-full bg-pink-100 text-pink-600 font-black text-xs sm:text-sm">1,350+ รายการ</span>
                         </div>
                     </div>
                 </div>
@@ -1290,9 +1290,11 @@
                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:border-pink-500">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK API Key:</label>
-                        <input type="text" id="admin-slipok-key" value="SLIPOK2Q3HR6B" placeholder="ใส่ API Key" 
-                               class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:border-pink-500">
+                        <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK Gateway Status:</label>
+                        <div class="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-shield-halved text-emerald-600"></i>
+                            <span>ปลอดภัย: ตรวจสลิปฝั่ง Server ป้องกันข้อมูลรั่วไหล</span>
+                        </div>
                     </div>
                     <div class="sm:col-span-2">
                         <label class="text-xs font-bold text-slate-700 block mb-1">เปลี่ยนรหัส PIN แอดมิน:</label>

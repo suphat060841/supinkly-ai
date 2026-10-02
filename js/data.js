@@ -8,9 +8,7 @@ const STORE_CONFIG = (() => {
         storeName: "Supinkly.AI Shop",
         promptPayNumber: "0982949371", // เบอร์พร้อมเพย์รับเงิน (ใช้สร้าง QR Code เท่านั้น ไม่แสดงเบอร์หน้าร้าน)
         promptPayAccountName: "สุพัฒน์ มีสมบัติ",
-        slipOkApiKey: "SLIPOK2Q3HR6B",
         slipOkBranchId: "77491",
-        slipOkEndpoint: "https://api.slipok.com/api/line/apikey/77491",
         autoDelivery: true
     };
     try {
@@ -22,8 +20,11 @@ const STORE_CONFIG = (() => {
             if (!parsed.promptPayNumber || parsed.promptPayNumber.replace(/[^0-9]/g, '').length < 10) {
                 parsed.promptPayNumber = defaults.promptPayNumber;
             }
-            if (!parsed.slipOkApiKey) parsed.slipOkApiKey = defaults.slipOkApiKey;
             if (!parsed.slipOkBranchId) parsed.slipOkBranchId = defaults.slipOkBranchId;
+            // Purge leaked secrets from browser localStorage
+            delete parsed.slipOkApiKey;
+            delete parsed.slipOkEndpoint;
+            localStorage.setItem('supinkly_store_config', JSON.stringify(parsed));
             return { ...defaults, ...parsed };
         }
     } catch (e) {

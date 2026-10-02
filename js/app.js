@@ -14,11 +14,11 @@ function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
-// Hardened Admin Authentication (Brute-Force Rate Limiting & Session Token)
+// Hardened Admin Authentication (Server-Verified & Cryptographic Session Token)
 const ADMIN_AUTH = {
     MAX_ATTEMPTS: 5,
     LOCKOUT_DURATION_MS: 5 * 60 * 1000, // 5 minutes
-    SESSION_DURATION_MS: 15 * 60 * 1000, // 15 minutes auto-logout
+    SESSION_DURATION_MS: 4 * 60 * 60 * 1000, // 4 hours session
 
     async hashPin(pin) {
         const encoder = new TextEncoder();
@@ -51,56 +51,99 @@ const ADMIN_AUTH = {
             throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที`);
         }
 
-        const hashedEntered = await this.hashPin(enteredPin);
-        let storedHash = localStorage.getItem('supinkly_admin_pin_hash');
-        
-        if (!storedHash) {
-            // Default PIN 8899
-            storedHash = await this.hashPin('8899');
-        }
+        const isHttp = window.location.protocol.startsWith('http');
 
-        if (hashedEntered === storedHash) {
-            // Reset attempts on success
-            localStorage.removeItem('supinkly_admin_failed_attempts');
-            localStorage.removeItem('supinkly_admin_lockout_until');
+        if (isHttp) {
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: enteredPin.trim() })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
+                    localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
+                    if (attempts >= this.MAX_ATTEMPTS) {
+                        const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
+                        localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
+                        throw new Error("กรอก PIN ผิดเกิน 5 ครั้ง! ระบบล็อกการเข้าถึงชั่วคราว 5 นาที");
+                    }
+                    throw new Error(data.message || `รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
+                }
 
-            // Issue cryptographic session token
-            const sessionToken = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('');
-            const sessionData = {
-                token: sessionToken,
-                expiresAt: Date.now() + this.SESSION_DURATION_MS
-            };
-            sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
-            return true;
+                localStorage.removeItem('supinkly_admin_failed_attempts');
+                localStorage.removeItem('supinkly_admin_lockout_until');
+
+                const sessionData = {
+                    token: data.token,
+                    expiresAt: data.expiresAt || (Date.now() + this.SESSION_DURATION_MS)
+                };
+                sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+                return true;
+            } catch (err) {
+                throw err;
+            }
         } else {
-            let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
-            localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
+            // Local file:// protocol fallback for offline dev
+            const hashedEntered = await this.hashPin(enteredPin);
+            let storedHash = localStorage.getItem('supinkly_admin_pin_hash');
+            if (!storedHash) {
+                storedHash = await this.hashPin('8899');
+            }
 
-            if (attempts >= this.MAX_ATTEMPTS) {
-                const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
-                localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
-                throw new Error("กรอก PIN ผิดเกิน 5 ครั้ง! ระบบล็อกการเข้าถึงชั่วคราว 5 นาที");
+            if (hashedEntered === storedHash) {
+                localStorage.removeItem('supinkly_admin_failed_attempts');
+                localStorage.removeItem('supinkly_admin_lockout_until');
+
+                const sessionToken = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('');
+                const sessionData = {
+                    token: sessionToken,
+                    expiresAt: Date.now() + this.SESSION_DURATION_MS
+                };
+                sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+                return true;
             } else {
-                throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
+                let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
+                localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
+                if (attempts >= this.MAX_ATTEMPTS) {
+                    const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
+                    localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
+                    throw new Error("กรอก PIN ผิดเกิน 5 ครั้ง! ระบบล็อกการเข้าถึงชั่วคราว 5 นาที");
+                } else {
+                    throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
+                }
             }
         }
     },
 
-    checkSession() {
+    getToken() {
         try {
             const raw = sessionStorage.getItem('supinkly_admin_session');
-            if (!raw) return false;
+            if (!raw) return null;
             const session = JSON.parse(raw);
             if (session && session.token && Date.now() < session.expiresAt) {
-                session.expiresAt = Date.now() + this.SESSION_DURATION_MS;
-                sessionStorage.setItem('supinkly_admin_session', JSON.stringify(session));
-                return true;
+                return session.token;
             }
-        } catch {
-            // corrupt session
+        } catch {}
+        return null;
+    },
+
+    getHeaders() {
+        const token = this.getToken();
+        return {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}`, 'x-admin-token': token } : {})
+        };
+    },
+
+    checkSession() {
+        const token = this.getToken();
+        if (!token) {
+            sessionStorage.removeItem('supinkly_admin_session');
+            return false;
         }
-        sessionStorage.removeItem('supinkly_admin_session');
-        return false;
+        return true;
     },
 
     logout() {
@@ -829,45 +872,49 @@ async function submitSlipVerification() {
     btn.disabled = true;
 
     try {
-        const result = await SlipVerifier.verifySlip(verifiedTotal, STORE_CONFIG.promptPayNumber);
+        let finalOrder = null;
 
-        btn.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> สลิปถูกต้อง! กำลังจัดส่งรหัส...`;
+        if (window.location.protocol.startsWith('http')) {
+            const formData = new FormData();
+            formData.append('slip', SlipVerifier.selectedFile);
+            formData.append('email', recipientEmail);
+            formData.append('cartItems', JSON.stringify(state.cart.map(i => ({ productId: i.productId, quantity: i.quantity }))));
 
-        setTimeout(() => {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-            closeCheckoutModal();
+            const res = await fetch('/api/checkout/verify-slip', {
+                method: 'POST',
+                body: formData
+            });
 
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || "การตรวจสอบสลิปล้มเหลว หรือยอดเงินไม่ถูกต้อง");
+            }
+
+            finalOrder = data.order;
+        } else {
+            // Local file:// protocol fallback for offline developer testing
+            const result = await SlipVerifier.verifySlip(verifiedTotal, STORE_CONFIG.promptPayNumber, state.cart, recipientEmail);
             const deliveredItems = [];
             let hasPendingFulfillment = false;
-
             for (const item of state.cart) {
                 const master = getMasterProduct(item.productId);
                 const pool = state.inventory[item.productId] || [];
                 const itemQty = Math.max(1, Math.min(50, parseInt(item.quantity, 10) || 1));
-
                 for (let i = 0; i < itemQty; i++) {
                     if (pool.length > 0) {
-                        const credential = pool.shift();
                         deliveredItems.push({
                             productId: item.productId,
                             productTitle: master ? master.title : "Digital Item",
-                            brand: master ? master.brand : "",
-                            type: master ? master.type : "",
                             price: master ? master.price : 0,
                             warranty: master ? master.warranty : "30 วัน",
                             status: "delivered",
-                            credentials: credential
+                            credentials: pool.shift()
                         });
                     } else {
-                        // Model 1: On-Demand Fulfillment (Zero-Stock)
-                        // Do not generate fake credentials. Set to pending for admin fulfillment.
                         hasPendingFulfillment = true;
                         deliveredItems.push({
                             productId: item.productId,
                             productTitle: master ? master.title : "Digital Item",
-                            brand: master ? master.brand : "",
-                            type: master ? master.type : "",
                             price: master ? master.price : 0,
                             warranty: master ? master.warranty : "30 วัน",
                             status: "pending_fulfillment",
@@ -876,11 +923,25 @@ async function submitSlipVerification() {
                     }
                 }
             }
+            finalOrder = {
+                orderId: "SPK-" + Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 6).toUpperCase(),
+                date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
+                totalAmount: verifiedTotal,
+                paymentMethod: "Thai QR PromptPay",
+                recipientEmail: recipientEmail,
+                transRef: result.transRef,
+                slipFingerprint: SlipVerifier.fileFingerprint,
+                items: deliveredItems,
+                status: hasPendingFulfillment ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" : "🟢 จัดส่งสำเร็จทันที (Instant Vault)"
+            };
+        }
 
-            if (deliveredItems.length === 0) {
-                showToast("ไม่สามารถประมวลผลคำสั่งซื้อได้ กรุณาลองใหม่อีกครั้ง", "error");
-                return;
-            }
+        btn.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> สลิปถูกต้อง! กำลังจัดส่งรหัส...`;
+
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            closeCheckoutModal();
 
             // Decrement synced market stock for purchased items
             const customPrices = getCustomPrices();
@@ -890,35 +951,22 @@ async function submitSlipVerification() {
                     customPrices[item.productId].g2gStockAvailable = Math.max(0, customPrices[item.productId].g2gStockAvailable - itemQty);
                 }
             }
-            localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
+            try {
+                localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
+            } catch (e) {}
 
-            saveSecureInventory(state.inventory);
-            syncStockCount();
-            renderProducts();
-
-            const orderId = "SPK-" + Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 6).toUpperCase();
-            const newOrder = {
-                orderId: orderId,
-                date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
-                totalAmount: verifiedTotal,
-                paymentMethod: "Thai QR PromptPay",
-                recipientEmail: recipientEmail,
-                transRef: result.transRef,
-                slipFingerprint: SlipVerifier.fileFingerprint,
-                items: deliveredItems,
-                status: hasPendingFulfillment 
-                    ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" 
-                    : "🟢 จัดส่งสำเร็จทันที (Instant Vault)"
-            };
-
-            state.orders.unshift(newOrder);
+            state.orders.unshift(finalOrder);
             saveOrders();
 
             state.cart = [];
             saveCart();
 
-            openVaultModal(newOrder);
-            if (hasPendingFulfillment) {
+            syncStockCount();
+            renderProducts();
+
+            openVaultModal(finalOrder);
+            const isPending = (finalOrder.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment');
+            if (isPending) {
                 showToast("สลิปถูกต้องและยอดเงินตรง! ร้านค้ากำลังจัดเตรียมบัญชีให้คุณ (5-15 นาที)", "success");
             } else {
                 showToast("สลิปถูกต้องและยอดเงินตรง! ส่งมอบรหัสเข้าคลังเรียบร้อยแล้ว", "success");
@@ -2125,10 +2173,44 @@ function handleFulfillSubmit(e) {
         renderOrdersHistory();
     }
 
+    // Sync fulfillment to server if online
+    if (window.location.protocol.startsWith('http') && ADMIN_AUTH.checkSession()) {
+        try {
+            fetch('/api/admin/fulfill', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({ orderId, itemIndex, credentials: cred })
+            }).catch(e => console.warn("Server fulfill sync error:", e));
+        } catch (e) {}
+    }
+
     showToast(`ส่งมอบรหัสให้คำสั่งซื้อ ${orderId} สำเร็จแล้ว!`, "success");
 }
 
-function openAdminModal() {
+async function syncAdminOrdersFromServer() {
+    if (window.location.protocol.startsWith('http') && ADMIN_AUTH.checkSession()) {
+        try {
+            const res = await fetch('/api/admin/orders', {
+                headers: ADMIN_AUTH.getHeaders()
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && Array.isArray(data.orders)) {
+                    const serverOrders = data.orders;
+                    const map = new Map();
+                    (state.orders || []).forEach(o => { if (o && o.orderId) map.set(o.orderId, o); });
+                    serverOrders.forEach(o => { if (o && o.orderId) map.set(o.orderId, o); });
+                    state.orders = Array.from(map.values()).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+                    saveOrders();
+                }
+            }
+        } catch (e) {
+            console.warn("Could not sync orders from server:", e);
+        }
+    }
+}
+
+async function openAdminModal() {
     if (!ADMIN_AUTH.checkSession()) {
         promptAdminLogin();
         return;
@@ -2140,11 +2222,12 @@ function openAdminModal() {
     document.getElementById('admin-promptpay-input').value = STORE_CONFIG.promptPayNumber || '';
     const accNameEl = document.getElementById('admin-account-name');
     if (accNameEl) accNameEl.value = STORE_CONFIG.promptPayAccountName || 'สุพัฒน์ มีสมบัติ';
-    document.getElementById('admin-slipok-branch').value = STORE_CONFIG.slipOkBranchId || '77491';
-    document.getElementById('admin-slipok-key').value = STORE_CONFIG.slipOkApiKey || '';
+    const branchEl = document.getElementById('admin-slipok-branch');
+    if (branchEl) branchEl.value = STORE_CONFIG.slipOkBranchId || '77491';
     const pinInput = document.getElementById('admin-new-pin');
     if (pinInput) pinInput.value = '';
 
+    await syncAdminOrdersFromServer();
     renderAdminOrdersList();
     renderAdminStockList();
     switchAdminTab('orders');
@@ -2482,6 +2565,40 @@ function handleSaveAddedStock() {
     renderProducts();
     renderAdminStockList();
     closeAddStockModal();
+
+    // Sync added stock to server if online
+    if (window.location.protocol.startsWith('http') && ADMIN_AUTH.checkSession()) {
+        try {
+            const addedCreds = [];
+            lines.forEach(line => {
+                if (line.includes(':')) {
+                    const parts = line.split(':');
+                    addedCreds.push({
+                        email: parts[0].trim(),
+                        password: parts.slice(1).join(':').trim(),
+                        instructions: "เข้าสู่ระบบและใช้งานได้ทันที"
+                    });
+                } else if (line.startsWith('http')) {
+                    addedCreds.push({
+                        link: line,
+                        instructions: "คลิกเปิดลิงก์เพื่อรับสิทธิ์ใช้งานทันที"
+                    });
+                } else {
+                    addedCreds.push({
+                        key: line,
+                        instructions: "นำคีย์ไปเปิดใช้งานในโปรแกรม"
+                    });
+                }
+            });
+
+            fetch('/api/admin/stock', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({ productId, newCredentials: addedCreds })
+            }).catch(e => console.warn("Stock sync error:", e));
+        } catch (e) {}
+    }
+
     showToast(`เติมสต็อกสำเร็จ +${lines.length} ชิ้น!`, "success");
 }
 
@@ -2493,11 +2610,10 @@ async function saveAdminSettings() {
         return;
     }
 
-    const newPhone = document.getElementById('admin-promptpay-input').value.trim();
+    const newPhone = (document.getElementById('admin-promptpay-input') ? document.getElementById('admin-promptpay-input').value : '').trim();
     const newAccountName = (document.getElementById('admin-account-name') ? document.getElementById('admin-account-name').value : '').trim();
     const newBranchId = (document.getElementById('admin-slipok-branch') ? document.getElementById('admin-slipok-branch').value : '').trim();
-    const newApiKey = document.getElementById('admin-slipok-key').value.trim();
-    const newPin = document.getElementById('admin-new-pin').value.trim();
+    const newPin = (document.getElementById('admin-new-pin') ? document.getElementById('admin-new-pin').value : '').trim();
 
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
@@ -2515,15 +2631,13 @@ async function saveAdminSettings() {
     if (newBranchId) {
         STORE_CONFIG.slipOkBranchId = newBranchId;
     }
-    STORE_CONFIG.slipOkApiKey = newApiKey;
 
-    // Persist store config
+    // Persist store config safely (no secret API keys stored in client localStorage)
     try {
         localStorage.setItem('supinkly_store_config', JSON.stringify({
             promptPayNumber: STORE_CONFIG.promptPayNumber,
             promptPayAccountName: STORE_CONFIG.promptPayAccountName,
-            slipOkBranchId: STORE_CONFIG.slipOkBranchId,
-            slipOkApiKey: STORE_CONFIG.slipOkApiKey
+            slipOkBranchId: STORE_CONFIG.slipOkBranchId
         }));
     } catch (e) {
         console.error("Config save error:", e);
@@ -2785,7 +2899,8 @@ const ADMIN_CHAT = (() => {
         ws = new WebSocket(WS_URL);
 
         ws.onopen = () => {
-            ws.send(JSON.stringify({ type: 'auth', role: 'admin', pin }));
+            const token = typeof ADMIN_AUTH !== 'undefined' ? ADMIN_AUTH.getToken() : null;
+            ws.send(JSON.stringify({ type: 'auth', role: 'admin', token, pin }));
         };
 
         ws.onmessage = ({ data }) => {
@@ -2797,7 +2912,7 @@ const ADMIN_CHAT = (() => {
             }
 
             if (msg.type === 'auth_fail') {
-                setStatus('❌ PIN ไม่ถูกต้อง');
+                setStatus('❌ สิทธิ์การเข้าถึงไม่ถูกต้อง หรือเซสชันหมดอายุ');
                 ws.close();
             }
 
@@ -2899,11 +3014,14 @@ function openAdminChatPanel() {
             msgInp.style.height = Math.min(msgInp.scrollHeight, 100) + 'px';
         });
 
-        // Connect WebSocket as admin (reuse session PIN prompt)
-        const pinHash = localStorage.getItem('supinkly_admin_pin_hash');
-        // ใช้ prompt สั้นๆ รับ PIN เพื่อ auth กับ WS Server
-        const pin = window.prompt('กรอก PIN แอดมินเพื่อเชื่อมต่อ Live Chat:');
-        if (pin) ADMIN_CHAT.connect(pin.trim());
+        // Connect WebSocket as admin (use session token if present)
+        const token = ADMIN_AUTH.getToken();
+        if (token) {
+            ADMIN_CHAT.connect(null);
+        } else {
+            const pin = window.prompt('กรอก PIN แอดมินเพื่อเชื่อมต่อ Live Chat:');
+            if (pin) ADMIN_CHAT.connect(pin.trim());
+        }
     }
 }
 

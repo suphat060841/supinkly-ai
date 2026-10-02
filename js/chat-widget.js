@@ -19,6 +19,16 @@ const CHAT = (() => {
     let opened = false;
     let unreadCount = 0;
 
+    function escapeHTML(str) {
+        if (!str && str !== 0) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     /* ── Inject widget HTML ───────────────────────────────────────── */
     function injectWidget() {
         const el = document.createElement('div');
