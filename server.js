@@ -242,6 +242,7 @@ if (!fs.existsSync(DB_FILE)) {
         slipOkBranchId: process.env.SLIPOK_BRANCH_ID || "77491",
         usedSlips: [],
         usedTransRefs: [],
+        customPrices: {},
         inventory: {},
         orders: [],
         users: [],  // { id, email, passwordHash, displayName, createdAt, emailVerified }
@@ -261,6 +262,7 @@ function getDb() {
             if (!data.passwordResets) data.passwordResets = {};
             if (!data.users) data.users = [];
             if (!data.smtpConfig) data.smtpConfig = {};
+            if (!data.customPrices) data.customPrices = {};
             return data;
         }
     } catch (err) {
@@ -272,6 +274,7 @@ function getDb() {
                 if (!data.passwordResets) data.passwordResets = {};
                 if (!data.users) data.users = [];
                 if (!data.smtpConfig) data.smtpConfig = {};
+                if (!data.customPrices) data.customPrices = {};
                 return data;
             } catch (e) {}
         }
@@ -284,6 +287,7 @@ function getDb() {
         slipOkBranchId: process.env.SLIPOK_BRANCH_ID || "77491",
         usedSlips: [],
         usedTransRefs: [],
+        customPrices: {},
         inventory: {},
         orders: [],
         users: [],
@@ -485,7 +489,10 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             if (!catalogItem) {
                 return res.status(400).json({ success: false, message: `ไม่พบข้อมูลสินค้ารหัส: ${item.productId}` });
             }
-            expectedTotal += catalogItem.price * qty;
+            const unitPrice = (db.customPrices && db.customPrices[item.productId] && typeof db.customPrices[item.productId].price === 'number')
+                ? db.customPrices[item.productId].price
+                : catalogItem.price;
+            expectedTotal += unitPrice * qty;
         }
 
         let transRef = null;
@@ -577,6 +584,15 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                     message: "ไม่สามารถเชื่อมต่อระบบตรวจสลิปธนาคารได้ กรุณาลองใหม่ในภายหลัง" 
                 });
             }
+        } else {
+            // [SECURITY FIX] In production, if SlipOK API key is unconfigured, reject with friendly message rather than silently creating unverified pending orders
+            const isProduction = process.env.NODE_ENV === 'production' || (!process.env.DEV_MODE && !process.env.ALLOW_DEV_SLIP_BYPASS);
+            if (isProduction) {
+                return res.status(503).json({
+                    success: false,
+                    message: "ระบบตรวจสลิปอัตโนมัติอยู่ระหว่างการปรับปรุงระบบ กรุณาติดต่อแอดมินทาง Live Chat เพื่อทำรายการ"
+                });
+            }
         }
 
         // ── [SECURITY FIX] Re-read db to avoid TOCTOU race conditions during async SlipOK fetch ──
@@ -611,6 +627,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             const master = MASTER_CATALOG[item.productId];
             if (!currentDb.inventory[item.productId]) currentDb.inventory[item.productId] = [];
             const pool = currentDb.inventory[item.productId];
+            const effectivePrice = (currentDb.customPrices && currentDb.customPrices[item.productId] && typeof currentDb.customPrices[item.productId].price === 'number')
+                ? currentDb.customPrices[item.productId].price
+                : master.price;
 
             for (let i = 0; i < item.quantity; i++) {
                 if (isAutoVerified && pool.length > 0) {
@@ -618,7 +637,7 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                     deliveredItems.push({
                         productId: item.productId,
                         productTitle: master.title,
-                        price: master.price,
+                        price: effectivePrice,
                         warranty: master.warranty,
                         status: "delivered",
                         credentials: cred
@@ -628,7 +647,7 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                     deliveredItems.push({
                         productId: item.productId,
                         productTitle: master.title,
-                        price: master.price,
+                        price: effectivePrice,
                         warranty: master.warranty,
                         status: "pending_fulfillment",
                         credentials: null
@@ -704,6 +723,54 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
     saveDb(db);
 
     res.json({ success: true, stockCount: db.inventory[productId].length });
+});
+
+// 2.1 API: Get Public Catalog & Dynamic Prices
+app.get('/api/catalog', (req, res) => {
+    const db = getDb();
+    res.json({
+        success: true,
+        catalog: MASTER_CATALOG,
+        customPrices: db.customPrices || {}
+    });
+});
+
+// 2.2 API: Admin Update or Reset Custom Price & Promotional Badge
+app.post('/api/admin/price', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { productId, price, originalPrice, badge, action } = req.body;
+    const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
+    if (!productId || !VALID_ID_REGEX.test(productId) || !MASTER_CATALOG[productId]) {
+        return res.status(400).json({ success: false, message: "productId ไม่ถูกต้อง หรือไม่พบสินค้าในระบบ" });
+    }
+
+    const db = getDb();
+    if (!db.customPrices) db.customPrices = {};
+
+    if (action === 'reset') {
+        delete db.customPrices[productId];
+        saveDb(db);
+        return res.json({ success: true, message: "คืนค่าราคาสินค้าเป็นค่ามาตรฐานเรียบร้อยแล้ว", customPrices: db.customPrices });
+    }
+
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice) || numPrice < 0) {
+        return res.status(400).json({ success: false, message: "ราคาขายไม่ถูกต้อง" });
+    }
+    const numOrig = parseFloat(originalPrice);
+
+    db.customPrices[productId] = {
+        price: Math.round(numPrice * 100) / 100,
+        originalPrice: (!isNaN(numOrig) && numOrig >= numPrice) ? Math.round(numOrig * 100) / 100 : Math.round(numPrice * 100) / 100,
+        badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : '',
+        manualOverride: true,
+        updatedAt: new Date().toISOString()
+    };
+
+    saveDb(db);
+    res.json({ success: true, message: "อัปเดตราคาและป้ายสินค้าสำเร็จ", customPrices: db.customPrices });
 });
 
 // 3. API: Admin Login & Session Verification
@@ -1063,6 +1130,7 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
             usedTransRefs: Array.isArray(restored.usedTransRefs)
                 ? restored.usedTransRefs.filter(r => typeof r === 'string' && r.length <= 64).slice(0, 20000)
                 : (currentDb.usedTransRefs || []),
+            customPrices: {},
             inventory: {},
             orders: [],
             users: [],
@@ -1070,6 +1138,25 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
             passwordResets: {},
             smtpConfig: {}
         };
+
+        // Sanitize customPrices
+        if (restored.customPrices && typeof restored.customPrices === 'object' && !Array.isArray(restored.customPrices)) {
+            for (const [prodId, val] of Object.entries(restored.customPrices)) {
+                if (prodId === '__proto__' || prodId === 'constructor' || prodId === 'prototype') continue;
+                if (/^[a-z0-9\-]{1,32}$/i.test(prodId) && val && typeof val === 'object') {
+                    const price = parseFloat(val.price);
+                    if (!isNaN(price) && price >= 0) {
+                        sanitizedDb.customPrices[prodId] = {
+                            price: Math.round(price * 100) / 100,
+                            originalPrice: (!isNaN(val.originalPrice) && val.originalPrice >= price) ? Math.round(val.originalPrice * 100) / 100 : Math.round(price * 100) / 100,
+                            badge: typeof val.badge === 'string' ? val.badge.slice(0, 50).trim() : '',
+                            manualOverride: true,
+                            updatedAt: typeof val.updatedAt === 'string' ? val.updatedAt : new Date().toISOString()
+                        };
+                    }
+                }
+            }
+        }
 
         // Sanitize inventory
         if (restored.inventory && typeof restored.inventory === 'object' && !Array.isArray(restored.inventory)) {
@@ -1906,8 +1993,9 @@ wss.on('connection', (ws, req) => {
         // ── AUTH: ลงทะเบียน role ──────────────────────────────────
         if (data.type === 'auth') {
             if (data.role === 'admin') {
-                // [SECURITY] Token-only auth over WebSocket — no raw PIN
-                const isTokenValid = data.token && adminSessions.has(data.token) && Date.now() < adminSessions.get(data.token);
+                // [SECURITY] Token-only auth over WebSocket — supports stateless HMAC token & in-memory session
+                const isTokenValid = (data.token && verifyAdminToken(data.token)) || 
+                                     (data.token && adminSessions.has(data.token) && Date.now() < adminSessions.get(data.token));
 
                 if (isTokenValid) {
                     clientInfo.role = 'admin';

@@ -5,7 +5,7 @@
  */
 
 const G2G_MARKET_FEED = {
-    // 17 Master Products mapped to G2G Market Category & Benchmark Cost (USD)
+    // 19 Master Products mapped to G2G Market Category & Benchmark Cost (USD)
     benchmarks: {
         "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro 1M Private", baseCostUSD: 1.25, g2gStock: 142 },
         "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro 1M Shared",  baseCostUSD: 0.85, g2gStock: 89 },

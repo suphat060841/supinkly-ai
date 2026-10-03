@@ -328,23 +328,60 @@ function calculateVerifiedTotal() {
     }, 0);
 }
 
-// Function to ensure search inputs start completely empty and immune to browser autofill
+// Function to ensure search inputs start completely empty and immune to browser autofill & memory
 function purgeSearchInputs() {
     state.searchQuery = '';
     const dSearchInit = document.getElementById('search-input');
     if (dSearchInit) {
         dSearchInit.value = '';
         dSearchInit.defaultValue = '';
+        dSearchInit.setAttribute('autocomplete', 'off');
     }
     const mSearchInit = document.getElementById('mobile-search-input');
     if (mSearchInit) {
         mSearchInit.value = '';
         mSearchInit.defaultValue = '';
+        mSearchInit.setAttribute('autocomplete', 'off');
     }
     const dClear = document.getElementById('desktop-search-clear');
     if (dClear) dClear.classList.add('hidden');
     const mClear = document.getElementById('mobile-search-clear');
     if (mClear) mClear.classList.add('hidden');
+}
+
+// Synchronize server-authoritative custom prices & promotional badges on startup
+async function syncCustomPricesFromServer() {
+    if (!window.location.protocol.startsWith('http')) return;
+    try {
+        const res = await fetch('/api/catalog');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.customPrices && typeof data.customPrices === 'object') {
+            const localCustom = getCustomPrices();
+            let changed = false;
+            for (const [pid, srv] of Object.entries(data.customPrices)) {
+                if (srv && typeof srv.price === 'number') {
+                    localCustom[pid] = {
+                        ...(localCustom[pid] || {}),
+                        price: srv.price,
+                        originalPrice: srv.originalPrice || srv.price,
+                        badge: srv.badge !== undefined ? srv.badge : (localCustom[pid]?.badge || ''),
+                        manualOverride: true,
+                        lastManualUpdate: srv.updatedAt || new Date().toISOString()
+                    };
+                    changed = true;
+                }
+            }
+            if (changed) {
+                localStorage.setItem('supinkly_custom_prices', JSON.stringify(localCustom));
+                applyCustomPricesToProducts();
+                applyFilters();
+                renderProducts();
+            }
+        }
+    } catch (e) {
+        console.warn("Catalog dynamic price sync skipped:", e.message);
+    }
 }
 
 // Lifecycle listeners to defeat delayed browser autofill
@@ -361,6 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(purgeSearchInputs, 350);
     setTimeout(purgeSearchInputs, 800);
 
+    await syncCustomPricesFromServer();
     syncStockCount();
     initHeader();
     initFilters();
@@ -3016,7 +3054,7 @@ function updateEditPricePreview() {
     }
 }
 
-function handleResetToAutoPrice() {
+async function handleResetToAutoPrice() {
     const productId = document.getElementById('edit-price-product-id').value;
     if (!productId) return;
 
@@ -3026,6 +3064,21 @@ function handleResetToAutoPrice() {
         delete customPrices[productId].lastManualUpdate;
         delete customPrices[productId].badge;
         localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
+    }
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/price', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({
+                    productId,
+                    action: 'reset'
+                })
+            });
+        } catch (err) {
+            console.warn("Failed to sync price reset to server:", err);
+        }
     }
 
     if (typeof G2G_SYNC !== 'undefined') {
@@ -3051,7 +3104,7 @@ function closeEditPriceModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-function handleSaveEditedPrice() {
+async function handleSaveEditedPrice() {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
         closeEditPriceModal();
@@ -3069,18 +3122,39 @@ function handleSaveEditedPrice() {
         return;
     }
 
+    const cleanPrice = Math.round(saleVal * 100) / 100;
+    const cleanOrig = isNaN(origVal) || origVal < saleVal ? cleanPrice : Math.round(origVal * 100) / 100;
+
     const customPrices = getCustomPrices();
     const existing = customPrices[productId] || {};
     customPrices[productId] = {
         ...existing,
-        price: Math.round(saleVal * 100) / 100,
-        originalPrice: isNaN(origVal) || origVal < saleVal ? Math.round(saleVal * 100) / 100 : Math.round(origVal * 100) / 100,
+        price: cleanPrice,
+        originalPrice: cleanOrig,
         badge: badgeVal,
         manualOverride: true,
         lastManualUpdate: new Date().toISOString()
     };
 
     localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
+
+    // Sync to Server Database so server slip verification and all visitor browsers stay 100% in sync
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/price', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({
+                    productId,
+                    price: cleanPrice,
+                    originalPrice: cleanOrig,
+                    badge: badgeVal
+                })
+            });
+        } catch (err) {
+            console.warn("Failed to sync custom price to server:", err);
+        }
+    }
 
     // Refresh application state
     applyCustomPricesToProducts();

@@ -200,12 +200,19 @@ const SlipVerifier = {
         if (window.location.protocol.startsWith('http')) {
             const formData = new FormData();
             formData.append('slip', this.selectedFile);
-            formData.append('email', email || 'member@supinkly.ai');
+            if (email) formData.append('email', email);
             formData.append('cartItems', typeof cartItems === 'string' ? cartItems : JSON.stringify(cartItems));
 
             try {
+                const headers = {};
+                const token = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getToken) ? USER_AUTH.getToken() : null;
+                if (token) {
+                    headers['x-user-token'] = token;
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
                 const res = await fetch('/api/checkout/verify-slip', {
                     method: 'POST',
+                    headers,
                     body: formData
                 });
                 const data = await res.json();
