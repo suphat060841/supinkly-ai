@@ -2514,29 +2514,30 @@ async function openAdminModal() {
                 if (setData.smtpConfig) {
                     const s = setData.smtpConfig;
                     const hostEl = document.getElementById('admin-smtp-host');
-                if (hostEl) hostEl.value = s.host || '';
-                const portEl = document.getElementById('admin-smtp-port');
-                if (portEl) portEl.value = s.port || 465;
-                const userEl = document.getElementById('admin-smtp-user');
-                if (userEl) userEl.value = s.user || '';
-                const passEl = document.getElementById('admin-smtp-pass');
-                if (passEl) passEl.value = s.pass || '';
-                const fromEl = document.getElementById('admin-smtp-from');
-                if (fromEl) fromEl.value = s.from || '';
-                const resendEl = document.getElementById('admin-smtp-resend');
-                if (resendEl) resendEl.value = s.resendKey || '';
-                const brevoEl = document.getElementById('admin-smtp-brevo');
-                if (brevoEl) brevoEl.value = s.brevoKey || '';
-                const sendgridEl = document.getElementById('admin-smtp-sendgrid');
-                if (sendgridEl) sendgridEl.value = s.sendgridKey || '';
-                const mailjetKeyEl = document.getElementById('admin-smtp-mailjet-key');
-                if (mailjetKeyEl) mailjetKeyEl.value = s.mailjetKey || '';
-                const mailjetSecEl = document.getElementById('admin-smtp-mailjet-secret');
-                if (mailjetSecEl) mailjetSecEl.value = s.mailjetSecret || '';
-                const logoUrlEl = document.getElementById('admin-smtp-logourl');
-                if (logoUrlEl) logoUrlEl.value = s.logoUrl || '';
-                const testTargetEl = document.getElementById('admin-test-email-target');
-                if (testTargetEl && !testTargetEl.value && s.user) testTargetEl.value = s.user;
+                    if (hostEl) hostEl.value = s.host || '';
+                    const portEl = document.getElementById('admin-smtp-port');
+                    if (portEl) portEl.value = s.port || 465;
+                    const userEl = document.getElementById('admin-smtp-user');
+                    if (userEl) userEl.value = s.user || '';
+                    const passEl = document.getElementById('admin-smtp-pass');
+                    if (passEl) passEl.value = s.pass || '';
+                    const fromEl = document.getElementById('admin-smtp-from');
+                    if (fromEl) fromEl.value = s.from || '';
+                    const resendEl = document.getElementById('admin-smtp-resend');
+                    if (resendEl) resendEl.value = s.resendKey || '';
+                    const brevoEl = document.getElementById('admin-smtp-brevo');
+                    if (brevoEl) brevoEl.value = s.brevoKey || '';
+                    const sendgridEl = document.getElementById('admin-smtp-sendgrid');
+                    if (sendgridEl) sendgridEl.value = s.sendgridKey || '';
+                    const mailjetKeyEl = document.getElementById('admin-smtp-mailjet-key');
+                    if (mailjetKeyEl) mailjetKeyEl.value = s.mailjetKey || '';
+                    const mailjetSecEl = document.getElementById('admin-smtp-mailjet-secret');
+                    if (mailjetSecEl) mailjetSecEl.value = s.mailjetSecret || '';
+                    const logoUrlEl = document.getElementById('admin-smtp-logourl');
+                    if (logoUrlEl) logoUrlEl.value = s.logoUrl || '';
+                    const testTargetEl = document.getElementById('admin-test-email-target');
+                    if (testTargetEl && !testTargetEl.value && s.user) testTargetEl.value = s.user;
+                }
             }
         } catch (e) {}
     }
