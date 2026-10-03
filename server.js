@@ -204,6 +204,7 @@ setInterval(cleanExpiredSessions, 10 * 60 * 1000);
 
 function authenticateAdmin(req) {
     const authHeader = req.headers['authorization'] || '';
+    // [SECURITY FIX] Token must be transmitted via headers only to prevent leakage in server access logs and browser history
     const token = req.headers['x-admin-token'] || (authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null);
 
     // 1. Direct stateless HMAC token check (survives all server restarts and redeploys)
@@ -345,6 +346,90 @@ const MASTER_CATALOG = {
     "ms-02": { title: "Microsoft 365 1M", price: 259.00, warranty: "30 วัน" },
     "ms-03": { title: "Microsoft Copilot Pro 1M", price: 590.00, warranty: "30 วัน" }
 };
+
+// ─── [SECURITY FIX] Strict Discord Webhook URL Validator (Anti-SSRF) ─────────
+function isValidDiscordWebhookUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    try {
+        const parsed = new URL(url.trim());
+        if (parsed.protocol !== 'https:') return false;
+        const validHosts = ['discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com'];
+        if (!validHosts.includes(parsed.hostname.toLowerCase())) return false;
+        // Pathname must strictly match /api/webhooks/<id>/<token>
+        const pathRegex = /^\/api\/webhooks\/[0-9]{17,21}\/[A-Za-z0-9_\-]+(?:\/)?$/;
+        return pathRegex.test(parsed.pathname);
+    } catch {
+        return false;
+    }
+}
+
+// ─── Discord Webhook Real-time Order Notification Helper (Hardened & Anti-SSRF) ─
+async function sendDiscordNotification(webhookUrl, order, isFulfillmentUpdate = false) {
+    if (!isValidDiscordWebhookUrl(webhookUrl)) return;
+    try {
+        const isPending = (order.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment');
+        
+        let color = 0x10B981; // emerald
+        const safeOrderId = String(order.orderId || '-').replace(/[`\\]/g, '').slice(0, 32);
+        let title = `🛒 มีคำสั่งซื้อใหม่ #${safeOrderId}`;
+        let alertMessage = `✅ **มีคำสั่งซื้อใหม่สำเร็จในระบบ**`;
+
+        if (isFulfillmentUpdate) {
+            color = 0x8B5CF6; // purple
+            title = `📦 จัดส่งสินค้าสำเร็จ #${safeOrderId}`;
+            alertMessage = `🎉 **แอดมินส่งมอบคีย์เรียบร้อยแล้ว** สำหรับคำสั่งซื้อ #${safeOrderId}`;
+        } else if (isPending) {
+            color = 0xF59E0B; // amber
+            title = `🚨 แจ้งเตือนออเดอร์รอจัดส่ง #${safeOrderId}`;
+            alertMessage = `⚠️ **มีออเดอร์ On-Demand โอนเงินแล้ว!** กรุณาเข้าสู่ระบบแอดมินเพื่อส่งมอบคีย์`;
+        }
+
+        let itemsText = (order.items || []).map((it, idx) => {
+            const titleStr = String(it.productTitle || 'สินค้า').replace(/[`*_\\]/g, '').slice(0, 60);
+            const statusTxt = it.credentials && it.status !== 'pending_fulfillment' ? '✅ จัดส่งแล้ว' : '🟡 รอส่งมอบ';
+            return `${idx + 1}. **${titleStr}** (฿${parseFloat(it.price || 0).toFixed(2)}) - ${statusTxt}`;
+        }).join('\n');
+
+        if (itemsText.length > 950) {
+            itemsText = itemsText.slice(0, 930) + '\n... (มีรายการเพิ่มเติม)';
+        }
+
+        const safeEmail = String(order.email || order.recipientEmail || '-').slice(0, 100);
+        const safeRef = String(order.transRef || '-').replace(/[`\\]/g, '').slice(0, 50);
+
+        const embed = {
+            title: title.slice(0, 250),
+            color: color,
+            fields: [
+                { name: "💰 ยอดชำระเงิน", value: `**฿${parseFloat(order.totalAmount || 0).toFixed(2)}**`, inline: true },
+                { name: "📊 สถานะ", value: String(order.status || (isPending ? "รอจัดส่ง" : "จัดส่งสำเร็จ")).slice(0, 100), inline: true },
+                { name: "📧 อีเมลลูกค้า", value: safeEmail, inline: true },
+                { name: "🧾 สลิปอ้างอิง", value: `\`${safeRef}\``, inline: true },
+                { name: "📦 รายการสินค้า", value: itemsText || "ไม่มีรายการ" }
+            ],
+            footer: { text: "Supinkly.AI Real-Time Order System" },
+            timestamp: new Date().toISOString()
+        };
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        try {
+            await fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: alertMessage,
+                    embeds: [embed]
+                }),
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    } catch (err) {
+        console.error('[DISCORD-WEBHOOK] Error sending notification:', err.message);
+    }
+}
 
 // 1. API: Verify Slip & Dispense Product (Server-Side Verified)
 app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), async (req, res) => {
@@ -572,6 +657,13 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         currentDb.orders.unshift(order);
         saveDb(currentDb);
 
+        // [NOTIFICATION & RECEIPT] Fire-and-forget Discord alert & Email receipt
+        const webhookUrl = process.env.DISCORD_WEBHOOK_URL || currentDb.discordWebhookUrl;
+        if (webhookUrl) {
+            sendDiscordNotification(webhookUrl, order, false).catch(e => console.warn('[DISCORD] Notification error:', e.message));
+        }
+        mailService.sendOrderReceiptEmail(order, false, currentDb).catch(e => console.warn('[MAIL] Order receipt email error:', e.message));
+
         res.json({ success: true, order });
     } catch (err) {
         console.error('checkout error:', err.message);
@@ -665,6 +757,14 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
         order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
     }
     saveDb(db);
+
+    // [NOTIFICATION & RECEIPT] Notify customer that item/order has been delivered
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL || db.discordWebhookUrl;
+    if (webhookUrl) {
+        sendDiscordNotification(webhookUrl, order, true).catch(e => console.warn('[DISCORD] Fulfill notification error:', e.message));
+    }
+    mailService.sendOrderReceiptEmail(order, true, db).catch(e => console.warn('[MAIL] Fulfill receipt email error:', e.message));
+
     res.json({ success: true, order });
 });
 
@@ -680,6 +780,9 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
         promptPayNumber: db.promptPayNumber || "0982949371",
         promptPayAccountName: db.promptPayAccountName || "สุพัฒน์ มีสมบัติ",
         slipOkBranchId: db.slipOkBranchId || "77491",
+        discordWebhookUrl: (process.env.DISCORD_WEBHOOK_URL || db.discordWebhookUrl) 
+            ? (process.env.DISCORD_WEBHOOK_URL ? '******' : (db.discordWebhookUrl || '')) 
+            : '',
         smtpConfig: {
             host: process.env.SMTP_HOST || smtp.host || '',
             port: parseInt(process.env.SMTP_PORT || smtp.port || '465', 10),
@@ -690,7 +793,8 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
             brevoKey:      (process.env.BREVO_API_KEY      || smtp.brevoKey)      ? '******' : '',
             sendgridKey:   (process.env.SENDGRID_API_KEY   || smtp.sendgridKey)   ? '******' : '',
             mailjetKey:    (process.env.MAILJET_API_KEY    || smtp.mailjetKey)    ? '******' : '',
-            mailjetSecret: (process.env.MAILJET_SECRET_KEY || smtp.mailjetSecret) ? '******' : ''
+            mailjetSecret: (process.env.MAILJET_SECRET_KEY || smtp.mailjetSecret) ? '******' : '',
+            logoUrl:       process.env.LOGO_URL || smtp.logoUrl || ''
         }
     });
 });
@@ -700,7 +804,7 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
-    const { promptPayNumber, promptPayAccountName, slipOkBranchId, newPin, smtpConfig } = req.body;
+    const { promptPayNumber, promptPayAccountName, slipOkBranchId, newPin, smtpConfig, discordWebhookUrl } = req.body;
     const db = getDb();
 
     if (promptPayNumber) {
@@ -720,6 +824,16 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         if (pinClean.length >= 4 && pinClean.length <= 16) {
             db.adminPinHash = hashPin(pinClean);
         }
+    }
+    if (discordWebhookUrl !== undefined && discordWebhookUrl !== '******') {
+        const trimmed = String(discordWebhookUrl).trim();
+        if (trimmed && !isValidDiscordWebhookUrl(trimmed)) {
+            return res.status(400).json({
+                success: false,
+                message: "Discord Webhook URL ไม่ถูกต้อง ต้องเป็น URL ทางการของ Discord เท่านั้น (https://discord.com/api/webhooks/...)"
+            });
+        }
+        db.discordWebhookUrl = trimmed;
     }
     if (smtpConfig && typeof smtpConfig === 'object') {
         if (!db.smtpConfig) db.smtpConfig = {};
@@ -745,10 +859,40 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         if (smtpConfig.mailjetSecret !== undefined && smtpConfig.mailjetSecret !== '******') {
             db.smtpConfig.mailjetSecret = String(smtpConfig.mailjetSecret).trim();
         }
+        if (smtpConfig.logoUrl !== undefined) {
+            db.smtpConfig.logoUrl = String(smtpConfig.logoUrl).trim();
+        }
     }
 
     saveDb(db);
     res.json({ success: true, message: "บันทึกการตั้งค่าสำเร็จ" });
+});
+
+// 6.2.0 API: Admin Test Discord Webhook (Anti-SSRF Protected)
+app.post('/api/admin/test-discord', adminRateLimit, async (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { webhookUrl } = req.body;
+    const db = getDb();
+    const targetUrl = (webhookUrl && webhookUrl !== '******') ? String(webhookUrl).trim() : (process.env.DISCORD_WEBHOOK_URL || db.discordWebhookUrl);
+    if (!targetUrl || !isValidDiscordWebhookUrl(targetUrl)) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุ Discord Webhook URL ที่ถูกต้องและปลอดภัย (ต้องขึ้นต้นด้วย https://discord.com/api/webhooks/...)" });
+    }
+    try {
+        const testOrder = {
+            orderId: "TEST-" + Math.floor(100000 + Math.random() * 900000),
+            totalAmount: 259.00,
+            email: "customer@example.com",
+            transRef: "TEST-REF-9999",
+            status: "🟢 จัดส่งสำเร็จทันที (ทดสอบการแจ้งเตือน)",
+            items: [{ productTitle: "ChatGPT Plus 1 เดือน (ทดสอบระบบ)", price: 259.00, status: "delivered", credentials: { key: "TEST-LICENSE-KEY" } }]
+        };
+        await sendDiscordNotification(targetUrl, testOrder, false);
+        res.json({ success: true, message: "ส่งข้อความทดสอบไปยัง Discord สำเร็จแล้ว! กรุณาตรวจสอบห้องแชทใน Discord ของคุณ" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: `เกิดข้อผิดพลาดในการส่งเข้า Discord: ${err.message}` });
+    }
 });
 
 // 6.2.1 API: Admin Test Email Delivery (Live Diagnostics)
@@ -838,6 +982,155 @@ app.post('/api/admin/test-email', adminRateLimit, async (req, res) => {
             success: false,
             message: `เกิดข้อผิดพลาดในการทดสอบส่งอีเมล: ${err.message}`
         });
+    }
+});
+
+// 6.2.2 API: Admin Download Database Backup (JSON Export)
+app.get('/api/admin/backup-db', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `supinkly_db_backup_${dateStr}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(db, null, 2));
+});
+
+// 6.2.3 API: Admin Restore Database from JSON Backup (Deep Sanitization & Pre-Restore Backup)
+app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    try {
+        const { backupData } = req.body;
+        let restored;
+        if (typeof backupData === 'string') {
+            try {
+                restored = JSON.parse(backupData);
+            } catch (parseErr) {
+                return res.status(400).json({ success: false, message: "ไฟล์ JSON มีไวยากรณ์ผิดพลาด ไม่สามารถประมวลผลได้" });
+            }
+        } else if (typeof backupData === 'object' && backupData !== null) {
+            restored = backupData;
+        } else {
+            return res.status(400).json({ success: false, message: "รูปแบบข้อมูลไฟล์สำรองไม่ถูกต้อง" });
+        }
+
+        if (!restored || typeof restored !== 'object' || Array.isArray(restored)) {
+            return res.status(400).json({ success: false, message: "ข้อมูลสำรองต้องเป็น JSON Object" });
+        }
+
+        // Sanity check: Ensure it has key properties
+        if (!restored.inventory && !restored.orders && !restored.users) {
+            return res.status(400).json({ success: false, message: "ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Supinkly.AI ที่ถูกต้อง (ไม่พบโครงสร้างข้อมูลคำสั่งซื้อ, คลังสินค้า หรือสมาชิก)" });
+        }
+
+        const currentDb = getDb();
+
+        // 1. Create Pre-Restore Safety Backup
+        try {
+            if (fs.existsSync(DB_FILE)) {
+                fs.copyFileSync(DB_FILE, path.join(__dirname, 'secure_database.json.pre-restore.bak'));
+            }
+        } catch (bakErr) {
+            console.warn('[RESTORE] Could not create pre-restore backup:', bakErr.message);
+        }
+
+        // 2. Deep Sanitization & Structural Normalization (Anti-Prototype Pollution & Crash-Resilience)
+        const sanitizedDb = {
+            // Strictly retain current verified admin credentials to prevent lockout/backdoor hijacking
+            adminPinHash: currentDb.adminPinHash || hashPin(process.env.ADMIN_PIN || '8899'),
+            promptPayNumber: (typeof restored.promptPayNumber === 'string' && /^[0-9]{10,15}$/.test(restored.promptPayNumber))
+                ? restored.promptPayNumber
+                : (currentDb.promptPayNumber || "0982949371"),
+            promptPayAccountName: typeof restored.promptPayAccountName === 'string'
+                ? restored.promptPayAccountName.slice(0, 100).trim()
+                : (currentDb.promptPayAccountName || "สุพัฒน์ มีสมบัติ"),
+            slipOkApiKey: typeof restored.slipOkApiKey === 'string'
+                ? restored.slipOkApiKey.trim()
+                : (currentDb.slipOkApiKey || ""),
+            slipOkBranchId: typeof restored.slipOkBranchId === 'string'
+                ? restored.slipOkBranchId.slice(0, 32).trim()
+                : (currentDb.slipOkBranchId || "77491"),
+            discordWebhookUrl: (typeof restored.discordWebhookUrl === 'string' && isValidDiscordWebhookUrl(restored.discordWebhookUrl))
+                ? restored.discordWebhookUrl.trim()
+                : (currentDb.discordWebhookUrl || ""),
+            usedSlips: Array.isArray(restored.usedSlips)
+                ? restored.usedSlips.filter(s => typeof s === 'string' && /^[a-f0-9]{64}$/i.test(s)).slice(0, 20000)
+                : (currentDb.usedSlips || []),
+            usedTransRefs: Array.isArray(restored.usedTransRefs)
+                ? restored.usedTransRefs.filter(r => typeof r === 'string' && r.length <= 64).slice(0, 20000)
+                : (currentDb.usedTransRefs || []),
+            inventory: {},
+            orders: [],
+            users: [],
+            pendingRegistrations: {},
+            passwordResets: {},
+            smtpConfig: {}
+        };
+
+        // Sanitize inventory
+        if (restored.inventory && typeof restored.inventory === 'object' && !Array.isArray(restored.inventory)) {
+            for (const [prodId, creds] of Object.entries(restored.inventory)) {
+                if (prodId === '__proto__' || prodId === 'constructor' || prodId === 'prototype') continue;
+                if (/^[a-z0-9\-]{1,32}$/i.test(prodId) && Array.isArray(creds)) {
+                    sanitizedDb.inventory[prodId] = creds.filter(c => c && typeof c === 'object');
+                }
+            }
+        }
+
+        // Sanitize orders (Must have valid orderId)
+        if (Array.isArray(restored.orders)) {
+            sanitizedDb.orders = restored.orders.filter(o => 
+                o && typeof o === 'object' && 
+                typeof o.orderId === 'string' && 
+                /^[a-zA-Z0-9_\-]{3,64}$/.test(o.orderId)
+            );
+        }
+
+        // Sanitize users (Must have id, email, passwordHash)
+        if (Array.isArray(restored.users)) {
+            sanitizedDb.users = restored.users.filter(u =>
+                u && typeof u === 'object' &&
+                typeof u.id === 'string' &&
+                typeof u.email === 'string' &&
+                isValidEmail(u.email)
+            );
+        }
+
+        // Sanitize smtpConfig
+        if (restored.smtpConfig && typeof restored.smtpConfig === 'object' && !Array.isArray(restored.smtpConfig)) {
+            sanitizedDb.smtpConfig = {
+                host: typeof restored.smtpConfig.host === 'string' ? restored.smtpConfig.host.slice(0, 100).trim() : '',
+                port: parseInt(restored.smtpConfig.port, 10) || 465,
+                user: typeof restored.smtpConfig.user === 'string' ? restored.smtpConfig.user.slice(0, 100).trim() : '',
+                pass: typeof restored.smtpConfig.pass === 'string' ? restored.smtpConfig.pass.trim() : (currentDb.smtpConfig?.pass || ''),
+                from: typeof restored.smtpConfig.from === 'string' ? restored.smtpConfig.from.slice(0, 120).trim() : '',
+                resendKey: typeof restored.smtpConfig.resendKey === 'string' ? restored.smtpConfig.resendKey.trim() : '',
+                brevoKey: typeof restored.smtpConfig.brevoKey === 'string' ? restored.smtpConfig.brevoKey.trim() : '',
+                sendgridKey: typeof restored.smtpConfig.sendgridKey === 'string' ? restored.smtpConfig.sendgridKey.trim() : '',
+                mailjetKey: typeof restored.smtpConfig.mailjetKey === 'string' ? restored.smtpConfig.mailjetKey.trim() : '',
+                mailjetSecret: typeof restored.smtpConfig.mailjetSecret === 'string' ? restored.smtpConfig.mailjetSecret.trim() : ''
+            };
+        } else {
+            sanitizedDb.smtpConfig = currentDb.smtpConfig || {};
+        }
+
+        saveDb(sanitizedDb);
+
+        res.json({
+            success: true,
+            message: "กู้คืนฐานข้อมูลสำเร็จและทำความสะอาดโครงสร้างเรียบร้อยแล้ว",
+            stats: {
+                orders: sanitizedDb.orders.length,
+                users: sanitizedDb.users.length,
+                inventoryProducts: Object.keys(sanitizedDb.inventory).length
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: `เกิดข้อผิดพลาดในการกู้คืนฐานข้อมูล: ${err.message}` });
     }
 });
 

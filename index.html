@@ -4,6 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Supinkly.AI - ตลาดซื้อขายบัญชี AI และเครื่องมือดิจิทัลอันดับ 1 (Digital Marketplace)</title>
+    <meta name="description" content="ช้อปบัญชี AI และเครื่องมือดิจิทัลพรีเมียม ลิขสิทธิ์แท้ 100% ChatGPT Plus, Claude Pro, Midjourney, Canva, Microsoft 365 ระบบส่งมอบรหัสอัตโนมัติ 24 ชม. รับประกันทุกคำสั่งซื้อ">
+    <meta name="keywords" content="ซื้อ ChatGPT, Claude Pro, Midjourney, Canva Pro, Microsoft 365, ร้านขายบัญชี AI, Supinkly AI">
+    <meta name="theme-color" content="#FF2E7E">
+
+    <!-- Open Graph / Facebook / LINE -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Supinkly.AI - ตลาดซื้อขายบัญชี AI และเครื่องมือดิจิทัลอันดับ 1">
+    <meta property="og:description" content="ช้อปบัญชี AI พรีเมียมแท้ 100% ChatGPT Plus, Claude, Midjourney, Canva ส่งมอบรหัสเข้าคลังอัตโนมัติ 24 ชม.">
+    <meta property="og:image" content="images/logo.jpg">
+    <meta property="og:site_name" content="Supinkly.AI">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Supinkly.AI - ตลาดซื้อขายบัญชี AI และเครื่องมือดิจิทัลอันดับ 1">
+    <meta name="twitter:description" content="ช้อปบัญชี AI พรีเมียมแท้ 100% ส่งมอบรหัสเข้าคลังอัตโนมัติ 24 ชม.">
+    <meta name="twitter:image" content="images/logo.jpg">
     
     <!-- Favicon (Browser Tab Icon) -->
     <link rel="icon" type="image/jpeg" href="images/logo.jpg">
@@ -163,9 +179,14 @@
             <!-- Search Bar (Desktop) -->
             <div class="hidden md:flex flex-1 max-w-md mx-6">
                 <div class="relative w-full">
-                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
-                    <input type="text" id="search-input" placeholder="ค้นหาบัญชี เช่น CapCut, Claude, Grok, Windows..." 
-                           class="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-pink-500 text-sm pointer-events-none"></i>
+                    <input type="search" id="search-input" name="search-query" role="searchbox"
+                           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true"
+                           placeholder="ค้นหาบัญชี เช่น CapCut, Claude, Grok, Windows..." 
+                           class="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
+                    <button id="desktop-search-clear" onclick="clearDesktopSearch()" title="ล้างคำค้นหา" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs transition-colors">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
                 </div>
             </div>
 
@@ -189,10 +210,12 @@
         <!-- Search Bar (Mobile) -->
         <div class="md:hidden px-3 pb-2.5 pt-0.5">
             <div class="relative w-full">
-                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-xs"></i>
-                <input type="text" id="mobile-search-input" oninput="handleMobileSearchInput(this.value)" placeholder="ค้นหา เช่น CapCut, Claude, Windows..." 
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-xs pointer-events-none"></i>
+                <input type="search" id="mobile-search-input" name="mobile-search-query" role="searchbox"
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true"
+                       oninput="handleMobileSearchInput(this.value)" placeholder="ค้นหา เช่น CapCut, Claude, Windows..." 
                        class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-100 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 outline-none font-medium focus:bg-white focus:border-pink-400 transition-all shadow-2xs">
-                <button id="mobile-search-clear" onclick="clearMobileSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs">
+                <button id="mobile-search-clear" onclick="clearMobileSearch()" title="ล้างคำค้นหา" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs transition-colors">
                     <i class="fa-solid fa-circle-xmark"></i>
                 </button>
             </div>
@@ -225,7 +248,7 @@
                         <div class="w-10 h-10 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-lg shrink-0">
                             <i class="fa-solid fa-bolt-lightning"></i>
                         </div>
-                        <div class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        <div class="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
                             พร้อมส่งมอบตลอด 24 ชม.
                         </div>
                     </div>
@@ -233,7 +256,7 @@
                         <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-lg shrink-0">
                             <i class="fa-solid fa-trophy"></i>
                         </div>
-                        <div class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        <div class="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
                             รับประกันสินค้าแท้ 100%
                         </div>
                     </div>
@@ -241,7 +264,7 @@
                         <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-lg shrink-0">
                             <i class="fa-solid fa-mobile-screen-button"></i>
                         </div>
-                        <div class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        <div class="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
                             Thai QR มาตรฐานธนาคาร
                         </div>
                     </div>
@@ -249,7 +272,7 @@
                         <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg shrink-0">
                             <i class="fa-solid fa-shield-halved"></i>
                         </div>
-                        <div class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        <div class="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
                             ความปลอดภัยระดับสูง
                         </div>
                     </div>
@@ -596,11 +619,14 @@
                 </div>
 
                 <!-- Pillar 3 -->
-                <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all space-y-2.5">
-                    <div class="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-xl">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all space-y-2.5 cursor-pointer group" onclick="openWarrantyModal()" title="คลิกเพื่ออ่านนโยบายการรับประกันและการเคลม">
+                    <div class="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-award"></i>
                     </div>
-                    <h3 class="font-bold text-slate-900 text-sm">รับประกันตามเงื่อนไขแพ็กเกจ</h3>
+                    <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        <span>รับประกันตามเงื่อนไขแพ็กเกจ</span>
+                        <span class="text-[10px] text-cyan-700 font-bold bg-cyan-50 px-2 py-0.5 rounded-full border border-cyan-200">อ่านนโยบาย</span>
+                    </h3>
                     <p class="text-xs text-slate-500 leading-relaxed font-medium">
                         ทุกคำสั่งซื้อได้รับการรับประกันตามระยะเวลาที่ระบุในแต่ละแพ็กเกจ หากพบปัญหาในการเข้าใช้งาน ทีมงานจะตรวจสอบและดำเนินการเปลี่ยนชุดใหม่ให้ตามเงื่อนไขการรับประกัน
                     </p>
@@ -708,10 +734,17 @@
         </div>
         <div class="max-w-7xl mx-auto mt-8 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-slate-500 text-xs font-medium gap-2">
             <span>&copy; 2026 Supinkly.AI Marketplace. All rights reserved. | ความปลอดภัยและการบริการมาตรฐานสากล</span>
-            <button onclick="promptAdminLogin()" class="text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5 text-[11px]" title="เข้าสู่ระบบจัดการร้านค้า">
-                <i class="fa-solid fa-lock text-[10px]"></i>
-                <span>ระบบจัดการร้านค้า</span>
-            </button>
+            <div class="flex items-center gap-3">
+                <button onclick="openWarrantyModal()" class="text-pink-600 hover:text-pink-700 hover:underline transition-colors flex items-center gap-1 font-bold text-[11px]">
+                    <i class="fa-solid fa-shield-halved text-[10px]"></i>
+                    <span>นโยบายการรับประกัน & การเคลม</span>
+                </button>
+                <span class="text-slate-300">•</span>
+                <button onclick="promptAdminLogin()" class="text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5 text-[11px]" title="เข้าสู่ระบบจัดการร้านค้า">
+                    <i class="fa-solid fa-lock text-[10px]"></i>
+                    <span>ระบบจัดการร้านค้า</span>
+                </button>
+            </div>
         </div>
     </footer>
 
@@ -1289,6 +1322,81 @@
     </div>
 
     <!-- ==========================================
+         WARRANTY & REFUND POLICY MODAL (นโยบายการรับประกัน & การเคลม)
+         ========================================== -->
+    <div id="warranty-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-pink-200 relative max-h-[92vh] flex flex-col shadow-2xl overflow-y-auto">
+            
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg shadow-sm">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">นโยบายการรับประกันและการเคลมสินค้า</h3>
+                        <p class="text-xs text-slate-500 font-medium">มาตรฐานความปลอดภัยและการดูแลลูกค้า Supinkly.AI</p>
+                    </div>
+                </div>
+                <button onclick="closeWarrantyModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="mt-4 space-y-4 text-xs text-slate-600 leading-relaxed font-medium">
+                <!-- Point 1 -->
+                <div class="p-3.5 rounded-2xl bg-pink-50/60 border border-pink-200 space-y-1.5">
+                    <div class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+                        <span>ระยะเวลาการรับประกัน (Warranty Period):</span>
+                    </div>
+                    <p class="pl-6 text-[11px] text-slate-600">
+                        สินค้าทุกรายการได้รับการรับประกันตามระยะเวลาที่ระบุในแต่ละแพ็กเกจ (เช่น 7 วัน, 30 วัน, หรือตลอดอายุการใช้งาน) นับตั้งแต่วินาทีที่ระบบส่งมอบรหัสเข้าสู่คลังของคุณ
+                    </p>
+                </div>
+
+                <!-- Point 2 -->
+                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+                    <div class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        <span class="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold">2</span>
+                        <span>เงื่อนไขการเคลมและเปลี่ยนสินค้า:</span>
+                    </div>
+                    <ul class="pl-6 space-y-1 text-[11px] text-slate-600 list-disc">
+                        <li><b>กรณีได้รับสิทธิ์เคลม:</b> เข้าสู่ระบบไม่ได้, รหัสผ่านไม่ถูกต้อง, บัญชีถูกลดสถานะ (Downgrade) ก่อนครบกำหนดเวลา หรือคีย์เปิดใช้งานไม่สำเร็จ ทางร้านจะเปลี่ยนชุดใหม่หรือแก้ไขให้ทันที</li>
+                        <li><b>บัญชีประเภทแชร์ (Shared):</b> ห้ามเปลี่ยนอีเมล, รหัสผ่าน, ข้อมูลการชำระเงิน หรือแทรกแซงโปรไฟล์ของผู้ใช้งานท่านอื่น หากฝ่าฝืนจะถือว่าสละสิทธิ์การรับประกัน</li>
+                        <li><b>บัญชีประเภทส่วนตัว (Private):</b> สามารถใช้งานได้เต็มสิทธิ์ตามเงื่อนไขของแพ็กเกจนั้นๆ</li>
+                    </ul>
+                </div>
+
+                <!-- Point 3 -->
+                <div class="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-1.5">
+                    <div class="font-bold text-emerald-900 text-sm flex items-center gap-1.5">
+                        <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">3</span>
+                        <span>ขั้นตอนการแจ้งเคลมง่ายๆ (ภายใน 1 นาที):</span>
+                    </div>
+                    <ol class="pl-6 space-y-1 text-[11px] text-emerald-800 font-medium">
+                        <li>1. นำรหัสออเดอร์ของคุณ (เช่น <b class="font-mono">SPK-xxxxxx</b>) จากหน้า <b>"คลังรหัสของฉัน"</b> หรืออีเมลใบเสร็จ</li>
+                        <li>2. กดปุ่ม <b>"💬 แชทกับแอดมิน (Live Chat)"</b> ที่มุมล่างขวาของเว็บไซต์ หรือทักเพจ Facebook</li>
+                        <li>3. แจ้งเลขออเดอร์และอาการที่พบ เจ้าหน้าที่จะตรวจสอบและเปลี่ยนชุดใหม่ให้ทันทีตลอด 24 ชม.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="mt-5 pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center gap-2">
+                <button onclick="closeWarrantyModal(); document.getElementById('spk-chat-btn')?.click();" 
+                        class="w-full sm:flex-1 py-3 rounded-xl gradient-btn text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-pink-500/20">
+                    <i class="fa-solid fa-comments"></i>
+                    <span>ติดต่อเคลมสินค้าผ่าน Live Chat ทันที</span>
+                </button>
+                <button onclick="closeWarrantyModal()" 
+                        class="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all">
+                    <span>รับทราบและปิด</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==========================================
          ADMIN PIN AUTHENTICATION MODAL (SECURITY GATE)
          ========================================== -->
     <div id="admin-pin-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1527,6 +1635,31 @@
                     </div>
                 </div>
 
+                <!-- Discord Real-time Order Notification Webhook -->
+                <div class="mt-4 pt-3 border-t border-slate-200">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <i class="fa-brands fa-discord text-[#5865F2] text-sm sm:text-base"></i> แจ้งเตือนออเดอร์ใหม่เข้ามือถือผ่าน Discord Webhook
+                        </h4>
+                        <span class="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
+                            ⚡ แจ้งเตือน 24 ชม.
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                        เมื่อลูกค้าโอนเงินหรือมีออเดอร์ On-Demand ระบบจะส่งข้อความแจ้งเตือนเข้าห้องแชท Discord ทันที ช่วยให้แอดมินรู้ตัวและส่งมอบคีย์ได้ทันใจ
+                    </p>
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <input type="text" id="admin-discord-webhook" placeholder="https://discord.com/api/webhooks/..." 
+                               class="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-[#5865F2]">
+                        <button type="button" id="admin-test-discord-btn" onclick="handleAdminTestDiscord()" 
+                                class="px-3.5 py-2 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-2xs">
+                            <i class="fa-solid fa-bell"></i>
+                            <span>ทดสอบส่งเข้า Discord</span>
+                        </button>
+                    </div>
+                    <div id="admin-test-discord-result" class="hidden mt-2 p-2.5 rounded-xl text-xs font-medium"></div>
+                </div>
+
                 <!-- Email & SMTP Delivery Configuration -->
                 <div class="mt-4 pt-3 border-t border-slate-200">
                     <h4 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5 mb-2">
@@ -1543,6 +1676,7 @@
                             <strong class="text-amber-800">วิธีบันทึกถาวร 100%:</strong> ไปที่ <strong>Render Dashboard → Environment → Add Environment Variable</strong> แล้วใส่ค่าเหล่านี้:
                         </div>
                         <div id="render-env-guide" class="mt-2 bg-white/80 border border-amber-200 rounded-lg p-2 font-mono text-[10px] text-slate-800 space-y-0.5 select-all">
+                            <div>DISCORD_WEBHOOK_URL=<span class="text-indigo-600 font-bold">[https://discord.com/api/webhooks/...]</span></div>
                             <div>BREVO_API_KEY=<span class="text-emerald-700 font-bold">[วาง Brevo API Key ที่นี่]</span></div>
                             <div>RESEND_API_KEY=<span class="text-blue-700 font-bold">[หรือ Resend API Key]</span></div>
                             <div>SMTP_HOST=smtp.gmail.com</div>
@@ -1624,6 +1758,22 @@
                             <input type="password" id="admin-smtp-resend" placeholder="re_••••••••••••"
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
                         </div>
+                        <div class="sm:col-span-2 lg:col-span-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <i class="fa-regular fa-image text-pink-500"></i>
+                                    <span>Logo URL ในหัวอีเมล (Logo URL for Email Header):</span>
+                                </label>
+                                <span class="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-medium border border-emerald-200">
+                                    ✓ ค่าเริ่มต้น: รูปมาสค็อต Supinkly.AI จาก GitHub CDN
+                                </span>
+                            </div>
+                            <input type="text" id="admin-smtp-logourl" placeholder="https://raw.githubusercontent.com/suphat060841/supinkly-ai/main/images/logo.jpg"
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
+                            <p class="text-[10px] text-slate-500 mt-1">
+                                รูป Logo จะแสดงตรงหัวตารางในอีเมล OTP, อีเมลรีเซ็ตรหัสผ่าน, และอีเมลใบเสร็จจัดส่งสินค้า (เว้นว่างไว้จะใช้ค่าเริ่มต้นของระบบอัตโนมัติ)
+                            </p>
+                        </div>
                     </div>
 
                     <!-- App Password Tip -->
@@ -1667,6 +1817,34 @@
 
                         <!-- Live Diagnostic Result Area -->
                         <div id="admin-test-email-result" class="hidden mt-2.5 p-3 rounded-xl text-xs font-medium"></div>
+                    </div>
+                </div>
+
+                <!-- Database Backup & Restore (JSON Export / Import) -->
+                <div class="mt-4 pt-3 border-t border-slate-200">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <i class="fa-solid fa-database text-cyan-600"></i> สำรองและกู้คืนฐานข้อมูลร้านค้า (Database Backup & Restore)
+                        </h4>
+                        <span class="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-bold">
+                            JSON Archive
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mb-2.5 leading-relaxed">
+                        ดาวน์โหลดสำรองข้อมูลคำสั่งซื้อ สต็อก และสมาชิกเก็บไว้ในคอมพิวเตอร์ หรือนำเข้าไฟล์สำรองเพื่อกู้คืนข้อมูลกรณี Re-deploy บน Cloud
+                    </p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" onclick="downloadDatabaseBackup()" 
+                                class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs">
+                            <i class="fa-solid fa-cloud-arrow-down"></i>
+                            <span>📥 ดาวน์โหลดสำรองฐานข้อมูล (Backup JSON)</span>
+                        </button>
+                        
+                        <label class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                            <i class="fa-solid fa-cloud-arrow-up text-pink-600"></i>
+                            <span>📤 กู้คืนฐานข้อมูล (Restore JSON)</span>
+                            <input type="file" id="admin-restore-file-input" accept=".json" class="hidden" onchange="handleDatabaseRestore(this)">
+                        </label>
                     </div>
                 </div>
 
@@ -1850,11 +2028,11 @@
          ========================================== -->
     <div id="edit-price-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white max-w-md w-full rounded-3xl p-6 border-2 border-amber-300 relative shadow-2xl">
-            <h3 class="text-base font-extrabold text-slate-900 mb-1 flex items-center gap-2">
+            <h3 class="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
                 <i class="fa-solid fa-tag text-amber-500"></i>
-                <span>แก้ไขราคาขายสินค้า</span>
+                <span>แก้ไขราคา & ป้ายสินค้า (Badge)</span>
             </h3>
-            <p id="edit-price-product-title" class="text-xs font-bold text-pink-600 mb-3"></p>
+            <p id="edit-price-product-title" class="text-xs font-semibold text-pink-600 mb-3"></p>
             <input type="hidden" id="edit-price-product-id">
 
             <!-- Live Profit & Cost Preview -->
@@ -1865,11 +2043,11 @@
                 </div>
                 <div class="flex items-center justify-between text-slate-600">
                     <span class="font-medium">กำไรสุทธิโดยประมาณ:</span>
-                    <span id="edit-price-margin-preview" class="font-black text-emerald-600">฿0.00 (+0%)</span>
+                    <span id="edit-price-margin-preview" class="font-bold text-emerald-600">฿0.00 (+0%)</span>
                 </div>
                 <div class="flex items-center justify-between text-slate-500 text-[11px] pt-1 border-t border-amber-200/60">
                     <span>สถานะราคานี้:</span>
-                    <span id="edit-price-status-badge" class="font-bold text-pink-600"></span>
+                    <span id="edit-price-status-badge" class="font-semibold text-pink-600"></span>
                 </div>
             </div>
 
@@ -1882,18 +2060,32 @@
 
             <div class="space-y-3 mb-5">
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
                         ราคาขายจริง (฿) <span class="text-pink-600">*ลูกค้าชำระราคานี้</span>
                     </label>
                     <input type="number" id="edit-price-sale" oninput="updateEditPricePreview()" step="0.01" min="0" 
-                           class="w-full p-3 rounded-xl bg-slate-50 border-2 border-slate-200 text-base font-black text-pink-600 outline-none focus:border-pink-500 focus:bg-white">
+                           class="w-full p-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-base font-bold text-pink-600 outline-none focus:border-pink-500 focus:bg-white">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
                         ราคาปกติก่อนลด (฿) <span class="text-slate-400">*ขีดฆ่าแสดงส่วนลด</span>
                     </label>
                     <input type="number" id="edit-price-original" step="0.01" min="0" 
-                           class="w-full p-3 rounded-xl bg-slate-50 border-2 border-slate-200 text-sm font-bold text-slate-500 outline-none focus:border-pink-500 focus:bg-white">
+                           class="w-full p-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-sm font-semibold text-slate-500 outline-none focus:border-pink-500 focus:bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
+                        ป้ายกำกับสินค้า / แท็กติดดาว (Badge)
+                    </label>
+                    <input type="text" id="edit-price-badge" placeholder="เช่น ⭐ แพ็คขายดีติดดาว, 🔥 ขายดีอันดับ 1" 
+                           class="w-full p-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-xs font-semibold text-slate-800 outline-none focus:border-pink-500 focus:bg-white">
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <button type="button" onclick="setEditBadgePreset('⭐ แพ็คขายดีติดดาว')" class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-medium transition-all shadow-2xs">⭐ แพ็คขายดีติดดาว</button>
+                        <button type="button" onclick="setEditBadgePreset('🔥 ขายดีอันดับ 1')" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-medium transition-all shadow-2xs">🔥 ขายดีอันดับ 1</button>
+                        <button type="button" onclick="setEditBadgePreset('⚡ แนะนำ คุ้มค่าสุด')" class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px] font-medium transition-all shadow-2xs">⚡ แนะนำ คุ้มค่าสุด</button>
+                        <button type="button" onclick="setEditBadgePreset('🏷️ ราคาประหยัด')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-medium transition-all shadow-2xs">🏷️ ราคาประหยัด</button>
+                        <button type="button" onclick="setEditBadgePreset('')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 text-[11px] font-medium transition-all">ล้างป้าย</button>
+                    </div>
                 </div>
             </div>
 
@@ -1956,7 +2148,7 @@ W11PR-XXXX-XXXX-XXXX"
             </div>
 
             <div class="mt-4 space-y-4">
-                <h2 id="modal-product-title" class="text-lg font-bold text-slate-900 leading-snug"></h2>
+                <h2 id="modal-product-title" class="text-lg font-normal text-slate-800 leading-snug"></h2>
                 
                 <p id="modal-product-desc" class="text-xs sm:text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200 font-medium"></p>
 
@@ -2162,17 +2354,17 @@ W11PR-XXXX-XXXX-XXXX"
 
                 <!-- Brand Header Info -->
                 <div class="flex items-center gap-3.5 relative z-10">
-                    <div class="w-12 h-12 rounded-2xl bg-white/20 border border-white/30 backdrop-blur-md flex items-center justify-center text-white text-xl shadow-inner shrink-0">
-                        <i class="fa-solid fa-vault"></i>
+                    <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-white/80 shadow-lg shadow-black/20 shrink-0 bg-white p-0.5">
+                        <img src="images/logo.jpg" alt="Supinkly.AI Logo" class="w-full h-full object-cover rounded-[14px]">
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <span class="font-black text-xl tracking-tight text-white drop-shadow-sm font-['Outfit']">Supinkly<span class="text-yellow-300">.AI</span></span>
-                            <span class="px-2 py-0.5 rounded-full bg-white/25 border border-white/30 text-[10px] font-bold text-white uppercase tracking-wider backdrop-blur-xs">
+                            <span class="font-bold text-xl tracking-tight text-white drop-shadow-sm font-['Outfit']">Supinkly<span class="text-yellow-300">.AI</span></span>
+                            <span class="px-2 py-0.5 rounded-full bg-white/25 border border-white/30 text-[10px] font-semibold text-white uppercase tracking-wider backdrop-blur-xs">
                                 Member
                             </span>
                         </div>
-                        <p class="text-white/85 text-xs font-medium mt-0.5">
+                        <p class="text-white/90 text-xs font-normal mt-0.5">
                             ระบบบัญชีสมาชิก & คลังคีย์ส่วนตัวตลอด 24 ชม.
                         </p>
                     </div>
@@ -2203,7 +2395,7 @@ W11PR-XXXX-XXXX-XXXX"
                     <div class="space-y-3.5">
                         <!-- Email Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <label class="text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
                                 <span class="flex items-center gap-1.5">
                                     <i class="fa-solid fa-envelope text-pink-500 text-xs"></i> อีเมลบัญชี
                                 </span>
@@ -2220,11 +2412,11 @@ W11PR-XXXX-XXXX-XXXX"
                         <!-- Password Input Group -->
                         <div>
                             <div class="flex items-center justify-between mb-1.5">
-                                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <label class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                                     <i class="fa-solid fa-lock text-purple-500 text-xs"></i> รหัสผ่าน
                                 </label>
                                 <button type="button" onclick="switchAuthTab('forgot-request')" 
-                                        class="text-[11px] text-pink-600 hover:text-pink-700 font-bold hover:underline flex items-center gap-1 transition-colors">
+                                        class="text-[11px] text-pink-600 hover:text-pink-700 font-semibold hover:underline flex items-center gap-1 transition-colors">
                                     <i class="fa-solid fa-key text-[10px]"></i> ลืมรหัสผ่าน?
                                 </button>
                             </div>
@@ -2259,7 +2451,7 @@ W11PR-XXXX-XXXX-XXXX"
                         <div class="pt-2 text-center">
                             <p class="text-xs text-slate-500 font-medium">
                                 ยังไม่มีบัญชีสมาชิก? 
-                                <button type="button" onclick="switchAuthTab('register')" class="text-pink-600 font-bold hover:underline hover:text-pink-700 ml-1">
+                                <button type="button" onclick="switchAuthTab('register')" class="text-pink-600 font-semibold hover:underline hover:text-pink-700 ml-1">
                                     สมัครสมาชิกฟรี
                                 </button>
                             </p>
@@ -2278,7 +2470,7 @@ W11PR-XXXX-XXXX-XXXX"
                     <div class="space-y-3.5">
                         <!-- Display Name Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <label class="text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
                                 <span class="flex items-center gap-1.5">
                                     <i class="fa-solid fa-user-tag text-cyan-600 text-xs"></i> ชื่อที่ใช้แสดง
                                 </span>
@@ -2295,7 +2487,7 @@ W11PR-XXXX-XXXX-XXXX"
 
                         <!-- Email Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <label class="text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
                                 <span class="flex items-center gap-1.5">
                                     <i class="fa-solid fa-envelope text-pink-500 text-xs"></i> อีเมลสำหรับรับคีย์
                                 </span>
@@ -2313,7 +2505,7 @@ W11PR-XXXX-XXXX-XXXX"
 
                         <!-- Password Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <label class="text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
                                 <span class="flex items-center gap-1.5">
                                     <i class="fa-solid fa-shield-halved text-purple-500 text-xs"></i> ตั้งรหัสผ่าน
                                 </span>
@@ -2373,12 +2565,15 @@ W11PR-XXXX-XXXX-XXXX"
                 <!-- 3. OTP VERIFICATION FORM -->
                 <div id="auth-form-otp" class="hidden">
                     <div class="space-y-4">
-                        <!-- Top Icon & Header -->
+                        <!-- Top Icon & Header with Logo -->
                         <div class="text-center pt-1">
-                            <div class="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-pink-100 to-purple-100 text-pink-600 flex items-center justify-center text-2xl mb-3 shadow-sm border border-pink-200/60">
-                                <i class="fa-solid fa-envelope-circle-check text-pink-600"></i>
+                            <div class="relative w-16 h-16 mx-auto mb-3">
+                                <img src="images/logo.jpg" alt="Supinkly Logo" class="w-16 h-16 rounded-2xl object-cover border-2 border-pink-200 shadow-md">
+                                <span class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] shadow-sm ring-2 ring-white">
+                                    <i class="fa-solid fa-envelope-circle-check"></i>
+                                </span>
                             </div>
-                            <h3 class="text-base font-black text-slate-800">ยืนยันรหัส OTP จากอีเมล</h3>
+                            <h3 class="text-base font-bold text-slate-800">ยืนยันรหัส OTP จากอีเมล</h3>
                             <p class="text-xs text-slate-500 mt-1">
                                 ระบบได้ส่งรหัสยืนยัน 6 หลักไปยังอีเมลของคุณ:
                             </p>
@@ -2391,7 +2586,7 @@ W11PR-XXXX-XXXX-XXXX"
 
                         <!-- OTP Input Group -->
                         <div class="pt-1">
-                            <label class="text-xs font-bold text-slate-700 mb-2 block text-center">
+                            <label class="text-xs font-semibold text-slate-700 mb-2 block text-center">
                                 กรอกรหัสตัวเลข 6 หลัก (รหัสมีอายุ 10 นาที)
                             </label>
                             <input id="auth-otp-input" type="text" maxlength="6" inputmode="numeric" pattern="[0-9]*" 
@@ -2436,16 +2631,19 @@ W11PR-XXXX-XXXX-XXXX"
                 <!-- 4. FORGOT PASSWORD - STEP 1: REQUEST OTP -->
                 <div id="auth-form-forgot-request" class="hidden">
                     <div class="space-y-4">
-                        <!-- Step Badge & Header -->
+                        <!-- Step Badge & Header with Logo -->
                         <div class="text-center pt-1">
-                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold mb-3 border border-amber-200 shadow-2xs">
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-medium mb-3 border border-amber-200 shadow-2xs">
                                 <i class="fa-solid fa-shield-halved text-xs"></i>
                                 <span>ขั้นตอนที่ 1 จาก 2 • ยืนยันอีเมล</span>
                             </div>
-                            <div class="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-amber-100 to-pink-100 text-amber-600 flex items-center justify-center text-2xl mb-3 shadow-sm border border-amber-200/60">
-                                <i class="fa-solid fa-key text-amber-600"></i>
+                            <div class="relative w-16 h-16 mx-auto mb-3">
+                                <img src="images/logo.jpg" alt="Supinkly Logo" class="w-16 h-16 rounded-2xl object-cover border-2 border-amber-200 shadow-md">
+                                <span class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-sm ring-2 ring-white">
+                                    <i class="fa-solid fa-key"></i>
+                                </span>
                             </div>
-                            <h3 class="text-base font-black text-slate-800">กู้คืนรหัสผ่านบัญชี</h3>
+                            <h3 class="text-base font-bold text-slate-800">กู้คืนรหัสผ่านบัญชี</h3>
                             <p class="text-xs text-slate-500 mt-1 leading-relaxed max-w-xs mx-auto">
                                 กรอกอีเมลที่คุณใช้ลงทะเบียนไว้ ระบบจะจัดส่งรหัส OTP 6 หลักไปให้เพื่อตั้งรหัสผ่านใหม่
                             </p>
@@ -2453,7 +2651,7 @@ W11PR-XXXX-XXXX-XXXX"
 
                         <!-- Email Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1.5 block">
+                            <label class="text-xs font-semibold text-slate-700 mb-1.5 block">
                                 อีเมลที่ลงทะเบียนไว้
                             </label>
                             <div class="relative">
@@ -2479,7 +2677,7 @@ W11PR-XXXX-XXXX-XXXX"
                         <div class="pt-2 text-center">
                             <p class="text-xs text-slate-500 font-medium">
                                 จำรหัสผ่านได้แล้ว? 
-                                <button type="button" onclick="switchAuthTab('login')" class="text-pink-600 font-bold hover:underline hover:text-pink-700 ml-1">
+                                <button type="button" onclick="switchAuthTab('login')" class="text-pink-600 font-semibold hover:underline hover:text-pink-700 ml-1">
                                     กลับไปเข้าสู่ระบบ
                                 </button>
                             </p>
@@ -2490,16 +2688,19 @@ W11PR-XXXX-XXXX-XXXX"
                 <!-- 5. FORGOT PASSWORD - STEP 2: VERIFY OTP & RESET PASSWORD -->
                 <div id="auth-form-forgot-verify" class="hidden">
                     <div class="space-y-3.5">
-                        <!-- Step Badge & Header -->
+                        <!-- Step Badge & Header with Logo -->
                         <div class="text-center pt-1">
-                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-3 border border-emerald-200 shadow-2xs">
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-medium mb-3 border border-emerald-200 shadow-2xs">
                                 <i class="fa-solid fa-circle-check text-xs"></i>
                                 <span>ขั้นตอนที่ 2 จาก 2 • ตั้งรหัสผ่านใหม่</span>
                             </div>
-                            <div class="w-14 h-14 mx-auto rounded-3xl bg-gradient-to-tr from-pink-100 to-purple-100 text-pink-600 flex items-center justify-center text-xl mb-2 shadow-sm border border-pink-200/60">
-                                <i class="fa-solid fa-lock-open text-pink-600"></i>
+                            <div class="relative w-16 h-16 mx-auto mb-2">
+                                <img src="images/logo.jpg" alt="Supinkly Logo" class="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-200 shadow-md">
+                                <span class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] shadow-sm ring-2 ring-white">
+                                    <i class="fa-solid fa-lock-open"></i>
+                                </span>
                             </div>
-                            <h3 class="text-base font-black text-slate-800">ตั้งรหัสผ่านใหม่</h3>
+                            <h3 class="text-base font-bold text-slate-800">ตั้งรหัสผ่านใหม่</h3>
                             <p class="text-xs text-slate-500 mt-0.5">
                                 รหัส OTP ได้ถูกส่งไปยัง:
                             </p>
@@ -2512,7 +2713,7 @@ W11PR-XXXX-XXXX-XXXX"
 
                         <!-- OTP Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1.5 block text-center">
+                            <label class="text-xs font-semibold text-slate-700 mb-1.5 block text-center">
                                 รหัส OTP 6 หลัก
                             </label>
                             <input id="forgot-otp-input" type="text" maxlength="6" inputmode="numeric" pattern="[0-9]*" 
@@ -2522,7 +2723,7 @@ W11PR-XXXX-XXXX-XXXX"
 
                         <!-- New Password Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block flex items-center justify-between">
+                            <label class="text-xs font-semibold text-slate-700 mb-1 block flex items-center justify-between">
                                 <span class="flex items-center gap-1.5">
                                     <i class="fa-solid fa-lock text-purple-500 text-xs"></i> รหัสผ่านใหม่
                                 </span>
@@ -2544,7 +2745,7 @@ W11PR-XXXX-XXXX-XXXX"
 
                         <!-- Confirm New Password Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                            <label class="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
                                 <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i> ยืนยันรหัสผ่านใหม่อีกครั้ง
                             </label>
                             <div class="relative">

@@ -42,7 +42,7 @@ const PRODUCTS = [
         brandBadgeColor: "from-cyan-500 to-blue-600",
         title: "CapCut Pro (1 เดือน) - บัญชีส่วนตัว",
         subtitle: "บัญชีส่วนตัวสำหรับ 1 ผู้ใช้ • ปลดล็อกเอฟเฟกต์ & เรนเดอร์ 4K ไม่มีลายน้ำ",
-        badge: "แพ็กเกจยอดนิยม",
+        badge: "⭐ แพ็คขายดีติดดาว",
         type: "บัญชีส่วนตัว (Private)",
         typeKey: "private",
         duration: "1 เดือน",
@@ -464,12 +464,15 @@ function getMasterProduct(productId) {
         }
     }
 
+    let badge = product.badge;
+
     try {
         const customPrices = JSON.parse(localStorage.getItem('supinkly_custom_prices') || '{}');
         const custom = customPrices && customPrices[productId];
         if (custom) {
             if (typeof custom.price === 'number') price = custom.price;
             if (typeof custom.originalPrice === 'number') originalPrice = custom.originalPrice;
+            if (typeof custom.badge === 'string') badge = custom.badge;
             if (typeof custom.g2gStockAvailable === 'number' && custom.g2gStockAvailable > 0) stock = custom.g2gStockAvailable;
             if (typeof custom.marketCostTHB === 'number') marketCostTHB = custom.marketCostTHB;
         }
@@ -479,6 +482,7 @@ function getMasterProduct(productId) {
 
     return {
         ...product,
+        badge,
         price,
         originalPrice,
         stock: stock || 50,

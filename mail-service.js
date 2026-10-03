@@ -71,7 +71,25 @@ class MailService {
             gmailClientSecret: String(process.env.GMAIL_CLIENT_SECRET  || smtp.gmailClientSecret || '').trim(),
             gmailRefreshToken: String(process.env.GMAIL_REFRESH_TOKEN  || smtp.gmailRefreshToken || '').trim(),
             gmailUser:         String(process.env.GMAIL_USER           || smtp.gmailUser         || process.env.SMTP_USER || smtp.user || '').trim(),
+            logoUrl:           String(process.env.LOGO_URL             || smtp.logoUrl           || '').trim(),
         };
+    }
+
+    /**
+     * Resolve public Logo URL for email templates
+     * Priority: config.logoUrl -> process.env.LOGO_URL -> db.smtpConfig.logoUrl -> APP_BASE_URL/images/logo.jpg -> GitHub Raw fallback
+     */
+    getLogoUrl(config = {}, db = {}) {
+        if (config && config.logoUrl) return config.logoUrl.trim();
+        if (process.env.LOGO_URL) return process.env.LOGO_URL.trim();
+        const smtp = (db && db.smtpConfig) || {};
+        if (smtp.logoUrl) return smtp.logoUrl.trim();
+        if (process.env.APP_BASE_URL) {
+            const base = process.env.APP_BASE_URL.replace(/\/+$/, '');
+            return `${base}/images/logo.jpg`;
+        }
+        // Stable hosted fallback: Raw GitHub main branch (accessible worldwide via HTTPS, 100% email client compatible)
+        return 'https://raw.githubusercontent.com/suphat060841/supinkly-ai/main/images/logo.jpg';
     }
 
     /**
@@ -91,9 +109,10 @@ class MailService {
     /**
      * Generate modern, responsive Supinkly.AI branded HTML email for OTP verification
      */
-    generateOtpEmailHtml(email, otp, displayName) {
+    generateOtpEmailHtml(email, otp, displayName, logoUrl = null) {
         const name = escapeHtml(displayName || email.split('@')[0]);
         const safeOtp = escapeHtml(otp);
+        const safeLogoUrl = escapeHtml(logoUrl || this.getLogoUrl());
         return `
 <!DOCTYPE html>
 <html lang="th">
@@ -109,13 +128,21 @@ class MailService {
                 <!-- Main Card -->
                 <table role="presentation" width="100%" max-width="560" cellspacing="0" cellpadding="0" border="0" style="max-width: 560px; background-color: #FFFFFF; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.06); border: 1px solid #E2E8F0;">
                     
-                    <!-- Header with Gradient -->
+                    <!-- Header with Gradient & Brand Mascot Logo -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #FF2E7E 0%, #8B5CF6 100%); padding: 32px 30px; text-align: center;">
+                        <td style="background: linear-gradient(135deg, #FF2E7E 0%, #8B5CF6 100%); padding: 32px 24px; text-align: center;">
+                            <!-- Mascot Logo Badge -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 14px auto;">
+                                <tr>
+                                    <td style="width: 72px; height: 72px; border-radius: 20px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle;">
+                                        <img src="${safeLogoUrl}" width="72" height="72" alt="Supinkly.AI Logo" style="display: block; border-radius: 17px; border: 0; outline: none; width: 72px; height: 72px; object-fit: cover;" />
+                                    </td>
+                                </tr>
+                            </table>
                             <div style="font-size: 26px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.5px; margin-bottom: 4px;">
                                 Supinkly<span style="color: #FDE047;">.AI</span>
                             </div>
-                            <div style="font-size: 13px; color: rgba(255,255,255,0.9); font-weight: 500;">
+                            <div style="font-size: 13px; color: rgba(255,255,255,0.92); font-weight: 500;">
                                 แพลตฟอร์มดิจิทัล & บัญชี AI มาตรฐานความปลอดภัยระดับสูง
                             </div>
                         </td>
@@ -797,8 +824,9 @@ class MailService {
      */
     async sendOtpEmail(toEmail, otp, displayName, db = {}) {
         const config = this.getConfig(db);
+        const logoUrl = this.getLogoUrl(config, db);
         const subject = `[Supinkly.AI] รหัสยืนยันการสมัครสมาชิก: ${otp}`;
-        const html = this.generateOtpEmailHtml(toEmail, otp, displayName);
+        const html = this.generateOtpEmailHtml(toEmail, otp, displayName, logoUrl);
 
         this.lastSentOtp = {
             email: toEmail,
@@ -910,9 +938,10 @@ class MailService {
     /**
      * Generate modern, responsive Supinkly.AI branded HTML email for Password Reset OTP
      */
-    generateResetPasswordEmailHtml(email, otp, displayName) {
+    generateResetPasswordEmailHtml(email, otp, displayName, logoUrl = null) {
         const name = escapeHtml(displayName || email.split('@')[0]);
         const safeOtp = escapeHtml(otp);
+        const safeLogoUrl = escapeHtml(logoUrl || this.getLogoUrl());
         return `
 <!DOCTYPE html>
 <html lang="th">
@@ -928,13 +957,21 @@ class MailService {
                 <!-- Main Card -->
                 <table role="presentation" width="100%" max-width="560" cellspacing="0" cellpadding="0" border="0" style="max-width: 560px; background-color: #FFFFFF; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.06); border: 1px solid #E2E8F0;">
                     
-                    <!-- Header with Gradient -->
+                    <!-- Header with Gradient & Brand Mascot Logo -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #FF2E7E 0%, #8B5CF6 100%); padding: 32px 30px; text-align: center;">
+                        <td style="background: linear-gradient(135deg, #FF2E7E 0%, #8B5CF6 100%); padding: 32px 24px; text-align: center;">
+                            <!-- Mascot Logo Badge -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 14px auto;">
+                                <tr>
+                                    <td style="width: 72px; height: 72px; border-radius: 20px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle;">
+                                        <img src="${safeLogoUrl}" width="72" height="72" alt="Supinkly.AI Logo" style="display: block; border-radius: 17px; border: 0; outline: none; width: 72px; height: 72px; object-fit: cover;" />
+                                    </td>
+                                </tr>
+                            </table>
                             <div style="font-size: 26px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.5px; margin-bottom: 4px;">
                                 Supinkly<span style="color: #FDE047;">.AI</span>
                             </div>
-                            <div style="font-size: 13px; color: rgba(255,255,255,0.9); font-weight: 500;">
+                            <div style="font-size: 13px; color: rgba(255,255,255,0.92); font-weight: 500;">
                                 แพลตฟอร์มดิจิทัล & บัญชี AI มาตรฐานความปลอดภัยระดับสูง
                             </div>
                         </td>
@@ -1002,8 +1039,9 @@ class MailService {
      */
     async sendResetPasswordEmail(toEmail, otp, displayName, db = {}) {
         const config = this.getConfig(db);
+        const logoUrl = this.getLogoUrl(config, db);
         const subject = `[Supinkly.AI] รหัส OTP สำหรับตั้งรหัสผ่านใหม่: ${otp}`;
-        const html = this.generateResetPasswordEmailHtml(toEmail, otp, displayName);
+        const html = this.generateResetPasswordEmailHtml(toEmail, otp, displayName, logoUrl);
 
         let lastError = null;
 
@@ -1107,6 +1145,322 @@ class MailService {
     }
 
     /**
+     * Generate modern, responsive Supinkly.AI branded HTML email for Order Confirmation & Receipt
+     */
+    generateOrderReceiptEmailHtml(order, isFulfillmentUpdate = false, logoUrl = null) {
+        const orderId = escapeHtml(order.orderId || '-');
+        const orderDate = escapeHtml(order.date || new Date().toLocaleString('th-TH'));
+        const totalAmount = parseFloat(order.totalAmount || 0).toFixed(2);
+        const transRef = escapeHtml(order.transRef || '-');
+        const items = Array.isArray(order.items) ? order.items : [];
+        const safeLogoUrl = escapeHtml(logoUrl || this.getLogoUrl());
+
+        const itemsHtml = items.map((it, idx) => {
+            const title = escapeHtml(it.productTitle || 'สินค้าดิจิทัล');
+            const warranty = escapeHtml(it.warranty || '30 วัน');
+            const price = parseFloat(it.price || 0).toFixed(2);
+            const isDelivered = it.credentials && it.status !== 'pending_fulfillment';
+            const cred = it.credentials || {};
+
+            let credBoxHtml = '';
+            if (isDelivered) {
+                let credDetails = '';
+                if (cred.email && cred.password) {
+                    credDetails += `
+                        <div style="margin-bottom: 6px;">
+                            <span style="color: #64748B; font-size: 11px;">อีเมลผู้ใช้งาน:</span><br>
+                            <span style="font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: bold; color: #0F172A;">${escapeHtml(cred.email)}</span>
+                        </div>
+                        <div>
+                            <span style="color: #64748B; font-size: 11px;">รหัสผ่าน:</span><br>
+                            <span style="font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: bold; color: #E11D48;">${escapeHtml(cred.password)}</span>
+                        </div>
+                    `;
+                }
+                if (cred.key) {
+                    credDetails += `
+                        <div>
+                            <span style="color: #64748B; font-size: 11px;">คีย์ใบอนุญาต (License Key):</span><br>
+                            <span style="font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: bold; color: #8B5CF6;">${escapeHtml(cred.key)}</span>
+                        </div>
+                    `;
+                }
+                if (cred.link) {
+                    const safeLink = String(cred.link).trim();
+                    const isSafeScheme = safeLink.startsWith('http://') || safeLink.startsWith('https://');
+                    if (isSafeScheme) {
+                        credDetails += `
+                            <div style="margin-top: 6px;">
+                                <a href="${escapeHtml(safeLink)}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 6px 14px; background: #FF2E7E; color: #FFFFFF; font-size: 12px; font-weight: bold; border-radius: 8px; text-decoration: none;">คลิกเปิดใช้งาน / เข้าร่วมกลุ่ม</a>
+                            </div>
+                        `;
+                    } else {
+                        credDetails += `
+                            <div style="margin-top: 6px; font-size: 12px; color: #475569; font-family: monospace;">
+                                ${escapeHtml(safeLink)}
+                            </div>
+                        `;
+                    }
+                }
+                if (cred.instructions) {
+                    credDetails += `
+                        <div style="margin-top: 6px; font-size: 11px; color: #475569; line-height: 1.5; border-top: 1px dashed #CBD5E1; pt: 4px;">
+                            💡 <i>${escapeHtml(cred.instructions)}</i>
+                        </div>
+                    `;
+                }
+
+                credBoxHtml = `
+                    <div style="margin-top: 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px; text-align: left;">
+                        <div style="font-size: 11px; font-weight: bold; color: #059669; margin-bottom: 6px;">
+                            🔑 รหัสเข้าใช้งาน (Credentials):
+                        </div>
+                        ${credDetails || '<span style="font-size:12px; color:#64748B;">ดูรายละเอียดในหน้าเว็บ</span>'}
+                    </div>
+                `;
+            } else {
+                credBoxHtml = `
+                    <div style="margin-top: 10px; background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 12px; padding: 12px; text-align: left;">
+                        <div style="font-size: 12px; font-weight: bold; color: #B45309;">
+                            🟡 อยู่ระหว่างจัดเตรียมสินค้า (5-15 นาที)
+                        </div>
+                        <div style="font-size: 11px; color: #78350F; margin-top: 4px; line-height: 1.4;">
+                            แอดมินกำลังจัดเตรียมรหัสสำหรับคุณ รหัสจะปรากฏในหน้าเว็บ "คลังรหัสของฉัน" ทันทีที่จัดส่งเสร็จสิ้น
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 16px; margin-bottom: 12px;">
+                    <table width="100%" cellspacing="0" cellpadding="0" border="0">
+                        <tr>
+                            <td style="vertical-align: top;">
+                                <div style="font-size: 14px; font-weight: bold; color: #0F172A;">${idx + 1}. ${title}</div>
+                                <div style="font-size: 11px; color: #64748B; margin-top: 2px;">
+                                    การรับประกัน: <span style="color: #059669; font-weight: bold;">${warranty}</span>
+                                </div>
+                            </td>
+                            <td align="right" style="vertical-align: top; white-space: nowrap;">
+                                <span style="font-size: 15px; font-weight: bold; color: #FF2E7E;">฿${price}</span>
+                            </td>
+                        </tr>
+                    </table>
+                    ${credBoxHtml}
+                </div>
+            `;
+        }).join('');
+
+        const headerTitle = isFulfillmentUpdate 
+            ? '🎉 ร้านค้าจัดส่งสินค้าให้คุณเรียบร้อยแล้ว!' 
+            : '✅ ยืนยันคำสั่งซื้อและใบเสร็จรับเงิน';
+        const subTitle = isFulfillmentUpdate
+            ? 'รหัสการใช้งานและรายละเอียดสินค้าได้รับการอัปเดตเข้าสู่ระบบเรียบร้อยแล้ว'
+            : 'ขอบคุณที่ไว้วางใจสั่งซื้อสินค้ากับ Supinkly.AI';
+
+        return `
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ใบเสร็จคำสั่งซื้อ #${orderId} - Supinkly.AI</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #1E293B;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #F8FAFC; padding: 24px 8px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" max-width="580" cellspacing="0" cellpadding="0" border="0" style="max-width: 580px; background-color: #FFFFFF; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.06); border: 1px solid #E2E8F0;">
+                    
+                    <!-- Header with Gradient & Brand Mascot Logo -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #FF2E7E 0%, #8B5CF6 100%); padding: 32px 24px; text-align: center;">
+                            <!-- Mascot Logo Badge -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 14px auto;">
+                                <tr>
+                                    <td style="width: 72px; height: 72px; border-radius: 20px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle;">
+                                        <img src="${safeLogoUrl}" width="72" height="72" alt="Supinkly.AI Logo" style="display: block; border-radius: 17px; border: 0; outline: none; width: 72px; height: 72px; object-fit: cover;" />
+                                    </td>
+                                </tr>
+                            </table>
+                            <div style="font-size: 26px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.5px; margin-bottom: 4px;">
+                                Supinkly<span style="color: #FDE047;">.AI</span>
+                            </div>
+                            <div style="font-size: 13px; color: rgba(255,255,255,0.92); font-weight: 500;">
+                                แพลตฟอร์มซื้อขายบัญชี AI & เครื่องมือดิจิทัลอันดับ 1
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 28px 24px;">
+                            <h2 style="font-size: 18px; font-weight: bold; color: #0F172A; margin: 0 0 6px 0;">
+                                ${headerTitle}
+                            </h2>
+                            <p style="font-size: 13px; color: #64748B; margin: 0 0 20px 0;">
+                                ${subTitle}
+                            </p>
+
+                            <!-- Order Meta Box -->
+                            <div style="background: #F1F5F9; border-radius: 14px; padding: 14px 18px; margin-bottom: 20px; font-size: 12px; color: #334155;">
+                                <table width="100%" cellspacing="0" cellpadding="0" border="0">
+                                    <tr>
+                                        <td style="padding-bottom: 4px;"><b>รหัสคำสั่งซื้อ:</b></td>
+                                        <td align="right" style="padding-bottom: 4px; font-family: monospace; font-weight: bold; color: #FF2E7E;">${orderId}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding-bottom: 4px;"><b>วันที่ทำรายการ:</b></td>
+                                        <td align="right" style="padding-bottom: 4px; color: #64748B;">${orderDate}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding-bottom: 4px;"><b>เลขอ้างอิงชำระเงิน:</b></td>
+                                        <td align="right" style="padding-bottom: 4px; font-family: monospace; color: #475569;">${transRef}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border-top: 1px dashed #CBD5E1; padding-top: 6px;"><b>ยอดชำระสุทธิ:</b></td>
+                                        <td align="right" style="border-top: 1px dashed #CBD5E1; padding-top: 6px; font-size: 15px; font-weight: 900; color: #059669;">฿${totalAmount}</td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="font-size: 13px; font-weight: bold; color: #0F172A; margin-bottom: 10px;">
+                                📦 รายการสินค้าที่สั่งซื้อ:
+                            </div>
+
+                            <!-- Items -->
+                            ${itemsHtml}
+
+                            <!-- Notice -->
+                            <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 14px; padding: 14px; margin-top: 16px; font-size: 12px; color: #1E40AF; line-height: 1.5;">
+                                🛡️ <b>การรับประกัน & บริการหลังการขาย:</b><br>
+                                • หากพบปัญหาการเข้าใช้งาน สามารถเปิดหน้าเว็บไซต์ Supinkly.AI และทักแชทสด (Live Chat) หรือติดต่อผ่านเพจได้ตลอด 24 ชั่วโมง<br>
+                                • คัดลอกรหัสออเดอร์ <b>${orderId}</b> เพื่อแจ้งเจ้าหน้าที่ดำเนินการเคลมได้ทันที
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 16px 24px; text-align: center;">
+                            <div style="font-size: 11px; color: #94A3B8;">
+                                &copy; 2026 Supinkly.AI Marketplace. All rights reserved.<br>
+                                เอกสารนี้เป็นใบเสร็จรับเงินอิเล็กทรอนิกส์และสำเนาการส่งมอบรหัสสินค้า
+                            </div>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+        `.trim();
+    }
+
+    /**
+     * Dispatch Order Confirmation / Delivery Email
+     */
+    async sendOrderReceiptEmail(order, isFulfillmentUpdate = false, db = {}) {
+        const toEmail = (order.email || order.recipientEmail || '').trim();
+        if (!toEmail || !toEmail.includes('@')) {
+            console.warn('[MAIL] Cannot send order receipt: No valid email in order', order.orderId);
+            return { success: false, message: 'No valid recipient email' };
+        }
+
+        const config = this.getConfig(db);
+        const logoUrl = this.getLogoUrl(config, db);
+        const subject = isFulfillmentUpdate
+            ? `[Supinkly.AI] 🎉 จัดส่งสินค้าเรียบร้อยแล้ว! คำสั่งซื้อ #${order.orderId}`
+            : `[Supinkly.AI] ✅ ยืนยันคำสั่งซื้อ #${order.orderId} - ข้อมูลสินค้าและรหัสเข้าใช้งาน`;
+        const html = this.generateOrderReceiptEmailHtml(order, isFulfillmentUpdate, logoUrl);
+
+        let lastError = null;
+
+        // 1. Try Brevo HTTP API
+        if (config.brevoKey) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลใบเสร็จคำสั่งซื้อ #${order.orderId} ผ่าน Brevo ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaBrevo(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลใบเสร็จ #${order.orderId} ผ่าน Brevo สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'brevo' };
+            } catch (err) {
+                console.error('[MAIL] Brevo failed for order receipt:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 2. Try Resend HTTP API
+        if (config.resendKey) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลใบเสร็จคำสั่งซื้อ #${order.orderId} ผ่าน Resend ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaResend(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลใบเสร็จ #${order.orderId} ผ่าน Resend สำเร็จ ID: ${res.id}`);
+                return { success: true, delivered: true, method: 'resend' };
+            } catch (err) {
+                console.error('[MAIL] Resend failed for order receipt:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 3. Try SendGrid
+        if (config.sendgridKey) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลใบเสร็จคำสั่งซื้อ #${order.orderId} ผ่าน SendGrid ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaSendGrid(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลใบเสร็จ #${order.orderId} ผ่าน SendGrid สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'sendgrid' };
+            } catch (err) {
+                console.error('[MAIL] SendGrid failed for order receipt:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 4. Try Mailjet
+        if (config.mailjetKey && config.mailjetSecret) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลใบเสร็จคำสั่งซื้อ #${order.orderId} ผ่าน Mailjet ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaMailjet(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลใบเสร็จ #${order.orderId} ผ่าน Mailjet สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'mailjet' };
+            } catch (err) {
+                console.error('[MAIL] Mailjet failed for order receipt:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 5. Try Gmail API
+        if (config.gmailClientId && config.gmailClientSecret && config.gmailRefreshToken) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลใบเสร็จคำสั่งซื้อ #${order.orderId} ผ่าน Gmail API ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaGmailApi(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลใบเสร็จ #${order.orderId} ผ่าน Gmail API สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'gmail-api' };
+            } catch (err) {
+                console.error('[MAIL] Gmail API failed for order receipt:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 6. Try SMTP
+        if (config.host && config.user && config.pass) {
+            try {
+                console.log(`[MAIL] กำลังเชื่อมต่อ SMTP เพื่อส่งอีเมลใบเสร็จ #${order.orderId} ไปยัง: ${toEmail}...`);
+                const sRes = await this.sendEmailViaSmtp(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลใบเสร็จ #${order.orderId} ผ่าน SMTP สำเร็จ (${sRes.method}) ไปยัง: ${toEmail}`);
+                return { success: true, delivered: true, method: sRes.method };
+            } catch (err) {
+                console.error('[MAIL] SMTP failed for order receipt:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        console.log(`[MAIL] Order receipt #${order.orderId} recorded. Mail service not active or encountered error: ${lastError || 'None'}`);
+        return { success: false, delivered: false, error: lastError };
+    }
+
+    /**
      * Test connection to mail service (Gmail SMTP or Resend API)
      */
     async testConnection(testRecipient, customConfig = null, db = {}) {
@@ -1143,10 +1497,18 @@ class MailService {
             };
         }
 
+        const safeLogoUrl = escapeHtml(this.getLogoUrl(config, db));
         const testSubject = `[Supinkly.AI] ทดสอบการเชื่อมต่อระบบอีเมลสำเร็จ (${new Date().toLocaleTimeString('th-TH')})`;
         const testHtml = `
-            <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:520px; margin:20px auto; padding:28px; border:1px solid #E2E8F0; border-radius:20px; background:#ffffff;">
+            <div style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:520px; margin:20px auto; padding:28px; border:1px solid #E2E8F0; border-radius:24px; background:#ffffff; box-shadow: 0 10px 30px rgba(0,0,0,0.06);">
                 <div style="text-align:center; margin-bottom:20px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 12px auto;">
+                        <tr>
+                            <td style="width: 64px; height: 64px; border-radius: 18px; overflow: hidden; background-color: #FFFFFF; border: 2px solid #FBCFE8; box-shadow: 0 4px 14px rgba(255,46,126,0.15); text-align: center; vertical-align: middle;">
+                                <img src="${safeLogoUrl}" width="64" height="64" alt="Supinkly.AI Logo" style="display: block; border-radius: 16px; border: 0; outline: none; width: 64px; height: 64px; object-fit: cover;" />
+                            </td>
+                        </tr>
+                    </table>
                     <span style="font-size:24px; font-weight:900; color:#FF2E7E;">Supinkly<span style="color:#8B5CF6;">.AI</span></span>
                     <div style="font-size:12px; color:#64748B; margin-top:4px;">ระบบทดสอบการส่งอีเมลอัตโนมัติ</div>
                 </div>

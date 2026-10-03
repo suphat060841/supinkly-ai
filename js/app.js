@@ -14,6 +14,30 @@ function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
+// [SECURITY FIX] Safe URL helper to prevent javascript: or data: pseudo-protocol execution
+function safeUrl(url) {
+    if (!url || typeof url !== 'string') return '#';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) {
+        return escapeHTML(trimmed);
+    }
+    return '#';
+}
+
+// [SECURITY FIX] Strict Discord Webhook URL Validator (Anti-SSRF)
+function isValidDiscordWebhookUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    try {
+        const parsed = new URL(url.trim());
+        if (parsed.protocol !== 'https:') return false;
+        const validHosts = ['discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com'];
+        if (!validHosts.includes(parsed.hostname.toLowerCase())) return false;
+        return /^\/api\/webhooks\/[0-9]{17,21}\/[A-Za-z0-9_\-]+(?:\/)?$/.test(parsed.pathname);
+    } catch {
+        return false;
+    }
+}
+
 // Hardened Admin Authentication (Server-Verified & Cryptographic Session Token)
 const ADMIN_AUTH = {
     MAX_ATTEMPTS: 5,
@@ -260,6 +284,7 @@ function applyCustomPricesToProducts() {
         if (customPrices[p.id] && customPrices[p.id].manualOverride) {
             if (typeof customPrices[p.id].price === 'number') p.price = customPrices[p.id].price;
             if (typeof customPrices[p.id].originalPrice === 'number') p.originalPrice = customPrices[p.id].originalPrice;
+            if (typeof customPrices[p.id].badge === 'string') p.badge = customPrices[p.id].badge;
         }
     });
 }
@@ -305,6 +330,13 @@ function calculateVerifiedTotal() {
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', async () => {
+    // Ensure search inputs start clean and prevent browser autofill residue
+    state.searchQuery = '';
+    const dSearchInit = document.getElementById('search-input');
+    if (dSearchInit) dSearchInit.value = '';
+    const mSearchInit = document.getElementById('mobile-search-input');
+    if (mSearchInit) mSearchInit.value = '';
+
     syncStockCount();
     initHeader();
     initFilters();
@@ -474,6 +506,8 @@ function initFilters() {
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
             state.searchQuery = e.target.value.toLowerCase().trim();
+            const dClear = document.getElementById('desktop-search-clear');
+            if (dClear) dClear.classList.toggle('hidden', !e.target.value);
             const mInput = document.getElementById('mobile-search-input');
             if (mInput && mInput.value !== e.target.value) {
                 mInput.value = e.target.value;
@@ -583,8 +617,18 @@ function renderProducts() {
             ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
             : 0;
 
+        const isStarBadge = product.badge && (product.badge.includes('⭐') || product.badge.includes('ดาว') || product.badge.includes('ขายดี') || product.badge.includes('อันดับ 1'));
+        const isHotBadge = product.badge && (product.badge.includes('🔥') || product.badge.includes('ยอดนิยม'));
+        const badgeClass = isStarBadge 
+            ? 'bg-gradient-to-r from-amber-50 via-yellow-100 to-amber-100 text-amber-900 border-amber-300 shadow-2xs font-semibold' 
+            : (isHotBadge ? 'bg-rose-50 text-rose-700 border-rose-200 font-medium' : 'bg-pink-100 text-pink-700 border-pink-200 font-medium');
+
+        const cardBorderClass = isStarBadge 
+            ? 'border-amber-200 hover:border-amber-400 shadow-xs hover:shadow-xl hover:shadow-amber-500/10' 
+            : 'border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10';
+
         return `
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border-2 ${cardBorderClass} flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
                 
                 <div>
                     <!-- Header of Card: Brand & Plan Type -->
@@ -595,23 +639,24 @@ function renderProducts() {
                             </span>
                             <span class="text-xs font-bold text-slate-800 tracking-wide">${escapeHTML(product.brand)}</span>
                         </div>
-                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border ${typeBadgeClass} flex items-center gap-1">
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-medium border ${typeBadgeClass} flex items-center gap-1">
                             <i class="${typeIcon} text-[10px]"></i>
                             <span>${escapeHTML(product.type)}</span>
                         </span>
                     </div>
 
-                    <!-- Marketing Badge (e.g. 🔥 ขายดีอันดับ 1) -->
+                    <!-- Marketing Badge (e.g. ⭐ แพ็คขายดีติดดาว / 🔥 ขายดีอันดับ 1) -->
                     ${product.badge ? `
                         <div class="mb-2">
-                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-pink-100 text-pink-700 border border-pink-200">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] border ${badgeClass}">
+                                ${isStarBadge && !product.badge.includes('⭐') ? '<i class="fa-solid fa-star text-amber-500 text-[10px]"></i>' : ''}
                                 <span>${escapeHTML(product.badge)}</span>
                             </span>
                         </div>
                     ` : ''}
 
-                    <!-- Product Title -->
-                    <h3 class="text-sm sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[40px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <!-- Product Title (Regular font as requested) -->
+                    <h3 class="text-sm sm:text-base font-normal text-slate-800 line-clamp-2 min-h-[40px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -641,14 +686,14 @@ function renderProducts() {
                     </div>
 
                     <!-- Live Stock Counter & Rating -->
-                    <div class="flex items-center justify-between mt-3 text-xs font-semibold border-t border-slate-100 pt-2.5">
-                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 font-bold' : 'text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200 font-bold'}">
+                    <div class="flex items-center justify-between mt-3 text-xs font-medium border-t border-slate-100 pt-2.5">
+                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 font-medium' : 'text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200 font-medium'}">
                             <span class="w-2 h-2 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
                             <span class="text-[11px]">${inStock ? `มีพร้อมส่ง (${product.stock} ชิ้น)` : 'สินค้าหมดชั่วคราว'}</span>
                         </span>
-                        <span class="flex items-center gap-1 text-slate-500 text-[11px] font-semibold">
+                        <span class="flex items-center gap-1 text-slate-500 text-[11px] font-medium">
                             <i class="fa-solid fa-star text-amber-400 text-xs"></i>
-                            <b class="text-slate-800">${product.rating || '5.0'}</b>
+                            <b class="text-slate-800 font-semibold">${product.rating || '5.0'}</b>
                             <span class="text-slate-400">(${product.soldCount.toLocaleString()})</span>
                         </span>
                     </div>
@@ -658,11 +703,11 @@ function renderProducts() {
                 <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                     <div>
                         <div class="flex items-center gap-1.5">
-                            <span class="text-xs text-slate-400 line-through font-medium">฿${product.originalPrice.toFixed(2)}</span>
-                            ${discountPct > 0 ? `<span class="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md">-${discountPct}%</span>` : ''}
+                            <span class="text-xs text-slate-400 line-through font-normal">฿${product.originalPrice.toFixed(2)}</span>
+                            ${discountPct > 0 ? `<span class="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md">-${discountPct}%</span>` : ''}
                         </div>
-                        <div class="text-2xl sm:text-2xl font-black text-pink-600 flex items-baseline tracking-tight">
-                            <span class="text-sm font-extrabold mr-0.5">฿</span>${product.price.toFixed(2)}
+                        <div class="text-2xl sm:text-2xl font-bold text-pink-600 flex items-baseline tracking-tight">
+                            <span class="text-sm font-semibold mr-0.5">฿</span>${product.price.toFixed(2)}
                         </div>
                     </div>
                     <div class="flex items-center gap-1.5 sm:gap-2">
@@ -706,6 +751,8 @@ function resetFilters() {
     state.searchQuery = '';
     const searchInput = document.getElementById('search-input');
     if (searchInput) searchInput.value = '';
+    const dClear = document.getElementById('desktop-search-clear');
+    if (dClear) dClear.classList.add('hidden');
     const mInput = document.getElementById('mobile-search-input');
     if (mInput) mInput.value = '';
     const clearBtn = document.getElementById('mobile-search-clear');
@@ -851,13 +898,13 @@ function updateCartUI() {
                             ${escapeHTML(master.brandCode)}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-xs font-bold text-slate-900 truncate">${escapeHTML(master.title)}</h4>
-                            <div class="text-xs text-pink-600 font-bold mt-0.5">฿${master.price.toFixed(2)}</div>
+                            <h4 class="text-xs font-normal text-slate-800 truncate">${escapeHTML(master.title)}</h4>
+                            <div class="text-xs text-pink-600 font-semibold mt-0.5">฿${master.price.toFixed(2)}</div>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200">
-                            <button onclick="updateCartQuantity('${master.id}', -1)" class="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-slate-900 text-xs font-bold">-</button>
-                            <span class="text-xs font-black text-slate-900 w-4 text-center">${item.quantity}</span>
-                            <button onclick="updateCartQuantity('${master.id}', 1)" class="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-slate-900 text-xs font-bold">+</button>
+                            <button onclick="updateCartQuantity('${master.id}', -1)" class="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-slate-900 text-xs font-semibold">-</button>
+                            <span class="text-xs font-semibold text-slate-900 w-4 text-center">${item.quantity}</span>
+                            <button onclick="updateCartQuantity('${master.id}', 1)" class="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-slate-900 text-xs font-semibold">+</button>
                         </div>
                         <button onclick="removeFromCart('${master.id}')" class="text-slate-400 hover:text-rose-600 p-1 text-xs">
                             <i class="fa-solid fa-trash-can"></i>
@@ -962,9 +1009,9 @@ function startCheckout() {
             const master = getMasterProduct(i.productId);
             if (!master) return '';
             return `
-                <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-medium">
-                    <span class="truncate flex-1 pr-2">${escapeHTML(master.title)} (x${i.quantity})</span>
-                    <span class="font-bold text-pink-600">฿${(master.price * i.quantity).toFixed(2)}</span>
+                <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-normal">
+                    <span class="truncate flex-1 pr-2 font-normal">${escapeHTML(master.title)} (x${i.quantity})</span>
+                    <span class="font-semibold text-pink-600">฿${(master.price * i.quantity).toFixed(2)}</span>
                 </div>
             `;
         }).join('');
@@ -1345,11 +1392,11 @@ function openVaultModal(order) {
             return `
                 <div class="p-4 rounded-2xl bg-pink-50/40 border border-pink-200 mb-3 shadow-sm">
                     <div class="flex items-center justify-between gap-2">
-                        <h4 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <span class="w-6 h-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-xs font-bold">${idx + 1}</span>
-                            ${escapeHTML(item.productTitle)}
+                        <h4 class="text-sm font-normal text-slate-800 flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-xs font-semibold">${idx + 1}</span>
+                            <span>${escapeHTML(item.productTitle)}</span>
                         </h4>
-                        <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                        <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium border border-emerald-300">
                             🛡️ ประกัน ${escapeHTML(item.warranty)}
                         </span>
                     </div>
@@ -1699,7 +1746,7 @@ function renderOrdersHistory() {
                                         <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.link)}" data-msg="คัดลอกลิงก์แล้ว" class="px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 text-xs font-bold transition-all">
                                             <i class="fa-regular fa-copy"></i> คัดลอก
                                         </button>
-                                        <a href="${escapeHTML(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg gradient-btn text-white text-xs font-bold flex items-center gap-1">
+                                        <a href="${safeUrl(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg gradient-btn text-white text-xs font-bold flex items-center gap-1">
                                             <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิด
                                         </a>
                                     </div>
@@ -1735,18 +1782,18 @@ function renderOrdersHistory() {
                             <div class="p-3 sm:p-3.5 rounded-xl bg-slate-50/70 border border-slate-200">
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0">
-                                        <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                                        <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
                                             ${itIdx + 1}
                                         </span>
-                                        <span class="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                                        <span class="font-normal text-slate-800 text-xs sm:text-sm truncate">
                                             ${escapeHTML(item.productTitle)}
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-2 shrink-0">
-                                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
                                             🛡️ ประกัน ${escapeHTML(item.warranty || '30 วัน')}
                                         </span>
-                                        <span class="font-bold text-pink-600 text-xs sm:text-sm">฿${(item.price || 0).toFixed(2)}</span>
+                                        <span class="font-semibold text-pink-600 text-xs sm:text-sm">฿${(item.price || 0).toFixed(2)}</span>
                                     </div>
                                 </div>
 
@@ -1758,8 +1805,8 @@ function renderOrdersHistory() {
 
                 <!-- Order Footer -->
                 <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 mt-3 text-xs">
-                    <div class="font-bold text-slate-600">
-                        ยอดรวมคำสั่งซื้อ: <span class="text-base font-black text-slate-900">฿${(order.totalAmount || 0).toFixed(2)}</span>
+                    <div class="font-medium text-slate-600">
+                        ยอดรวมคำสั่งซื้อ: <span class="text-base font-bold text-slate-900">฿${(order.totalAmount || 0).toFixed(2)}</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="copyOrderCustomerSummary('${escapeHTML(order.orderId)}')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1 shadow-xs">
@@ -2461,9 +2508,12 @@ async function openAdminModal() {
                 return;
             }
             const setData = await setRes.json();
-            if (setData.success && setData.smtpConfig) {
-                const s = setData.smtpConfig;
-                const hostEl = document.getElementById('admin-smtp-host');
+            if (setData.success) {
+                const discordEl = document.getElementById('admin-discord-webhook');
+                if (discordEl) discordEl.value = setData.discordWebhookUrl || '';
+                if (setData.smtpConfig) {
+                    const s = setData.smtpConfig;
+                    const hostEl = document.getElementById('admin-smtp-host');
                 if (hostEl) hostEl.value = s.host || '';
                 const portEl = document.getElementById('admin-smtp-port');
                 if (portEl) portEl.value = s.port || 465;
@@ -2483,6 +2533,8 @@ async function openAdminModal() {
                 if (mailjetKeyEl) mailjetKeyEl.value = s.mailjetKey || '';
                 const mailjetSecEl = document.getElementById('admin-smtp-mailjet-secret');
                 if (mailjetSecEl) mailjetSecEl.value = s.mailjetSecret || '';
+                const logoUrlEl = document.getElementById('admin-smtp-logourl');
+                if (logoUrlEl) logoUrlEl.value = s.logoUrl || '';
                 const testTargetEl = document.getElementById('admin-test-email-target');
                 if (testTargetEl && !testTargetEl.value && s.user) testTargetEl.value = s.user;
             }
@@ -2870,9 +2922,19 @@ function openEditPriceModal(productId) {
     document.getElementById('edit-price-product-title').textContent = master.title;
     document.getElementById('edit-price-sale').value = master.price;
     document.getElementById('edit-price-original').value = master.originalPrice;
+    const badgeInp = document.getElementById('edit-price-badge');
+    if (badgeInp) badgeInp.value = master.badge || '';
 
     updateEditPricePreview();
     modal.classList.remove('hidden');
+}
+
+function setEditBadgePreset(val) {
+    const el = document.getElementById('edit-price-badge');
+    if (el) {
+        el.value = val;
+        el.focus();
+    }
 }
 
 function updateEditPricePreview() {
@@ -2916,6 +2978,7 @@ function handleResetToAutoPrice() {
     if (customPrices[productId]) {
         delete customPrices[productId].manualOverride;
         delete customPrices[productId].lastManualUpdate;
+        delete customPrices[productId].badge;
         localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
     }
 
@@ -2929,6 +2992,8 @@ function handleResetToAutoPrice() {
     if (updatedMaster) {
         document.getElementById('edit-price-sale').value = updatedMaster.price;
         document.getElementById('edit-price-original').value = updatedMaster.originalPrice;
+        const badgeInp = document.getElementById('edit-price-badge');
+        if (badgeInp) badgeInp.value = updatedMaster.badge || '';
     }
     updateEditPricePreview();
     renderAdminStockList();
@@ -2951,6 +3016,7 @@ function handleSaveEditedPrice() {
     const productId = document.getElementById('edit-price-product-id').value;
     const saleVal = parseFloat(document.getElementById('edit-price-sale').value);
     const origVal = parseFloat(document.getElementById('edit-price-original').value);
+    const badgeVal = (document.getElementById('edit-price-badge')?.value || '').trim();
 
     if (isNaN(saleVal) || saleVal < 0) {
         showToast("กรุณากรอกราคาขายที่ถูกต้อง", "warning");
@@ -2963,6 +3029,7 @@ function handleSaveEditedPrice() {
         ...existing,
         price: Math.round(saleVal * 100) / 100,
         originalPrice: isNaN(origVal) || origVal < saleVal ? Math.round(saleVal * 100) / 100 : Math.round(origVal * 100) / 100,
+        badge: badgeVal,
         manualOverride: true,
         lastManualUpdate: new Date().toISOString()
     };
@@ -3110,6 +3177,7 @@ async function saveAdminSettings() {
     const smtpSendgrid = (document.getElementById('admin-smtp-sendgrid')?.value || '').trim();
     const smtpMailjetKey = (document.getElementById('admin-smtp-mailjet-key')?.value || '').trim();
     const smtpMailjetSecret = (document.getElementById('admin-smtp-mailjet-secret')?.value || '').trim();
+    const discordWebhookUrl = (document.getElementById('admin-discord-webhook')?.value || '').trim();
 
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
@@ -3151,7 +3219,7 @@ async function saveAdminSettings() {
 
     if (window.location.protocol.startsWith('http')) {
         try {
-            await fetch('/api/admin/settings', {
+            const setRes = await fetch('/api/admin/settings', {
                 method: 'POST',
                 headers: ADMIN_AUTH.getHeaders(),
                 body: JSON.stringify({
@@ -3159,6 +3227,7 @@ async function saveAdminSettings() {
                     promptPayAccountName: STORE_CONFIG.promptPayAccountName,
                     slipOkBranchId: STORE_CONFIG.slipOkBranchId,
                     newPin: newPin || undefined,
+                    discordWebhookUrl: discordWebhookUrl !== '******' ? discordWebhookUrl : undefined,
                     smtpConfig: {
                         host: smtpHost,
                         port: smtpPort,
@@ -3169,11 +3238,12 @@ async function saveAdminSettings() {
                         brevoKey:      smtpBrevo        || undefined,
                         sendgridKey:   smtpSendgrid     || undefined,
                         mailjetKey:    smtpMailjetKey   || undefined,
-                        mailjetSecret: smtpMailjetSecret|| undefined
+                        mailjetSecret: smtpMailjetSecret|| undefined,
+                        logoUrl: (document.getElementById('admin-smtp-logourl')?.value || '').trim() || undefined
                     }
                 })
             });
-            if (res.status === 401 || res.status === 403) {
+            if (setRes.status === 401 || setRes.status === 403) {
                 ADMIN_AUTH.logout();
                 showToast("เซสชันแอดมินหมดอายุ กรุณากรอก PIN เพื่อเข้าสู่ระบบใหม่", "warning");
                 closeAdminModal();
@@ -3192,12 +3262,14 @@ async function saveAdminSettings() {
     const sendgridEl2 = document.getElementById('admin-smtp-sendgrid');
     const mailjetKeyEl2 = document.getElementById('admin-smtp-mailjet-key');
     const mailjetSecEl2 = document.getElementById('admin-smtp-mailjet-secret');
+    const discordEl2 = document.getElementById('admin-discord-webhook');
     if (passEl2 && passEl2.value && passEl2.value !== '******') passEl2.value = '******';
     if (resendEl2 && resendEl2.value && resendEl2.value !== '******') resendEl2.value = '******';
     if (brevoEl2 && brevoEl2.value && brevoEl2.value !== '******') brevoEl2.value = '******';
     if (sendgridEl2 && sendgridEl2.value && sendgridEl2.value !== '******') sendgridEl2.value = '******';
     if (mailjetKeyEl2 && mailjetKeyEl2.value && mailjetKeyEl2.value !== '******') mailjetKeyEl2.value = '******';
     if (mailjetSecEl2 && mailjetSecEl2.value && mailjetSecEl2.value !== '******') mailjetSecEl2.value = '******';
+    if (discordEl2 && discordEl2.value && discordEl2.value !== '******') discordEl2.value = '******';
 
     showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว ⚠️ หากใช้ Render ให้ตั้ง Environment Variables เพื่อให้ค่าถาวร", "success");
     closeAdminModal();
@@ -3277,7 +3349,8 @@ async function handleAdminTestEmail() {
         brevoKey:      rawBrevo,
         sendgridKey:   rawSendgrid,
         mailjetKey:    rawMailjetKey,
-        mailjetSecret: rawMailjetSec
+        mailjetSecret: rawMailjetSec,
+        logoUrl:       (document.getElementById('admin-smtp-logourl')?.value || '').trim() || undefined
     };
 
     const testBtn = document.getElementById('admin-test-email-btn');
@@ -3383,6 +3456,165 @@ async function handleAdminTestEmail() {
             testBtn.innerHTML = '<i class="fa-solid fa-bolt text-amber-400"></i><span>ทดสอบส่งทันที</span>';
         }
     }
+}
+
+async function handleAdminTestDiscord() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast('กรุณาเข้าสู่ระบบแอดมินก่อนทดสอบ', 'warning');
+        return;
+    }
+    const discordInput = document.getElementById('admin-discord-webhook');
+    const webhookUrl = (discordInput?.value || '').trim();
+    const resultEl = document.getElementById('admin-test-discord-result');
+
+    if (!webhookUrl) {
+        showToast('กรุณาระบุ Discord Webhook URL ก่อนกดทดสอบ', 'warning');
+        if (discordInput) discordInput.focus();
+        return;
+    }
+
+    if (!isValidDiscordWebhookUrl(webhookUrl)) {
+        showToast('Discord Webhook URL ไม่ถูกต้อง ต้องเป็น URL ทางการของ Discord (https://discord.com/api/webhooks/...)', 'warning');
+        if (resultEl) {
+            resultEl.classList.remove('hidden');
+            resultEl.className = 'mt-2 p-3 rounded-xl text-xs font-medium bg-rose-50 text-rose-800 border border-rose-300';
+            resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1"></i> กรุณาระบุ Discord Webhook URL ที่ถูกต้อง (https://discord.com/api/webhooks/...)`;
+        }
+        if (discordInput) discordInput.focus();
+        return;
+    }
+
+    const btn = document.getElementById('admin-test-discord-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> กำลังส่ง...`;
+    }
+    if (resultEl) resultEl.classList.add('hidden');
+
+    try {
+        const res = await fetch('/api/admin/test-discord', {
+            method: 'POST',
+            headers: ADMIN_AUTH.getHeaders(),
+            body: JSON.stringify({ webhookUrl })
+        });
+        const data = await res.json();
+        if (resultEl) {
+            resultEl.classList.remove('hidden');
+            if (data.success) {
+                resultEl.className = 'mt-2 p-3 rounded-xl text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-300';
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> ${escapeHTML(data.message)}`;
+                showToast('ส่งข้อความทดสอบเข้า Discord สำเร็จแล้ว!', 'success');
+            } else {
+                resultEl.className = 'mt-2 p-3 rounded-xl text-xs font-medium bg-rose-50 text-rose-800 border border-rose-300';
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1"></i> ${escapeHTML(data.message)}`;
+                showToast(data.message || 'ส่งเข้า Discord ไม่สำเร็จ', 'warning');
+            }
+        }
+    } catch (err) {
+        if (resultEl) {
+            resultEl.classList.remove('hidden');
+            resultEl.className = 'mt-2 p-3 rounded-xl text-xs font-medium bg-rose-50 text-rose-800 border border-rose-300';
+            resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-600 mr-1"></i> เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์: ${escapeHTML(err.message)}`;
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-bell"></i> <span>ทดสอบส่งเข้า Discord</span>`;
+        }
+    }
+}
+
+async function downloadDatabaseBackup() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast('กรุณาเข้าสู่ระบบแอดมินก่อนดาวน์โหลด', 'warning');
+        return;
+    }
+    showToast('กำลังดาวน์โหลดไฟล์สำรองฐานข้อมูล...', 'info');
+    try {
+        const res = await fetch('/api/admin/backup-db', {
+            method: 'GET',
+            headers: ADMIN_AUTH.getHeaders()
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.message || 'ดาวน์โหลดไฟล์สำรองไม่สำเร็จ', 'warning');
+            return;
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        a.download = `supinkly_db_backup_${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }, 1500);
+        showToast('ดาวน์โหลดไฟล์สำรองสำเร็จแล้ว', 'success');
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการดาวน์โหลดไฟล์สำรอง: ' + err.message, 'warning');
+    }
+}
+
+async function handleDatabaseRestore(input) {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast('กรุณาเข้าสู่ระบบแอดมินก่อนกู้คืน', 'warning');
+        return;
+    }
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    const ok = confirm(`⚠️ คำเตือนสำคัญ:\nคุณกำลังจะกู้คืนฐานข้อมูลจากไฟล์ "${file.name}"\nข้อมูลคำสั่งซื้อและสต็อกปัจจุบันจะถูกแทนที่ด้วยข้อมูลจากไฟล์นี้\nคุณต้องการดำเนินการต่อหรือไม่?`);
+    if (!ok) {
+        input.value = '';
+        return;
+    }
+
+    showToast('กำลังอ่านและกู้คืนฐานข้อมูล...', 'info');
+    try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const jsonText = e.target.result;
+                const res = await fetch('/api/admin/restore-db', {
+                    method: 'POST',
+                    headers: ADMIN_AUTH.getHeaders(),
+                    body: JSON.stringify({ backupData: jsonText })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`✅ ${data.message} (${data.stats?.orders || 0} ออเดอร์, ${data.stats?.users || 0} สมาชิก)`, 'success');
+                    await syncAdminOrdersFromServer();
+                    renderAdminOrdersList();
+                    renderAdminStockList();
+                    renderAdminUsersList();
+                } else {
+                    showToast(`❌ ${data.message || 'กู้คืนฐานข้อมูลไม่สำเร็จ'}`, 'warning');
+                }
+            } catch (err) {
+                showToast('เกิดข้อผิดพลาดในการประมวลผลไฟล์สำรอง', 'warning');
+            } finally {
+                input.value = '';
+            }
+        };
+        reader.readAsText(file);
+    } catch (err) {
+        showToast('ไม่สามารถอ่านไฟล์สำรองได้', 'warning');
+        input.value = '';
+    }
+}
+
+function openWarrantyModal() {
+    const modal = document.getElementById('warranty-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeWarrantyModal() {
+    const modal = document.getElementById('warranty-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 // Product Detail Modal
@@ -4524,12 +4756,30 @@ function mobileNavFocusSearch() {
     }
 }
 
+function clearDesktopSearch() {
+    const dInput = document.getElementById('search-input');
+    if (dInput) {
+        dInput.value = '';
+        dInput.focus();
+    }
+    const dClear = document.getElementById('desktop-search-clear');
+    if (dClear) dClear.classList.add('hidden');
+    const mInput = document.getElementById('mobile-search-input');
+    if (mInput) mInput.value = '';
+    const mClear = document.getElementById('mobile-search-clear');
+    if (mClear) mClear.classList.add('hidden');
+    state.searchQuery = '';
+    applyFilters();
+}
+
 function handleMobileSearchInput(val) {
     state.searchQuery = (val || '').toLowerCase().trim();
     const clearBtn = document.getElementById('mobile-search-clear');
     if (clearBtn) clearBtn.classList.toggle('hidden', !val);
     const desktopSearch = document.getElementById('search-input');
     if (desktopSearch && desktopSearch.value !== val) desktopSearch.value = val;
+    const dClear = document.getElementById('desktop-search-clear');
+    if (dClear) dClear.classList.toggle('hidden', !val);
     applyFilters();
 }
 
@@ -4540,6 +4790,8 @@ function clearMobileSearch() {
     if (clearBtn) clearBtn.classList.add('hidden');
     const desktopSearch = document.getElementById('search-input');
     if (desktopSearch) desktopSearch.value = '';
+    const dClear = document.getElementById('desktop-search-clear');
+    if (dClear) dClear.classList.add('hidden');
     state.searchQuery = '';
     applyFilters();
 }
