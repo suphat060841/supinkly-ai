@@ -319,16 +319,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Restore user session & sync server orders if logged in
-    if (window.location.protocol.startsWith('http') && typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
-        try {
-            const ok = await USER_AUTH.verifySession();
-            if (ok) {
-                await syncUserOrdersFromServer();
-                initHeader(); // re-render header with user info
-            } else {
-                initHeader(); // session expired — show login button
-            }
-        } catch {}
+    if (window.location.protocol.startsWith('http') && typeof USER_AUTH !== 'undefined') {
+        if (USER_AUTH.isLoggedIn()) {
+            try {
+                const ok = await USER_AUTH.verifySession();
+                if (ok) {
+                    await syncUserOrdersFromServer();
+                    initHeader(); // re-render header with user info
+                } else {
+                    state.user = null;
+                    state.orders = [];
+                    try { localStorage.removeItem('supinkly_orders'); } catch {}
+                    saveOrders();
+                    initHeader(); // session expired — show login button
+                }
+            } catch {}
+        } else {
+            // Not logged in: clear any leftover local orders to ensure privacy
+            state.user = null;
+            state.orders = [];
+            try { localStorage.removeItem('supinkly_orders'); } catch {}
+            saveOrders();
+            initHeader();
+        }
     }
 });
 
@@ -890,6 +903,15 @@ function startCheckout() {
         return;
     }
 
+    // [AUTHENTICATION GATE] บังคับให้ผู้เล่นล็อกอินก่อน ถ้ายังไม่ได้ล็อกอินให้เปิดหน้าสมัครสมาชิก
+    const activeAuthUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null;
+    if (!activeAuthUser || !activeAuthUser.email) {
+        state.pendingCheckoutAfterAuth = true;
+        showToast("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อเก็บคีย์เข้าคลังของคุณ", "warning");
+        openAuthModal('register');
+        return;
+    }
+
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
 
@@ -911,8 +933,18 @@ function startCheckout() {
 
     document.getElementById('checkout-ref-code').textContent = refCode;
     document.getElementById('checkout-total-amount').textContent = `฿${verifiedTotal.toFixed(2)}`;
-    const activeAuthUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null;
-    document.getElementById('checkout-email-input').value = activeAuthUser?.email || '';
+    
+    // Bind and lock email input to logged-in user account
+    const emailInp = document.getElementById('checkout-email-input');
+    if (emailInp) {
+        emailInp.value = activeAuthUser.email;
+        emailInp.readOnly = true;
+    }
+    const badgeEl = document.getElementById('checkout-member-badge');
+    if (badgeEl) {
+        badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved text-emerald-600"></i> สมาชิก: ${escapeHTML(activeAuthUser.displayName || activeAuthUser.email.split('@')[0])}`;
+    }
+
     const accEl = document.getElementById('checkout-account-name');
     if (accEl) accEl.textContent = STORE_CONFIG.promptPayAccountName || 'สุพัฒน์ มีสมบัติ';
 
@@ -977,6 +1009,17 @@ function startQrCountdown() {
 // SECURE SLIP VERIFICATION & DISPENSE
 // ==========================================
 async function submitSlipVerification() {
+    // [AUTHENTICATION GATE] ตรวจสอบสถานะการเข้าสู่ระบบก่อนส่งตรวจสลิป
+    const activeAuthUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null;
+    const token = typeof USER_AUTH !== 'undefined' ? USER_AUTH.getToken() : null;
+    if (!activeAuthUser || !token || !activeAuthUser.email) {
+        showToast("กรุณาเข้าสู่ระบบหรือสมัครสมาชิกก่อนดำเนินการชำระเงิน", "warning");
+        closeCheckoutModal();
+        state.pendingCheckoutAfterAuth = true;
+        openAuthModal('register');
+        return;
+    }
+
     // Sanitize and validate cart
     state.cart = (state.cart || []).filter(item => item && item.productId && getMasterProduct(item.productId));
     state.cart.forEach(item => {
@@ -994,14 +1037,13 @@ async function submitSlipVerification() {
         return;
     }
 
-    const emailInput = document.getElementById('checkout-email-input');
-    const recipientEmail = (emailInput ? emailInput.value : '').trim();
+    // [SECURITY FIX] Single Source of Truth: อีเมลผูกกับบัญชีสมาชิกของผู้เล่นโดยตรง
+    const recipientEmail = activeAuthUser.email.trim().toLowerCase();
 
     // Stricter email format validation
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!recipientEmail || !emailRegex.test(recipientEmail)) {
         showToast("กรุณากรอกอีเมลที่ถูกต้องสำหรับรับสำรองข้อมูลสินค้า (เช่น name@example.com)", "warning");
-        if (emailInput) emailInput.focus();
         return;
     }
 
@@ -1029,11 +1071,7 @@ async function submitSlipVerification() {
             formData.append('email', recipientEmail);
             formData.append('cartItems', JSON.stringify(state.cart.map(i => ({ productId: i.productId, quantity: i.quantity }))));
 
-            const headers = {};
-            if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
-                const token = USER_AUTH.getToken();
-                if (token) headers['x-user-token'] = token;
-            }
+            const headers = { 'x-user-token': token };
 
             const res = await fetch('/api/checkout/verify-slip', {
                 method: 'POST',
@@ -1043,6 +1081,14 @@ async function submitSlipVerification() {
 
             const data = await res.json();
             if (!res.ok || !data.success) {
+                if (res.status === 401 || data.requireLogin) {
+                    if (typeof USER_AUTH !== 'undefined') USER_AUTH.clearSession();
+                    closeCheckoutModal();
+                    state.pendingCheckoutAfterAuth = true;
+                    initHeader();
+                    openAuthModal('login');
+                    throw new Error(data.message || "เซสชันเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้งเพื่อดำเนินการต่อ");
+                }
                 throw new Error(data.message || "การตรวจสอบสลิปล้มเหลว หรือยอดเงินไม่ถูกต้อง");
             }
 
@@ -1337,14 +1383,30 @@ function closeVaultModal() {
 }
 
 // Background poller for Vault modal & Orders modal (auto-updates when admin fulfills order)
+let lastVaultServerPoll = 0;
 if (!window.vaultPollTimer) {
-    window.vaultPollTimer = setInterval(() => {
+    window.vaultPollTimer = setInterval(async () => {
         const modal = document.getElementById('vault-modal');
-        if (modal && !modal.classList.contains('hidden') && state.currentVaultOrderId) {
+        const isVaultOpen = modal && !modal.classList.contains('hidden') && state.currentVaultOrderId;
+        const ordersModal = document.getElementById('orders-modal');
+        const isOrdersOpen = ordersModal && !ordersModal.classList.contains('hidden');
+
+        // Poll server for updates if vault or orders modal is open and user is logged in
+        const now = Date.now();
+        if ((isVaultOpen || isOrdersOpen) && (now - lastVaultServerPoll >= 5000)) {
+            lastVaultServerPoll = now;
+            if (window.location.protocol.startsWith('http') && typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+                try {
+                    await syncUserOrdersFromServer();
+                } catch {}
+            }
+        }
+
+        if (isVaultOpen) {
             const currentOrder = state.orders.find(o => o.orderId === state.currentVaultOrderId);
             if (currentOrder) {
                 const wasPending = modal.getAttribute('data-is-pending') === 'true';
-                const isNowDelivered = currentOrder.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
+                const isNowDelivered = (currentOrder.items || []).every(it => it.credentials && it.status !== 'pending_fulfillment');
                 if (wasPending && isNowDelivered) {
                     showToast("🎉 ร้านค้าส่งมอบรหัสให้คุณเรียบร้อยแล้ว!", "success");
                     openVaultModal(currentOrder);
@@ -1353,8 +1415,7 @@ if (!window.vaultPollTimer) {
         }
 
         // Also live update Orders Modal ("คีย์ของฉัน") if open
-        const ordersModal = document.getElementById('orders-modal');
-        if (ordersModal && !ordersModal.classList.contains('hidden')) {
+        if (isOrdersOpen) {
             renderOrdersHistory();
         }
     }, 2000);
@@ -3750,6 +3811,7 @@ function openAuthModal(tab = 'login') {
 function closeAuthModal() {
     const modal = document.getElementById('auth-modal');
     if (modal) modal.classList.add('hidden');
+    state.pendingCheckoutAfterAuth = false;
 }
 
 function switchAuthTab(tab) {
@@ -3787,17 +3849,19 @@ function switchAuthTab(tab) {
     if (tab === 'login') {
         loginForm?.classList.remove('hidden');
         if (tabContainer) tabContainer.classList.remove('hidden');
-        tabLogin?.classList.add('border-pink-500', 'text-pink-600');
-        tabLogin?.classList.remove('border-transparent', 'text-slate-500');
-        tabRegister?.classList.remove('border-pink-500', 'text-pink-600');
-        tabRegister?.classList.add('border-transparent', 'text-slate-500');
+        tabLogin?.classList.add('bg-white', 'text-pink-600', 'shadow-xs', 'font-bold');
+        tabLogin?.classList.remove('text-slate-500', 'hover:text-slate-700', 'font-medium');
+        tabRegister?.classList.remove('bg-white', 'text-pink-600', 'shadow-xs', 'font-bold');
+        tabRegister?.classList.add('text-slate-500', 'hover:text-slate-700', 'font-medium');
+        setTimeout(() => document.getElementById('login-email')?.focus(), 80);
     } else if (tab === 'register') {
         registerForm?.classList.remove('hidden');
         if (tabContainer) tabContainer.classList.remove('hidden');
-        tabRegister?.classList.add('border-pink-500', 'text-pink-600');
-        tabRegister?.classList.remove('border-transparent', 'text-slate-500');
-        tabLogin?.classList.remove('border-pink-500', 'text-pink-600');
-        tabLogin?.classList.add('border-transparent', 'text-slate-500');
+        tabRegister?.classList.add('bg-white', 'text-pink-600', 'shadow-xs', 'font-bold');
+        tabRegister?.classList.remove('text-slate-500', 'hover:text-slate-700', 'font-medium');
+        tabLogin?.classList.remove('bg-white', 'text-pink-600', 'shadow-xs', 'font-bold');
+        tabLogin?.classList.add('text-slate-500', 'hover:text-slate-700', 'font-medium');
+        setTimeout(() => document.getElementById('register-name')?.focus(), 80);
     } else if (tab === 'otp') {
         otpForm?.classList.remove('hidden');
         if (tabContainer) tabContainer.classList.add('hidden');
@@ -3879,9 +3943,10 @@ function setAuthError(formType, msg) {
     const el = document.getElementById(`auth-${formType}-error`);
     if (!el) return;
     if (msg) {
-        el.textContent = msg;
+        el.innerHTML = `<i class="fa-solid fa-circle-exclamation text-rose-500 text-xs shrink-0"></i><span>${escapeHTML(msg)}</span>`;
         el.classList.remove('hidden');
     } else {
+        el.innerHTML = '';
         el.classList.add('hidden');
     }
 }
@@ -3916,10 +3981,15 @@ async function handleLogin() {
         const result = await USER_AUTH.login(email, password);
         if (result.success) {
             state.user = result.user;
+            const resumeCheckout = state.pendingCheckoutAfterAuth;
+            state.pendingCheckoutAfterAuth = false;
             closeAuthModal();
             await syncUserOrdersFromServer();
             initHeader();
             showToast(`🎉 ยินดีต้อนรับกลับ, ${escapeHTML(result.user?.displayName || email)}!`, 'success');
+            if (resumeCheckout) {
+                setTimeout(() => startCheckout(), 350);
+            }
         } else {
             setAuthError('login', result.message || 'เข้าสู่ระบบไม่สำเร็จ');
         }
@@ -3987,10 +4057,15 @@ async function handleRegister() {
                 }
             } else {
                 state.user = result.user;
+                const resumeCheckout = state.pendingCheckoutAfterAuth;
+                state.pendingCheckoutAfterAuth = false;
                 closeAuthModal();
                 await syncUserOrdersFromServer();
                 initHeader();
                 showToast(`✅ สมัครสมาชิกสำเร็จ! ยินดีต้อนรับ ${escapeHTML(result.user?.displayName || email)}`, 'success');
+                if (resumeCheckout) {
+                    setTimeout(() => startCheckout(), 350);
+                }
             }
         } else {
             setAuthError('register', result.message || 'สมัครสมาชิกไม่สำเร็จ');
@@ -4033,10 +4108,15 @@ async function handleVerifyOtp() {
                 clearInterval(otpResendTimer);
                 otpResendTimer = null;
             }
+            const resumeCheckout = state.pendingCheckoutAfterAuth;
+            state.pendingCheckoutAfterAuth = false;
             closeAuthModal();
             await syncUserOrdersFromServer();
             initHeader();
             showToast(`🎉 ยืนยันอีเมลสำเร็จ! ยินดีต้อนรับคุณ ${escapeHTML(result.user?.displayName || email)}`, 'success');
+            if (resumeCheckout) {
+                setTimeout(() => startCheckout(), 350);
+            }
         } else {
             setAuthError('otp', result.message || 'รหัส OTP ไม่ถูกต้อง');
         }
@@ -4225,10 +4305,15 @@ async function handleResetPasswordSubmit() {
                 clearInterval(forgotResendTimer);
                 forgotResendTimer = null;
             }
+            const resumeCheckout = state.pendingCheckoutAfterAuth;
+            state.pendingCheckoutAfterAuth = false;
             closeAuthModal();
             await syncUserOrdersFromServer();
             initHeader();
             showToast(`🎉 ตั้งรหัสผ่านใหม่สำเร็จ และเข้าสู่ระบบเรียบร้อยแล้ว`, 'success');
+            if (resumeCheckout) {
+                setTimeout(() => startCheckout(), 350);
+            }
         } else {
             setAuthError('forgot-verify', result.message || 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ');
         }
@@ -4277,6 +4362,20 @@ async function handleResendResetOtp() {
 async function handleUserLogout() {
     if (typeof USER_AUTH !== 'undefined') await USER_AUTH.logout();
     state.user = null;
+    state.pendingCheckoutAfterAuth = false;
+    state.orders = [];
+    try {
+        localStorage.removeItem('supinkly_orders');
+    } catch {}
+    saveOrders();
+    closeCheckoutModal();
+    closeCartDrawer();
+    closeVaultModal();
+    closeOrdersModal();
+    const emailInp = document.getElementById('checkout-email-input');
+    if (emailInp) emailInp.value = '';
+    const badgeEl = document.getElementById('checkout-member-badge');
+    if (badgeEl) badgeEl.innerHTML = '';
     initHeader();
     showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
 }
@@ -4285,21 +4384,14 @@ async function syncUserOrdersFromServer() {
     if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) return;
     if (!window.location.protocol.startsWith('http')) return;
     try {
-        // [SECURITY & SYNC] Safely claim genuine local orders that belong to this account
-        const localOrderIds = (state.orders || []).map(o => o.orderId).filter(Boolean);
-        if (localOrderIds.length > 0) {
-            await USER_AUTH.linkLocalOrders(localOrderIds);
-        }
-
         const serverOrders = await USER_AUTH.fetchMyOrders();
-        if (Array.isArray(serverOrders) && serverOrders.length > 0) {
-            const map = new Map();
-            (state.orders || []).forEach(o => { if (o?.orderId) map.set(o.orderId, o); });
-            serverOrders.forEach(o => { if (o?.orderId) map.set(o.orderId, o); });
-            state.orders = Array.from(map.values()).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        if (Array.isArray(serverOrders)) {
+            state.orders = serverOrders.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
             saveOrders();
         }
-    } catch {}
+    } catch (e) {
+        console.warn("Failed to sync orders from server:", e);
+    }
 }
 
 function togglePasswordVisibility(inputId, btn) {

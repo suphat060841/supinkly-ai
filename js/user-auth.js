@@ -154,6 +154,7 @@ const USER_AUTH = (() => {
         getUser, 
         getHeaders, 
         isLoggedIn, 
+        clearSession,
         register, 
         verifyOtp, 
         resendOtp, 

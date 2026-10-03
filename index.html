@@ -775,15 +775,32 @@
                 </button>
             </div>
 
-            <!-- Email for delivery -->
+            <!-- Member Account Email (Auto-filled & Strictly Locked to Logged-in User) -->
             <div class="mt-4">
-                <label class="block text-xs sm:text-sm font-bold text-slate-800 mb-1.5">
-                    อีเมลสำหรับจัดส่งสำรอง (Email Delivery):
-                </label>
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-envelope-circle-check text-pink-600"></i>
+                        <span>อีเมลสำหรับจัดส่งคีย์ (ผูกกับบัญชีสมาชิกอัตโนมัติ):</span>
+                    </label>
+                    <span id="checkout-member-badge" class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold text-[11px] border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                        <i class="fa-solid fa-circle-check text-emerald-600"></i> สมาชิกเข้าสู่ระบบ
+                    </span>
+                </div>
                 <div class="relative">
-                    <i class="fa-regular fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                    <input type="email" id="checkout-email-input" placeholder="youremail@example.com" required
-                           class="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-sm text-slate-900 font-medium focus:border-pink-500 focus:bg-white outline-none">
+                    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm pointer-events-none">
+                        <i class="fa-solid fa-envelope"></i>
+                    </span>
+                    <input type="email" id="checkout-email-input" placeholder="กำลังโหลดอีเมลบัญชีของคุณ..." required readonly tabindex="-1"
+                           onkeydown="return false" onpaste="return false" oncut="return false"
+                           class="w-full pl-10 pr-28 py-3 rounded-2xl bg-slate-100 border-2 border-slate-200 text-slate-800 font-bold font-mono text-sm outline-none cursor-not-allowed select-all shadow-inner">
+                    <span class="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-xl bg-emerald-100/90 text-emerald-800 text-[11px] font-bold border border-emerald-300 flex items-center gap-1.5 shadow-2xs pointer-events-none">
+                        <i class="fa-solid fa-lock text-[10px] text-emerald-600"></i>
+                        <span>ล็อคอัตโนมัติ</span>
+                    </span>
+                </div>
+                <div class="mt-1.5 p-2 rounded-xl bg-emerald-50/80 border border-emerald-200 text-[11px] text-emerald-900 font-medium flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-600 text-xs shrink-0"></i>
+                    <span>ระบบจะใส่อีเมลของคุณให้อัตโนมัติและล็อคไว้ ไม่สามารถแก้ไขได้ เพื่อป้องกันระบบส่งมอบคีย์ผิดพลาด 100%</span>
                 </div>
             </div>
 
@@ -2121,238 +2138,450 @@ W11PR-XXXX-XXXX-XXXX"
     </div>
 
     <!-- ==========================================
-         USER LOGIN / REGISTER MODAL
+         USER LOGIN / REGISTER / FORGOT PASSWORD MODAL (Ultra Modern & Premium)
          ========================================== -->
-    <div id="auth-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeAuthModal()"></div>
-        <div class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+    <div id="auth-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
+        <!-- Backdrop with Ambient Blur -->
+        <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity" onclick="closeAuthModal()"></div>
+        
+        <!-- Modal Card Container -->
+        <div class="auth-modal-card relative w-full max-w-md bg-white rounded-[28px] sm:rounded-[32px] shadow-[0_25px_70px_-15px_rgba(255,46,126,0.35)] border border-pink-100/80 overflow-hidden flex flex-col max-h-[94vh]">
 
-            <!-- Header gradient -->
-            <div class="gradient-btn px-6 pt-6 pb-8">
-                <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-white/70 hover:text-white text-xl transition-colors">
+            <!-- Premium Header Banner with Gradient & Ambient Sparkles -->
+            <div class="relative bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 px-5 sm:px-7 pt-6 pb-7 text-white overflow-hidden shrink-0">
+                <!-- Background Decorative Rings -->
+                <div class="absolute -right-8 -top-8 w-36 h-36 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
+                <div class="absolute -left-10 -bottom-10 w-32 h-32 rounded-full bg-purple-900/30 blur-lg pointer-events-none"></div>
+
+                <!-- Close Button (Frosted Glass Circle) -->
+                <button type="button" onclick="closeAuthModal()" 
+                        class="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-sm backdrop-blur-md transition-all active:scale-95 shadow-sm border border-white/20 hover:rotate-90 duration-200"
+                        title="ปิดหน้าต่าง">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
-                <div class="flex items-center gap-3 mb-1">
-                    <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white text-lg">
+
+                <!-- Brand Header Info -->
+                <div class="flex items-center gap-3.5 relative z-10">
+                    <div class="w-12 h-12 rounded-2xl bg-white/20 border border-white/30 backdrop-blur-md flex items-center justify-center text-white text-xl shadow-inner shrink-0">
                         <i class="fa-solid fa-vault"></i>
                     </div>
                     <div>
-                        <div class="text-white font-black text-lg leading-tight">Supinkly.AI</div>
-                        <div class="text-white/70 text-xs font-medium">บัญชีสมาชิก — เก็บคีย์ไว้ได้ทุกอุปกรณ์</div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-black text-xl tracking-tight text-white drop-shadow-sm font-['Outfit']">Supinkly<span class="text-yellow-300">.AI</span></span>
+                            <span class="px-2 py-0.5 rounded-full bg-white/25 border border-white/30 text-[10px] font-bold text-white uppercase tracking-wider backdrop-blur-xs">
+                                Member
+                            </span>
+                        </div>
+                        <p class="text-white/85 text-xs font-medium mt-0.5">
+                            ระบบบัญชีสมาชิก & คลังคีย์ส่วนตัวตลอด 24 ชม.
+                        </p>
                     </div>
                 </div>
             </div>
 
-            <!-- Tab switcher -->
-            <div class="flex border-b border-slate-100 -mt-0.5 bg-white">
-                <button id="auth-tab-login" onclick="switchAuthTab('login')"
-                    class="flex-1 py-3.5 text-sm font-bold transition-all border-b-2 border-pink-500 text-pink-600">
-                    เข้าสู่ระบบ
-                </button>
-                <button id="auth-tab-register" onclick="switchAuthTab('register')"
-                    class="flex-1 py-3.5 text-sm font-bold transition-all border-b-2 border-transparent text-slate-500">
-                    สมัครสมาชิก
-                </button>
+            <!-- Segmented Pill Tab Switcher (Modern iOS/Fintech Style) -->
+            <div class="px-5 sm:px-6 pt-4 pb-1 shrink-0 bg-white">
+                <div class="bg-slate-100/90 p-1 rounded-2xl flex gap-1 border border-slate-200/70 shadow-inner">
+                    <button type="button" id="auth-tab-login" onclick="switchAuthTab('login')"
+                        class="flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 bg-white text-pink-600 shadow-xs">
+                        <i class="fa-solid fa-right-to-bracket text-xs"></i>
+                        <span>เข้าสู่ระบบ</span>
+                    </button>
+                    <button type="button" id="auth-tab-register" onclick="switchAuthTab('register')"
+                        class="flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all duration-200 text-slate-500 hover:text-slate-700">
+                        <i class="fa-solid fa-user-plus text-xs"></i>
+                        <span>สมัครสมาชิก</span>
+                    </button>
+                </div>
             </div>
 
-            <div class="px-6 py-5">
+            <!-- Scrollable Content Area -->
+            <div class="px-5 sm:px-6 py-4 overflow-y-auto flex-1 overscroll-contain">
 
-                <!-- Login Form -->
+                <!-- 1. LOGIN FORM -->
                 <div id="auth-form-login">
-                    <div class="space-y-3">
+                    <div class="space-y-3.5">
+                        <!-- Email Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block">อีเมล</label>
-                            <input id="login-email" type="email" placeholder="your@email.com"
-                                class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white">
+                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-envelope text-pink-500 text-xs"></i> อีเมลบัญชี
+                                </span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-regular fa-envelope"></i>
+                                </span>
+                                <input id="login-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com"
+                                    class="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
+                            </div>
                         </div>
+
+                        <!-- Password Input Group -->
                         <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <label class="text-xs font-bold text-slate-700 block">รหัสผ่าน</label>
-                                <button type="button" onclick="switchAuthTab('forgot-request')" class="text-[11px] text-pink-600 hover:underline font-bold">ลืมรหัสผ่าน?</button>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-lock text-purple-500 text-xs"></i> รหัสผ่าน
+                                </label>
+                                <button type="button" onclick="switchAuthTab('forgot-request')" 
+                                        class="text-[11px] text-pink-600 hover:text-pink-700 font-bold hover:underline flex items-center gap-1 transition-colors">
+                                    <i class="fa-solid fa-key text-[10px]"></i> ลืมรหัสผ่าน?
+                                </button>
                             </div>
                             <div class="relative">
-                                <input id="login-password" type="password" placeholder="รหัสผ่านของคุณ"
-                                    class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white pr-12">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-solid fa-lock"></i>
+                                </span>
+                                <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••"
+                                    class="w-full pl-10 pr-12 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                                 <button type="button" onclick="togglePasswordVisibility('login-password', this)"
-                                    class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm transition-colors"
+                                    title="แสดง/ซ่อนรหัสผ่าน">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
                             </div>
                         </div>
-                        <div id="auth-login-error" class="hidden px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium"></div>
+
+                        <!-- Error Message Alert -->
+                        <div id="auth-login-error" class="hidden px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+                            <i class="fa-solid fa-circle-exclamation text-rose-500 shrink-0"></i>
+                            <span class="flex-1"></span>
+                        </div>
+
+                        <!-- Login Submit Button -->
                         <button onclick="handleLogin()" id="login-btn"
-                            class="w-full py-3 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-                            <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
+                            class="w-full py-3.5 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-[0.98] transition-all hover:opacity-95">
+                            <i class="fa-solid fa-right-to-bracket"></i>
+                            <span>เข้าสู่ระบบทันที</span>
                         </button>
-                        <p class="text-center text-xs text-slate-500 font-medium">
-                            ยังไม่มีบัญชี?
-                            <button onclick="switchAuthTab('register')" class="text-pink-600 font-bold hover:underline">สมัครสมาชิกฟรี</button>
-                        </p>
+
+                        <!-- Switch to Register Link -->
+                        <div class="pt-2 text-center">
+                            <p class="text-xs text-slate-500 font-medium">
+                                ยังไม่มีบัญชีสมาชิก? 
+                                <button type="button" onclick="switchAuthTab('register')" class="text-pink-600 font-bold hover:underline hover:text-pink-700 ml-1">
+                                    สมัครสมาชิกฟรี
+                                </button>
+                            </p>
+                        </div>
+
+                        <!-- Security Trust Footer -->
+                        <div class="pt-3 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] text-slate-400 font-medium">
+                            <i class="fa-solid fa-shield-halved text-emerald-500"></i>
+                            <span>ระบบเข้ารหัสความปลอดภัยมาตรฐานสากล SSL 256-Bit</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Register Form -->
+                <!-- 2. REGISTER FORM -->
                 <div id="auth-form-register" class="hidden">
-                    <div class="space-y-3">
+                    <div class="space-y-3.5">
+                        <!-- Display Name Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block">ชื่อที่ใช้แสดง</label>
-                            <input id="register-name" type="text" placeholder="ชื่อเล่น หรือชื่อจริง" maxlength="60"
-                                class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block">อีเมล</label>
-                            <input id="register-email" type="email" placeholder="your@email.com"
-                                class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block">รหัสผ่าน <span class="text-slate-400 font-medium">(อย่างน้อย 6 ตัวอักษร)</span></label>
+                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-user-tag text-cyan-600 text-xs"></i> ชื่อที่ใช้แสดง
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-normal">(ชื่อเล่น หรือนามสมมติ)</span>
+                            </label>
                             <div class="relative">
-                                <input id="register-password" type="password" placeholder="ตั้งรหัสผ่านใหม่"
-                                    class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white pr-12">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-regular fa-user"></i>
+                                </span>
+                                <input id="register-name" type="text" autocomplete="name" placeholder="เช่น Supat, น้องพิงค์" maxlength="60"
+                                    class="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
+                            </div>
+                        </div>
+
+                        <!-- Email Input Group -->
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-envelope text-pink-500 text-xs"></i> อีเมลสำหรับรับคีย์
+                                </span>
+                                <span class="text-[10px] text-pink-600 font-semibold">* ใช้อีเมลจริง</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-regular fa-envelope"></i>
+                                </span>
+                                <input id="register-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com"
+                                    class="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">ระบบจะส่งรหัส OTP และคีย์สินค้าเข้าอีเมลนี้</p>
+                        </div>
+
+                        <!-- Password Input Group -->
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-shield-halved text-purple-500 text-xs"></i> ตั้งรหัสผ่าน
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-normal">(อย่างน้อย 6 ตัวอักษร)</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-solid fa-lock"></i>
+                                </span>
+                                <input id="register-password" type="password" autocomplete="new-password" placeholder="ตั้งรหัสผ่านความปลอดภัยสูง"
+                                    class="w-full pl-10 pr-12 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                                 <button type="button" onclick="togglePasswordVisibility('register-password', this)"
-                                    class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm transition-colors"
+                                    title="แสดง/ซ่อนรหัสผ่าน">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
                             </div>
                         </div>
-                        <div id="auth-register-error" class="hidden px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium"></div>
+
+                        <!-- Benefits Mini-List -->
+                        <div class="p-3 rounded-2xl bg-gradient-to-r from-pink-50/60 to-purple-50/60 border border-pink-100 text-[11px] text-slate-600 space-y-1">
+                            <div class="flex items-center gap-2 text-slate-700 font-semibold">
+                                <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                                <span>เข้าดูคีย์และประวัติสั่งซื้อได้ทุกเครื่อง ทุกเวลา</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-slate-700 font-semibold">
+                                <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                                <span>ระบบตรวจสลิปอัตโนมัติ จัดส่งคีย์ภายใน 5-15 นาที</span>
+                            </div>
+                        </div>
+
+                        <!-- Error Message Alert -->
+                        <div id="auth-register-error" class="hidden px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+                            <i class="fa-solid fa-circle-exclamation text-rose-500 shrink-0"></i>
+                            <span class="flex-1"></span>
+                        </div>
+
+                        <!-- Register Submit Button -->
                         <button onclick="handleRegister()" id="register-btn"
-                            class="w-full py-3 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-                            <i class="fa-solid fa-user-plus"></i> สมัครสมาชิกฟรี
+                            class="w-full py-3.5 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-[0.98] transition-all hover:opacity-95">
+                            <i class="fa-solid fa-user-plus"></i>
+                            <span>สร้างบัญชีสมาชิกฟรี</span>
                         </button>
-                        <p class="text-center text-xs text-slate-500 font-medium">
-                            มีบัญชีแล้ว?
-                            <button onclick="switchAuthTab('login')" class="text-pink-600 font-bold hover:underline">เข้าสู่ระบบ</button>
-                        </p>
+
+                        <!-- Switch to Login Link -->
+                        <div class="pt-2 text-center">
+                            <p class="text-xs text-slate-500 font-medium">
+                                มีบัญชีสมาชิกอยู่แล้ว? 
+                                <button type="button" onclick="switchAuthTab('login')" class="text-pink-600 font-bold hover:underline hover:text-pink-700 ml-1">
+                                    เข้าสู่ระบบ
+                                </button>
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- OTP Verification Form -->
+                <!-- 3. OTP VERIFICATION FORM -->
                 <div id="auth-form-otp" class="hidden">
                     <div class="space-y-4">
-                        <div class="text-center">
-                            <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center text-xl mb-2 shadow-xs">
-                                <i class="fa-solid fa-envelope-circle-check"></i>
+                        <!-- Top Icon & Header -->
+                        <div class="text-center pt-1">
+                            <div class="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-pink-100 to-purple-100 text-pink-600 flex items-center justify-center text-2xl mb-3 shadow-sm border border-pink-200/60">
+                                <i class="fa-solid fa-envelope-circle-check text-pink-600"></i>
                             </div>
                             <h3 class="text-base font-black text-slate-800">ยืนยันรหัส OTP จากอีเมล</h3>
-                            <p class="text-xs text-slate-500 mt-1 font-medium">
-                                ระบบได้ส่งรหัสยืนยัน 6 หลักไปที่:<br>
-                                <span id="auth-otp-target-email" class="font-bold text-pink-600 font-mono text-xs select-all"></span>
+                            <p class="text-xs text-slate-500 mt-1">
+                                ระบบได้ส่งรหัสยืนยัน 6 หลักไปยังอีเมลของคุณ:
                             </p>
+                            <!-- Target Email Highlight Badge -->
+                            <div class="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-pink-50 border border-pink-200 text-pink-700 font-mono text-xs font-bold select-all shadow-2xs">
+                                <i class="fa-regular fa-envelope text-[11px]"></i>
+                                <span id="auth-otp-target-email"></span>
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1.5 block text-center">กรอกรหัสยืนยัน 6 หลัก (มีอายุ 10 นาที)</label>
-                            <input id="auth-otp-input" type="text" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="• • • • • •" autocomplete="one-time-code"
-                                class="w-full text-center tracking-[0.4em] font-mono font-black text-2xl py-3 rounded-2xl border-2 border-slate-200 focus:border-pink-500 outline-none transition-all bg-slate-50 focus:bg-white text-slate-800 shadow-inner">
+                        <!-- OTP Input Group -->
+                        <div class="pt-1">
+                            <label class="text-xs font-bold text-slate-700 mb-2 block text-center">
+                                กรอกรหัสตัวเลข 6 หลัก (รหัสมีอายุ 10 นาที)
+                            </label>
+                            <input id="auth-otp-input" type="text" maxlength="6" inputmode="numeric" pattern="[0-9]*" 
+                                placeholder="• • • • • •" autocomplete="one-time-code"
+                                class="w-full text-center tracking-[0.45em] sm:tracking-[0.6em] font-mono font-black text-2xl sm:text-3xl py-3 rounded-2xl border-2 border-slate-200 text-slate-900 outline-none transition-all bg-slate-50 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/15 shadow-inner">
                         </div>
 
-                        <div id="auth-otp-error" class="hidden px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium text-center"></div>
+                        <!-- Spam Folder Reminder Box -->
+                        <div class="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 leading-relaxed flex items-start gap-2">
+                            <i class="fa-solid fa-circle-info text-amber-600 text-xs mt-0.5 shrink-0"></i>
+                            <div>
+                                <strong>คำแนะนำ:</strong> หากไม่พบในกล่องข้อความหลัก กรุณาตรวจสอบในโฟลเดอร์ <strong>Junk / Spam (เมลขยะ)</strong> ด้วยนะครับ
+                            </div>
+                        </div>
 
+                        <!-- Error Message Alert -->
+                        <div id="auth-otp-error" class="hidden px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium text-center"></div>
 
+                        <!-- Verify OTP Button -->
                         <button onclick="handleVerifyOtp()" id="verify-otp-btn"
-                            class="w-full py-3 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-md">
-                            <i class="fa-solid fa-circle-check"></i> ยืนยันรหัส OTP
+                            class="w-full py-3.5 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-[0.98] transition-all hover:opacity-95">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>ยืนยันรหัส OTP และเปิดใช้งานบัญชี</span>
                         </button>
 
-                        <div class="flex items-center justify-between pt-1 text-xs">
-                            <button type="button" onclick="handleBackToRegister()" class="text-slate-500 hover:text-slate-700 font-medium flex items-center gap-1">
-                                <i class="fa-solid fa-arrow-left"></i> ย้อนกลับไปแก้ไข
+                        <!-- Footer Actions (Back / Resend) -->
+                        <div class="flex items-center justify-between pt-1.5 text-xs">
+                            <button type="button" onclick="handleBackToRegister()" 
+                                    class="text-slate-500 hover:text-slate-800 font-medium flex items-center gap-1.5 transition-colors py-1">
+                                <i class="fa-solid fa-arrow-left text-[11px]"></i>
+                                <span>ย้อนกลับไปแก้ไข</span>
                             </button>
-                            <button type="button" id="resend-otp-btn" onclick="handleResendOtp()" class="text-pink-600 font-bold hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed">
-                                ขอรหัสใหม่ (<span id="resend-otp-countdown">60</span>s)
+                            <button type="button" id="resend-otp-btn" onclick="handleResendOtp()" 
+                                    class="text-pink-600 font-bold hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed flex items-center gap-1 py-1">
+                                <i class="fa-solid fa-rotate-right text-[11px]"></i>
+                                <span>ขอรหัสใหม่ (<span id="resend-otp-countdown">60</span>s)</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Forgot Password - Step 1: Request OTP -->
+                <!-- 4. FORGOT PASSWORD - STEP 1: REQUEST OTP -->
                 <div id="auth-form-forgot-request" class="hidden">
                     <div class="space-y-4">
-                        <div class="text-center">
-                            <div class="w-12 h-12 mx-auto rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl mb-2 shadow-xs">
-                                <i class="fa-solid fa-key"></i>
+                        <!-- Step Badge & Header -->
+                        <div class="text-center pt-1">
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold mb-3 border border-amber-200 shadow-2xs">
+                                <i class="fa-solid fa-shield-halved text-xs"></i>
+                                <span>ขั้นตอนที่ 1 จาก 2 • ยืนยันอีเมล</span>
                             </div>
-                            <h3 class="text-base font-black text-slate-800">กู้คืนรหัสผ่าน</h3>
-                            <p class="text-xs text-slate-500 mt-1 font-medium">
-                                ระบุอีเมลที่คุณลงทะเบียนไว้ ระบบจะส่งรหัส OTP 6 หลักไปให้เพื่อตั้งรหัสผ่านใหม่
+                            <div class="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-amber-100 to-pink-100 text-amber-600 flex items-center justify-center text-2xl mb-3 shadow-sm border border-amber-200/60">
+                                <i class="fa-solid fa-key text-amber-600"></i>
+                            </div>
+                            <h3 class="text-base font-black text-slate-800">กู้คืนรหัสผ่านบัญชี</h3>
+                            <p class="text-xs text-slate-500 mt-1 leading-relaxed max-w-xs mx-auto">
+                                กรอกอีเมลที่คุณใช้ลงทะเบียนไว้ ระบบจะจัดส่งรหัส OTP 6 หลักไปให้เพื่อตั้งรหัสผ่านใหม่
                             </p>
                         </div>
+
+                        <!-- Email Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block">อีเมลของคุณ</label>
-                            <input id="forgot-email" type="email" placeholder="your@email.com"
-                                class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white">
+                            <label class="text-xs font-bold text-slate-700 mb-1.5 block">
+                                อีเมลที่ลงทะเบียนไว้
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-regular fa-envelope"></i>
+                                </span>
+                                <input id="forgot-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com"
+                                    class="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
+                            </div>
                         </div>
-                        <div id="auth-forgot-request-error" class="hidden px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium"></div>
+
+                        <!-- Error Message Alert -->
+                        <div id="auth-forgot-request-error" class="hidden px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium text-center"></div>
+
+                        <!-- Submit Button -->
                         <button onclick="handleForgotPasswordRequest()" id="forgot-request-btn"
-                            class="w-full py-3 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-md">
-                            <i class="fa-solid fa-paper-plane"></i> ส่งรหัส OTP กู้คืนรหัสผ่าน
+                            class="w-full py-3.5 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-[0.98] transition-all hover:opacity-95">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span>ส่งรหัส OTP กู้คืนรหัสผ่าน</span>
                         </button>
-                        <p class="text-center text-xs text-slate-500 font-medium">
-                            จำรหัสผ่านได้แล้ว?
-                            <button type="button" onclick="switchAuthTab('login')" class="text-pink-600 font-bold hover:underline">เข้าสู่ระบบ</button>
-                        </p>
+
+                        <!-- Back to Login Link -->
+                        <div class="pt-2 text-center">
+                            <p class="text-xs text-slate-500 font-medium">
+                                จำรหัสผ่านได้แล้ว? 
+                                <button type="button" onclick="switchAuthTab('login')" class="text-pink-600 font-bold hover:underline hover:text-pink-700 ml-1">
+                                    กลับไปเข้าสู่ระบบ
+                                </button>
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Forgot Password - Step 2: Verify OTP & New Password -->
+                <!-- 5. FORGOT PASSWORD - STEP 2: VERIFY OTP & RESET PASSWORD -->
                 <div id="auth-form-forgot-verify" class="hidden">
                     <div class="space-y-3.5">
-                        <div class="text-center">
-                            <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center text-xl mb-2 shadow-xs">
-                                <i class="fa-solid fa-shield-halved"></i>
+                        <!-- Step Badge & Header -->
+                        <div class="text-center pt-1">
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-3 border border-emerald-200 shadow-2xs">
+                                <i class="fa-solid fa-circle-check text-xs"></i>
+                                <span>ขั้นตอนที่ 2 จาก 2 • ตั้งรหัสผ่านใหม่</span>
+                            </div>
+                            <div class="w-14 h-14 mx-auto rounded-3xl bg-gradient-to-tr from-pink-100 to-purple-100 text-pink-600 flex items-center justify-center text-xl mb-2 shadow-sm border border-pink-200/60">
+                                <i class="fa-solid fa-lock-open text-pink-600"></i>
                             </div>
                             <h3 class="text-base font-black text-slate-800">ตั้งรหัสผ่านใหม่</h3>
-                            <p class="text-xs text-slate-500 mt-1 font-medium">
-                                รหัส OTP ถูกส่งไปที่:<br>
-                                <span id="auth-forgot-target-email" class="font-bold text-pink-600 font-mono text-xs select-all"></span>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                รหัส OTP ได้ถูกส่งไปยัง:
                             </p>
+                            <!-- Target Email Badge -->
+                            <div class="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 border border-pink-200 text-pink-700 font-mono text-xs font-bold select-all">
+                                <i class="fa-regular fa-envelope text-[11px]"></i>
+                                <span id="auth-forgot-target-email"></span>
+                            </div>
                         </div>
 
+                        <!-- OTP Input Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block text-center">กรอกรหัสยืนยัน 6 หลัก (OTP)</label>
-                            <input id="forgot-otp-input" type="text" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="• • • • • •" autocomplete="one-time-code"
-                                class="w-full text-center tracking-[0.4em] font-mono font-black text-2xl py-2.5 rounded-2xl border-2 border-slate-200 focus:border-pink-500 outline-none transition-all bg-slate-50 focus:bg-white text-slate-800 shadow-inner">
+                            <label class="text-xs font-bold text-slate-700 mb-1.5 block text-center">
+                                รหัส OTP 6 หลัก
+                            </label>
+                            <input id="forgot-otp-input" type="text" maxlength="6" inputmode="numeric" pattern="[0-9]*" 
+                                placeholder="• • • • • •" autocomplete="one-time-code"
+                                class="w-full text-center tracking-[0.45em] sm:tracking-[0.6em] font-mono font-black text-2xl py-2.5 rounded-2xl border-2 border-slate-200 text-slate-900 outline-none transition-all bg-slate-50 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/15 shadow-inner">
                         </div>
 
+                        <!-- New Password Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block">รหัสผ่านใหม่ <span class="text-slate-400 font-medium">(อย่างน้อย 6 ตัวอักษร)</span></label>
+                            <label class="text-xs font-bold text-slate-700 mb-1 block flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-lock text-purple-500 text-xs"></i> รหัสผ่านใหม่
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-normal">(อย่างน้อย 6 ตัวอักษร)</span>
+                            </label>
                             <div class="relative">
-                                <input id="forgot-new-password" type="password" placeholder="ตั้งรหัสผ่านใหม่"
-                                    class="w-full px-4 py-2.5 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white pr-12">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-solid fa-lock"></i>
+                                </span>
+                                <input id="forgot-new-password" type="password" autocomplete="new-password" placeholder="รหัสผ่านใหม่ของคุณ"
+                                    class="w-full pl-10 pr-12 py-2.5 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                                 <button type="button" onclick="togglePasswordVisibility('forgot-new-password', this)"
-                                    class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm transition-colors"
+                                    title="แสดง/ซ่อนรหัสผ่าน">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
                             </div>
                         </div>
 
+                        <!-- Confirm New Password Group -->
                         <div>
-                            <label class="text-xs font-bold text-slate-700 mb-1 block">ยืนยันรหัสผ่านใหม่อีกครั้ง</label>
+                            <label class="text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i> ยืนยันรหัสผ่านใหม่อีกครั้ง
+                            </label>
                             <div class="relative">
-                                <input id="forgot-confirm-password" type="password" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
-                                    class="w-full px-4 py-2.5 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors bg-slate-50 focus:bg-white pr-12">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                                    <i class="fa-solid fa-lock"></i>
+                                </span>
+                                <input id="forgot-confirm-password" type="password" autocomplete="new-password" placeholder="กรอกรหัสผ่านใหม่อีกครั้งให้ตรงกัน"
+                                    class="w-full pl-10 pr-12 py-2.5 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                                 <button type="button" onclick="togglePasswordVisibility('forgot-confirm-password', this)"
-                                    class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm transition-colors"
+                                    title="แสดง/ซ่อนรหัสผ่าน">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <div id="auth-forgot-verify-error" class="hidden px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium text-center"></div>
+                        <!-- Error Message Alert -->
+                        <div id="auth-forgot-verify-error" class="hidden px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium text-center"></div>
 
-
+                        <!-- Submit Button -->
                         <button onclick="handleResetPasswordSubmit()" id="forgot-verify-btn"
-                            class="w-full py-3 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-md">
-                            <i class="fa-solid fa-circle-check"></i> บันทึกรหัสผ่านใหม่
+                            class="w-full py-3.5 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-[0.98] transition-all hover:opacity-95">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>บันทึกรหัสผ่านใหม่และเข้าสู่ระบบ</span>
                         </button>
 
+                        <!-- Footer Actions (Back / Resend) -->
                         <div class="flex items-center justify-between pt-1 text-xs">
-                            <button type="button" onclick="switchAuthTab('forgot-request')" class="text-slate-500 hover:text-slate-700 font-medium flex items-center gap-1">
-                                <i class="fa-solid fa-arrow-left"></i> ย้อนกลับ
+                            <button type="button" onclick="switchAuthTab('forgot-request')" 
+                                    class="text-slate-500 hover:text-slate-800 font-medium flex items-center gap-1.5 transition-colors py-1">
+                                <i class="fa-solid fa-arrow-left text-[11px]"></i>
+                                <span>ย้อนกลับ</span>
                             </button>
-                            <button type="button" id="forgot-resend-btn" onclick="handleResendResetOtp()" class="text-pink-600 font-bold hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed">
-                                ขอรหัสใหม่ (<span id="forgot-resend-countdown">60</span>s)
+                            <button type="button" id="forgot-resend-btn" onclick="handleResendResetOtp()" 
+                                    class="text-pink-600 font-bold hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed flex items-center gap-1 py-1">
+                                <i class="fa-solid fa-rotate-right text-[11px]"></i>
+                                <span>ขอรหัสใหม่ (<span id="forgot-resend-countdown">60</span>s)</span>
                             </button>
                         </div>
                     </div>

@@ -349,12 +349,19 @@ const MASTER_CATALOG = {
 // 1. API: Verify Slip & Dispense Product (Server-Side Verified)
 app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), async (req, res) => {
     try {
-        const { email, cartItems } = req.body;
-
-        // Validate email server-side
-        if (!email || !isValidEmail(email)) {
-            return res.status(400).json({ success: false, message: "รูปแบบอีเมลไม่ถูกต้อง" });
+        // [AUTHENTICATION GATE] ผู้เล่นต้องเข้าสู่ระบบหรือสมัครสมาชิกก่อนชำระเงิน
+        const userSession = authenticateUser(req);
+        if (!userSession || !userSession.email) {
+            return res.status(401).json({ 
+                success: false, 
+                requireLogin: true, 
+                message: "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกคีย์เข้าบัญชีของคุณ" 
+            });
         }
+
+        // [SECURITY FIX] Single Source of Truth: อีเมลผูกกับ Session ของผู้ใช้ที่ผ่านการยืนยันแล้ว ป้องกันการดัดแปลงหรือปลอมแปลงอีเมล
+        const orderEmail = userSession.email.trim().toLowerCase();
+        const { cartItems } = req.body;
 
         let parsedCart;
         try {
@@ -548,15 +555,12 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         // Record Order with unguessable cryptographic token
         const orderId = "SPK-" + Date.now().toString().slice(-6) + crypto.randomBytes(3).toString('hex').toUpperCase();
 
-        // Link order to user account if logged in
-        const userSession = authenticateUser(req);
-
         const order = {
             orderId,
             date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
-            email: email.trim().toLowerCase(),
-            recipientEmail: email.trim().toLowerCase(),
-            ...(userSession ? { userId: userSession.userId } : {}),
+            email: orderEmail,
+            recipientEmail: orderEmail,
+            userId: userSession.userId,
             totalAmount: expectedTotal,
             paymentMethod: "Thai QR PromptPay",
             transRef: transRef || "REF-" + Date.now().toString(36).toUpperCase(),
@@ -933,8 +937,17 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
     const isAdmin = authenticateAdmin(req);
     const userSession = authenticateUser(req);
     const queryEmail = (req.query.email || req.headers['x-order-email'] || '').trim().toLowerCase();
-    const isOwner = (queryEmail && order.recipientEmail && queryEmail === order.recipientEmail.toLowerCase()) ||
-                    (userSession && order.userId && order.userId === userSession.userId);
+
+    // [SECURITY FIX] IDOR & Account Isolation:
+    // หากออเดอร์ผูกกับบัญชีสมาชิก (มี userId) จะต้องยืนยันตัวตนด้วย User Session หรือสิทธิ์ Admin เท่านั้น
+    // ไม่อนุญาตให้ใช้เพียง queryEmail ในการดูรหัสผ่าน เพื่อป้องกันผู้ไม่ประสงค์ดีที่รู้อีเมลแอบดูคีย์
+    let isOwner = false;
+    if (userSession && order.userId && order.userId === userSession.userId) {
+        isOwner = true;
+    } else if (!order.userId && queryEmail && order.recipientEmail && queryEmail === order.recipientEmail.toLowerCase()) {
+        // Fallback สำหรับออเดอร์เก่าที่สร้างไว้ก่อนระบบสมาชิก
+        isOwner = true;
+    }
 
     // Admin or Verified Customer (via matching email or active session) gets full order with credentials
     if (isAdmin || isOwner) {
@@ -955,7 +968,7 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
             price: it.price,
             warranty: it.warranty,
             status: it.status,
-            credentials: it.status === 'delivered' ? { instructions: "กรุณาระบุอีเมลที่ใช้สั่งซื้อเพื่อดูรหัสผ่าน" } : null
+            credentials: it.status === 'delivered' ? { instructions: order.userId ? "กรุณาเข้าสู่ระบบด้วยบัญชีสมาชิกที่ใช้สั่งซื้อเพื่อดูรหัสผ่าน" : "กรุณาระบุอีเมลที่ใช้สั่งซื้อเพื่อดูรหัสผ่าน" } : null
         }))
     };
     res.json({ success: true, order: sanitizedOrder, requiresEmailAuth: true });
