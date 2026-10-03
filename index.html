@@ -1515,8 +1515,26 @@
                     <h4 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5 mb-2">
                         <i class="fa-solid fa-envelope-open-text text-pink-600"></i> ตั้งค่าการส่งอีเมล OTP (Gmail SMTP / Resend API)
                     </h4>
-                    <div class="p-3 bg-white rounded-xl border border-slate-200 mb-3 text-[11px] text-slate-600 leading-relaxed">
-                        💡 <strong>คำแนะนำ:</strong> สามารถใช้ Gmail โดยสร้าง <em>App Password (รหัสผ่านสำหรับแอป) 16 หลัก</em> หรือระบุ <em>Resend API Key</em> เพื่อส่งรหัสยืนยัน OTP จริงเข้ากล่องจดหมายลูกค้า หากยังไม่ตั้งค่า ระบบจะแสดงรหัส OTP ในคอนโซลเซิร์ฟเวอร์ให้อัตโนมัติ (Dev Mode)
+                    <!-- Render Ephemeral Disk Warning -->
+                    <div class="p-3 bg-amber-50 rounded-xl border border-amber-300 mb-3 text-[11px] text-amber-900 leading-relaxed">
+                        <div class="font-bold text-amber-800 flex items-center gap-1.5 mb-1.5">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                            ⚠️ Render Free Tier: ค่าที่บันทึกจะหายหลัง Deploy/Restart
+                        </div>
+                        <div class="leading-relaxed">
+                            Render Free ใช้ <strong>Ephemeral Filesystem</strong> — ค่าที่บันทึกไว้จะถูกลบทุกครั้งที่ Render Deploy หรือ Restart เซิร์ฟเวอร์<br>
+                            <strong class="text-amber-800">วิธีบันทึกถาวร 100%:</strong> ไปที่ <strong>Render Dashboard → Environment → Add Environment Variable</strong> แล้วใส่ค่าเหล่านี้:
+                        </div>
+                        <div id="render-env-guide" class="mt-2 bg-white/80 border border-amber-200 rounded-lg p-2 font-mono text-[10px] text-slate-800 space-y-0.5 select-all">
+                            <div>BREVO_API_KEY=<span class="text-emerald-700 font-bold">[วาง Brevo API Key ที่นี่]</span></div>
+                            <div>RESEND_API_KEY=<span class="text-blue-700 font-bold">[หรือ Resend API Key]</span></div>
+                            <div>SMTP_HOST=smtp.gmail.com</div>
+                            <div>SMTP_PORT=465</div>
+                            <div>SMTP_USER=<span class="text-slate-500">your@gmail.com</span></div>
+                            <div>SMTP_PASS=<span class="text-slate-500">app-password-16-digits</span></div>
+                            <div>SMTP_FROM=<span class="text-slate-500">Supinkly.AI &lt;your@gmail.com&gt;</span></div>
+                        </div>
+                        <div class="mt-1.5 text-[10px] text-amber-700">💡 หากตั้ง env vars ใน Render แล้ว ค่าจะ <strong>แสดงเป็น ******</strong> ในช่องด้านล่าง และไม่หายเมื่อ restart</div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
@@ -1548,6 +1566,16 @@
                             <label class="text-xs font-bold text-slate-700 block mb-1">Sender From (ชื่อผู้ส่ง):</label>
                             <input type="text" id="admin-smtp-from" placeholder="Supinkly.AI &lt;your-shop@gmail.com&gt;"
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs outline-none focus:border-pink-500">
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700">Brevo API Key <span class="text-emerald-600 font-bold">(แนะนำ ✅ ฟรี 300 เมล/วัน)</span>:</label>
+                                <a href="https://app.brevo.com/settings/keys/api" target="_blank" rel="noopener noreferrer" class="text-[10px] text-emerald-600 hover:underline font-bold">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> สมัครฟรี / ดู API Key
+                                </a>
+                            </div>
+                            <input type="password" id="admin-smtp-brevo" placeholder="xkeysib-••••••••••••••••"
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-emerald-300 text-xs font-mono outline-none focus:border-emerald-500">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">Resend API Key (ถ้ามี):</label>

@@ -682,7 +682,8 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
             user: process.env.SMTP_USER || smtp.user || '',
             pass: (process.env.SMTP_PASS || smtp.pass) ? '******' : '',
             from: process.env.SMTP_FROM || smtp.from || '',
-            resendKey: (process.env.RESEND_API_KEY || smtp.resendKey) ? '******' : ''
+            resendKey: (process.env.RESEND_API_KEY || smtp.resendKey) ? '******' : '',
+            brevoKey: (process.env.BREVO_API_KEY || smtp.brevoKey) ? '******' : ''
         }
     });
 });
@@ -725,6 +726,9 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         if (smtpConfig.resendKey !== undefined && smtpConfig.resendKey !== '******') {
             db.smtpConfig.resendKey = String(smtpConfig.resendKey).trim();
         }
+        if (smtpConfig.brevoKey !== undefined && smtpConfig.brevoKey !== '******') {
+            db.smtpConfig.brevoKey = String(smtpConfig.brevoKey).trim();
+        }
     }
 
     saveDb(db);
@@ -763,14 +767,21 @@ app.post('/api/admin/test-email', adminRateLimit, async (req, res) => {
                 const existingKey = db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
                 if (existingKey) customConfig.resendKey = existingKey;
             }
+            if (smtpConfig.brevoKey && smtpConfig.brevoKey !== '******') {
+                customConfig.brevoKey = String(smtpConfig.brevoKey).trim();
+            } else {
+                const existingBrevo = db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
+                if (existingBrevo) customConfig.brevoKey = existingBrevo;
+            }
         }
 
         const effectivePass = customConfig?.pass || db.smtpConfig?.pass || process.env.SMTP_PASS;
         const effectiveResend = customConfig?.resendKey || db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
-        if (!effectivePass && !effectiveResend) {
+        const effectiveBrevo = customConfig?.brevoKey || db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
+        if (!effectivePass && !effectiveResend && !effectiveBrevo) {
             return res.status(400).json({
                 success: false,
-                message: "ยังไม่ได้ระบุรหัสผ่าน SMTP (App Password 16 หลัก) หรือ Resend API Key กรุณาระบุในช่องด้านบนก่อนกดทดสอบส่ง"
+                message: "ยังไม่ได้ระบุ Brevo API Key, Resend API Key หรือรหัสผ่าน SMTP (App Password 16 หลัก) กรุณาระบุในช่องด้านบนก่อนกดทดสอบส่ง"
             });
         }
 

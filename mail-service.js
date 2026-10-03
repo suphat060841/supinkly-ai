@@ -62,7 +62,8 @@ class MailService {
             user: String(process.env.SMTP_USER || smtp.user || '').trim(),
             pass: String(rawPass).replace(/\s+/g, ''),
             from: String(process.env.SMTP_FROM || smtp.from || (process.env.SMTP_USER || smtp.user || 'no-reply@supinkly.ai')).trim(),
-            resendKey: String(process.env.RESEND_API_KEY || smtp.resendKey || '').trim()
+            resendKey: String(process.env.RESEND_API_KEY || smtp.resendKey || '').trim(),
+            brevoKey: String(process.env.BREVO_API_KEY || smtp.brevoKey || '').trim()
         };
     }
 
@@ -70,7 +71,7 @@ class MailService {
      * Check if real mail sending is configured
      */
     isConfigured(config) {
-        return !!(config.resendKey || (config.host && config.user && config.pass));
+        return !!(config.brevoKey || config.resendKey || (config.host && config.user && config.pass));
     }
 
     /**
@@ -589,7 +590,43 @@ class MailService {
     }
 
     /**
-     * Dispatch OTP Email to user (handles SMTP, API, and graceful Dev/Console fallback)
+     * Send email via Brevo (Sendinblue) REST API (HTTPS Port 443)
+     */
+    async sendViaBrevo(config, { to, subject, html }) {
+        const { fromEmail, cleanFrom } = this.resolveSender(config);
+        const senderName = cleanFrom && cleanFrom.includes('<')
+            ? cleanFrom.split('<')[0].trim()
+            : 'Supinkly.AI';
+
+        const payload = {
+            sender: {
+                name: senderName || 'Supinkly.AI',
+                email: fromEmail || config.user || 'no-reply@supinkly.ai'
+            },
+            to: [{ email: to }],
+            subject: subject,
+            htmlContent: html
+        };
+
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+                'accept': 'application/json',
+                'api-key': config.brevoKey,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(data.message || `Brevo API error ${res.status}`);
+        }
+        return { success: true, method: 'brevo', messageId: data.messageId };
+    }
+
+    /**
+     * Dispatch OTP Email to user (handles Brevo, Resend, SMTP, and graceful Dev/Console fallback)
      */
     async sendOtpEmail(toEmail, otp, displayName, db = {}) {
         const config = this.getConfig(db);
@@ -604,7 +641,20 @@ class MailService {
 
         let lastError = null;
 
-        // 1. Try Resend HTTP API if configured
+        // 1. Try Brevo HTTP API if configured (HTTPS Port 443)
+        if (config.brevoKey) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลผ่าน Brevo API ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaBrevo(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลผ่าน Brevo สำเร็จ MessageID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'brevo' };
+            } catch (err) {
+                console.error('[MAIL] Brevo failed, trying fallback:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 2. Try Resend HTTP API if configured (HTTPS Port 443)
         if (config.resendKey) {
             try {
                 console.log(`[MAIL] กำลังส่งอีเมลผ่าน Resend API ไปยัง: ${toEmail}...`);
@@ -617,7 +667,7 @@ class MailService {
             }
         }
 
-        // 2. Try SMTP if configured
+        // 3. Try SMTP if configured
         if (config.host && config.user && config.pass) {
             try {
                 console.log(`[MAIL] กำลังเชื่อมต่อ SMTP ${config.host}:${config.port} เพื่อส่งไปยัง ${toEmail}...`);
@@ -751,7 +801,20 @@ class MailService {
 
         let lastError = null;
 
-        // 1. Try Resend HTTP API if configured
+        // 1. Try Brevo HTTP API if configured (works on Render Free – uses HTTPS Port 443)
+        if (config.brevoKey) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลรีเซ็ตรหัสผ่านผ่าน Brevo ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaBrevo(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลรีเซ็ตรหัสผ่านผ่าน Brevo สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'brevo' };
+            } catch (err) {
+                console.error('[MAIL] Brevo failed, trying Resend fallback:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 2. Try Resend HTTP API if configured
         if (config.resendKey) {
             try {
                 console.log(`[MAIL] กำลังส่งอีเมลรีเซ็ตรหัสผ่านผ่าน Resend ไปยัง: ${toEmail}...`);
@@ -817,12 +880,13 @@ class MailService {
         config.host = String(config.host || '').trim();
         config.port = parseInt(config.port || '465', 10);
         config.resendKey = String(config.resendKey || '').trim();
+        config.brevoKey = String(config.brevoKey || '').trim();
         config.from = String(config.from || '').trim();
 
         if (!this.isConfigured(config)) {
             return {
                 success: false,
-                message: 'ยังไม่ได้ระบุข้อมูลสำหรับส่งอีเมล กรุณาระบุ SMTP (Host, User, App Password 16 หลัก) หรือ Resend API Key'
+                message: 'ยังไม่ได้ระบุข้อมูลสำหรับส่งอีเมล กรุณาระบุ Brevo API Key, Resend API Key หรือ SMTP (Host, User, App Password 16 หลัก)'
             };
         }
 
@@ -848,7 +912,7 @@ class MailService {
                 <div style="background:#F8FAFC; border-radius:12px; padding:14px; font-size:12px; color:#334155; line-height:1.6; margin-bottom:20px;">
                     • <strong>เวลาที่ส่ง:</strong> ${new Date().toLocaleString('th-TH')}<br>
                     • <strong>อีเมลผู้รับ:</strong> ${to}<br>
-                    • <strong>ระบบที่ใช้:</strong> ${config.resendKey ? 'Resend HTTP API' : `SMTP Server (${config.host}:${config.port})`}
+                    • <strong>ระบบที่ใช้:</strong> ${config.brevoKey ? 'Brevo HTTP API' : config.resendKey ? 'Resend HTTP API' : `SMTP Server (${config.host}:${config.port})`}
                 </div>
                 <p style="font-size:12px; color:#64748B; line-height:1.5; margin:0;">
                     ระบบ OTP สำหรับการยืนยันตัวตนสมาชิก และการตั้งรหัสผ่านใหม่ พร้อมส่งมอบถึงลูกค้าจริงทุกคนแล้ว
@@ -858,7 +922,25 @@ class MailService {
 
         const errors = [];
 
-        // 1. Try Resend if configured
+        // 1. Try Brevo if configured (HTTPS Port 443 – works on Render Free)
+        if (config.brevoKey) {
+            try {
+                console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Brevo ไปยัง: ${to}...`);
+                const res = await this.sendViaBrevo(config, { to, subject: testSubject, html: testHtml });
+                return {
+                    success: true,
+                    method: 'Brevo API',
+                    recipient: to,
+                    message: `ส่งอีเมลทดสอบผ่าน Brevo API สำเร็จแล้ว (ID: ${res.messageId}) กรุณาตรวจสอบกล่องจดหมาย ${to} (และโฟลเดอร์สแปม)`
+                };
+            } catch (err) {
+                console.error('[MAIL-TEST] Brevo test error:', err);
+                let errText = (err && (err.message || String(err))) || 'Brevo error';
+                errors.push(`[Brevo]: ${errText}`);
+            }
+        }
+
+        // 2. Try Resend if configured
         if (config.resendKey) {
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Resend ไปยัง: ${to}...`);

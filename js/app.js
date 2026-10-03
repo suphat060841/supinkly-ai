@@ -2414,6 +2414,8 @@ async function openAdminModal() {
                 if (fromEl) fromEl.value = s.from || '';
                 const resendEl = document.getElementById('admin-smtp-resend');
                 if (resendEl) resendEl.value = s.resendKey || '';
+                const brevoEl = document.getElementById('admin-smtp-brevo');
+                if (brevoEl) brevoEl.value = s.brevoKey || '';
                 const testTargetEl = document.getElementById('admin-test-email-target');
                 if (testTargetEl && !testTargetEl.value && s.user) testTargetEl.value = s.user;
             }
@@ -3037,6 +3039,7 @@ async function saveAdminSettings() {
     const smtpPass = (document.getElementById('admin-smtp-pass')?.value || '').trim();
     const smtpFrom = (document.getElementById('admin-smtp-from')?.value || '').trim();
     const smtpResend = (document.getElementById('admin-smtp-resend')?.value || '').trim();
+    const smtpBrevo = (document.getElementById('admin-smtp-brevo')?.value || '').trim();
 
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
@@ -3092,7 +3095,8 @@ async function saveAdminSettings() {
                         user: smtpUser,
                         pass: smtpPass ? smtpPass.replace(/\s+/g, '') : undefined,
                         from: smtpFrom,
-                        resendKey: smtpResend || undefined
+                        resendKey: smtpResend || undefined,
+                        brevoKey: smtpBrevo || undefined
                     }
                 })
             });
@@ -3108,7 +3112,15 @@ async function saveAdminSettings() {
         }
     }
 
-    showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว", "success");
+    // Mask sensitive fields that were just saved (so UI shows ****** for saved values)
+    const passEl2 = document.getElementById('admin-smtp-pass');
+    const resendEl2 = document.getElementById('admin-smtp-resend');
+    const brevoEl2 = document.getElementById('admin-smtp-brevo');
+    if (passEl2 && passEl2.value && passEl2.value !== '******') passEl2.value = '******';
+    if (resendEl2 && resendEl2.value && resendEl2.value !== '******') resendEl2.value = '******';
+    if (brevoEl2 && brevoEl2.value && brevoEl2.value !== '******') brevoEl2.value = '******';
+
+    showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว ⚠️ หากใช้ Render ให้ตั้ง Environment Variables เพื่อให้ค่าถาวร", "success");
     closeAdminModal();
 }
 
@@ -3158,13 +3170,15 @@ async function handleAdminTestEmail() {
     const passEl = document.getElementById('admin-smtp-pass');
     const fromEl = document.getElementById('admin-smtp-from');
     const resendEl = document.getElementById('admin-smtp-resend');
+    const brevoEl = document.getElementById('admin-smtp-brevo');
 
     const rawPass = (passEl?.value || '').replace(/\s+/g, '');
     const rawResend = (resendEl?.value || '').trim();
+    const rawBrevo = (brevoEl?.value || '').trim();
 
-    if (!rawPass && !rawResend) {
-        showToast('กรุณาระบุ SMTP App Password (16 หลัก) หรือ Resend API Key ก่อนกดทดสอบ', 'warning');
-        if (passEl) passEl.focus();
+    if (!rawPass && !rawResend && !rawBrevo) {
+        showToast('กรุณาระบุ Brevo API Key, Resend API Key หรือ SMTP App Password ก่อนกดทดสอบ', 'warning');
+        if (brevoEl) brevoEl.focus();
         return;
     }
 
@@ -3174,7 +3188,8 @@ async function handleAdminTestEmail() {
         user: (userEl?.value || '').trim(),
         pass: rawPass,
         from: (fromEl?.value || '').trim(),
-        resendKey: rawResend
+        resendKey: rawResend,
+        brevoKey: rawBrevo
     };
 
     const testBtn = document.getElementById('admin-test-email-btn');
@@ -3191,7 +3206,7 @@ async function handleAdminTestEmail() {
         resultBox.innerHTML = `
             <div class="flex items-center gap-2">
                 <i class="fa-solid fa-circle-notch fa-spin text-pink-600"></i>
-                <span>กำลังเชื่อมต่อกับเซิร์ฟเวอร์ส่งอีเมล (${escapeHTML(smtpConfig.host || 'Resend')})...</span>
+                <span>กำลังเชื่อมต่อกับเซิร์ฟเวอร์ส่งอีเมล (${escapeHTML(rawBrevo ? 'Brevo API' : rawResend ? 'Resend API' : smtpConfig.host || 'SMTP')})...</span>
             </div>
         `;
     }
@@ -3252,9 +3267,10 @@ async function handleAdminTestEmail() {
                     </div>
                     <div class="text-[10px] text-rose-800 bg-rose-100/70 rounded-md p-2 space-y-1">
                         <div class="font-bold">🔍 วิธีแก้ไขปัญหาที่พบบ่อย:</div>
-                        <div>1. <strong>Gmail 535:</strong> ต้องใช้ <u>App Password 16 หลัก</u> ที่สร้างจาก Google Account (<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="underline font-bold">myaccount.google.com/apppasswords</a>) เท่านั้น ห้ามใช้รหัสผ่าน Gmail ปกติ</div>
-                        <div>2. <strong>Timeout / Blocked:</strong> หากโฮสติ้งจำกัดพอร์ต ให้ลองกดปุ่มพรีเซ็ต <u>Gmail (Port 587 STARTTLS)</u> หรือ <u>Port 465 SSL</u></div>
-                        <div>3. <strong>Resend API ทางเลือกที่ดีที่สุด:</strong> หากเซิร์ฟเวอร์ Cloud บล็อกพอร์ต SMTP สามารถสมัคร <a href="https://resend.com" target="_blank" rel="noopener noreferrer" class="underline font-bold">resend.com</a> ฟรี แล้วนำ API Key มาใส่ จะส่งผ่านพอร์ต 443 ได้ทันที 100%</div>
+                        <div>1. <strong>Brevo API (แนะนำที่สุด สำหรับ Render):</strong> สมัครฟรีที่ <a href="https://app.brevo.com/settings/keys/api" target="_blank" rel="noopener noreferrer" class="underline font-bold">brevo.com</a> ได้ 300 เมล/วันฟรี ใส่ API Key ในช่อง Brevo ด้านบน — ส่งผ่าน HTTPS Port 443 ทำงานได้ 100% บน Render</div>
+                        <div>2. <strong>Gmail 535:</strong> ต้องใช้ <u>App Password 16 หลัก</u> ที่สร้างจาก Google Account (<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="underline font-bold">myaccount.google.com/apppasswords</a>) เท่านั้น ห้ามใช้รหัสผ่าน Gmail ปกติ</div>
+                        <div>3. <strong>Timeout / Blocked:</strong> หากโฮสติ้งจำกัดพอร์ต ให้ลองกดปุ่มพรีเซ็ต <u>Gmail (Port 587 STARTTLS)</u> หรือ <u>Port 465 SSL</u></div>
+                        <div>4. <strong>Resend API:</strong> สมัครฟรีที่ <a href="https://resend.com" target="_blank" rel="noopener noreferrer" class="underline font-bold">resend.com</a> — ส่งผ่านพอร์ต 443 แต่ในโหมดฟรีส่งได้เฉพาะอีเมลที่ใช้สมัครจนกว่าจะยืนยันโดเมน</div>
                     </div>
                 `;
                 showToast('การส่งอีเมลทดสอบล้มเหลว กรุณาดูรายละเอียดด้านล่าง', 'warning');
