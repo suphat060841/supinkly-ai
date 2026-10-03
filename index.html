@@ -1329,7 +1329,7 @@
             </div>
 
             <!-- Admin Dashboard KPI Stat Cards -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5 pb-3 border-b border-slate-100">
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-3.5 pb-3 border-b border-slate-100">
                 <div class="p-3 rounded-2xl bg-pink-50/60 border border-pink-200 flex flex-col justify-between shadow-2xs">
                     <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                         <i class="fa-solid fa-coins text-pink-500"></i> ยอดขายสะสม
@@ -1354,6 +1354,12 @@
                     </span>
                     <span id="admin-stat-total-orders" class="text-base sm:text-lg font-bold text-slate-900 mt-1">0 รายการ</span>
                 </div>
+                <div class="p-3 rounded-2xl bg-purple-50/70 border border-purple-200 flex flex-col justify-between shadow-2xs col-span-2 sm:col-span-1">
+                    <span class="text-[11px] font-bold text-purple-700 flex items-center gap-1">
+                        <i class="fa-solid fa-users text-purple-600"></i> สมาชิกทั้งหมด
+                    </span>
+                    <span id="admin-stat-total-users" class="text-base sm:text-lg font-bold text-purple-900 mt-1">0 คน</span>
+                </div>
             </div>
 
             <!-- Admin Navigation Tabs -->
@@ -1368,6 +1374,12 @@
                         class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
                     <i class="fa-solid fa-boxes-stacked"></i>
                     <span>🏷️ สต็อก & กำไรราคา</span>
+                </button>
+                <button id="admin-tab-btn-users" onclick="switchAdminTab('users')" 
+                        class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    <i class="fa-solid fa-users"></i>
+                    <span>👥 จัดการสมาชิก</span>
+                    <span id="admin-users-badge" class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">0</span>
                 </button>
                 <button id="admin-tab-btn-settings" onclick="switchAdminTab('settings')" 
                         class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
@@ -1538,15 +1550,93 @@
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
                         </div>
                     </div>
+
+                    <!-- Presets & Guide Helper -->
+                    <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                        <span class="text-[11px] font-bold text-slate-500">เลือกค่าสำเร็จรูป:</span>
+                        <button type="button" onclick="applySmtpPreset('gmail-465')" class="px-2.5 py-1 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-700 text-[11px] font-bold border border-pink-200 transition-colors">
+                            <i class="fa-brands fa-google text-[10px]"></i> Gmail (Port 465 SSL)
+                        </button>
+                        <button type="button" onclick="applySmtpPreset('gmail-587')" class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold border border-purple-200 transition-colors">
+                            <i class="fa-brands fa-google text-[10px]"></i> Gmail (Port 587 STARTTLS)
+                        </button>
+                    </div>
+
+                    <!-- Test Connection Box -->
+                    <div class="mt-3.5 p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                            <div class="flex-1">
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    <i class="fa-solid fa-paper-plane text-pink-500"></i> ทดสอบส่งอีเมลไปยังที่อยู่นี้:
+                                </label>
+                                <input type="email" id="admin-test-email-target" placeholder="ใส่อีเมลของคุณ เช่น your-email@gmail.com" 
+                                       class="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-xs outline-none focus:bg-white focus:border-pink-500">
+                            </div>
+                            <div class="sm:self-end">
+                                <button type="button" id="admin-test-email-btn" onclick="handleAdminTestEmail()" class="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                    <i class="fa-solid fa-bolt text-amber-400"></i>
+                                    <span>ทดสอบส่งทันที</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Live Diagnostic Result Area -->
+                        <div id="admin-test-email-result" class="hidden mt-2.5 p-3 rounded-xl text-xs font-medium"></div>
+                    </div>
                 </div>
 
-                <div class="flex items-center justify-between pt-1">
-                    <button onclick="saveAdminSettings()" class="px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm">
-                        บันทึกการตั้งค่า
+                <div class="flex items-center justify-between pt-2">
+                    <button onclick="saveAdminSettings()" class="px-4 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span>บันทึกการตั้งค่า</span>
                     </button>
                     <span class="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
                         <i class="fa-solid fa-circle-check"></i> พร้อมใช้งาน SlipOK Real-time API
                     </span>
+                </div>
+            </div>
+
+            <!-- TAB 4: USERS / MEMBERS MANAGEMENT -->
+            <div id="admin-tab-users" class="hidden mt-4 space-y-3.5">
+                <!-- Toolbar: Search & Refresh -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="admin-user-search" oninput="handleAdminUserSearch(this.value)" 
+                               placeholder="ค้นหาสมาชิกด้วยชื่อ, อีเมล หรือ User ID..." 
+                               class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
+                        <button id="admin-user-clear-search" onclick="clearAdminUserSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button onclick="renderAdminUsersList()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs">
+                            <i class="fa-solid fa-rotate text-[11px]"></i>
+                            <span>รีเฟรชรายชื่อ</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
+                    <span id="admin-users-count-label">สมาชิกทั้งหมด 0 คน</span>
+                </div>
+
+                <!-- Users List Table / Container -->
+                <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs max-h-[56vh]">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 sticky top-0 z-10">
+                            <tr>
+                                <th class="py-3 px-3.5">สมาชิก</th>
+                                <th class="py-3 px-3.5 text-center">สถานะอีเมล</th>
+                                <th class="py-3 px-3.5 text-center">วันที่สมัคร</th>
+                                <th class="py-3 px-3.5 text-center">คำสั่งซื้อ / ยอดสะสม</th>
+                                <th class="py-3 px-3.5 text-right">การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-table" class="divide-y divide-slate-100">
+                            <!-- Injected by JavaScript -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -1856,6 +1946,34 @@ W11PR-XXXX-XXXX-XXXX"
         </div>
     </div>
 
+
+    <!-- ==========================================
+         ADMIN RESET USER PASSWORD MODAL
+         ========================================== -->
+    <div id="admin-reset-pw-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-sm w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl">
+            <h3 class="text-base font-bold text-slate-900 mb-1">ตั้งรหัสผ่านใหม่ให้สมาชิก</h3>
+            <p id="admin-reset-pw-user-label" class="text-xs text-slate-500 mb-4 font-mono"></p>
+            <input type="hidden" id="admin-reset-pw-user-id">
+
+            <div class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร):</label>
+                    <input type="password" id="admin-reset-pw-input" placeholder="กรอกรหัสผ่านใหม่"
+                           class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium outline-none focus:border-pink-500">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button onclick="submitAdminResetPassword()" class="flex-1 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-md">
+                    บันทึกรหัสผ่านใหม่
+                </button>
+                <button onclick="closeAdminResetPwModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-xs font-medium">
+                    ยกเลิก
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- ==========================================
          ADMIN LIVE CHAT PANEL (injected by app.js via Admin Panel)

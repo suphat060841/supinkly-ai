@@ -673,7 +673,7 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         if (smtpConfig.port !== undefined) db.smtpConfig.port = parseInt(smtpConfig.port, 10) || 465;
         if (smtpConfig.user !== undefined) db.smtpConfig.user = String(smtpConfig.user).trim();
         if (smtpConfig.pass !== undefined && smtpConfig.pass !== '******') {
-            db.smtpConfig.pass = String(smtpConfig.pass).trim();
+            db.smtpConfig.pass = String(smtpConfig.pass).replace(/\s+/g, '');
         }
         if (smtpConfig.from !== undefined) db.smtpConfig.from = String(smtpConfig.from).trim();
         if (smtpConfig.resendKey !== undefined && smtpConfig.resendKey !== '******') {
@@ -683,6 +683,128 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
 
     saveDb(db);
     res.json({ success: true, message: "บันทึกการตั้งค่าสำเร็จ" });
+});
+
+// 6.2.1 API: Admin Test Email Delivery (Live Diagnostics)
+app.post('/api/admin/test-email', adminRateLimit, async (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    try {
+        const { testEmail, smtpConfig } = req.body;
+        const db = getDb();
+
+        let customConfig = null;
+        if (smtpConfig && typeof smtpConfig === 'object') {
+            customConfig = {};
+            if (smtpConfig.host) customConfig.host = String(smtpConfig.host).trim();
+            if (smtpConfig.port) customConfig.port = parseInt(smtpConfig.port, 10) || 465;
+            if (smtpConfig.user) customConfig.user = String(smtpConfig.user).trim();
+            if (smtpConfig.pass && smtpConfig.pass !== '******') {
+                customConfig.pass = String(smtpConfig.pass).replace(/\s+/g, '');
+            } else if (db.smtpConfig?.pass) {
+                customConfig.pass = db.smtpConfig.pass;
+            }
+            if (smtpConfig.from) customConfig.from = String(smtpConfig.from).trim();
+            if (smtpConfig.resendKey && smtpConfig.resendKey !== '******') {
+                customConfig.resendKey = String(smtpConfig.resendKey).trim();
+            } else if (db.smtpConfig?.resendKey) {
+                customConfig.resendKey = db.smtpConfig.resendKey;
+            }
+        }
+
+        const targetEmail = (testEmail || customConfig?.user || db.smtpConfig?.user || '').trim();
+        if (!targetEmail || !isValidEmail(targetEmail)) {
+            return res.status(400).json({
+                success: false,
+                message: "กรุณาระบุอีเมลผู้รับทดสอบที่ถูกต้อง (เช่น your-email@gmail.com)"
+            });
+        }
+
+        const testResult = await mailService.testConnection(targetEmail, customConfig, db);
+        res.json(testResult);
+    } catch (err) {
+        console.error('Test email error:', err);
+        res.status(500).json({
+            success: false,
+            message: `เกิดข้อผิดพลาดในการทดสอบส่งอีเมล: ${err.message}`
+        });
+    }
+});
+
+// 6.3 API: Admin Fetch Users (Members List)
+app.get('/api/admin/users', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const users = db.users || [];
+    const orders = db.orders || [];
+
+    const enrichedUsers = users.map(u => {
+        const userOrders = orders.filter(o => 
+            (o.userId && o.userId === u.id) || 
+            (o.email && o.email.toLowerCase() === (u.email || '').toLowerCase()) ||
+            (o.recipientEmail && o.recipientEmail.toLowerCase() === (u.email || '').toLowerCase())
+        );
+        const totalSpent = userOrders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0);
+        return {
+            id: u.id,
+            email: u.email,
+            displayName: u.displayName || u.email.split('@')[0],
+            emailVerified: !!u.emailVerified,
+            createdAt: u.createdAt || null,
+            ordersCount: userOrders.length,
+            totalSpent
+        };
+    }).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    res.json({ success: true, users: enrichedUsers });
+});
+
+// 6.4 API: Admin Reset User Password
+app.post('/api/admin/users/reset-password', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { userId, newPassword } = req.body;
+    if (!userId || !newPassword) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุ userId และรหัสผ่านใหม่" });
+    }
+    const cleanPw = String(newPassword).trim();
+    if (cleanPw.length < 6 || cleanPw.length > 128) {
+        return res.status(400).json({ success: false, message: "รหัสผ่านต้องมีความยาว 6-128 ตัวอักษร" });
+    }
+    const db = getDb();
+    if (!db.users) db.users = [];
+    const user = db.users.find(u => u.id === userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "ไม่พบผู้ใช้งานนี้ในระบบ" });
+    }
+    user.passwordHash = hashPassword(cleanPw, user.id);
+    user.tokenVersion = (user.tokenVersion || 1) + 1; // Invalidate previous sessions
+    saveDb(db);
+    res.json({ success: true, message: `เปลี่ยนรหัสผ่านให้ผู้ใช้ ${user.email} สำเร็จแล้ว` });
+});
+
+// 6.5 API: Admin Delete User Account
+app.delete('/api/admin/users/:userId', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { userId } = req.params;
+    if (!userId) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุ userId" });
+    }
+    const db = getDb();
+    if (!db.users) db.users = [];
+    const idx = db.users.findIndex(u => u.id === userId);
+    if (idx === -1) {
+        return res.status(404).json({ success: false, message: "ไม่พบผู้ใช้งานนี้ในระบบ" });
+    }
+    const deletedUser = db.users.splice(idx, 1)[0];
+    saveDb(db);
+    res.json({ success: true, message: `ลบบัญชีผู้ใช้ ${deletedUser.email} เรียบร้อยแล้ว` });
 });
 
 const orderLookupRateLimit = rateLimit({
@@ -899,7 +1021,14 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
             success: true,
             requireOtp: true,
             email: normalEmail,
-            message: "ระบบได้ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว กรุณาตรวจสอบกล่องข้อความ"
+            message: mailResult.delivered
+                ? "ระบบได้ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว (หากไม่พบในกล่องจดหมาย กรุณาตรวจสอบโฟลเดอร์สแปม/เมลขยะ)"
+                : (mailResult.deliveryError 
+                    ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP สำหรับทดสอบคือ: ${otp}`
+                    : `[โหมดทดสอบ] เซิร์ฟเวอร์ยังไม่ได้เชื่อมต่อ SMTP ร้านค้า รหัส OTP ทดสอบคือ: ${otp}`),
+            delivered: !!mailResult.delivered,
+            devOtp: !mailResult.delivered ? otp : undefined,
+            deliveryError: mailResult.deliveryError
         });
     } catch (err) {
         console.error('Registration OTP error:', err);
@@ -1017,7 +1146,14 @@ app.post('/api/auth/resend-otp', otpRateLimit, async (req, res) => {
 
         res.json({
             success: true,
-            message: "ระบบได้ส่งรหัส OTP ชุดใหม่ไปยังอีเมลของคุณแล้ว"
+            message: mailResult.delivered
+                ? "ระบบได้ส่งรหัส OTP ชุดใหม่ไปยังอีเมลของคุณแล้ว (หากไม่พบให้ตรวจในกล่องสแปม)"
+                : (mailResult.deliveryError
+                    ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP ชุดใหม่คือ: ${otp}`
+                    : `[โหมดทดสอบ] รหัส OTP ชุดใหม่คือ: ${otp}`),
+            delivered: !!mailResult.delivered,
+            devOtp: !mailResult.delivered ? otp : undefined,
+            deliveryError: mailResult.deliveryError
         });
     } catch (err) {
         console.error('Resend OTP error:', err);
@@ -1108,8 +1244,15 @@ app.post('/api/auth/forgot-password', userAuthRateLimit, async (req, res) => {
 
         res.json({
             success: true,
-            message: "หากอีเมลนี้มีอยู่ในระบบ เราได้ส่งรหัส OTP 6 หลักสำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว",
-            email: normalEmail
+            message: mailResult.delivered
+                ? "หากอีเมลนี้มีอยู่ในระบบ เราได้ส่งรหัส OTP 6 หลักสำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว (หากไม่พบให้ตรวจในกล่องสแปม)"
+                : (mailResult.deliveryError
+                    ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP กู้คืนรหัสผ่านคือ: ${otp}`
+                    : `[โหมดทดสอบ] รหัส OTP กู้คืนรหัสผ่านคือ: ${otp}`),
+            email: normalEmail,
+            delivered: !!mailResult.delivered,
+            devOtp: !mailResult.delivered ? otp : undefined,
+            deliveryError: mailResult.deliveryError
         });
     } catch (err) {
         console.error('Forgot password error:', err);

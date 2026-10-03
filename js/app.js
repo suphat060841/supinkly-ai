@@ -1839,7 +1839,7 @@ function switchAdminTab(tabName) {
         return;
     }
 
-    const tabs = ['orders', 'stock', 'settings'];
+    const tabs = ['orders', 'stock', 'users', 'settings'];
     tabs.forEach(t => {
         const btn = document.getElementById(`admin-tab-btn-${t}`);
         const panel = document.getElementById(`admin-tab-${t}`);
@@ -1858,6 +1858,7 @@ function switchAdminTab(tabName) {
 
     if (tabName === 'orders') renderAdminOrdersList();
     if (tabName === 'stock') renderAdminStockList();
+    if (tabName === 'users') renderAdminUsersList();
 }
 
 function handleAdminOrderSearch(val) {
@@ -2408,6 +2409,8 @@ async function openAdminModal() {
                 if (fromEl) fromEl.value = s.from || '';
                 const resendEl = document.getElementById('admin-smtp-resend');
                 if (resendEl) resendEl.value = s.resendKey || '';
+                const testTargetEl = document.getElementById('admin-test-email-target');
+                if (testTargetEl && !testTargetEl.value && s.user) testTargetEl.value = s.user;
             }
         } catch (e) {}
     }
@@ -2415,6 +2418,7 @@ async function openAdminModal() {
     await syncAdminOrdersFromServer();
     renderAdminOrdersList();
     renderAdminStockList();
+    renderAdminUsersList();
     switchAdminTab('orders');
     modal.classList.remove('hidden');
 }
@@ -2422,6 +2426,228 @@ async function openAdminModal() {
 function closeAdminModal() {
     const modal = document.getElementById('admin-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+// ==========================================
+// ADMIN USER / MEMBER MANAGEMENT
+// ==========================================
+let adminUserSearchQuery = '';
+let cachedAdminUsers = [];
+
+async function renderAdminUsersList() {
+    const tableBody = document.getElementById('admin-users-table');
+    const badge = document.getElementById('admin-users-badge');
+    const statUsers = document.getElementById('admin-stat-total-users');
+    const countLabel = document.getElementById('admin-users-count-label');
+    if (!tableBody) return;
+
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-8 text-center text-rose-500 text-xs font-bold">
+                    กรุณาเข้าสู่ระบบหลังร้านเพื่อดูรายชื่อสมาชิก
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            const res = await fetch('/api/admin/users', { headers: ADMIN_AUTH.getHeaders() });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.users)) {
+                cachedAdminUsers = data.users;
+            }
+        } catch (e) {
+            console.warn('Failed to fetch admin users:', e);
+        }
+    }
+
+    const totalUsers = cachedAdminUsers.length;
+    if (badge) badge.textContent = totalUsers;
+    if (statUsers) statUsers.textContent = `${totalUsers} คน`;
+
+    let filtered = [...cachedAdminUsers];
+    if (adminUserSearchQuery) {
+        const q = adminUserSearchQuery.toLowerCase();
+        filtered = filtered.filter(u => 
+            (u.email && u.email.toLowerCase().includes(q)) ||
+            (u.displayName && u.displayName.toLowerCase().includes(q)) ||
+            (u.id && u.id.toLowerCase().includes(q))
+        );
+    }
+
+    if (countLabel) {
+        countLabel.textContent = `พบสมาชิก ${filtered.length} คน (จากทั้งหมด ${totalUsers} คน)`;
+    }
+
+    if (filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-12 text-center text-slate-400">
+                    <div class="w-12 h-12 mx-auto mb-2 rounded-2xl bg-slate-100 flex items-center justify-center text-xl text-slate-400">
+                        <i class="fa-solid fa-user-slash"></i>
+                    </div>
+                    <div class="font-bold text-slate-600">ไม่พบข้อมูลสมาชิก</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">ยังไม่มีการสมัครสมาชิก หรือไม่ตรงกับคำค้นหา</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = filtered.map(u => {
+        const dateStr = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+        const initial = (u.displayName || u.email || 'U').charAt(0).toUpperCase();
+
+        return `
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="py-3 px-3.5">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                            ${escapeHTML(initial)}
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-bold text-slate-900 truncate flex items-center gap-1.5">
+                                <span>${escapeHTML(u.displayName)}</span>
+                                <span class="text-[10px] font-mono text-slate-400">(${escapeHTML(u.id)})</span>
+                            </div>
+                            <div class="text-[11px] text-slate-500 truncate font-mono">${escapeHTML(u.email)}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${u.emailVerified ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}">
+                        <i class="fa-solid ${u.emailVerified ? 'fa-circle-check text-emerald-500' : 'fa-clock text-amber-500'}"></i>
+                        <span>${u.emailVerified ? 'ยืนยันแล้ว' : 'รอยืนยัน'}</span>
+                    </span>
+                </td>
+                <td class="py-3 px-3.5 text-center text-slate-500 text-[11px] font-medium whitespace-nowrap">
+                    ${dateStr}
+                </td>
+                <td class="py-3 px-3.5 text-center whitespace-nowrap">
+                    <span class="font-bold text-slate-800">${u.ordersCount} ออเดอร์</span>
+                    <span class="text-[11px] text-pink-600 font-bold block">฿${(u.totalSpent || 0).toFixed(2)}</span>
+                </td>
+                <td class="py-3 px-3.5 text-right whitespace-nowrap">
+                    <div class="flex items-center justify-end gap-1.5">
+                        <button onclick="viewUserOrders('${escapeHTML(u.email)}')" title="ดูคำสั่งซื้อของสมาชิกนี้" 
+                                class="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1 shadow-2xs">
+                            <i class="fa-solid fa-receipt text-[11px]"></i>
+                            <span>คำสั่งซื้อ</span>
+                        </button>
+                        <button onclick="openAdminResetPwModal('${escapeHTML(u.id)}', '${escapeHTML(u.email)}')" title="ตั้งรหัสผ่านใหม่" 
+                                class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1 shadow-2xs">
+                            <i class="fa-solid fa-key text-[11px]"></i>
+                            <span>รีเซ็ตรหัส</span>
+                        </button>
+                        <button onclick="handleAdminDeleteUser('${escapeHTML(u.id)}', '${escapeHTML(u.email)}')" title="ลบบัญชีผู้ใช้" 
+                                class="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition-all shadow-2xs">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function handleAdminUserSearch(val) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    adminUserSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('admin-user-clear-search');
+    if (clearBtn) {
+        if (adminUserSearchQuery) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+    renderAdminUsersList();
+}
+
+function clearAdminUserSearch() {
+    const input = document.getElementById('admin-user-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('admin-user-clear-search');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    adminUserSearchQuery = '';
+    renderAdminUsersList();
+}
+
+function viewUserOrders(email) {
+    if (!email) return;
+    switchAdminTab('orders');
+    const searchInput = document.getElementById('admin-order-search');
+    if (searchInput) {
+        searchInput.value = email;
+        handleAdminOrderSearch(email);
+    }
+    showToast(`แสดงรายการสั่งซื้อของ: ${email}`, 'info');
+}
+
+function openAdminResetPwModal(userId, email) {
+    const modal = document.getElementById('admin-reset-pw-modal');
+    if (!modal) return;
+    document.getElementById('admin-reset-pw-user-id').value = userId;
+    document.getElementById('admin-reset-pw-user-label').textContent = `ผู้ใช้งาน: ${email} (${userId})`;
+    const pwInput = document.getElementById('admin-reset-pw-input');
+    if (pwInput) {
+        pwInput.value = '';
+        setTimeout(() => pwInput.focus(), 150);
+    }
+    modal.classList.remove('hidden');
+}
+
+function closeAdminResetPwModal() {
+    const modal = document.getElementById('admin-reset-pw-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function submitAdminResetPassword() {
+    const userId = document.getElementById('admin-reset-pw-user-id')?.value;
+    const newPassword = document.getElementById('admin-reset-pw-input')?.value;
+    if (!userId || !newPassword || newPassword.trim().length < 6) {
+        showToast('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร', 'warning');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/users/reset-password', {
+            method: 'POST',
+            headers: ADMIN_AUTH.getHeaders(),
+            body: JSON.stringify({ userId, newPassword: newPassword.trim() })
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeAdminResetPwModal();
+            showToast(data.message || 'เปลี่ยนรหัสผ่านสำเร็จแล้ว', 'success');
+        } else {
+            showToast(data.message || 'เปลี่ยนรหัสผ่านไม่สำเร็จ', 'warning');
+        }
+    } catch {
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'warning');
+    }
+}
+
+async function handleAdminDeleteUser(userId, email) {
+    if (!userId) return;
+    const ok = confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีสมาชิก "${email}" ?\nการกระทำนี้ไม่สามารถย้อนกลับได้`);
+    if (!ok) return;
+
+    try {
+        const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+            method: 'DELETE',
+            headers: ADMIN_AUTH.getHeaders()
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message || 'ลบบัญชีสมาชิกสำเร็จแล้ว', 'info');
+            renderAdminUsersList();
+        } else {
+            showToast(data.message || 'ลบบัญชีไม่สำเร็จ', 'warning');
+        }
+    } catch {
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'warning');
+    }
 }
 
 function handleAdminStockSearch(val) {
@@ -2859,7 +3085,7 @@ async function saveAdminSettings() {
                         host: smtpHost,
                         port: smtpPort,
                         user: smtpUser,
-                        pass: smtpPass || undefined,
+                        pass: smtpPass ? smtpPass.replace(/\s+/g, '') : undefined,
                         from: smtpFrom,
                         resendKey: smtpResend || undefined
                     }
@@ -2872,6 +3098,147 @@ async function saveAdminSettings() {
 
     showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว", "success");
     closeAdminModal();
+}
+
+function applySmtpPreset(preset) {
+    const hostEl = document.getElementById('admin-smtp-host');
+    const portEl = document.getElementById('admin-smtp-port');
+    const fromEl = document.getElementById('admin-smtp-from');
+    const userEl = document.getElementById('admin-smtp-user');
+
+    if (preset === 'gmail-465') {
+        if (hostEl) hostEl.value = 'smtp.gmail.com';
+        if (portEl) portEl.value = 465;
+        if (fromEl && (!fromEl.value || fromEl.value.includes('resend.dev'))) {
+            const user = userEl ? userEl.value.trim() : '';
+            fromEl.value = user ? `Supinkly.AI <${user}>` : 'Supinkly.AI';
+        }
+        showToast('เลือกพรีเซ็ต Gmail (Port 465 SSL) สำเร็จ', 'info');
+    } else if (preset === 'gmail-587') {
+        if (hostEl) hostEl.value = 'smtp.gmail.com';
+        if (portEl) portEl.value = 587;
+        if (fromEl && (!fromEl.value || fromEl.value.includes('resend.dev'))) {
+            const user = userEl ? userEl.value.trim() : '';
+            fromEl.value = user ? `Supinkly.AI <${user}>` : 'Supinkly.AI';
+        }
+        showToast('เลือกพรีเซ็ต Gmail (Port 587 STARTTLS) สำเร็จ', 'info');
+    }
+}
+
+async function handleAdminTestEmail() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast('กรุณาเข้าสู่ระบบแอดมินก่อนทดสอบ', 'warning');
+        return;
+    }
+
+    const targetInput = document.getElementById('admin-test-email-target');
+    const userEl = document.getElementById('admin-smtp-user');
+    let testEmail = (targetInput?.value || userEl?.value || '').trim();
+
+    if (!testEmail || !testEmail.includes('@')) {
+        showToast('กรุณาระบุอีเมลผู้รับทดสอบ เช่น your-email@gmail.com', 'warning');
+        if (targetInput) targetInput.focus();
+        return;
+    }
+
+    const hostEl = document.getElementById('admin-smtp-host');
+    const portEl = document.getElementById('admin-smtp-port');
+    const passEl = document.getElementById('admin-smtp-pass');
+    const fromEl = document.getElementById('admin-smtp-from');
+    const resendEl = document.getElementById('admin-smtp-resend');
+
+    const smtpConfig = {
+        host: (hostEl?.value || '').trim(),
+        port: parseInt(portEl?.value || '465', 10),
+        user: (userEl?.value || '').trim(),
+        pass: (passEl?.value || '').replace(/\s+/g, ''),
+        from: (fromEl?.value || '').trim(),
+        resendKey: (resendEl?.value || '').trim()
+    };
+
+    const testBtn = document.getElementById('admin-test-email-btn');
+    const resultBox = document.getElementById('admin-test-email-result');
+
+    if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> กำลังทดสอบส่ง...';
+    }
+
+    if (resultBox) {
+        resultBox.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-300', 'text-emerald-900', 'bg-rose-50', 'border-rose-300', 'text-rose-900');
+        resultBox.classList.add('bg-slate-100', 'border', 'border-slate-200', 'text-slate-600');
+        resultBox.innerHTML = `
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-circle-notch fa-spin text-pink-600"></i>
+                <span>กำลังเชื่อมต่อกับเซิร์ฟเวอร์ส่งอีเมล (${escapeHTML(smtpConfig.host || 'Resend')})...</span>
+            </div>
+        `;
+    }
+
+    try {
+        const res = await fetch('/api/admin/test-email', {
+            method: 'POST',
+            headers: ADMIN_AUTH.getHeaders(),
+            body: JSON.stringify({ testEmail, smtpConfig })
+        });
+        const data = await res.json();
+
+        if (resultBox) {
+            resultBox.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-600');
+            if (data.success) {
+                resultBox.classList.add('bg-emerald-50', 'border', 'border-emerald-300', 'text-emerald-900');
+                resultBox.innerHTML = `
+                    <div class="font-bold flex items-center gap-1.5 text-emerald-800 mb-1">
+                        <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+                        <span>ทดสอบสำเร็จ! (${escapeHTML(data.method || 'Email Server')})</span>
+                    </div>
+                    <div class="text-[11px] leading-relaxed text-emerald-950">
+                        ${escapeHTML(data.message)}
+                    </div>
+                    <div class="mt-2 text-[10px] text-emerald-700 bg-emerald-100/60 rounded-md p-1.5 font-bold">
+                        💡 <strong>คำแนะนำ:</strong> หากใน Inbox ไม่มีข้อความ กรุณาตรวจสอบโฟลเดอร์ <strong>Junk / Spam (เมลขยะ)</strong> ด้วยนะครับ
+                    </div>
+                `;
+                showToast('ส่งอีเมลทดสอบสำเร็จ! ตรวจสอบ Inbox ของคุณ', 'success');
+            } else {
+                resultBox.classList.add('bg-rose-50', 'border', 'border-rose-300', 'text-rose-900');
+                resultBox.innerHTML = `
+                    <div class="font-bold flex items-center gap-1.5 text-rose-800 mb-1">
+                        <i class="fa-solid fa-triangle-exclamation text-rose-600 text-sm"></i>
+                        <span>ไม่สามารถส่งอีเมลได้</span>
+                    </div>
+                    <div class="text-[11px] leading-relaxed whitespace-pre-line font-medium text-rose-950 mb-2">
+                        ${escapeHTML(data.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ')}
+                    </div>
+                    <div class="text-[10px] text-rose-800 bg-rose-100/70 rounded-md p-2 space-y-1">
+                        <div class="font-bold">🔍 วิธีแก้ไขปัญหาที่พบบ่อย:</div>
+                        <div>1. <strong>Gmail 535:</strong> ต้องใช้ <u>App Password 16 หลัก</u> ที่สร้างจาก Google Account เท่านั้น (ไม่ใช่รหัสผ่าน Gmail ปกติ)</div>
+                        <div>2. <strong>Timeout:</strong> ลองกดปุ่มเปลี่ยนพรีเซ็ตเป็น <u>Gmail (Port 587 STARTTLS)</u> หรือ <u>Port 465 SSL</u></div>
+                        <div>3. <strong>Resend:</strong> หากยังไม่ยืนยันโดเมน ต้องส่งเข้าอีเมลที่ใช้สมัคร Resend เท่านั้น</div>
+                    </div>
+                `;
+                showToast('การส่งอีเมลทดสอบล้มเหลว กรุณาดูรายละเอียดด้านล่าง', 'warning');
+            }
+        }
+    } catch (e) {
+        if (resultBox) {
+            resultBox.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-600');
+            resultBox.classList.add('bg-rose-50', 'border', 'border-rose-300', 'text-rose-900');
+            resultBox.innerHTML = `
+                <div class="font-bold flex items-center gap-1.5 text-rose-800 mb-1">
+                    <i class="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                    <span>การเชื่อมต่อขัดข้อง</span>
+                </div>
+                <div class="text-[11px] text-rose-900">${escapeHTML(e.message)}</div>
+            `;
+        }
+        showToast('เกิดข้อผิดพลาดในการส่งคำขอทดสอบ', 'warning');
+    } finally {
+        if (testBtn) {
+            testBtn.disabled = false;
+            testBtn.innerHTML = '<i class="fa-solid fa-bolt text-amber-400"></i><span>ทดสอบส่งทันที</span>';
+        }
+    }
 }
 
 // Product Detail Modal
@@ -3528,7 +3895,13 @@ async function handleRegister() {
                 }
 
                 startOtpCountdown(60);
-                showToast(result.message || 'ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว', 'info');
+                if (result.devOtp) {
+                    const otpInput = document.getElementById('auth-otp-input');
+                    if (otpInput) otpInput.value = result.devOtp;
+                    showToast(result.message || `[โหมดทดสอบ] รหัส OTP คือ: ${result.devOtp}`, 'warning');
+                } else {
+                    showToast(result.message || 'ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว', 'info');
+                }
             } else {
                 state.user = result.user;
                 closeAuthModal();
@@ -3609,7 +3982,13 @@ async function handleResendOtp() {
         const result = await USER_AUTH.resendOtp(email);
         if (result.success) {
             startOtpCountdown(60);
-            showToast(result.message || 'ส่งรหัส OTP ชุดใหม่ไปยังอีเมลแล้ว', 'info');
+            if (result.devOtp) {
+                const otpInput = document.getElementById('auth-otp-input');
+                if (otpInput) otpInput.value = result.devOtp;
+                showToast(result.message || `[โหมดทดสอบ] รหัส OTP ชุดใหม่คือ: ${result.devOtp}`, 'warning');
+            } else {
+                showToast(result.message || 'ส่งรหัส OTP ชุดใหม่ไปยังอีเมลแล้ว', 'info');
+            }
         } else {
             setAuthError('otp', result.message || 'ขอรหัส OTP ใหม่อีกครั้งไม่สำเร็จ');
             if (btn) btn.disabled = false;
@@ -3701,7 +4080,13 @@ async function handleForgotPasswordRequest() {
             }
 
             startForgotOtpCountdown(60);
-            showToast(result.message || 'ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว', 'info');
+            if (result.devOtp) {
+                const otpInput = document.getElementById('forgot-otp-input');
+                if (otpInput) otpInput.value = result.devOtp;
+                showToast(result.message || `[โหมดทดสอบ] รหัส OTP คือ: ${result.devOtp}`, 'warning');
+            } else {
+                showToast(result.message || 'ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว', 'info');
+            }
         } else {
             setAuthError('forgot-request', result.message || 'ส่งรหัส OTP ไม่สำเร็จ');
         }
@@ -3789,7 +4174,13 @@ async function handleResendResetOtp() {
         const result = await USER_AUTH.forgotPassword(email);
         if (result.success) {
             startForgotOtpCountdown(60);
-            showToast(result.message || 'ส่งรหัส OTP กู้คืนรหัสผ่านชุดใหม่ไปยังอีเมลแล้ว', 'info');
+            if (result.devOtp) {
+                const otpInput = document.getElementById('forgot-otp-input');
+                if (otpInput) otpInput.value = result.devOtp;
+                showToast(result.message || `[โหมดทดสอบ] รหัส OTP ชุดใหม่คือ: ${result.devOtp}`, 'warning');
+            } else {
+                showToast(result.message || 'ส่งรหัส OTP กู้คืนรหัสผ่านชุดใหม่ไปยังอีเมลแล้ว', 'info');
+            }
         } else {
             setAuthError('forgot-verify', result.message || 'ขอรหัส OTP ใหม่อีกครั้งไม่สำเร็จ');
             if (btn) btn.disabled = false;
