@@ -182,6 +182,7 @@ class MailService {
                     const isFinal = line.charAt(3) !== '-';
                     if (!isFinal) continue;
 
+                    try {
                         const cleanTo = sanitizeHeader(to);
                         const cleanFrom = sanitizeHeader(config.from);
                         const cleanFromEmail = sanitizeHeader(fromEmail);
