@@ -99,27 +99,17 @@ const G2G_SYNC = {
                 continue;
             }
 
-            // Apply natural market variance (±2.5%) to emulate real live market price shifts
-            const marketVariance = 1 + (Math.sin(Date.now() / 3600000 + prodId.charCodeAt(0)) * 0.025);
-            const liveMarketCostUSD = g2gItem.baseCostUSD * marketVariance;
-            const costTHB = liveMarketCostUSD * exchangeRate;
-
-            const newRetailPrice = this.calculateProfitableThaiPrice(
-                costTHB, 
-                config.profitMultiplier, 
-                config.minProfitBaht
-            );
-
-            // Anchor original price (for discount display)
-            const origPrice = Math.round(newRetailPrice * 1.85 / 10) * 10 - 1;
+            const masterProd = typeof PRODUCTS !== 'undefined' ? PRODUCTS.find(p => p.id === prodId) : null;
+            const targetRetailPrice = masterProd ? masterProd.price : this.calculateProfitableThaiPrice(costTHB, config.profitMultiplier, config.minProfitBaht);
+            const targetOrigPrice = masterProd ? masterProd.originalPrice : Math.round(targetRetailPrice * 1.85 / 10) * 10 - 1;
 
             // Live market stock fluctuation (±5 items based on continuous market transactions)
             const stockShift = Math.floor(Math.sin((Date.now() / 1800000) + prodId.charCodeAt(0)) * 5);
             const liveG2GStock = Math.max(5, g2gItem.g2gStock + stockShift);
 
             customPrices[prodId] = {
-                price: newRetailPrice,
-                originalPrice: origPrice,
+                price: targetRetailPrice,
+                originalPrice: targetOrigPrice,
                 marketCostTHB: Math.round(costTHB * 100) / 100,
                 g2gStockAvailable: liveG2GStock,
                 lastMarketSync: new Date().toISOString()

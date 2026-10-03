@@ -37,6 +37,93 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
+
+    <!-- Automatic Edge Transparency Filter for Mascot PNG -->
+    <script>
+        function ensureImageTransparency(img) {
+            if (!img || img.dataset.transparencyDone) return;
+            img.dataset.transparencyDone = "1";
+            try {
+                const w = img.naturalWidth || img.width;
+                const h = img.naturalHeight || img.height;
+                if (!w || !h) return;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(img, 0, 0, w, h);
+
+                const imgData = ctx.getImageData(0, 0, w, h);
+                const data = imgData.data;
+
+                // Check top-left corner alpha. If already transparent, nothing to do.
+                if (data[3] === 0) return;
+
+                // Inspect 4 corners to determine background color (dark or white)
+                const corners = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + (w - 1)) * 4];
+                let darkVotes = 0, whiteVotes = 0;
+                for (const idx of corners) {
+                    const r = data[idx], g = data[idx+1], b = data[idx+2];
+                    if (r < 35 && g < 35 && b < 35) darkVotes++;
+                    if (r > 240 && g > 240 && b > 240) whiteVotes++;
+                }
+
+                const isDark = darkVotes >= 2;
+                const isWhite = whiteVotes >= 2;
+                if (!isDark && !isWhite) return;
+
+                // BFS flood-fill from 4 corners to erase outer background
+                const visited = new Uint8Array(w * h);
+                const queue = new Int32Array(w * h);
+                let qHead = 0, qTail = 0;
+
+                const startSeeds = [0, w - 1, (h - 1) * w, (h - 1) * w + (w - 1)];
+                for (const seed of startSeeds) {
+                    visited[seed] = 1;
+                    queue[qTail++] = seed;
+                }
+
+                while (qHead < qTail) {
+                    const idx = queue[qHead++];
+                    const p = idx * 4;
+                    data[p + 3] = 0; // Transparent
+
+                    const x = idx % w;
+                    const y = (idx / w) | 0;
+
+                    const neighbors = [];
+                    if (x > 0) neighbors.push(idx - 1);
+                    if (x < w - 1) neighbors.push(idx + 1);
+                    if (y > 0) neighbors.push(idx - w);
+                    if (y < h - 1) neighbors.push(idx + w);
+
+                    for (let i = 0; i < neighbors.length; i++) {
+                        const nIdx = neighbors[i];
+                        if (!visited[nIdx]) {
+                            visited[nIdx] = 1;
+                            const np = nIdx * 4;
+                            const nr = data[np], ng = data[np + 1], nb = data[np + 2];
+
+                            const match = isDark 
+                                ? (nr < 45 && ng < 45 && nb < 45)
+                                : (nr > 235 && ng > 235 && nb > 235);
+
+                            if (match) {
+                                queue[qTail++] = nIdx;
+                            }
+                        }
+                    }
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+                img.src = canvas.toDataURL('image/png');
+            } catch (err) {
+                // If canvas security restriction occurs, keep original image safely
+            }
+        }
+        window.ensureImageTransparency = ensureImageTransparency;
+    </script>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white">
 
@@ -136,7 +223,7 @@
                             <i class="fa-solid fa-clock-rotate-left"></i>
                         </div>
                         <div>
-                            <div class="text-xs sm:text-sm font-bold text-slate-900">ส่งมอบตลอด 24 ชม.</div>
+                            <div class="text-xs sm:text-sm font-bold text-slate-900">พร้อมส่งมอบตลอด 24 ชม.</div>
                             <div class="text-xs text-slate-500">ระบบ AI Vault</div>
                         </div>
                     </div>
@@ -181,9 +268,6 @@
                         <div class="flex items-center gap-2 text-[11px] font-bold">
                             <span class="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
                                 <i class="fa-solid fa-circle-check text-[10px]"></i> ฟรีค่าธรรมเนียม 0%
-                            </span>
-                            <span class="text-pink-700 bg-pink-50 border border-pink-200 px-2.5 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1 shadow-xs">
-                                <i class="fa-solid fa-bolt text-[10px]"></i> ยอดเงินเข้าทันที
                             </span>
                         </div>
                     </div>
@@ -412,22 +496,15 @@
                 </div>
             </div>
 
-            <!-- Mascot Banner Showcase -->
+            <!-- Mascot Banner Showcase (Pure Floating Transparent PNG - No Frame) -->
             <div class="flex justify-center items-center lg:col-span-5 my-2 lg:my-0">
-                <div class="relative w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[440px] aspect-square rounded-[32px] p-2.5 sm:p-3 bg-gradient-to-tr from-pink-400 via-purple-500 to-cyan-400 shadow-2xl shadow-pink-500/25 mascot-float transition-all duration-300 hover:scale-[1.02]">
-                    <div class="w-full h-full rounded-[24px] sm:rounded-[26px] overflow-hidden bg-slate-950 flex items-center justify-center relative group">
-                        <img src="images/pop_new.png" 
-                             alt="Supinkly.AI Mascot" 
-                             class="w-full h-full object-contain p-2 hover:scale-105 transition-transform duration-500"
-                             onerror="if(!this.dataset.t){this.dataset.t='1';this.src='images/pop_new.jpg'}else if(this.dataset.t==='1'){this.dataset.t='2';this.src='images/logo.jpg'}">
-                        <div class="absolute bottom-3 sm:bottom-4 inset-x-3 sm:inset-x-4 bg-white/95 backdrop-blur-md py-2 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-pink-200/80 flex items-center justify-between text-xs sm:text-sm shadow-lg">
-                            <div class="flex items-center gap-1.5 sm:gap-2">
-                                <span class="text-amber-500 text-sm sm:text-base animate-bounce">✨</span>
-                                <span class="text-slate-800 font-bold">ของแท้ 100% ส่งด่วน</span>
-                            </div>
-                            <span class="px-2.5 py-0.5 rounded-full bg-pink-100 text-pink-600 font-black text-xs sm:text-sm">1,350+ รายการ</span>
-                        </div>
-                    </div>
+                <div class="relative w-full max-w-[340px] sm:max-w-[400px] lg:max-w-[440px] mascot-float flex items-center justify-center">
+                    <img id="mascot-img"
+                         src="images/pop_new.png" 
+                         alt="Supinkly.AI Mascot" 
+                         class="w-full h-auto max-h-[380px] sm:max-h-[440px] object-contain drop-shadow-[0_15px_35px_rgba(255,46,126,0.25)] hover:scale-105 transition-transform duration-500 select-none pointer-events-none"
+                         onload="if(window.ensureImageTransparency) window.ensureImageTransparency(this);"
+                         onerror="if(!this.dataset.t){this.dataset.t='1';this.src='images/pop_new.jpg'}else if(this.dataset.t==='1'){this.dataset.t='2';this.src='images/logo.jpg'}">
                 </div>
             </div>
 
@@ -1562,7 +1639,7 @@ W11PR-XXXX-XXXX-XXXX"
                     </div>
                     <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200">
                         <span class="text-slate-500 block text-[11px] font-medium">การจัดส่ง:</span>
-                        <span class="font-extrabold text-amber-700 text-sm">⚡ ทันทีตลอด 24 ชม.</span>
+                        <span class="font-extrabold text-amber-700 text-sm">⚡ พร้อมส่งมอบตลอด 24 ชม.</span>
                     </div>
                     <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200">
                         <span class="text-slate-500 block text-[11px] font-medium">สินค้าคงเหลือ:</span>

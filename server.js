@@ -265,25 +265,25 @@ function computeSlipSHA256(buffer) {
 
 // Master catalog price list (Single source of truth on server)
 const MASTER_CATALOG = {
-    "cpc-01": { title: "CapCut Pro 1M Private", price: 89.00, warranty: "30 วัน" },
-    "cpc-02": { title: "CapCut Pro 1M Shared", price: 59.00, warranty: "30 วัน" },
-    "cpc-03": { title: "CapCut Team 1M", price: 129.00, warranty: "30 วัน" },
-    "cpc-04": { title: "CapCut VIP 1M", price: 199.00, warranty: "30 วัน" },
-    "goo-ai-01": { title: "Google AI Pro Link", price: 99.00, warranty: "30 วัน" },
-    "goo-ai-02": { title: "Google AI Ultra Private", price: 2490.00, warranty: "30 วัน" },
-    "goo-ai-03": { title: "Google AI Pro Shared", price: 79.00, warranty: "30 วัน" },
-    "goo-01": { title: "Google Drive 5TB Private", price: 149.00, warranty: "30 วัน" },
-    "goo-02": { title: "Google Storage 5TB Link", price: 129.00, warranty: "30 วัน" },
-    "grk-01": { title: "Grok 7D Private", price: 259.00, warranty: "7 วัน" },
-    "grk-02": { title: "Grok 1M Private", price: 890.00, warranty: "30 วัน" },
+    "cpc-01": { title: "CapCut Pro 1M Private", price: 129.00, warranty: "30 วัน" },
+    "cpc-02": { title: "CapCut Pro 1M Shared", price: 79.00, warranty: "30 วัน" },
+    "cpc-03": { title: "CapCut Team 1M", price: 189.00, warranty: "30 วัน" },
+    "cpc-04": { title: "CapCut VIP 1M", price: 259.00, warranty: "30 วัน" },
+    "goo-ai-01": { title: "Google AI Pro Link", price: 150.00, warranty: "30 วัน" },
+    "goo-ai-02": { title: "Google AI Ultra Private", price: 2590.00, warranty: "30 วัน" },
+    "goo-ai-03": { title: "Google AI Pro Shared", price: 99.00, warranty: "30 วัน" },
+    "goo-01": { title: "Google Drive 5TB Private", price: 229.00, warranty: "30 วัน" },
+    "goo-02": { title: "Google Storage 5TB Link", price: 179.00, warranty: "30 วัน" },
+    "grk-01": { title: "Grok 7D Private", price: 290.00, warranty: "7 วัน" },
+    "grk-02": { title: "Grok 1M Private", price: 950.00, warranty: "30 วัน" },
     "grk-03": { title: "SuperGrok Heavy 1M", price: 4990.00, warranty: "30 วัน" },
-    "cld-01": { title: "Claude Pro 1M Private", price: 790.00, warranty: "30 วัน" },
-    "cld-02": { title: "Claude Pro 1M Shared", price: 250.00, warranty: "30 วัน" },
-    "adb-01": { title: "Adobe Acrobat Pro 1M", price: 450.00, warranty: "30 วัน" },
-    "adb-02": { title: "Adobe CC All Apps 1M", price: 690.00, warranty: "30 วัน" },
-    "ms-01": { title: "Windows 11 OEM Key", price: 250.00, warranty: "ตลอดชีพ" },
-    "ms-02": { title: "Microsoft 365 1M", price: 220.00, warranty: "30 วัน" },
-    "ms-03": { title: "Microsoft Copilot Pro 1M", price: 550.00, warranty: "30 วัน" }
+    "cld-01": { title: "Claude Pro 1M Private", price: 850.00, warranty: "30 วัน" },
+    "cld-02": { title: "Claude Pro 1M Shared", price: 290.00, warranty: "30 วัน" },
+    "adb-01": { title: "Adobe Acrobat Pro 1M", price: 490.00, warranty: "30 วัน" },
+    "adb-02": { title: "Adobe CC All Apps 1M", price: 790.00, warranty: "30 วัน" },
+    "ms-01": { title: "Windows 11 OEM Key", price: 290.00, warranty: "ตลอดชีพ" },
+    "ms-02": { title: "Microsoft 365 1M", price: 259.00, warranty: "30 วัน" },
+    "ms-03": { title: "Microsoft Copilot Pro 1M", price: 590.00, warranty: "30 วัน" }
 };
 
 // 1. API: Verify Slip & Dispense Product (Server-Side Verified)

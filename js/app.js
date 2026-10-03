@@ -246,16 +246,24 @@ function getCustomPrices() {
 
 function applyCustomPricesToProducts() {
     const customPrices = getCustomPrices();
-    // Clean up any legacy 1.00 Baht test price on cpc-01
-    if (customPrices['cpc-01'] && customPrices['cpc-01'].price === 1.00 && !customPrices['cpc-01'].manualOverride) {
-        delete customPrices['cpc-01'];
+    let modified = false;
+
+    // Remove any stale cached prices that were not manually overridden by admin
+    Object.keys(customPrices).forEach(id => {
+        if (!customPrices[id].manualOverride) {
+            delete customPrices[id];
+            modified = true;
+        }
+    });
+
+    if (modified) {
         try {
             localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
         } catch (e) {}
     }
 
     state.products.forEach(p => {
-        if (customPrices[p.id]) {
+        if (customPrices[p.id] && customPrices[p.id].manualOverride) {
             if (typeof customPrices[p.id].price === 'number') p.price = customPrices[p.id].price;
             if (typeof customPrices[p.id].originalPrice === 'number') p.originalPrice = customPrices[p.id].originalPrice;
         }
@@ -537,9 +545,9 @@ function renderProducts() {
                             <i class="fa-solid fa-shield-halved text-emerald-600 text-xs shrink-0"></i>
                             <span class="truncate">ประกัน ${escapeHTML(product.warranty || '30 วัน')}</span>
                         </div>
-                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระบบส่งมอบตลอด 24 ชม.">
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระบบพร้อมส่งมอบตลอด 24 ชม.">
                             <i class="fa-solid fa-bolt text-amber-500 text-xs shrink-0"></i>
-                            <span class="truncate">ส่งมอบ 24 ชม.</span>
+                            <span class="truncate">พร้อมส่งมอบ 24 ชม.</span>
                         </div>
                     </div>
 
