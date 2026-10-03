@@ -2394,6 +2394,11 @@ async function openAdminModal() {
     if (window.location.protocol.startsWith('http')) {
         try {
             const setRes = await fetch('/api/admin/settings', { headers: ADMIN_AUTH.getHeaders() });
+            if (setRes.status === 401 || setRes.status === 403) {
+                ADMIN_AUTH.logout();
+                promptAdminLogin();
+                return;
+            }
             const setData = await setRes.json();
             if (setData.success && setData.smtpConfig) {
                 const s = setData.smtpConfig;
@@ -3091,6 +3096,13 @@ async function saveAdminSettings() {
                     }
                 })
             });
+            if (res.status === 401 || res.status === 403) {
+                ADMIN_AUTH.logout();
+                showToast("เซสชันแอดมินหมดอายุ กรุณากรอก PIN เพื่อเข้าสู่ระบบใหม่", "warning");
+                closeAdminModal();
+                promptAdminLogin();
+                return;
+            }
         } catch (e) {
             console.warn("Failed to sync settings to server:", e);
         }
@@ -3147,13 +3159,22 @@ async function handleAdminTestEmail() {
     const fromEl = document.getElementById('admin-smtp-from');
     const resendEl = document.getElementById('admin-smtp-resend');
 
+    const rawPass = (passEl?.value || '').replace(/\s+/g, '');
+    const rawResend = (resendEl?.value || '').trim();
+
+    if (!rawPass && !rawResend) {
+        showToast('กรุณาระบุ SMTP App Password (16 หลัก) หรือ Resend API Key ก่อนกดทดสอบ', 'warning');
+        if (passEl) passEl.focus();
+        return;
+    }
+
     const smtpConfig = {
         host: (hostEl?.value || '').trim(),
         port: parseInt(portEl?.value || '465', 10),
         user: (userEl?.value || '').trim(),
-        pass: (passEl?.value || '').replace(/\s+/g, ''),
+        pass: rawPass,
         from: (fromEl?.value || '').trim(),
-        resendKey: (resendEl?.value || '').trim()
+        resendKey: rawResend
     };
 
     const testBtn = document.getElementById('admin-test-email-btn');
@@ -3185,6 +3206,25 @@ async function handleAdminTestEmail() {
 
         if (resultBox) {
             resultBox.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-600');
+            if (res.status === 401 || res.status === 403 || data.requiresLogin) {
+                ADMIN_AUTH.logout();
+                resultBox.classList.add('bg-amber-50', 'border', 'border-amber-300', 'text-amber-900');
+                resultBox.innerHTML = `
+                    <div class="font-bold flex items-center gap-1.5 text-amber-800 mb-1">
+                        <i class="fa-solid fa-lock text-amber-600 text-sm"></i>
+                        <span>เซสชันแอดมินหมดอายุ (เซิร์ฟเวอร์เพิ่งอัปเดตระบบ)</span>
+                    </div>
+                    <div class="text-[11px] leading-relaxed text-amber-900 mb-2.5">
+                        เนื่องจากเซิร์ฟเวอร์เพิ่งเริ่มระบบใหม่ เซสชันเดิมจึงหมดอายุ กรุณากดปุ่มด้านล่างเพื่อกรอกรหัส PIN แอดมิน (เช่น 8899) เข้าสู่ระบบใหม่ 1 ครั้งครับ
+                    </div>
+                    <button type="button" onclick="closeAdminModal(); promptAdminLogin();" class="px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-key"></i>
+                        <span>กดเพื่อกรอก PIN แอดมินใหม่ (8899)</span>
+                    </button>
+                `;
+                showToast("เซสชันแอดมินหมดอายุ กรุณากรอก PIN ใหม่อีกครั้ง", "warning");
+                return;
+            }
             if (data.success) {
                 resultBox.classList.add('bg-emerald-50', 'border', 'border-emerald-300', 'text-emerald-900');
                 resultBox.innerHTML = `
@@ -3207,14 +3247,14 @@ async function handleAdminTestEmail() {
                         <i class="fa-solid fa-triangle-exclamation text-rose-600 text-sm"></i>
                         <span>ไม่สามารถส่งอีเมลได้</span>
                     </div>
-                    <div class="text-[11px] leading-relaxed whitespace-pre-line font-medium text-rose-950 mb-2">
+                    <div class="text-[11px] leading-relaxed whitespace-pre-line font-medium text-rose-950 mb-2.5 bg-white/70 p-2.5 rounded-lg border border-rose-200">
                         ${escapeHTML(data.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ')}
                     </div>
                     <div class="text-[10px] text-rose-800 bg-rose-100/70 rounded-md p-2 space-y-1">
                         <div class="font-bold">🔍 วิธีแก้ไขปัญหาที่พบบ่อย:</div>
-                        <div>1. <strong>Gmail 535:</strong> ต้องใช้ <u>App Password 16 หลัก</u> ที่สร้างจาก Google Account เท่านั้น (ไม่ใช่รหัสผ่าน Gmail ปกติ)</div>
-                        <div>2. <strong>Timeout:</strong> ลองกดปุ่มเปลี่ยนพรีเซ็ตเป็น <u>Gmail (Port 587 STARTTLS)</u> หรือ <u>Port 465 SSL</u></div>
-                        <div>3. <strong>Resend:</strong> หากยังไม่ยืนยันโดเมน ต้องส่งเข้าอีเมลที่ใช้สมัคร Resend เท่านั้น</div>
+                        <div>1. <strong>Gmail 535:</strong> ต้องใช้ <u>App Password 16 หลัก</u> ที่สร้างจาก Google Account (<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="underline font-bold">myaccount.google.com/apppasswords</a>) เท่านั้น ห้ามใช้รหัสผ่าน Gmail ปกติ</div>
+                        <div>2. <strong>Timeout / Blocked:</strong> หากโฮสติ้งจำกัดพอร์ต ให้ลองกดปุ่มพรีเซ็ต <u>Gmail (Port 587 STARTTLS)</u> หรือ <u>Port 465 SSL</u></div>
+                        <div>3. <strong>Resend API ทางเลือกที่ดีที่สุด:</strong> หากเซิร์ฟเวอร์ Cloud บล็อกพอร์ต SMTP สามารถสมัคร <a href="https://resend.com" target="_blank" rel="noopener noreferrer" class="underline font-bold">resend.com</a> ฟรี แล้วนำ API Key มาใส่ จะส่งผ่านพอร์ต 443 ได้ทันที 100%</div>
                     </div>
                 `;
                 showToast('การส่งอีเมลทดสอบล้มเหลว กรุณาดูรายละเอียดด้านล่าง', 'warning');

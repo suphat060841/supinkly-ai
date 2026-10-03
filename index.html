@@ -1535,8 +1535,13 @@
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-slate-700 block mb-1">SMTP App Password:</label>
-                            <input type="password" id="admin-smtp-pass" placeholder="••••••••••••••••"
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700">SMTP App Password:</label>
+                                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="text-[10px] text-pink-600 hover:underline font-bold">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> สร้างรหัส 16 หลัก
+                                </a>
+                            </div>
+                            <input type="password" id="admin-smtp-pass" placeholder="•••••••••••••••• (16 หลัก)"
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
                         </div>
                         <div>
@@ -1548,6 +1553,16 @@
                             <label class="text-xs font-bold text-slate-700 block mb-1">Resend API Key (ถ้ามี):</label>
                             <input type="password" id="admin-smtp-resend" placeholder="re_••••••••••••"
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
+                        </div>
+                    </div>
+
+                    <!-- App Password Tip -->
+                    <div class="mt-2.5 text-[11px] text-slate-600 bg-pink-50/50 border border-pink-100 rounded-xl p-2.5 flex items-start gap-2">
+                        <i class="fa-solid fa-lightbulb text-amber-500 text-sm mt-0.5 shrink-0"></i>
+                        <div class="leading-relaxed">
+                            <strong>วิธีตั้งค่า Gmail:</strong> ต้องเปิด <strong>2-Step Verification</strong> ใน Google Account ก่อน จากนั้นเข้าไปที่ 
+                            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="text-pink-600 font-bold underline">myaccount.google.com/apppasswords</a> 
+                            เพื่อสร้าง <em>"App Password 16 หลัก"</em> มาใส่ในช่องด้านบน (ระบบจะตัดช่องว่างให้อัตโนมัติ)
                         </div>
                     </div>
 

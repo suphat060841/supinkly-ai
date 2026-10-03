@@ -25,6 +25,26 @@ function sanitizeHeader(str) {
     return String(str).replace(/[\r\n]/g, '').trim();
 }
 
+function isConnectionIssue(err) {
+    if (!err) return false;
+    const msg = String(err.message || '').toLowerCase();
+    const code = String(err.code || '').toUpperCase();
+    return (
+        msg.includes('timeout') ||
+        msg.includes('timed out') ||
+        msg.includes('หมดเวลา') ||
+        msg.includes('econnrefused') ||
+        msg.includes('etimedout') ||
+        msg.includes('econnreset') ||
+        msg.includes('ehostunreach') ||
+        msg.includes('enetunreach') ||
+        msg.includes('epipe') ||
+        msg.includes('closed') ||
+        msg.includes('disconnect') ||
+        ['ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH', 'EPIPE'].includes(code)
+    );
+}
+
 class MailService {
     constructor() {
         this.lastSentOtp = null;
@@ -168,10 +188,31 @@ class MailService {
     sendViaSmtpTls(config, { to, subject, html }) {
         return new Promise((resolve, reject) => {
             const timeoutMs = 15000;
+            let isSettled = false;
+
+            const safeReject = (err) => {
+                if (isSettled) return;
+                isSettled = true;
+                clearTimeout(timer);
+                try { socket.destroy(); } catch (_) {}
+                const errorObj = err instanceof Error ? err : new Error(String(err?.message || err?.code || err || 'SMTP TLS Socket Error'));
+                if (err && err.code) errorObj.code = err.code;
+                reject(errorObj);
+            };
+
+            const safeResolve = (val) => {
+                if (isSettled) return;
+                isSettled = true;
+                clearTimeout(timer);
+                try { socket.end(); } catch (_) {}
+                resolve(val);
+            };
+
             const socket = tls.connect({
                 host: config.host,
                 port: config.port || 465,
                 servername: config.host,
+                family: 4, // Force IPv4 to prevent hanging on cloud Docker IPv6 blackholes
                 rejectUnauthorized: false
             });
 
@@ -180,16 +221,16 @@ class MailService {
             const { fromEmail, cleanFrom } = this.resolveSender(config);
 
             const timer = setTimeout(() => {
-                socket.destroy();
-                reject(new Error(`SMTP SSL (Port ${config.port || 465}) เชื่อมต่อหมดเวลาหลังจาก 15 วินาที`));
+                safeReject(new Error(`SMTP SSL (Port ${config.port || 465}) Connection Timeout (เชื่อมต่อหมดเวลาหลังจาก 15 วินาที)`));
             }, timeoutMs);
 
             const sendLine = (line) => {
-                if (socket.destroyed) return;
+                if (isSettled || socket.destroyed) return;
                 socket.write(line + '\r\n');
             };
 
             socket.on('data', (chunk) => {
+                if (isSettled) return;
                 buffer += chunk.toString('utf-8');
                 const lines = buffer.split('\r\n');
                 buffer = lines.pop();
@@ -254,29 +295,32 @@ class MailService {
                         } else if (step === 8 && code === 250) {
                             step = 9;
                             sendLine('QUIT');
-                            clearTimeout(timer);
-                            socket.end();
-                            resolve({ success: true, method: 'smtp-tls-465' });
+                            safeResolve({ success: true, method: 'smtp-tls-465' });
                         } else if (code === 535) {
-                            clearTimeout(timer);
-                            socket.destroy();
-                            reject(new Error(`SMTP Authentication Failed (535): รหัสผ่านหรือชื่อผู้ใช้ไม่ถูกต้อง หากใช้ Gmail ต้องเปิด 2-Step Verification และสร้าง App Password 16 หลักจาก Google Account (${line})`));
+                            safeReject(new Error(`SMTP Authentication Failed (535): รหัสผ่านหรือชื่อผู้ใช้ไม่ถูกต้อง หากใช้ Gmail ต้องเปิด 2-Step Verification และสร้าง App Password 16 หลักจาก Google Account (${line})`));
                         } else if (code >= 400) {
-                            clearTimeout(timer);
-                            socket.destroy();
-                            reject(new Error(`SMTP Error [${code}]: ${line}`));
+                            safeReject(new Error(`SMTP Error [${code}]: ${line}`));
                         }
                     } catch (err) {
-                        clearTimeout(timer);
-                        socket.destroy();
-                        reject(err);
+                        safeReject(err);
                     }
                 }
             });
 
             socket.on('error', (err) => {
-                clearTimeout(timer);
-                reject(err);
+                safeReject(err);
+            });
+
+            socket.on('close', (hadError) => {
+                if (!isSettled) {
+                    safeReject(new Error(`การเชื่อมต่อกับ SMTP Server (${config.host}:${config.port || 465}) ถูกปิดก่อนส่งสำเร็จ (Socket closed by server, hadError=${hadError})`));
+                }
+            });
+
+            socket.on('end', () => {
+                if (!isSettled && step < 9) {
+                    safeReject(new Error(`เซิร์ฟเวอร์ SMTP (${config.host}:${config.port || 465}) ยุติการเชื่อมต่อ (FIN received before completion)`));
+                }
             });
         });
     }
@@ -289,6 +333,7 @@ class MailService {
             const timeoutMs = 15000;
             let timer = null;
             let activeSocket = null;
+            let isSettled = false;
 
             const cleanup = () => {
                 if (timer) clearTimeout(timer);
@@ -297,15 +342,34 @@ class MailService {
                 }
             };
 
-            timer = setTimeout(() => {
+            const safeReject = (err) => {
+                if (isSettled) return;
+                isSettled = true;
                 cleanup();
-                reject(new Error(`SMTP STARTTLS (Port ${config.port || 587}) เชื่อมต่อหมดเวลาหลังจาก 15 วินาที`));
+                const errorObj = err instanceof Error ? err : new Error(String(err?.message || err?.code || err || 'SMTP STARTTLS Socket Error'));
+                if (err && err.code) errorObj.code = err.code;
+                reject(errorObj);
+            };
+
+            const safeResolve = (val) => {
+                if (isSettled) return;
+                isSettled = true;
+                if (timer) clearTimeout(timer);
+                if (activeSocket && !activeSocket.destroyed) {
+                    try { activeSocket.end(); } catch (e) {}
+                }
+                resolve(val);
+            };
+
+            timer = setTimeout(() => {
+                safeReject(new Error(`SMTP STARTTLS (Port ${config.port || 587}) Connection Timeout (เชื่อมต่อหมดเวลาหลังจาก 15 วินาที)`));
             }, timeoutMs);
 
             const { fromEmail, cleanFrom } = this.resolveSender(config);
             const plainSocket = net.connect({
                 host: config.host,
-                port: config.port || 587
+                port: config.port || 587,
+                family: 4 // Force IPv4
             });
             activeSocket = plainSocket;
 
@@ -313,11 +377,12 @@ class MailService {
             let phase = 'INIT';
 
             const sendLine = (sock, line) => {
-                if (!sock || sock.destroyed) return;
+                if (isSettled || !sock || sock.destroyed) return;
                 sock.write(line + '\r\n');
             };
 
             const handleData = (sock, chunk) => {
+                if (isSettled) return;
                 buffer += chunk.toString('utf-8');
                 const lines = buffer.split('\r\n');
                 buffer = lines.pop();
@@ -342,11 +407,14 @@ class MailService {
                             phase = 'UPGRADING';
                             plainSocket.removeAllListeners('data');
                             plainSocket.removeAllListeners('error');
+                            plainSocket.removeAllListeners('close');
+                            plainSocket.removeAllListeners('end');
 
                             const tlsSocket = tls.connect({
                                 socket: plainSocket,
                                 host: config.host,
                                 servername: config.host,
+                                family: 4,
                                 rejectUnauthorized: false
                             }, () => {
                                 phase = 'EHLO2';
@@ -356,9 +424,16 @@ class MailService {
 
                             activeSocket = tlsSocket;
                             tlsSocket.on('data', (c) => handleData(tlsSocket, c));
-                            tlsSocket.on('error', (err) => {
-                                cleanup();
-                                reject(err);
+                            tlsSocket.on('error', (err) => safeReject(err));
+                            tlsSocket.on('close', (hadError) => {
+                                if (!isSettled) {
+                                    safeReject(new Error(`การเชื่อมต่อ SMTP STARTTLS ถูกปิดก่อนส่งสำเร็จ (hadError=${hadError})`));
+                                }
+                            });
+                            tlsSocket.on('end', () => {
+                                if (!isSettled && phase !== 'QUIT') {
+                                    safeReject(new Error('เซิร์ฟเวอร์ SMTP STARTTLS ยุติการเชื่อมต่อ (FIN received)'));
+                                }
                             });
                         } else if (phase === 'EHLO2' && code === 250) {
                             phase = 'AUTH';
@@ -407,27 +482,29 @@ class MailService {
                         } else if (phase === 'BODY' && code === 250) {
                             phase = 'QUIT';
                             sendLine(sock, 'QUIT');
-                            if (timer) clearTimeout(timer);
-                            sock.end();
-                            resolve({ success: true, method: 'smtp-starttls-587' });
+                            safeResolve({ success: true, method: 'smtp-starttls-587' });
                         } else if (code === 535) {
-                            cleanup();
-                            reject(new Error(`SMTP Authentication Failed (535): รหัสผ่านหรือชื่อผู้ใช้ไม่ถูกต้อง หากใช้ Gmail ต้องเปิด 2-Step Verification และสร้าง App Password 16 หลักจาก Google Account (${line})`));
+                            safeReject(new Error(`SMTP Authentication Failed (535): รหัสผ่านหรือชื่อผู้ใช้ไม่ถูกต้อง หากใช้ Gmail ต้องเปิด 2-Step Verification และสร้าง App Password 16 หลักจาก Google Account (${line})`));
                         } else if (code >= 400) {
-                            cleanup();
-                            reject(new Error(`SMTP STARTTLS Error [${code}]: ${line}`));
+                            safeReject(new Error(`SMTP STARTTLS Error [${code}]: ${line}`));
                         }
                     } catch (err) {
-                        cleanup();
-                        reject(err);
+                        safeReject(err);
                     }
                 }
             };
 
             plainSocket.on('data', (c) => handleData(plainSocket, c));
-            plainSocket.on('error', (err) => {
-                cleanup();
-                reject(err);
+            plainSocket.on('error', (err) => safeReject(err));
+            plainSocket.on('close', (hadError) => {
+                if (!isSettled && phase !== 'UPGRADING' && phase !== 'QUIT') {
+                    safeReject(new Error(`การเชื่อมต่อเน็ตเวิร์ก Port ${config.port || 587} ถูกปิด (hadError=${hadError})`));
+                }
+            });
+            plainSocket.on('end', () => {
+                if (!isSettled && phase !== 'UPGRADING' && phase !== 'QUIT') {
+                    safeReject(new Error('เซิร์ฟเวอร์ SMTP ยุติการเชื่อมต่อ (FIN received)'));
+                }
             });
         });
     }
@@ -436,13 +513,15 @@ class MailService {
      * Send email via SMTP with intelligent Port 465 / 587 routing & fallback
      */
     async sendEmailViaSmtp(config, { to, subject, html }) {
+        const isGmail = config.host.includes('gmail') || config.host.includes('google');
+
         if (config.port === 587) {
             try {
                 return await this.sendViaSmtpStarttls(config, { to, subject, html });
             } catch (err) {
                 // If 587 failed and host is Gmail, attempt 465 fallback
-                if (config.host.includes('gmail') || config.host.includes('google')) {
-                    console.log('[MAIL] Port 587 failed, attempting fallback to Port 465 SSL...');
+                if (isConnectionIssue(err) && isGmail) {
+                    console.log('[MAIL] Port 587 STARTTLS connection issue, attempting automatic fallback to Port 465 SSL...');
                     return await this.sendViaSmtpTls({ ...config, port: 465 }, { to, subject, html });
                 }
                 throw err;
@@ -454,9 +533,8 @@ class MailService {
             return await this.sendViaSmtpTls(config, { to, subject, html });
         } catch (err) {
             // If Port 465 timed out or connection was refused, and host is Gmail, attempt Port 587 STARTTLS
-            const isConnIssue = err.message && (err.message.includes('timeout') || err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT'));
-            if (isConnIssue && (config.host.includes('gmail') || config.host.includes('google'))) {
-                console.log('[MAIL] Port 465 connection issue, attempting fallback to Port 587 STARTTLS...');
+            if (isConnectionIssue(err) && isGmail) {
+                console.log('[MAIL] Port 465 SSL connection issue, attempting automatic fallback to Port 587 STARTTLS...');
                 return await this.sendViaSmtpStarttls({ ...config, port: 587 }, { to, subject, html });
             }
             throw err;
@@ -725,7 +803,15 @@ class MailService {
      */
     async testConnection(testRecipient, customConfig = null, db = {}) {
         const base = this.getConfig(db);
-        const config = customConfig ? { ...base, ...customConfig } : base;
+        const config = { ...base };
+        if (customConfig && typeof customConfig === 'object') {
+            for (const [k, v] of Object.entries(customConfig)) {
+                if (v !== undefined && v !== null && v !== '') {
+                    config[k] = v;
+                }
+            }
+        }
+
         config.pass = String(config.pass || '').replace(/\s+/g, '');
         config.user = String(config.user || '').trim();
         config.host = String(config.host || '').trim();
@@ -736,7 +822,7 @@ class MailService {
         if (!this.isConfigured(config)) {
             return {
                 success: false,
-                message: 'ยังไม่ได้ระบุข้อมูลสำหรับส่งอีเมล กรุณาระบุ SMTP (Host, User, App Password) หรือ Resend API Key'
+                message: 'ยังไม่ได้ระบุข้อมูลสำหรับส่งอีเมล กรุณาระบุ SMTP (Host, User, App Password 16 หลัก) หรือ Resend API Key'
             };
         }
 
@@ -784,8 +870,8 @@ class MailService {
                     message: `ส่งอีเมลทดสอบผ่าน Resend API สำเร็จแล้ว (ID: ${res.id}) กรุณาตรวจสอบกล่องจดหมาย ${to} (และโฟลเดอร์สแปม)`
                 };
             } catch (err) {
-                console.error('[MAIL-TEST] Resend test error:', err.message);
-                let errText = err.message;
+                console.error('[MAIL-TEST] Resend test error:', err);
+                let errText = (err && (err.message || String(err))) || 'Resend error';
                 if (errText.includes('validation_error') || errText.includes('only send testing emails')) {
                     errText = 'Resend ไม่อนุญาตให้ส่ง: ในโหมดฟรี Resend อนุญาตให้ส่งได้เฉพาะอีเมลที่คุณใช้สมัครบัญชี Resend เท่านั้น';
                 }
@@ -805,14 +891,24 @@ class MailService {
                     message: `ส่งอีเมลทดสอบผ่าน SMTP (${config.host}) สำเร็จแล้ว! กรุณาตรวจสอบกล่องจดหมาย ${to} (รวมถึงโฟลเดอร์ Junk/Spam)`
                 };
             } catch (err) {
-                console.error('[MAIL-TEST] SMTP test error:', err.message);
-                let msg = err.message || 'Unknown SMTP error';
-                if (msg.includes('535') || msg.includes('BadCredentials') || msg.includes('Username and Password not accepted')) {
-                    msg = `รหัสผ่านหรือผู้ใช้ไม่ถูกต้อง (535 Bad Credentials): หากใช้ Gmail ต้องเปิด 2-Step Verification และสร้าง "App Password (รหัสผ่านสำหรับแอป 16 หลัก)" จากความปลอดภัยบัญชี Google (ห้ามใช้รหัสผ่าน Gmail ปกติ) [ระบบได้ลบช่องว่างให้อัตโนมัติแล้ว]`;
-                } else if (msg.includes('timeout') || msg.includes('ETIMEDOUT')) {
-                    msg = `หมดเวลาเชื่อมต่อ (Connection Timeout): เซิร์ฟเวอร์ไม่สามารถติดต่อ ${config.host}:${config.port} ได้ แนะนำให้ลองเปลี่ยนเป็น Port 587 หรือ 465`;
-                } else if (msg.includes('ECONNREFUSED')) {
-                    msg = `การเชื่อมต่อถูกปฏิเสธ (Connection Refused): พอร์ต ${config.port} บน ${config.host} ปิดอยู่หรือไม่สามารถเข้าถึงได้`;
+                console.error('[MAIL-TEST] SMTP test error:', err);
+                const rawMsg = (err && (err.message || (typeof err === 'string' ? err : ''))) || '';
+                const errCode = (err && err.code) || '';
+                const combined = `${rawMsg} ${errCode}`.trim();
+
+                let msg = '';
+                if (combined.includes('535') || combined.includes('BadCredentials') || combined.includes('Username and Password not accepted')) {
+                    msg = `รหัสผ่านหรือผู้ใช้ไม่ถูกต้อง (535 Bad Credentials):\n• หากใช้ Gmail ต้องเปิด 2-Step Verification และสร้าง "App Password (รหัสผ่านสำหรับแอป 16 หลัก)" จาก Google Account (myaccount.google.com/apppasswords)\n• ห้ามใช้รหัสผ่าน Gmail ปกติเด็ดขาด (ระบบตัดช่องว่าง 16 หลักให้อัตโนมัติแล้ว)`;
+                } else if (combined.includes('534') || combined.includes('Application-specific password required')) {
+                    msg = `Google แจ้งเตือนความปลอดภัย (534):\nต้องสร้าง "App Password 16 หลัก" ในบัญชี Google (เปิด 2-Step Verification แล้วไปที่ myaccount.google.com/apppasswords)`;
+                } else if (isConnectionIssue(err) || combined.includes('timeout') || combined.includes('ETIMEDOUT') || combined.includes('หมดเวลา')) {
+                    msg = `หมดเวลาเชื่อมต่อ (Connection Timeout / Blocked):\nเซิร์ฟเวอร์ไม่สามารถติดต่อ ${config.host}:${config.port} ได้ (เซิร์ฟเวอร์โฮสติ้ง Render อาจมีการจำกัดพอร์ต SMTP ขาออก)\n👉 แนะนำให้กดปุ่มเปลี่ยนพรีเซ็ตเป็น "Gmail (Port 587 STARTTLS)" หรือ "Port 465 SSL"\n👉 หรือใช้ Resend API (ส่งผ่าน HTTPS Port 443 รับประกันส่งได้ 100%)`;
+                } else if (combined.includes('ECONNREFUSED')) {
+                    msg = `การเชื่อมต่อถูกปฏิเสธ (Connection Refused):\nพอร์ต ${config.port} บน ${config.host} ปิดอยู่หรือไม่สามารถเข้าถึงได้ แนะนำให้ลองเปลี่ยนเป็น Port 587 หรือใช้ Resend API`;
+                } else if (combined.includes('ECONNRESET') || combined.includes('closed') || combined.includes('Closed by')) {
+                    msg = `การเชื่อมต่อถูกตัดกลางคัน (Connection Reset):\nเซิร์ฟเวอร์ตัดสายการเชื่อมต่อ แนะนำให้ลองสลับ Port (465 <-> 587) หรือใช้ Resend API`;
+                } else {
+                    msg = rawMsg || (errCode ? `Network Socket Error [${errCode}]` : '') || (err ? String(err) : '') || 'การเชื่อมต่อกับเซิร์ฟเวอร์ส่งอีเมลล้มเหลว';
                 }
                 errors.push(`[SMTP]: ${msg}`);
             }
@@ -820,7 +916,7 @@ class MailService {
 
         return {
             success: false,
-            message: errors.join('\n') || 'ไม่สามารถส่งอีเมลได้ กรุณาตรวจสอบการตั้งค่า'
+            message: errors.join('\n\n') || 'ไม่สามารถส่งอีเมลได้ กรุณาตรวจสอบการตั้งค่า'
         };
     }
 }
