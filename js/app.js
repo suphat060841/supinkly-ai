@@ -2416,6 +2416,12 @@ async function openAdminModal() {
                 if (resendEl) resendEl.value = s.resendKey || '';
                 const brevoEl = document.getElementById('admin-smtp-brevo');
                 if (brevoEl) brevoEl.value = s.brevoKey || '';
+                const sendgridEl = document.getElementById('admin-smtp-sendgrid');
+                if (sendgridEl) sendgridEl.value = s.sendgridKey || '';
+                const mailjetKeyEl = document.getElementById('admin-smtp-mailjet-key');
+                if (mailjetKeyEl) mailjetKeyEl.value = s.mailjetKey || '';
+                const mailjetSecEl = document.getElementById('admin-smtp-mailjet-secret');
+                if (mailjetSecEl) mailjetSecEl.value = s.mailjetSecret || '';
                 const testTargetEl = document.getElementById('admin-test-email-target');
                 if (testTargetEl && !testTargetEl.value && s.user) testTargetEl.value = s.user;
             }
@@ -3040,6 +3046,9 @@ async function saveAdminSettings() {
     const smtpFrom = (document.getElementById('admin-smtp-from')?.value || '').trim();
     const smtpResend = (document.getElementById('admin-smtp-resend')?.value || '').trim();
     const smtpBrevo = (document.getElementById('admin-smtp-brevo')?.value || '').trim();
+    const smtpSendgrid = (document.getElementById('admin-smtp-sendgrid')?.value || '').trim();
+    const smtpMailjetKey = (document.getElementById('admin-smtp-mailjet-key')?.value || '').trim();
+    const smtpMailjetSecret = (document.getElementById('admin-smtp-mailjet-secret')?.value || '').trim();
 
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
@@ -3095,8 +3104,11 @@ async function saveAdminSettings() {
                         user: smtpUser,
                         pass: smtpPass ? smtpPass.replace(/\s+/g, '') : undefined,
                         from: smtpFrom,
-                        resendKey: smtpResend || undefined,
-                        brevoKey: smtpBrevo || undefined
+                        resendKey:     smtpResend       || undefined,
+                        brevoKey:      smtpBrevo        || undefined,
+                        sendgridKey:   smtpSendgrid     || undefined,
+                        mailjetKey:    smtpMailjetKey   || undefined,
+                        mailjetSecret: smtpMailjetSecret|| undefined
                     }
                 })
             });
@@ -3116,9 +3128,15 @@ async function saveAdminSettings() {
     const passEl2 = document.getElementById('admin-smtp-pass');
     const resendEl2 = document.getElementById('admin-smtp-resend');
     const brevoEl2 = document.getElementById('admin-smtp-brevo');
+    const sendgridEl2 = document.getElementById('admin-smtp-sendgrid');
+    const mailjetKeyEl2 = document.getElementById('admin-smtp-mailjet-key');
+    const mailjetSecEl2 = document.getElementById('admin-smtp-mailjet-secret');
     if (passEl2 && passEl2.value && passEl2.value !== '******') passEl2.value = '******';
     if (resendEl2 && resendEl2.value && resendEl2.value !== '******') resendEl2.value = '******';
     if (brevoEl2 && brevoEl2.value && brevoEl2.value !== '******') brevoEl2.value = '******';
+    if (sendgridEl2 && sendgridEl2.value && sendgridEl2.value !== '******') sendgridEl2.value = '******';
+    if (mailjetKeyEl2 && mailjetKeyEl2.value && mailjetKeyEl2.value !== '******') mailjetKeyEl2.value = '******';
+    if (mailjetSecEl2 && mailjetSecEl2.value && mailjetSecEl2.value !== '******') mailjetSecEl2.value = '******';
 
     showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว ⚠️ หากใช้ Render ให้ตั้ง Environment Variables เพื่อให้ค่าถาวร", "success");
     closeAdminModal();
@@ -3171,25 +3189,34 @@ async function handleAdminTestEmail() {
     const fromEl = document.getElementById('admin-smtp-from');
     const resendEl = document.getElementById('admin-smtp-resend');
     const brevoEl = document.getElementById('admin-smtp-brevo');
+    const sendgridEl = document.getElementById('admin-smtp-sendgrid');
+    const mailjetKeyEl = document.getElementById('admin-smtp-mailjet-key');
+    const mailjetSecEl = document.getElementById('admin-smtp-mailjet-secret');
 
-    const rawPass = (passEl?.value || '').replace(/\s+/g, '');
-    const rawResend = (resendEl?.value || '').trim();
-    const rawBrevo = (brevoEl?.value || '').trim();
+    const rawPass       = (passEl?.value || '').replace(/\s+/g, '');
+    const rawResend     = (resendEl?.value || '').trim();
+    const rawBrevo      = (brevoEl?.value || '').trim();
+    const rawSendgrid   = (sendgridEl?.value || '').trim();
+    const rawMailjetKey = (mailjetKeyEl?.value || '').trim();
+    const rawMailjetSec = (mailjetSecEl?.value || '').trim();
 
-    if (!rawPass && !rawResend && !rawBrevo) {
-        showToast('กรุณาระบุ Brevo API Key, Resend API Key หรือ SMTP App Password ก่อนกดทดสอบ', 'warning');
+    if (!rawPass && !rawResend && !rawBrevo && !rawSendgrid && !rawMailjetKey) {
+        showToast('กรุณาระบุ API Key (Brevo / SendGrid / Mailjet / Resend) หรือ SMTP App Password ก่อนกดทดสอบ', 'warning');
         if (brevoEl) brevoEl.focus();
         return;
     }
 
     const smtpConfig = {
-        host: (hostEl?.value || '').trim(),
-        port: parseInt(portEl?.value || '465', 10),
-        user: (userEl?.value || '').trim(),
-        pass: rawPass,
-        from: (fromEl?.value || '').trim(),
-        resendKey: rawResend,
-        brevoKey: rawBrevo
+        host:          (hostEl?.value || '').trim(),
+        port:          parseInt(portEl?.value || '465', 10),
+        user:          (userEl?.value || '').trim(),
+        pass:          rawPass,
+        from:          (fromEl?.value || '').trim(),
+        resendKey:     rawResend,
+        brevoKey:      rawBrevo,
+        sendgridKey:   rawSendgrid,
+        mailjetKey:    rawMailjetKey,
+        mailjetSecret: rawMailjetSec
     };
 
     const testBtn = document.getElementById('admin-test-email-btn');

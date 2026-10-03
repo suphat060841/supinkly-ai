@@ -62,8 +62,15 @@ class MailService {
             user: String(process.env.SMTP_USER || smtp.user || '').trim(),
             pass: String(rawPass).replace(/\s+/g, ''),
             from: String(process.env.SMTP_FROM || smtp.from || (process.env.SMTP_USER || smtp.user || 'no-reply@supinkly.ai')).trim(),
-            resendKey: String(process.env.RESEND_API_KEY || smtp.resendKey || '').trim(),
-            brevoKey: String(process.env.BREVO_API_KEY || smtp.brevoKey || '').trim()
+            resendKey:         String(process.env.RESEND_API_KEY       || smtp.resendKey         || '').trim(),
+            brevoKey:          String(process.env.BREVO_API_KEY         || smtp.brevoKey          || '').trim(),
+            sendgridKey:       String(process.env.SENDGRID_API_KEY      || smtp.sendgridKey       || '').trim(),
+            mailjetKey:        String(process.env.MAILJET_API_KEY       || smtp.mailjetKey        || '').trim(),
+            mailjetSecret:     String(process.env.MAILJET_SECRET_KEY    || smtp.mailjetSecret     || '').trim(),
+            gmailClientId:     String(process.env.GMAIL_CLIENT_ID      || smtp.gmailClientId     || '').trim(),
+            gmailClientSecret: String(process.env.GMAIL_CLIENT_SECRET  || smtp.gmailClientSecret || '').trim(),
+            gmailRefreshToken: String(process.env.GMAIL_REFRESH_TOKEN  || smtp.gmailRefreshToken || '').trim(),
+            gmailUser:         String(process.env.GMAIL_USER           || smtp.gmailUser         || process.env.SMTP_USER || smtp.user || '').trim(),
         };
     }
 
@@ -71,7 +78,14 @@ class MailService {
      * Check if real mail sending is configured
      */
     isConfigured(config) {
-        return !!(config.brevoKey || config.resendKey || (config.host && config.user && config.pass));
+        return !!(
+            config.brevoKey ||
+            config.resendKey ||
+            config.sendgridKey ||
+            (config.mailjetKey && config.mailjetSecret) ||
+            (config.gmailClientId && config.gmailClientSecret && config.gmailRefreshToken) ||
+            (config.host && config.user && config.pass)
+        );
     }
 
     /**
@@ -626,6 +640,159 @@ class MailService {
     }
 
     /**
+     * Send email via SendGrid REST API (HTTPS Port 443) — free 100 emails/day
+     * สมัครฟรีที่ https://sendgrid.com → Settings → API Keys
+     */
+    async sendViaSendGrid(config, { to, subject, html }) {
+        const { fromEmail, cleanFrom } = this.resolveSender(config);
+        const senderName = cleanFrom && cleanFrom.includes('<')
+            ? cleanFrom.split('<')[0].trim()
+            : 'Supinkly.AI';
+
+        const payload = {
+            personalizations: [{ to: [{ email: to }] }],
+            from: { email: fromEmail || config.user || 'no-reply@supinkly.ai', name: senderName || 'Supinkly.AI' },
+            subject: subject,
+            content: [{ type: 'text/html', value: html }]
+        };
+
+        const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.sendgridKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        // SendGrid returns 202 Accepted on success (no body)
+        if (res.status === 202 || res.status === 200) {
+            return { success: true, method: 'sendgrid', messageId: res.headers.get('x-message-id') || 'sent' };
+        }
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = (errData.errors && errData.errors[0] && errData.errors[0].message) || `SendGrid API error ${res.status}`;
+        throw new Error(errMsg);
+    }
+
+    /**
+     * Send email via Mailjet REST API (HTTPS Port 443) — free 200 emails/day
+     * สมัครฟรีที่ https://app.mailjet.com → Account → Master API Key & Sub API key management
+     */
+    async sendViaMailjet(config, { to, subject, html }) {
+        const { fromEmail, cleanFrom } = this.resolveSender(config);
+        const senderName = cleanFrom && cleanFrom.includes('<')
+            ? cleanFrom.split('<')[0].trim()
+            : 'Supinkly.AI';
+
+        const payload = {
+            Messages: [{
+                From: {
+                    Email: fromEmail || config.user || 'no-reply@supinkly.ai',
+                    Name: senderName || 'Supinkly.AI'
+                },
+                To: [{ Email: to }],
+                Subject: subject,
+                HTMLPart: html
+            }]
+        };
+
+        const credentials = Buffer.from(`${config.mailjetKey}:${config.mailjetSecret}`).toString('base64');
+        const res = await fetch('https://api.mailjet.com/v3.1/send', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${credentials}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const errMsg = (data.ErrorMessage) || (data.Messages && data.Messages[0] && data.Messages[0].Errors && data.Messages[0].Errors[0] && data.Messages[0].Errors[0].ErrorMessage) || `Mailjet API error ${res.status}`;
+            throw new Error(errMsg);
+        }
+        const msgId = data.Messages && data.Messages[0] && data.Messages[0].To && data.Messages[0].To[0] && data.Messages[0].To[0].MessageID;
+        return { success: true, method: 'mailjet', messageId: String(msgId || 'sent') };
+    }
+
+    /**
+     * Send email via Gmail REST API (OAuth2) — uses HTTPS Port 443, works on Render Free!
+     * ใช้ Gmail จริง ส่งจาก Gmail ของคุณ โดยไม่ต้องใช้ SMTP port
+     *
+     * Setup (ทำครั้งเดียว):
+     * 1. ไป https://console.cloud.google.com → New Project
+     * 2. API & Services → Enable APIs → Gmail API → Enable
+     * 3. OAuth consent screen → External → กรอกชื่อแอป → Save
+     * 4. Credentials → Create Credentials → OAuth 2.0 Client ID → Web Application
+     *    - Authorized redirect URIs: https://developers.google.com/oauthplayground
+     * 5. Copy Client ID และ Client Secret
+     * 6. ไป https://developers.google.com/oauthplayground
+     *    - คลิก ⚙️ → ติ๊ก "Use your own OAuth credentials" → ใส่ Client ID + Secret
+     *    - Step 1: เลือก "Gmail API v1" → "https://mail.google.com/" → Authorize APIs
+     *    - Step 2: Exchange authorization code for tokens → Copy "Refresh token"
+     */
+    async sendViaGmailApi(config, { to, subject, html }) {
+        const { gmailClientId, gmailClientSecret, gmailRefreshToken, gmailUser } = config;
+
+        // 1. Get fresh access token using refresh token
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id:     gmailClientId,
+                client_secret: gmailClientSecret,
+                refresh_token: gmailRefreshToken,
+                grant_type:    'refresh_token'
+            }).toString()
+        });
+        const tokenData = await tokenRes.json().catch(() => ({}));
+        if (!tokenRes.ok || !tokenData.access_token) {
+            const errMsg = tokenData.error_description || tokenData.error || `Token error ${tokenRes.status}`;
+            throw new Error(`Gmail OAuth token ไม่ถูกต้อง: ${errMsg}`);
+        }
+        const accessToken = tokenData.access_token;
+
+        // 2. Build RFC 2822 email message
+        const fromName = 'Supinkly.AI';
+        const fromAddr = sanitizeHeader(gmailUser);
+        const emailLines = [
+            `From: ${fromName} <${fromAddr}>`,
+            `To: ${sanitizeHeader(to)}`,
+            `Subject: =?UTF-8?B?${Buffer.from(sanitizeHeader(subject)).toString('base64')}?=`,
+            'MIME-Version: 1.0',
+            'Content-Type: text/html; charset=UTF-8',
+            'Content-Transfer-Encoding: base64',
+            '',
+            // RFC 2045: base64 lines must be <= 76 chars
+            Buffer.from(html).toString('base64').replace(/.{76}/g, '$&\r\n')
+        ];
+        const rawEmail = emailLines.join('\r\n');
+        // base64url encode (replace +→-, /→_, remove =)
+        const encodedEmail = Buffer.from(rawEmail)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
+        // 3. Send via Gmail API
+        const sendRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/send`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ raw: encodedEmail })
+        });
+
+        const sendData = await sendRes.json().catch(() => ({}));
+        if (!sendRes.ok) {
+            const errMsg = (sendData.error && sendData.error.message) || `Gmail API error ${sendRes.status}`;
+            throw new Error(errMsg);
+        }
+        return { success: true, method: 'gmail-api', messageId: sendData.id || 'sent' };
+    }
+
+    /**
      * Dispatch OTP Email to user (handles Brevo, Resend, SMTP, and graceful Dev/Console fallback)
      */
     async sendOtpEmail(toEmail, otp, displayName, db = {}) {
@@ -667,7 +834,46 @@ class MailService {
             }
         }
 
-        // 3. Try SMTP if configured
+        // 3. Try SendGrid HTTP API if configured (HTTPS Port 443) — free 100/day
+        if (config.sendgridKey) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลผ่าน SendGrid API ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaSendGrid(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลผ่าน SendGrid สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'sendgrid' };
+            } catch (err) {
+                console.error('[MAIL] SendGrid failed, trying fallback:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 4. Try Mailjet HTTP API if configured (HTTPS Port 443) — free 200/day
+        if (config.mailjetKey && config.mailjetSecret) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลผ่าน Mailjet API ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaMailjet(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลผ่าน Mailjet สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'mailjet' };
+            } catch (err) {
+                console.error('[MAIL] Mailjet failed, trying SMTP fallback:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 5. Try Gmail API (OAuth2, HTTPS Port 443 – works on Render Free)
+        if (config.gmailClientId && config.gmailClientSecret && config.gmailRefreshToken) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลผ่าน Gmail API ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaGmailApi(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลผ่าน Gmail API สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'gmail-api' };
+            } catch (err) {
+                console.error('[MAIL] Gmail API failed, trying SMTP fallback:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 5. Try SMTP if configured
         if (config.host && config.user && config.pass) {
             try {
                 console.log(`[MAIL] กำลังเชื่อมต่อ SMTP ${config.host}:${config.port} เพื่อส่งไปยัง ${toEmail}...`);
@@ -827,7 +1033,46 @@ class MailService {
             }
         }
 
-        // 2. Try SMTP if configured
+        // 3. Try SendGrid HTTP API if configured (HTTPS Port 443)
+        if (config.sendgridKey) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลรีเซ็ตรหัสผ่านผ่าน SendGrid ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaSendGrid(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลรีเซ็ตรหัสผ่านผ่าน SendGrid สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'sendgrid' };
+            } catch (err) {
+                console.error('[MAIL] SendGrid failed:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 4. Try Mailjet HTTP API if configured (HTTPS Port 443)
+        if (config.mailjetKey && config.mailjetSecret) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลรีเซ็ตรหัสผ่านผ่าน Mailjet ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaMailjet(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลรีเซ็ตรหัสผ่านผ่าน Mailjet สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'mailjet' };
+            } catch (err) {
+                console.error('[MAIL] Mailjet failed:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 5. Try Gmail API (OAuth2, HTTPS Port 443 – works on Render Free)
+        if (config.gmailClientId && config.gmailClientSecret && config.gmailRefreshToken) {
+            try {
+                console.log(`[MAIL] กำลังส่งอีเมลรีเซ็ตรหัสผ่านผ่าน Gmail API ไปยัง: ${toEmail}...`);
+                const res = await this.sendViaGmailApi(config, { to: toEmail, subject, html });
+                console.log(`[MAIL] ✅ ส่งอีเมลรีเซ็ตรหัสผ่านผ่าน Gmail API สำเร็จ ID: ${res.messageId}`);
+                return { success: true, delivered: true, method: 'gmail-api' };
+            } catch (err) {
+                console.error('[MAIL] Gmail API failed, trying SMTP fallback:', err.message);
+                lastError = err.message;
+            }
+        }
+
+        // 5. Try SMTP if configured
         if (config.host && config.user && config.pass) {
             try {
                 console.log(`[MAIL] กำลังเชื่อมต่อ SMTP ${config.host}:${config.port} เพื่อส่งอีเมลรีเซ็ตรหัสผ่านไปยัง ${toEmail}...`);
@@ -886,11 +1131,11 @@ class MailService {
         if (!this.isConfigured(config)) {
             return {
                 success: false,
-                message: 'ยังไม่ได้ระบุข้อมูลสำหรับส่งอีเมล กรุณาระบุ Brevo API Key, Resend API Key หรือ SMTP (Host, User, App Password 16 หลัก)'
+                message: 'ยังไม่ได้ระบุข้อมูลสำหรับส่งอีเมล กรุณาระบุ Gmail API (OAuth), Brevo API Key, Resend API Key หรือ SMTP (Host, User, App Password 16 หลัก)'
             };
         }
 
-        const to = (testRecipient || config.user || '').trim();
+        const to = (testRecipient || config.gmailUser || config.user || '').trim();
         if (!to || !to.includes('@')) {
             return {
                 success: false,
@@ -912,7 +1157,7 @@ class MailService {
                 <div style="background:#F8FAFC; border-radius:12px; padding:14px; font-size:12px; color:#334155; line-height:1.6; margin-bottom:20px;">
                     • <strong>เวลาที่ส่ง:</strong> ${new Date().toLocaleString('th-TH')}<br>
                     • <strong>อีเมลผู้รับ:</strong> ${to}<br>
-                    • <strong>ระบบที่ใช้:</strong> ${config.brevoKey ? 'Brevo HTTP API' : config.resendKey ? 'Resend HTTP API' : `SMTP Server (${config.host}:${config.port})`}
+                    • <strong>ระบบที่ใช้:</strong> ${config.brevoKey ? 'Brevo HTTP API' : config.resendKey ? 'Resend HTTP API' : (config.gmailClientId && config.gmailRefreshToken) ? 'Gmail API' : `SMTP Server (${config.host}:${config.port})`}
                 </div>
                 <p style="font-size:12px; color:#64748B; line-height:1.5; margin:0;">
                     ระบบ OTP สำหรับการยืนยันตัวตนสมาชิก และการตั้งรหัสผ่านใหม่ พร้อมส่งมอบถึงลูกค้าจริงทุกคนแล้ว
@@ -961,7 +1206,60 @@ class MailService {
             }
         }
 
-        // 2. Try SMTP if configured
+        // 3. Try SendGrid if configured
+        if (config.sendgridKey) {
+            try {
+                console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน SendGrid ไปยัง: ${to}...`);
+                const res = await this.sendViaSendGrid(config, { to, subject: testSubject, html: testHtml });
+                return {
+                    success: true,
+                    method: 'SendGrid API',
+                    recipient: to,
+                    message: `ส่งอีเมลทดสอบผ่าน SendGrid API สำเร็จแล้ว (ID: ${res.messageId}) กรุณาตรวจสอบกล่องจดหมาย ${to} (และโฟลเดอร์สแปม)`
+                };
+            } catch (err) {
+                console.error('[MAIL-TEST] SendGrid test error:', err);
+                let errText = (err && (err.message || String(err))) || 'SendGrid error';
+                errors.push(`[SendGrid]: ${errText}`);
+            }
+        }
+
+        // 4. Try Mailjet if configured
+        if (config.mailjetKey && config.mailjetSecret) {
+            try {
+                console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Mailjet ไปยัง: ${to}...`);
+                const res = await this.sendViaMailjet(config, { to, subject: testSubject, html: testHtml });
+                return {
+                    success: true,
+                    method: 'Mailjet API',
+                    recipient: to,
+                    message: `ส่งอีเมลทดสอบผ่าน Mailjet API สำเร็จแล้ว (ID: ${res.messageId}) กรุณาตรวจสอบกล่องจดหมาย ${to} (และโฟลเดอร์สแปม)`
+                };
+            } catch (err) {
+                console.error('[MAIL-TEST] Mailjet test error:', err);
+                let errText = (err && (err.message || String(err))) || 'Mailjet error';
+                errors.push(`[Mailjet]: ${errText}`);
+            }
+        }
+
+        // 5. Try Gmail API (OAuth2, HTTPS Port 443 – works on Render Free)
+        if (config.gmailClientId && config.gmailClientSecret && config.gmailRefreshToken) {
+            try {
+                console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Gmail API ไปยัง: ${to}...`);
+                const res = await this.sendViaGmailApi(config, { to, subject: testSubject, html: testHtml });
+                return {
+                    success: true,
+                    method: 'Gmail API',
+                    recipient: to,
+                    message: `ส่งอีเมลทดสอบผ่าน Gmail API สำเร็จแล้ว (ID: ${res.messageId}) กรุณาตรวจสอบกล่องจดหมาย ${to} (และโฟลเดอร์สแปม)`
+                };
+            } catch (err) {
+                console.error('[MAIL-TEST] Gmail API test error:', err);
+                errors.push(`[Gmail API]: ${(err && err.message) || String(err)}`);
+            }
+        }
+
+        // 5. Try SMTP if configured
         if (config.host && config.user && config.pass) {
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบเชื่อมต่อ SMTP ${config.host}:${config.port} ไปยัง: ${to}...`);

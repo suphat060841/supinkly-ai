@@ -1578,6 +1578,31 @@
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-emerald-300 text-xs font-mono outline-none focus:border-emerald-500">
                         </div>
                         <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700">SendGrid API Key <span class="text-blue-600 font-bold">(ฟรี 100 เมล/วัน)</span>:</label>
+                                <a href="https://app.sendgrid.com/settings/api_keys" target="_blank" rel="noopener noreferrer" class="text-[10px] text-blue-600 hover:underline font-bold">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ดู API Key
+                                </a>
+                            </div>
+                            <input type="password" id="admin-smtp-sendgrid" placeholder="SG.••••••••••••••••"
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-blue-200 text-xs font-mono outline-none focus:border-blue-400">
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700">Mailjet API Key <span class="text-violet-600 font-bold">(ฟรี 200 เมล/วัน)</span>:</label>
+                                <a href="https://app.mailjet.com/account/apikeys" target="_blank" rel="noopener noreferrer" class="text-[10px] text-violet-600 hover:underline font-bold">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ดู API Key
+                                </a>
+                            </div>
+                            <input type="password" id="admin-smtp-mailjet-key" placeholder="Mailjet API Key"
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 text-xs font-mono outline-none focus:border-violet-400">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 block mb-1">Mailjet Secret Key:</label>
+                            <input type="password" id="admin-smtp-mailjet-secret" placeholder="Mailjet Secret Key"
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 text-xs font-mono outline-none focus:border-violet-400">
+                        </div>
+                        <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">Resend API Key (ถ้ามี):</label>
                             <input type="password" id="admin-smtp-resend" placeholder="re_••••••••••••"
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">

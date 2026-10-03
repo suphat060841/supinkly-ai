@@ -682,8 +682,11 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
             user: process.env.SMTP_USER || smtp.user || '',
             pass: (process.env.SMTP_PASS || smtp.pass) ? '******' : '',
             from: process.env.SMTP_FROM || smtp.from || '',
-            resendKey: (process.env.RESEND_API_KEY || smtp.resendKey) ? '******' : '',
-            brevoKey: (process.env.BREVO_API_KEY || smtp.brevoKey) ? '******' : ''
+            resendKey:     (process.env.RESEND_API_KEY     || smtp.resendKey)     ? '******' : '',
+            brevoKey:      (process.env.BREVO_API_KEY      || smtp.brevoKey)      ? '******' : '',
+            sendgridKey:   (process.env.SENDGRID_API_KEY   || smtp.sendgridKey)   ? '******' : '',
+            mailjetKey:    (process.env.MAILJET_API_KEY    || smtp.mailjetKey)    ? '******' : '',
+            mailjetSecret: (process.env.MAILJET_SECRET_KEY || smtp.mailjetSecret) ? '******' : ''
         }
     });
 });
@@ -729,6 +732,15 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         if (smtpConfig.brevoKey !== undefined && smtpConfig.brevoKey !== '******') {
             db.smtpConfig.brevoKey = String(smtpConfig.brevoKey).trim();
         }
+        if (smtpConfig.sendgridKey !== undefined && smtpConfig.sendgridKey !== '******') {
+            db.smtpConfig.sendgridKey = String(smtpConfig.sendgridKey).trim();
+        }
+        if (smtpConfig.mailjetKey !== undefined && smtpConfig.mailjetKey !== '******') {
+            db.smtpConfig.mailjetKey = String(smtpConfig.mailjetKey).trim();
+        }
+        if (smtpConfig.mailjetSecret !== undefined && smtpConfig.mailjetSecret !== '******') {
+            db.smtpConfig.mailjetSecret = String(smtpConfig.mailjetSecret).trim();
+        }
     }
 
     saveDb(db);
@@ -773,15 +785,36 @@ app.post('/api/admin/test-email', adminRateLimit, async (req, res) => {
                 const existingBrevo = db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
                 if (existingBrevo) customConfig.brevoKey = existingBrevo;
             }
+            if (smtpConfig.sendgridKey && smtpConfig.sendgridKey !== '******') {
+                customConfig.sendgridKey = String(smtpConfig.sendgridKey).trim();
+            } else {
+                const existingSg = db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
+                if (existingSg) customConfig.sendgridKey = existingSg;
+            }
+            if (smtpConfig.mailjetKey && smtpConfig.mailjetKey !== '******') {
+                customConfig.mailjetKey = String(smtpConfig.mailjetKey).trim();
+            } else {
+                const existingMjKey = db.smtpConfig?.mailjetKey || process.env.MAILJET_API_KEY;
+                if (existingMjKey) customConfig.mailjetKey = existingMjKey;
+            }
+            if (smtpConfig.mailjetSecret && smtpConfig.mailjetSecret !== '******') {
+                customConfig.mailjetSecret = String(smtpConfig.mailjetSecret).trim();
+            } else {
+                const existingMjSec = db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY;
+                if (existingMjSec) customConfig.mailjetSecret = existingMjSec;
+            }
         }
 
-        const effectivePass = customConfig?.pass || db.smtpConfig?.pass || process.env.SMTP_PASS;
-        const effectiveResend = customConfig?.resendKey || db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
-        const effectiveBrevo = customConfig?.brevoKey || db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
-        if (!effectivePass && !effectiveResend && !effectiveBrevo) {
+        const effectivePass    = customConfig?.pass        || db.smtpConfig?.pass        || process.env.SMTP_PASS;
+        const effectiveResend  = customConfig?.resendKey   || db.smtpConfig?.resendKey   || process.env.RESEND_API_KEY;
+        const effectiveBrevo   = customConfig?.brevoKey    || db.smtpConfig?.brevoKey    || process.env.BREVO_API_KEY;
+        const effectiveSg      = customConfig?.sendgridKey || db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
+        const effectiveMj      = (customConfig?.mailjetKey || db.smtpConfig?.mailjetKey  || process.env.MAILJET_API_KEY) &&
+                                 (customConfig?.mailjetSecret || db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY);
+        if (!effectivePass && !effectiveResend && !effectiveBrevo && !effectiveSg && !effectiveMj) {
             return res.status(400).json({
                 success: false,
-                message: "ยังไม่ได้ระบุ Brevo API Key, Resend API Key หรือรหัสผ่าน SMTP (App Password 16 หลัก) กรุณาระบุในช่องด้านบนก่อนกดทดสอบส่ง"
+                message: "ยังไม่ได้ระบุ API Key ใดๆ (Brevo, Resend, SendGrid, Mailjet) หรือรหัสผ่าน SMTP กรุณาระบุในช่องด้านบนก่อนกดทดสอบส่ง"
             });
         }
 
