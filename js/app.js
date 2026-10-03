@@ -219,13 +219,7 @@ const state = {
     inventory: getSecureInventory(),
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
-    user: JSON.parse(localStorage.getItem('supinkly_user') || JSON.stringify({
-        id: "USR-8821",
-        name: "Supinkly Member",
-        email: "member@supinkly.ai",
-        isLoggedIn: true,
-        points: 450
-    })),
+    user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
     orders: JSON.parse(localStorage.getItem('supinkly_orders') || '[]'),
     filterBrand: 'all',
     filterType: 'all',
@@ -272,14 +266,23 @@ function applyCustomPricesToProducts() {
 
 // Sync live stock count & custom prices (Referenced from G2G Market Auto-Sync)
 function syncStockCount() {
+    // [FIX] Snapshot g2gStockAvailable BEFORE applyCustomPricesToProducts() clears non-manualOverride entries
+    const rawCustomPrices = getCustomPrices();
+    const g2gStockSnapshot = {};
+    Object.keys(rawCustomPrices).forEach(id => {
+        if (rawCustomPrices[id]?.g2gStockAvailable != null) {
+            g2gStockSnapshot[id] = rawCustomPrices[id].g2gStockAvailable;
+        }
+    });
+
     applyCustomPricesToProducts();
-    const customPrices = getCustomPrices();
+
     state.products.forEach(p => {
         const pool = state.inventory[p.id] || [];
-        const g2gStock = customPrices[p.id]?.g2gStockAvailable 
-            ?? (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock) 
+        const g2gStock = g2gStockSnapshot[p.id]
+            ?? (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock)
             ?? (p.stock || 50);
-        
+
         p.vaultStock = pool.length;
         p.marketStock = g2gStock;
         // Total available stock references G2G real-time market availability
@@ -301,7 +304,7 @@ function calculateVerifiedTotal() {
 }
 
 // Initialize Application
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     syncStockCount();
     initHeader();
     initFilters();
@@ -313,6 +316,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Launch G2G Market Real-Time Auto-Sync Engine (Zero button clicks required)
     if (typeof G2G_SYNC !== 'undefined') {
         G2G_SYNC.init();
+    }
+
+    // Restore user session & sync server orders if logged in
+    if (window.location.protocol.startsWith('http') && typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+        try {
+            const ok = await USER_AUTH.verifySession();
+            if (ok) {
+                await syncUserOrdersFromServer();
+                initHeader(); // re-render header with user info
+            } else {
+                initHeader(); // session expired — show login button
+            }
+        } catch {}
     }
 });
 
@@ -332,12 +348,52 @@ function initHeader() {
     const userContainer = document.getElementById('user-header-section');
     if (!userContainer) return;
 
-    userContainer.innerHTML = `
-        <button onclick="openOrdersModal()" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
-            <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-            <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
-        </button>
-    `;
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    const user = isLoggedIn ? USER_AUTH.getUser() : null;
+    const displayName = user?.displayName || user?.email?.split('@')[0] || '';
+
+    if (isLoggedIn && user) {
+        userContainer.innerHTML = `
+            <div class="flex items-center gap-1.5 sm:gap-2">
+                <button onclick="openOrdersModal()" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                    <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
+                </button>
+                <div class="relative group">
+                    <button class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0">
+                        <i class="fa-solid fa-circle-user text-emerald-500 text-base"></i>
+                        <span class="hidden sm:inline max-w-[80px] truncate">${escapeHTML(displayName)}</span>
+                        <i class="fa-solid fa-chevron-down text-[10px] text-emerald-500"></i>
+                    </button>
+                    <div class="hidden group-hover:flex absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl shadow-xl border border-slate-100 flex-col overflow-hidden z-50 py-1">
+                        <div class="px-4 py-2 border-b border-slate-100">
+                            <div class="text-xs font-bold text-slate-800 truncate">${escapeHTML(displayName)}</div>
+                            <div class="text-[10px] text-slate-400 font-medium truncate">${escapeHTML(user.email || '')}</div>
+                        </div>
+                        <button onclick="openOrdersModal()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                            <i class="fa-solid fa-vault text-purple-500 w-4"></i> คีย์ของฉัน
+                        </button>
+                        <button onclick="handleUserLogout()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                            <i class="fa-solid fa-right-from-bracket w-4"></i> ออกจากระบบ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        userContainer.innerHTML = `
+            <div class="flex items-center gap-1.5 sm:gap-2">
+                <button onclick="openOrdersModal()" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                    <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
+                </button>
+                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0">
+                    <i class="fa-solid fa-right-to-bracket text-sm"></i>
+                    <span class="hidden sm:inline">เข้าสู่ระบบ</span>
+                </button>
+            </div>
+        `;
+    }
 }
 
 // Brand Tabs
@@ -501,10 +557,10 @@ function renderProducts() {
                     <!-- Header of Card: Brand & Plan Type -->
                     <div class="flex items-center justify-between gap-1.5 mb-2.5">
                         <div class="flex items-center gap-2">
-                            <span class="w-8 h-8 rounded-xl bg-gradient-to-tr ${brandGrad} text-white flex items-center justify-center text-[11px] font-black shadow-xs">
+                            <span class="w-8 h-8 rounded-xl bg-gradient-to-tr ${brandGrad} text-white flex items-center justify-center text-[11px] font-bold shadow-xs">
                                 ${escapeHTML(product.brandCode)}
                             </span>
-                            <span class="text-xs font-black text-slate-800 tracking-wide">${escapeHTML(product.brand)}</span>
+                            <span class="text-xs font-bold text-slate-800 tracking-wide">${escapeHTML(product.brand)}</span>
                         </div>
                         <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border ${typeBadgeClass} flex items-center gap-1">
                             <i class="${typeIcon} text-[10px]"></i>
@@ -515,14 +571,14 @@ function renderProducts() {
                     <!-- Marketing Badge (e.g. 🔥 ขายดีอันดับ 1) -->
                     ${product.badge ? `
                         <div class="mb-2">
-                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-pink-100 text-pink-700 border border-pink-200">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-pink-100 text-pink-700 border border-pink-200">
                                 <span>${escapeHTML(product.badge)}</span>
                             </span>
                         </div>
                     ` : ''}
 
                     <!-- Product Title -->
-                    <h3 class="text-sm sm:text-base font-extrabold text-slate-900 line-clamp-2 min-h-[40px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <h3 class="text-sm sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[40px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -532,7 +588,7 @@ function renderProducts() {
                     </p>
 
                     <!-- 2x2 Neat Specs Grid -->
-                    <div class="grid grid-cols-2 gap-1.5 mt-3 text-[11px] font-bold text-slate-700">
+                    <div class="grid grid-cols-2 gap-1.5 mt-3 text-[11px] font-medium text-slate-700">
                         <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระยะเวลา: ${escapeHTML(product.duration || '30 วัน')}">
                             <i class="fa-regular fa-clock text-pink-500 text-xs shrink-0"></i>
                             <span class="truncate">${escapeHTML(product.duration || '30 วัน')}</span>
@@ -570,7 +626,7 @@ function renderProducts() {
                     <div>
                         <div class="flex items-center gap-1.5">
                             <span class="text-xs text-slate-400 line-through font-medium">฿${product.originalPrice.toFixed(2)}</span>
-                            ${discountPct > 0 ? `<span class="text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md">-${discountPct}%</span>` : ''}
+                            ${discountPct > 0 ? `<span class="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md">-${discountPct}%</span>` : ''}
                         </div>
                         <div class="text-2xl sm:text-2xl font-black text-pink-600 flex items-baseline tracking-tight">
                             <span class="text-sm font-extrabold mr-0.5">฿</span>${product.price.toFixed(2)}
@@ -583,7 +639,7 @@ function renderProducts() {
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-3.5 sm:px-4 h-10 rounded-2xl text-xs sm:text-sm font-black flex items-center gap-1.5 shadow-md shadow-pink-500/20 hover:scale-[1.02] active:scale-95 transition-all ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
+                            class="gradient-btn px-3.5 sm:px-4 h-10 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md shadow-pink-500/20 hover:scale-[1.02] active:scale-95 transition-all ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
                             <i class="fa-solid fa-cart-plus"></i>
                             <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
@@ -749,12 +805,12 @@ function updateCartUI() {
 
                 return `
                     <div class="p-3.5 rounded-2xl bg-white border border-slate-200 flex items-center gap-3 shadow-sm">
-                        <div class="w-11 h-11 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center font-black text-xs text-pink-600 shrink-0">
+                        <div class="w-11 h-11 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center font-bold text-xs text-pink-600 shrink-0">
                             ${escapeHTML(master.brandCode)}
                         </div>
                         <div class="flex-1 min-w-0">
                             <h4 class="text-xs font-bold text-slate-900 truncate">${escapeHTML(master.title)}</h4>
-                            <div class="text-xs text-pink-600 font-extrabold mt-0.5">฿${master.price.toFixed(2)}</div>
+                            <div class="text-xs text-pink-600 font-bold mt-0.5">฿${master.price.toFixed(2)}</div>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200">
                             <button onclick="updateCartQuantity('${master.id}', -1)" class="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-slate-900 text-xs font-bold">-</button>
@@ -826,7 +882,8 @@ function startCheckout() {
 
     document.getElementById('checkout-ref-code').textContent = refCode;
     document.getElementById('checkout-total-amount').textContent = `฿${verifiedTotal.toFixed(2)}`;
-    document.getElementById('checkout-email-input').value = state.user ? state.user.email : '';
+    const activeAuthUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null;
+    document.getElementById('checkout-email-input').value = activeAuthUser?.email || '';
     const accEl = document.getElementById('checkout-account-name');
     if (accEl) accEl.textContent = STORE_CONFIG.promptPayAccountName || 'สุพัฒน์ มีสมบัติ';
 
@@ -872,6 +929,13 @@ function startQrCountdown() {
         if (state.qrSecondsLeft <= 0) {
             clearInterval(state.qrTimer);
             if (timerEl) timerEl.textContent = "หมดเวลาการชำระเงิน กรุณาสร้าง QR ใหม่อีกครั้ง";
+            // [SECURITY] Disable submit button when QR expires
+            const verifyBtn = document.getElementById('verify-slip-btn');
+            if (verifyBtn) {
+                verifyBtn.disabled = true;
+                verifyBtn.innerHTML = `<i class="fa-solid fa-clock-rotate-left text-sm"></i> QR หมดอายุ — กรุณาสร้าง QR ใหม่`;
+                verifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
             return;
         }
         const m = Math.floor(state.qrSecondsLeft / 60).toString().padStart(2, '0');
@@ -936,8 +1000,15 @@ async function submitSlipVerification() {
             formData.append('email', recipientEmail);
             formData.append('cartItems', JSON.stringify(state.cart.map(i => ({ productId: i.productId, quantity: i.quantity }))));
 
+            const headers = {};
+            if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+                const token = USER_AUTH.getToken();
+                if (token) headers['x-user-token'] = token;
+            }
+
             const res = await fetch('/api/checkout/verify-slip', {
                 method: 'POST',
+                headers,
                 body: formData
             });
 
@@ -1096,8 +1167,8 @@ function openVaultModal(order) {
                 return `
                     <div class="p-4 rounded-2xl bg-amber-50/70 border-2 border-amber-300 mb-3 shadow-sm">
                         <div class="flex items-center justify-between gap-2">
-                            <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                                <span class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-black">${idx + 1}</span>
+                            <h4 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">${idx + 1}</span>
                                 ${escapeHTML(item.productTitle)}
                             </h4>
                             <span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold border border-amber-300 animate-pulse">
@@ -1148,7 +1219,7 @@ function openVaultModal(order) {
                         <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                             <div>
                                 <span class="text-xs text-slate-500 font-bold block">อีเมลบัญชี (Email):</span>
-                                <span class="text-sm font-mono font-black text-pink-600 select-all">${escapeHTML(cred.email)}</span>
+                                <span class="text-sm font-mono font-bold text-pink-600 select-all">${escapeHTML(cred.email)}</span>
                             </div>
                             <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.email)}" data-msg="คัดลอกอีเมลแล้ว" class="px-3 py-1.5 rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs font-bold transition-all">
                                 <i class="fa-regular fa-copy"></i> คัดลอก
@@ -1157,7 +1228,7 @@ function openVaultModal(order) {
                         <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                             <div>
                                 <span class="text-xs text-slate-500 font-bold block">รหัสผ่าน (Password):</span>
-                                <span class="text-sm font-mono font-black text-cyan-700 select-all">${escapeHTML(cred.password)}</span>
+                                <span class="text-sm font-mono font-bold text-cyan-700 select-all">${escapeHTML(cred.password)}</span>
                             </div>
                             <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.password)}" data-msg="คัดลอกรหัสผ่านแล้ว" class="px-3 py-1.5 rounded-xl bg-cyan-100 text-cyan-800 hover:bg-cyan-200 text-xs font-bold transition-all">
                                 <i class="fa-regular fa-copy"></i> คัดลอก
@@ -1187,7 +1258,7 @@ function openVaultModal(order) {
                     <div class="mt-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
                         <div>
                             <span class="text-xs text-slate-500 font-bold block">รหัสผลิตภัณฑ์ (License Key):</span>
-                            <span class="text-sm font-mono font-black text-emerald-700 select-all">${escapeHTML(cred.key || '')}</span>
+                            <span class="text-sm font-mono font-bold text-emerald-700 select-all">${escapeHTML(cred.key || '')}</span>
                         </div>
                         <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.key || '')}" data-msg="คัดลอกคีย์แล้ว" class="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 hover:bg-emerald-200 text-xs font-bold">
                             <i class="fa-regular fa-copy"></i> คัดลอก
@@ -1199,8 +1270,8 @@ function openVaultModal(order) {
             return `
                 <div class="p-4 rounded-2xl bg-pink-50/40 border border-pink-200 mb-3 shadow-sm">
                     <div class="flex items-center justify-between gap-2">
-                        <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                            <span class="w-6 h-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-xs font-black">${idx + 1}</span>
+                        <h4 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-xs font-bold">${idx + 1}</span>
                             ${escapeHTML(item.productTitle)}
                         </h4>
                         <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
@@ -1446,7 +1517,7 @@ function renderOrdersHistory() {
                             <i class="fa-regular fa-calendar text-[11px]"></i> ${escapeHTML(order.date || '-')}
                         </span>
                     </div>
-                    <span class="px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 shadow-xs ${
+                    <span class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-xs ${
                         isOrderPending 
                             ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' 
                             : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
@@ -1471,7 +1542,7 @@ function renderOrdersHistory() {
                                             <i class="fa-solid fa-circle-notch fa-spin text-amber-600"></i>
                                             <span>กำลังจัดเตรียมบัญชีแท้ (5-15 นาที)</span>
                                         </span>
-                                        <span class="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-extrabold animate-pulse">กำลังดำเนินการ</span>
+                                        <span class="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-bold animate-pulse">กำลังดำเนินการ</span>
                                     </div>
                                     <div class="grid grid-cols-3 gap-1.5 text-center text-[10px]">
                                         <div class="p-1 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold">
@@ -1499,7 +1570,7 @@ function renderOrdersHistory() {
                                     <div class="flex items-center justify-between gap-2">
                                         <div class="min-w-0 flex-1">
                                             <span class="text-[11px] font-bold text-slate-500 block">อีเมลบัญชี (Email):</span>
-                                            <span class="text-xs sm:text-sm font-mono font-black text-pink-600 truncate block select-all">${escapeHTML(cred.email)}</span>
+                                            <span class="text-xs sm:text-sm font-mono font-bold text-pink-600 truncate block select-all">${escapeHTML(cred.email)}</span>
                                         </div>
                                         <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.email)}" data-msg="คัดลอกอีเมลแล้ว" class="px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-pink-200 text-pink-700 text-xs font-bold transition-all shrink-0">
                                             <i class="fa-regular fa-copy"></i> คัดลอก
@@ -1508,7 +1579,7 @@ function renderOrdersHistory() {
                                     <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/70">
                                         <div class="min-w-0 flex-1">
                                             <span class="text-[11px] font-bold text-slate-500 block">รหัสผ่าน (Password):</span>
-                                            <span class="text-xs sm:text-sm font-mono font-black text-cyan-700 truncate block select-all">${escapeHTML(cred.password)}</span>
+                                            <span class="text-xs sm:text-sm font-mono font-bold text-cyan-700 truncate block select-all">${escapeHTML(cred.password)}</span>
                                         </div>
                                         <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.password)}" data-msg="คัดลอกรหัสผ่านแล้ว" class="px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 text-xs font-bold transition-all shrink-0">
                                             <i class="fa-regular fa-copy"></i> คัดลอก
@@ -1555,7 +1626,7 @@ function renderOrdersHistory() {
                                 <div class="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
                                     <div class="min-w-0 flex-1">
                                         <span class="text-[11px] font-bold text-slate-500 block">รหัสผลิตภัณฑ์ (License Key):</span>
-                                        <span class="text-xs sm:text-sm font-mono font-black text-emerald-700 truncate block select-all">${escapeHTML(cred.key || '')}</span>
+                                        <span class="text-xs sm:text-sm font-mono font-bold text-emerald-700 truncate block select-all">${escapeHTML(cred.key || '')}</span>
                                     </div>
                                     <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.key || '')}" data-msg="คัดลอกคีย์แล้ว" class="px-2.5 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold transition-all shrink-0">
                                         <i class="fa-regular fa-copy"></i> คัดลอก
@@ -1574,10 +1645,10 @@ function renderOrdersHistory() {
                             <div class="p-3 sm:p-3.5 rounded-xl bg-slate-50/70 border border-slate-200">
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0">
-                                        <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                                        <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0">
                                             ${itIdx + 1}
                                         </span>
-                                        <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">
+                                        <span class="font-bold text-slate-900 text-xs sm:text-sm truncate">
                                             ${escapeHTML(item.productTitle)}
                                         </span>
                                     </div>
@@ -1585,7 +1656,7 @@ function renderOrdersHistory() {
                                         <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
                                             🛡️ ประกัน ${escapeHTML(item.warranty || '30 วัน')}
                                         </span>
-                                        <span class="font-black text-pink-600 text-xs sm:text-sm">฿${(item.price || 0).toFixed(2)}</span>
+                                        <span class="font-bold text-pink-600 text-xs sm:text-sm">฿${(item.price || 0).toFixed(2)}</span>
                                     </div>
                                 </div>
 
@@ -1622,6 +1693,13 @@ function openOrdersModal() {
 
     renderOrdersHistory();
     modal.classList.remove('hidden');
+
+    // If logged in, fetch latest orders from server in background to reflect fulfillment updates
+    if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+        syncUserOrdersFromServer().then(() => {
+            renderOrdersHistory();
+        }).catch(() => {});
+    }
 }
 
 function viewPastOrderVault(target) {
@@ -2962,7 +3040,8 @@ const ADMIN_CHAT = (() => {
 
         ws.onopen = () => {
             const token = typeof ADMIN_AUTH !== 'undefined' ? ADMIN_AUTH.getToken() : null;
-            ws.send(JSON.stringify({ type: 'auth', role: 'admin', token, pin }));
+            // [SECURITY] Send token only — no raw PIN over WebSocket
+            ws.send(JSON.stringify({ type: 'auth', role: 'admin', token }));
         };
 
         ws.onmessage = ({ data }) => {
@@ -3076,13 +3155,15 @@ function openAdminChatPanel() {
             msgInp.style.height = Math.min(msgInp.scrollHeight, 100) + 'px';
         });
 
-        // Connect WebSocket as admin (use session token if present)
+        // Connect WebSocket as admin (token from session)
         const token = ADMIN_AUTH.getToken();
         if (token) {
-            ADMIN_CHAT.connect(null);
+            ADMIN_CHAT.connect();
         } else {
-            const pin = window.prompt('กรอก PIN แอดมินเพื่อเชื่อมต่อ Live Chat:');
-            if (pin) ADMIN_CHAT.connect(pin.trim());
+            // No valid session — prompt admin to login first
+            showToast('กรุณาเข้าสู่ระบบแอดมินก่อนใช้ Live Chat', 'warning');
+            closeAdminChatPanel();
+            promptAdminLogin();
         }
     }
 }
@@ -3114,4 +3195,183 @@ function closeAdminChatPanel() {
         }
     }, 2000);
 })();
+
+
+// ==========================================
+// USER AUTH UI FUNCTIONS
+// ==========================================
+
+function openAuthModal(tab = 'login') {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+    switchAuthTab(tab);
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        const el = tab === 'login'
+            ? document.getElementById('login-email')
+            : document.getElementById('register-email');
+        if (el) el.focus();
+    }, 100);
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function switchAuthTab(tab) {
+    const loginForm    = document.getElementById('auth-form-login');
+    const registerForm = document.getElementById('auth-form-register');
+    const tabLogin     = document.getElementById('auth-tab-login');
+    const tabRegister  = document.getElementById('auth-tab-register');
+
+    if (tab === 'login') {
+        loginForm?.classList.remove('hidden');
+        registerForm?.classList.add('hidden');
+        tabLogin?.classList.add('border-pink-500', 'text-pink-600');
+        tabLogin?.classList.remove('border-transparent', 'text-slate-500');
+        tabRegister?.classList.remove('border-pink-500', 'text-pink-600');
+        tabRegister?.classList.add('border-transparent', 'text-slate-500');
+    } else {
+        loginForm?.classList.add('hidden');
+        registerForm?.classList.remove('hidden');
+        tabRegister?.classList.add('border-pink-500', 'text-pink-600');
+        tabRegister?.classList.remove('border-transparent', 'text-slate-500');
+        tabLogin?.classList.remove('border-pink-500', 'text-pink-600');
+        tabLogin?.classList.add('border-transparent', 'text-slate-500');
+    }
+}
+
+function setAuthError(formType, msg) {
+    const el = document.getElementById(`auth-${formType}-error`);
+    if (!el) return;
+    if (msg) {
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    } else {
+        el.classList.add('hidden');
+    }
+}
+
+function setAuthBtnLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.disabled = loading;
+    btn.innerHTML = loading
+        ? `<i class="fa-solid fa-spinner fa-spin text-sm"></i> กรุณารอ...`
+        : btnId === 'login-btn'
+            ? `<i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ`
+            : `<i class="fa-solid fa-user-plus"></i> สมัครสมาชิกฟรี`;
+}
+
+async function handleLogin() {
+    if (typeof USER_AUTH === 'undefined') {
+        showToast('ระบบ login ใช้งานได้เฉพาะเมื่อเปิดผ่าน server เท่านั้น', 'warning');
+        return;
+    }
+    const email    = (document.getElementById('login-email')?.value || '').trim();
+    const password = (document.getElementById('login-password')?.value || '').trim();
+
+    setAuthError('login', '');
+    if (!email || !password) {
+        setAuthError('login', 'กรุณากรอกอีเมลและรหัสผ่าน');
+        return;
+    }
+
+    setAuthBtnLoading('login-btn', true);
+    try {
+        const result = await USER_AUTH.login(email, password);
+        if (result.success) {
+            state.user = result.user;
+            closeAuthModal();
+            await syncUserOrdersFromServer();
+            initHeader();
+            showToast(`🎉 ยินดีต้อนรับกลับ, ${escapeHTML(result.user?.displayName || email)}!`, 'success');
+        } else {
+            setAuthError('login', result.message || 'เข้าสู่ระบบไม่สำเร็จ');
+        }
+    } catch {
+        setAuthError('login', 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+        setAuthBtnLoading('login-btn', false);
+    }
+}
+
+async function handleRegister() {
+    if (typeof USER_AUTH === 'undefined') {
+        showToast('ระบบสมัครสมาชิกใช้งานได้เฉพาะเมื่อเปิดผ่าน server เท่านั้น', 'warning');
+        return;
+    }
+    const name     = (document.getElementById('register-name')?.value || '').trim();
+    const email    = (document.getElementById('register-email')?.value || '').trim();
+    const password = (document.getElementById('register-password')?.value || '').trim();
+
+    setAuthError('register', '');
+    if (!email || !password) {
+        setAuthError('register', 'กรุณากรอกอีเมลและรหัสผ่าน');
+        return;
+    }
+    if (password.length < 6) {
+        setAuthError('register', 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+        return;
+    }
+
+    setAuthBtnLoading('register-btn', true);
+    try {
+        const result = await USER_AUTH.register(email, password, name || undefined);
+        if (result.success) {
+            state.user = result.user;
+            closeAuthModal();
+            await syncUserOrdersFromServer();
+            initHeader();
+            showToast(`✅ สมัครสมาชิกสำเร็จ! ยินดีต้อนรับ ${escapeHTML(result.user?.displayName || email)}`, 'success');
+        } else {
+            setAuthError('register', result.message || 'สมัครสมาชิกไม่สำเร็จ');
+        }
+    } catch {
+        setAuthError('register', 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+        setAuthBtnLoading('register-btn', false);
+    }
+}
+
+async function handleUserLogout() {
+    if (typeof USER_AUTH !== 'undefined') await USER_AUTH.logout();
+    state.user = null;
+    initHeader();
+    showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
+}
+
+async function syncUserOrdersFromServer() {
+    if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) return;
+    if (!window.location.protocol.startsWith('http')) return;
+    try {
+        // [SECURITY & SYNC] Safely claim genuine local orders that belong to this account
+        const localOrderIds = (state.orders || []).map(o => o.orderId).filter(Boolean);
+        if (localOrderIds.length > 0) {
+            await USER_AUTH.linkLocalOrders(localOrderIds);
+        }
+
+        const serverOrders = await USER_AUTH.fetchMyOrders();
+        if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+            const map = new Map();
+            (state.orders || []).forEach(o => { if (o?.orderId) map.set(o.orderId, o); });
+            serverOrders.forEach(o => { if (o?.orderId) map.set(o.orderId, o); });
+            state.orders = Array.from(map.values()).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+            saveOrders();
+        }
+    } catch {}
+}
+
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    const icon = btn.querySelector('i');
+    if (icon) {
+        icon.className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    }
+}
+
 

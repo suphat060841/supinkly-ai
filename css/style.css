@@ -22,6 +22,9 @@ body {
     color: var(--text-primary);
     font-family: 'Prompt', 'Outfit', sans-serif;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     background-image: 
         radial-gradient(circle at 5% 15%, rgba(255, 46, 126, 0.08) 0%, transparent 40%),
         radial-gradient(circle at 95% 25%, rgba(139, 92, 246, 0.09) 0%, transparent 45%),

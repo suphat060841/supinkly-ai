@@ -40,7 +40,7 @@ const CHAT = (() => {
             title="แชทกับเราได้เลย" aria-label="เปิดแชท">
             <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-xl sm:text-2xl text-white"></i>
             <span id="spk-chat-badge"
-                class="hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-black flex items-center justify-center">
+                class="hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center">
             </span>
         </button>
 
@@ -56,7 +56,7 @@ const CHAT = (() => {
                         <i class="fa-solid fa-headset"></i>
                     </div>
                     <div>
-                        <div class="text-white font-extrabold text-sm leading-tight">แชทสดกับแอดมิน</div>
+                        <div class="text-white font-bold text-sm leading-tight">แชทสดกับแอดมิน</div>
                         <div id="spk-chat-status" class="text-white/80 text-[11px] font-medium flex items-center gap-1">
                             <span id="spk-status-dot" class="w-1.5 h-1.5 rounded-full bg-white/50 inline-block"></span>
                             <span id="spk-status-text">กำลังเชื่อมต่อ...</span>

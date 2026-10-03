@@ -1,0 +1,109 @@
+/**
+ * Supinkly.AI — User Authentication Module
+ * จัดการ login / register / session สำหรับลูกค้า
+ */
+
+const USER_AUTH = (() => {
+    const TOKEN_KEY   = 'supinkly_user_token';
+    const USER_KEY    = 'supinkly_user_info';
+    const EXPIRY_KEY  = 'supinkly_user_expiry';
+
+    // ── Helpers ────────────────────────────────────────────────
+    function getToken()   { return localStorage.getItem(TOKEN_KEY); }
+    function getUser()    {
+        try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch { return null; }
+    }
+    function getHeaders() {
+        const t = getToken();
+        return t ? { 'Content-Type': 'application/json', 'x-user-token': t } : { 'Content-Type': 'application/json' };
+    }
+    function isLoggedIn() {
+        const expiry = parseInt(localStorage.getItem(EXPIRY_KEY) || '0', 10);
+        return !!getToken() && Date.now() < expiry;
+    }
+
+    function saveSession(token, expiresAt, user) {
+        localStorage.setItem(TOKEN_KEY,  token);
+        localStorage.setItem(EXPIRY_KEY, String(expiresAt));
+        localStorage.setItem(USER_KEY,   JSON.stringify(user));
+    }
+
+    function clearSession() {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(EXPIRY_KEY);
+        localStorage.removeItem(USER_KEY);
+    }
+
+    // ── Register ───────────────────────────────────────────────
+    async function register(email, password, displayName) {
+        const res  = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, displayName })
+        });
+        const data = await res.json();
+        if (data.success) saveSession(data.token, data.expiresAt, data.user);
+        return data;
+    }
+
+    // ── Login ──────────────────────────────────────────────────
+    async function login(email, password) {
+        const res  = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (data.success) saveSession(data.token, data.expiresAt, data.user);
+        return data;
+    }
+
+    // ── Logout ─────────────────────────────────────────────────
+    async function logout() {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST', headers: getHeaders() });
+        } catch {}
+        clearSession();
+    }
+
+    // ── Verify session against server ──────────────────────────
+    async function verifySession() {
+        if (!isLoggedIn()) return false;
+        try {
+            const res  = await fetch('/api/auth/verify-session', { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            if (data.success && data.user) {
+                localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+                return true;
+            }
+        } catch {}
+        clearSession();
+        return false;
+    }
+
+    // ── Link local orders to account ───────────────────────────
+    async function linkLocalOrders(orderIds) {
+        if (!isLoggedIn() || !Array.isArray(orderIds) || orderIds.length === 0) return 0;
+        try {
+            const res = await fetch('/api/auth/link-local-orders', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ orderIds })
+            });
+            const data = await res.json();
+            return data.success ? data.linkedCount : 0;
+        } catch { return 0; }
+    }
+
+    // ── Fetch all orders for this account ──────────────────────
+    async function fetchMyOrders() {
+        if (!isLoggedIn()) return [];
+        try {
+            const res  = await fetch('/api/auth/my-orders', { headers: getHeaders() });
+            const data = await res.json();
+            return data.success ? data.orders : [];
+        } catch { return []; }
+    }
+
+    return { getToken, getUser, getHeaders, isLoggedIn, register, login, logout, verifySession, linkLocalOrders, fetchMyOrders };
+})();

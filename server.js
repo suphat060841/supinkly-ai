@@ -61,7 +61,7 @@ app.use(cors({
         }
     },
     methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'x-authorization']
+    allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-order-email', 'x-user-token']
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -175,13 +175,7 @@ function authenticateAdmin(req) {
         if (Date.now() < expiry) return true;
         adminSessions.delete(token);
     }
-    // Fallback: Verify pin if provided in body
-    const pin = req.body && req.body.pin;
-    if (pin) {
-        const db = getDb();
-        const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
-        return verifyPin(pin, storedHash);
-    }
+    // [SECURITY] PIN fallback removed — must use session token from /api/admin/login
     return false;
 }
 
@@ -200,7 +194,8 @@ if (!fs.existsSync(DB_FILE)) {
         usedSlips: [],
         usedTransRefs: [],
         inventory: {},
-        orders: []
+        orders: [],
+        users: []  // { id, email, passwordHash, displayName, createdAt }
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2));
 }
@@ -439,9 +434,17 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                 return res.status(400).json({ success: false, message: "เลขอ้างอิงสลิป (transRef) เคยถูกใช้งานแล้ว (Anti-Replay)" });
             }
             currentDb.usedTransRefs.push(transRef);
+            // [SECURITY] Cap to last 10,000 entries to prevent unbounded growth
+            if (currentDb.usedTransRefs.length > 10000) {
+                currentDb.usedTransRefs = currentDb.usedTransRefs.slice(-10000);
+            }
         }
         if (!currentDb.usedSlips) currentDb.usedSlips = [];
         currentDb.usedSlips.push(slipHash);
+        // [SECURITY] Cap to last 10,000 entries to prevent unbounded growth
+        if (currentDb.usedSlips.length > 10000) {
+            currentDb.usedSlips = currentDb.usedSlips.slice(-10000);
+        }
 
         // Dispense Items from secure server inventory
         const deliveredItems = [];
@@ -479,11 +482,16 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
 
         // Record Order with unguessable cryptographic token
         const orderId = "SPK-" + Date.now().toString().slice(-6) + crypto.randomBytes(3).toString('hex').toUpperCase();
+
+        // Link order to user account if logged in
+        const userSession = authenticateUser(req);
+
         const order = {
             orderId,
             date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
             email: email.trim().toLowerCase(),
             recipientEmail: email.trim().toLowerCase(),
+            ...(userSession ? { userId: userSession.userId } : {}),
             totalAmount: expectedTotal,
             paymentMethod: "Thai QR PromptPay",
             transRef: transRef || "REF-" + Date.now().toString(36).toUpperCase(),
@@ -517,7 +525,20 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
 
     if (!db.inventory[productId]) db.inventory[productId] = [];
     if (Array.isArray(newCredentials)) {
-        db.inventory[productId].push(...newCredentials);
+        // [SECURITY] Sanitize credentials — allow only known safe string fields, limit batch size
+        const MAX_BATCH = 500;
+        const sanitized = newCredentials.slice(0, MAX_BATCH).map(cred => {
+            if (!cred || typeof cred !== 'object' || Array.isArray(cred)) return null;
+            return {
+                ...(cred.email     ? { email:        String(cred.email).slice(0, 254) }        : {}),
+                ...(cred.password  ? { password:     String(cred.password).slice(0, 512) }     : {}),
+                ...(cred.key       ? { key:          String(cred.key).slice(0, 512) }          : {}),
+                ...(cred.link      ? { link:         String(cred.link).slice(0, 2048) }        : {}),
+                ...(cred.instructions ? { instructions: String(cred.instructions).slice(0, 1000) } : {}),
+            };
+        }).filter(c => c !== null && (c.email || c.key || c.link));
+
+        db.inventory[productId].push(...sanitized);
     }
     saveDb(db);
 
@@ -598,10 +619,12 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
     }
 
     const isAdmin = authenticateAdmin(req);
+    const userSession = authenticateUser(req);
     const queryEmail = (req.query.email || req.headers['x-order-email'] || '').trim().toLowerCase();
-    const isOwner = queryEmail && order.recipientEmail && queryEmail === order.recipientEmail.toLowerCase();
+    const isOwner = (queryEmail && order.recipientEmail && queryEmail === order.recipientEmail.toLowerCase()) ||
+                    (userSession && order.userId && order.userId === userSession.userId);
 
-    // Admin or Verified Customer (via matching email) gets full order with credentials
+    // Admin or Verified Customer (via matching email or active session) gets full order with credentials
     if (isAdmin || isOwner) {
         return res.json({ success: true, order });
     }
@@ -624,6 +647,213 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
         }))
     };
     res.json({ success: true, order: sanitizedOrder, requiresEmailAuth: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// USER AUTHENTICATION SYSTEM
+// ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// USER AUTHENTICATION SYSTEM (HARDENED HMAC TOKEN & ANTI-HIJACK)
+// ─────────────────────────────────────────────────────────────
+
+const USER_TOKEN_SECRET = process.env.USER_TOKEN_SECRET || 'supinkly_sec_user_token_2026';
+const revokedUserTokens = new Set();
+
+function hashPassword(password, userId) {
+    const salt = (process.env.USER_SALT || 'supinkly_user_salt_2026') + userId;
+    return crypto.createHash('sha256').update(salt + String(password).trim()).digest('hex');
+}
+
+function verifyPassword(enteredPw, storedHash, userId) {
+    const entered = hashPassword(enteredPw, userId);
+    if (entered.length !== storedHash.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(entered), Buffer.from(storedHash));
+}
+
+// Cryptographic stateless token generator (Survives server restart & zero memory leak)
+function generateUserToken(userId, email, durationMs = 30 * 24 * 60 * 60 * 1000) {
+    const expiresAt = Date.now() + durationMs;
+    const nonce = crypto.randomBytes(8).toString('hex');
+    const payload = `${userId}.${expiresAt}.${nonce}`;
+    const hmac = crypto.createHmac('sha256', USER_TOKEN_SECRET)
+        .update(`${payload}.${email}`)
+        .digest('hex');
+    const token = `${payload}.${hmac}`;
+    return { token, expiresAt };
+}
+
+function verifyUserToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    if (revokedUserTokens.has(token)) return null;
+
+    const parts = token.split('.');
+    if (parts.length !== 4) return null; // [userId, expiresAt, nonce, hmac]
+    const [userId, expiresAtStr, nonce, hmac] = parts;
+
+    const expiresAt = parseInt(expiresAtStr, 10);
+    if (isNaN(expiresAt) || Date.now() > expiresAt) return null;
+
+    const db = getDb();
+    const user = (db.users || []).find(u => u.id === userId);
+    if (!user) return null;
+
+    const payload = `${userId}.${expiresAt}.${nonce}`;
+    const expectedHmac = crypto.createHmac('sha256', USER_TOKEN_SECRET)
+        .update(`${payload}.${user.email}`)
+        .digest('hex');
+
+    if (hmac.length !== expectedHmac.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(expectedHmac))) return null;
+
+    return { userId: user.id, email: user.email, expiresAt, displayName: user.displayName };
+}
+
+function authenticateUser(req) {
+    const authHeader = req.headers['authorization'] || '';
+    const token = req.headers['x-user-token'] || (authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null);
+    if (!token) return null;
+    return verifyUserToken(token);
+}
+
+const userAuthRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    message: { success: false, message: "ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอสักครู่" }
+});
+
+// U1. Register
+app.post('/api/auth/register', userAuthRateLimit, (req, res) => {
+    const { email, password, displayName } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: "กรุณากรอกอีเมลและรหัสผ่าน" });
+    }
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ success: false, message: "รูปแบบอีเมลไม่ถูกต้อง" });
+    }
+    const pw = String(password).trim();
+    if (pw.length < 6 || pw.length > 128) {
+        return res.status(400).json({ success: false, message: "รหัสผ่านต้องมีความยาว 6-128 ตัวอักษร" });
+    }
+
+    const db = getDb();
+    if (!db.users) db.users = [];
+    const normalEmail = email.trim().toLowerCase();
+    if (db.users.find(u => u.email === normalEmail)) {
+        // [SECURITY] Return generic message to prevent user enumeration
+        return res.status(200).json({ success: false, message: "หากอีเมลนี้ยังไม่เคยลงทะเบียน จะมีอีเมลยืนยันส่งไปให้ กรุณาตรวจสอบ Inbox ของคุณ" });
+    }
+
+    // Sanitize displayName to prevent control characters and formatting attacks
+    const cleanDisplayName = displayName
+        ? String(displayName).replace(/[\r\n\t\x00-\x1f]/g, '').slice(0, 60).trim()
+        : normalEmail.split('@')[0];
+
+    const userId = 'U' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString('hex').toUpperCase();
+    const user = {
+        id: userId,
+        email: normalEmail,
+        displayName: cleanDisplayName || 'สมาชิก Supinkly',
+        passwordHash: hashPassword(pw, userId),
+        createdAt: new Date().toISOString()
+    };
+    db.users.push(user);
+    saveDb(db);
+
+    const { token, expiresAt } = generateUserToken(userId, normalEmail);
+    res.json({ success: true, token, expiresAt, user: { id: userId, email: normalEmail, displayName: user.displayName } });
+});
+
+// U2. Login
+app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: "กรุณากรอกอีเมลและรหัสผ่าน" });
+    }
+
+    const db = getDb();
+    if (!db.users) db.users = [];
+    const normalEmail = email.trim().toLowerCase();
+    const user = db.users.find(u => u.email === normalEmail);
+
+    // [SECURITY] Always run verifyPassword in constant time to prevent timing-based user enumeration
+    const DUMMY_HASH = hashPassword('dummy_check_supinkly', 'DUMMY_USER_ID_0000');
+    const isValid = user
+        ? verifyPassword(String(password).trim(), user.passwordHash, user.id)
+        : (verifyPassword('dummy_check_supinkly', DUMMY_HASH, 'DUMMY_USER_ID_0000') && false);
+
+    if (!user || !isValid) {
+        return res.status(401).json({ success: false, message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
+    }
+
+    const { token, expiresAt } = generateUserToken(user.id, normalEmail);
+    res.json({ success: true, token, expiresAt, user: { id: user.id, email: normalEmail, displayName: user.displayName } });
+});
+
+// U3. Logout
+app.post('/api/auth/logout', (req, res) => {
+    const authHeader = req.headers['authorization'] || '';
+    const token = req.headers['x-user-token'] || (authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null);
+    if (token) {
+        revokedUserTokens.add(token);
+        // Prune revocation set if overly large
+        if (revokedUserTokens.size > 10000) {
+            const first = revokedUserTokens.values().next().value;
+            revokedUserTokens.delete(first);
+        }
+    }
+    res.json({ success: true });
+});
+
+// U4. Verify Session
+app.post('/api/auth/verify-session', (req, res) => {
+    const session = authenticateUser(req);
+    if (session) {
+        return res.json({ success: true, valid: true, user: { id: session.userId, email: session.email, displayName: session.displayName } });
+    }
+    return res.status(401).json({ success: false, valid: false });
+});
+
+// U5. Link Local Orders (Secure Claiming: Requires possession of orderId + matching email)
+app.post('/api/auth/link-local-orders', (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const { orderIds } = req.body;
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.json({ success: true, linkedCount: 0 });
+    }
+
+    const db = getDb();
+    let linkedCount = 0;
+    const targetIds = new Set(orderIds.slice(0, 100).map(id => String(id).trim()));
+
+    (db.orders || []).forEach(o => {
+        // Only link unlinked orders whose secret orderId is possessed by this client and matches the account email
+        if (targetIds.has(o.orderId) && (!o.userId) && o.recipientEmail && o.recipientEmail.toLowerCase() === session.email) {
+            o.userId = session.userId;
+            linkedCount++;
+        }
+    });
+
+    if (linkedCount > 0) {
+        saveDb(db);
+    }
+
+    res.json({ success: true, linkedCount });
+});
+
+// U6. Get My Orders (Protected: strictly returns orders authenticated to this account)
+app.get('/api/auth/my-orders', (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const db = getDb();
+    // [SECURITY FIX] Return orders belonging to this userId. Unauthenticated registrations cannot hijack past guest orders.
+    const myOrders = (db.orders || []).filter(o => o.userId && o.userId === session.userId);
+    res.json({ success: true, orders: myOrders });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -709,15 +939,10 @@ wss.on('connection', (ws, req) => {
         // ── AUTH: ลงทะเบียน role ──────────────────────────────────
         if (data.type === 'auth') {
             if (data.role === 'admin') {
+                // [SECURITY] Token-only auth over WebSocket — no raw PIN
                 const isTokenValid = data.token && adminSessions.has(data.token) && Date.now() < adminSessions.get(data.token);
-                let isPinValid = false;
-                if (!isTokenValid && data.pin) {
-                    const db = getDb();
-                    const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
-                    isPinValid = verifyPin(data.pin, storedHash);
-                }
 
-                if (isTokenValid || isPinValid) {
+                if (isTokenValid) {
                     clientInfo.role = 'admin';
                     clientInfo.name = 'แอดมิน';
                     ws.send(JSON.stringify({ type: 'auth_ok', role: 'admin' }));
@@ -732,7 +957,7 @@ wss.on('connection', (ws, req) => {
                     }
                     ws.send(JSON.stringify({ type: 'room_list', rooms: Object.values(rooms) }));
                 } else {
-                    ws.send(JSON.stringify({ type: 'auth_fail' }));
+                    ws.send(JSON.stringify({ type: 'auth_fail', message: 'กรุณาเข้าสู่ระบบผ่าน /api/admin/login ก่อน' }));
                 }
             } else if (data.role === 'customer') {
                 clientInfo.role = 'customer';
