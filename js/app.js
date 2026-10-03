@@ -408,10 +408,15 @@ function applyFilters() {
     }
 
     if (state.searchQuery !== '') {
+        const q = state.searchQuery.toLowerCase().trim();
         result = result.filter(p => 
-            p.title.toLowerCase().includes(state.searchQuery) ||
-            p.brand.toLowerCase().includes(state.searchQuery) ||
-            p.description.toLowerCase().includes(state.searchQuery)
+            (p.title && p.title.toLowerCase().includes(q)) ||
+            (p.brand && p.brand.toLowerCase().includes(q)) ||
+            (p.subtitle && p.subtitle.toLowerCase().includes(q)) ||
+            (p.devices && p.devices.toLowerCase().includes(q)) ||
+            (p.type && p.type.toLowerCase().includes(q)) ||
+            (p.badge && p.badge.toLowerCase().includes(q)) ||
+            (p.description && p.description.toLowerCase().includes(q))
         );
     }
 
@@ -429,7 +434,7 @@ function applyFilters() {
     renderProducts();
 }
 
-// Render Products Grid (Bright, High-Contrast Cards)
+// Render Products Grid (Bright, High-Contrast, Ultra-Readable Cards)
 function renderProducts() {
     const container = document.getElementById('products-grid');
     const countEl = document.getElementById('product-count-display');
@@ -456,78 +461,121 @@ function renderProducts() {
     }
 
     container.innerHTML = state.filteredProducts.map(product => {
-        let typeBadgeClass = "bg-purple-100 text-purple-700 border-purple-200";
-        if (product.typeKey === 'private') typeBadgeClass = "bg-pink-100 text-pink-700 border-pink-200";
-        if (product.typeKey === 'shared') typeBadgeClass = "bg-amber-100 text-amber-800 border-amber-200";
-        if (product.typeKey === 'link') typeBadgeClass = "bg-cyan-100 text-cyan-800 border-cyan-200";
-        if (product.typeKey === 'key') typeBadgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
+        let typeBadgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+        let typeIcon = "fa-solid fa-sparkles";
+        if (product.typeKey === 'private') {
+            typeBadgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+            typeIcon = "fa-solid fa-user-shield";
+        } else if (product.typeKey === 'shared') {
+            typeBadgeClass = "bg-amber-50 text-amber-800 border-amber-200";
+            typeIcon = "fa-solid fa-users";
+        } else if (product.typeKey === 'link') {
+            typeBadgeClass = "bg-cyan-50 text-cyan-800 border-cyan-200";
+            typeIcon = "fa-solid fa-link";
+        } else if (product.typeKey === 'key') {
+            typeBadgeClass = "bg-emerald-50 text-emerald-800 border-emerald-200";
+            typeIcon = "fa-solid fa-key";
+        } else if (product.typeKey === 'topup') {
+            typeBadgeClass = "bg-indigo-50 text-indigo-800 border-indigo-200";
+            typeIcon = "fa-solid fa-bolt";
+        }
 
         const inStock = product.stock > 0;
+        const brandGrad = product.brandBadgeColor || "from-pink-500 to-rose-500";
+        const discountPct = (product.originalPrice && product.originalPrice > product.price)
+            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+            : 0;
 
-        // [FIX #6] ใช้ data-* attribute แทน onclick('${id}') เพื่อป้องกัน JS-context XSS
-        // ❌ Before: onclick="addToCart('${product.id}')" ← single quote ใน id → XSS
-        // ✅ After:  data-product-id="${escapeHTML(product.id)}" + event delegation
         return `
             <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
                 
                 <div>
-                    <!-- Header of Card -->
-                    <div class="flex items-center justify-between gap-1.5 mb-2.5 sm:mb-3">
-                        <div class="flex items-center gap-1.5 sm:gap-2">
-                            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[11px] sm:text-xs font-black text-pink-600 shadow-inner">
+                    <!-- Header of Card: Brand & Plan Type -->
+                    <div class="flex items-center justify-between gap-1.5 mb-2.5">
+                        <div class="flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-xl bg-gradient-to-tr ${brandGrad} text-white flex items-center justify-center text-[11px] font-black shadow-xs">
                                 ${escapeHTML(product.brandCode)}
                             </span>
-                            <span class="text-xs font-bold text-slate-700">${escapeHTML(product.brand)}</span>
+                            <span class="text-xs font-black text-slate-800 tracking-wide">${escapeHTML(product.brand)}</span>
                         </div>
-                        <span class="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border ${typeBadgeClass}">
-                            ${escapeHTML(product.type)}
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border ${typeBadgeClass} flex items-center gap-1">
+                            <i class="${typeIcon} text-[10px]"></i>
+                            <span>${escapeHTML(product.type)}</span>
                         </span>
                     </div>
 
-                    <!-- Title -->
+                    <!-- Marketing Badge (e.g. 🔥 ขายดีอันดับ 1) -->
+                    ${product.badge ? `
+                        <div class="mb-2">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-pink-100 text-pink-700 border border-pink-200">
+                                <span>${escapeHTML(product.badge)}</span>
+                            </span>
+                        </div>
+                    ` : ''}
+
+                    <!-- Product Title -->
                     <h3 class="text-sm sm:text-base font-extrabold text-slate-900 line-clamp-2 min-h-[40px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
-                    <!-- Specs -->
-                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 sm:mt-3.5 text-[11px] sm:text-xs text-slate-600 font-medium">
-                        <span class="flex items-center gap-1 bg-slate-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-bolt text-amber-500"></i> ส่งทันที
-                        </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-shield-halved text-cyan-600"></i> ประกัน ${escapeHTML(product.warranty)}
-                        </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-globe text-purple-600"></i> ${escapeHTML(product.region)}
-                        </span>
+                    <!-- Concise Subtitle Benefit -->
+                    <p class="text-xs text-slate-500 font-medium mt-1 leading-relaxed line-clamp-2 min-h-[32px]">
+                        ${escapeHTML(product.subtitle || product.description)}
+                    </p>
+
+                    <!-- 2x2 Neat Specs Grid -->
+                    <div class="grid grid-cols-2 gap-1.5 mt-3 text-[11px] font-bold text-slate-700">
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระยะเวลา: ${escapeHTML(product.duration || '30 วัน')}">
+                            <i class="fa-regular fa-clock text-pink-500 text-xs shrink-0"></i>
+                            <span class="truncate">${escapeHTML(product.duration || '30 วัน')}</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="อุปกรณ์: ${escapeHTML(product.devices || 'ทุกอุปกรณ์')}">
+                            <i class="fa-solid fa-desktop text-blue-500 text-xs shrink-0"></i>
+                            <span class="truncate">${escapeHTML(product.devices || 'ทุกอุปกรณ์')}</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="รับประกัน: ${escapeHTML(product.warranty || '30 วัน')}">
+                            <i class="fa-solid fa-shield-halved text-emerald-600 text-xs shrink-0"></i>
+                            <span class="truncate">ประกัน ${escapeHTML(product.warranty || '30 วัน')}</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระบบส่งมอบตลอด 24 ชม.">
+                            <i class="fa-solid fa-bolt text-amber-500 text-xs shrink-0"></i>
+                            <span class="truncate">ส่งมอบ 24 ชม.</span>
+                        </div>
                     </div>
 
-                    <!-- Stock Counter -->
-                    <div class="flex items-center justify-between mt-3 sm:mt-4 text-[11px] sm:text-xs font-semibold border-t border-slate-100 pt-2 sm:pt-2.5">
-                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
+                    <!-- Live Stock Counter & Rating -->
+                    <div class="flex items-center justify-between mt-3 text-xs font-semibold border-t border-slate-100 pt-2.5">
+                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 font-bold' : 'text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200 font-bold'}">
                             <span class="w-2 h-2 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-                            ${inStock ? `สต็อกพร้อมส่ง ${product.stock} ชิ้น` : 'สินค้าหมดชั่วคราว'}
+                            <span class="text-[11px]">${inStock ? `มีพร้อมส่ง (${product.stock} ชิ้น)` : 'สินค้าหมดชั่วคราว'}</span>
                         </span>
-                        <span class="text-slate-400">ขายแล้ว ${product.soldCount.toLocaleString()} ชิ้น</span>
+                        <span class="flex items-center gap-1 text-slate-500 text-[11px] font-semibold">
+                            <i class="fa-solid fa-star text-amber-400 text-xs"></i>
+                            <b class="text-slate-800">${product.rating || '5.0'}</b>
+                            <span class="text-slate-400">(${product.soldCount.toLocaleString()})</span>
+                        </span>
                     </div>
                 </div>
 
-                <!-- Price and Buttons -->
-                <div class="mt-3 sm:mt-4 pt-2.5 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2 sm:gap-3">
+                <!-- Price and Action Buttons -->
+                <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                     <div>
-                        <div class="text-[11px] sm:text-xs text-slate-400 line-through font-medium">฿${product.originalPrice.toFixed(2)}</div>
-                        <div class="text-xl sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
-                            <span class="text-xs sm:text-sm">฿</span>${product.price.toFixed(2)}
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-slate-400 line-through font-medium">฿${product.originalPrice.toFixed(2)}</span>
+                            ${discountPct > 0 ? `<span class="text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md">-${discountPct}%</span>` : ''}
+                        </div>
+                        <div class="text-2xl sm:text-2xl font-black text-pink-600 flex items-baseline tracking-tight">
+                            <span class="text-sm font-extrabold mr-0.5">฿</span>${product.price.toFixed(2)}
                         </div>
                     </div>
                     <div class="flex items-center gap-1.5 sm:gap-2">
-                        <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียด" 
-                            class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-xs">
+                        <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
+                            class="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-sm transition-all shadow-2xs hover:scale-105 active:scale-95">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-3 sm:px-4 h-9 sm:h-10 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            class="gradient-btn px-3.5 sm:px-4 h-10 rounded-2xl text-xs sm:text-sm font-black flex items-center gap-1.5 shadow-md shadow-pink-500/20 hover:scale-[1.02] active:scale-95 transition-all ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
                             <i class="fa-solid fa-cart-plus"></i>
                             <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
@@ -2676,7 +2724,12 @@ function openProductDetailModal(productId) {
     document.getElementById('modal-product-warranty').textContent = product.warranty;
     document.getElementById('modal-product-stock').textContent = `${availableStock} ชิ้น`;
     document.getElementById('modal-product-sold').textContent = `${product.soldCount.toLocaleString()} ชิ้น`;
-    document.getElementById('modal-product-region').textContent = product.region;
+    const durEl = document.getElementById('modal-product-duration');
+    if (durEl) durEl.textContent = product.duration || '30 วัน';
+    const devEl = document.getElementById('modal-product-devices');
+    if (devEl) devEl.textContent = product.devices || 'ทุกอุปกรณ์';
+    const regionEl = document.getElementById('modal-product-region');
+    if (regionEl) regionEl.textContent = product.region;
 
     const addBtn = document.getElementById('modal-add-cart-btn');
     if (addBtn) {
