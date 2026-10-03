@@ -85,6 +85,9 @@ app.use((req, res, next) => {
     if (forbidden.some(regex => regex.test(cleanPath))) {
         return res.status(403).json({ success: false, message: "403 Forbidden: Access to sensitive file is restricted" });
     }
+    next();
+});
+
 // ─── Auto-sync pop_new image asset ──────────────────────────────────────────
 try {
     const imagesDir = path.join(__dirname, 'images');
