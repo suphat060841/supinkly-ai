@@ -82,6 +82,7 @@ const G2G_SYNC = {
 
         // Iterate through all 17 catalog products
         for (const [prodId, g2gItem] of Object.entries(G2G_MARKET_FEED.benchmarks)) {
+            const costTHB = g2gItem.baseCostUSD * exchangeRate;
             // Clean up any legacy 1.00 Baht test price on cpc-01
             if (prodId === 'cpc-01' && customPrices[prodId] && customPrices[prodId].price === 1.00 && !customPrices[prodId].manualOverride) {
                 delete customPrices[prodId];

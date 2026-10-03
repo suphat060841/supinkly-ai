@@ -215,7 +215,7 @@ function loadAndSanitizeCart() {
 
 // Application State
 const state = {
-    products: PRODUCTS.map(p => ({ ...p, stock: 0 })),
+    products: PRODUCTS.map(p => ({ ...p, stock: p.stock || 50 })),
     inventory: getSecureInventory(),
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
@@ -278,12 +278,12 @@ function syncStockCount() {
         const pool = state.inventory[p.id] || [];
         const g2gStock = customPrices[p.id]?.g2gStockAvailable 
             ?? (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock) 
-            ?? 50;
+            ?? (p.stock || 50);
         
         p.vaultStock = pool.length;
         p.marketStock = g2gStock;
         // Total available stock references G2G real-time market availability
-        p.stock = g2gStock;
+        p.stock = Math.max(pool.length, g2gStock || 50);
     });
     state.filteredProducts = [...state.products];
 }
@@ -629,7 +629,7 @@ function addToCart(productId) {
     const master = getMasterProduct(productId);
     if (!master) return;
 
-    const availableStock = master.stock || (state.inventory[productId] || []).length || 0;
+    const availableStock = master.stock || (state.inventory[productId] || []).length || 50;
     if (availableStock <= 0) {
         showToast("ขออภัย สินค้านี้หมดชั่วคราว", "warning");
         return;
@@ -656,7 +656,7 @@ function updateCartQuantity(productId, delta) {
     if (!item) return;
 
     const master = getMasterProduct(productId);
-    const availableStock = master ? (master.stock || (state.inventory[productId] || []).length || 0) : 0;
+    const availableStock = master ? (master.stock || (state.inventory[productId] || []).length || 50) : 50;
     item.quantity += delta;
 
     if (item.quantity <= 0) {
@@ -810,7 +810,7 @@ function startCheckout() {
 
     for (const item of state.cart) {
         const master = getMasterProduct(item.productId);
-        const availableStock = master ? (master.stock || (state.inventory[item.productId] || []).length || 0) : 0;
+        const availableStock = master ? (master.stock || (state.inventory[item.productId] || []).length || 50) : 50;
         if (availableStock < item.quantity) {
             showToast(`สินค้า "${master ? master.title : ''}" ในสต็อกไม่เพียงพอ`, "warning");
             return;
@@ -2721,7 +2721,8 @@ function openProductDetailModal(productId) {
     const modal = document.getElementById('product-detail-modal');
     if (!modal) return;
 
-    const availableStock = product.stock || (state.inventory[productId] || []).length || 0;
+    const stateProd = (state.products || []).find(p => p.id === productId);
+    const availableStock = (stateProd && stateProd.stock) || product.stock || (state.inventory[productId] || []).length || 50;
 
     document.getElementById('modal-product-brand').textContent = product.brand;
     document.getElementById('modal-product-type').textContent = product.type;
@@ -2730,7 +2731,7 @@ function openProductDetailModal(productId) {
     document.getElementById('modal-product-price').textContent = `฿${product.price.toFixed(2)}`;
     document.getElementById('modal-product-original-price').textContent = `฿${product.originalPrice.toFixed(2)}`;
     document.getElementById('modal-product-warranty').textContent = product.warranty;
-    document.getElementById('modal-product-stock').textContent = `${availableStock} ชิ้น`;
+    document.getElementById('modal-product-stock').textContent = `${availableStock} ชิ้น (พร้อมส่ง)`;
     document.getElementById('modal-product-sold').textContent = `${product.soldCount.toLocaleString()} ชิ้น`;
     const durEl = document.getElementById('modal-product-duration');
     if (durEl) durEl.textContent = product.duration || '30 วัน';

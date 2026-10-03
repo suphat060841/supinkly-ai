@@ -436,24 +436,52 @@ const PRODUCTS = [
     }
 ];
 
+// Ensure every master product has guaranteed default stock (50 pcs minimum)
+PRODUCTS.forEach(p => {
+    if (typeof p.stock !== 'number') {
+        const benchmarkStock = (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock);
+        p.stock = benchmarkStock || 50;
+    }
+});
+
 // Look up guaranteed price & live stock from Master Catalog (with custom price/stock override)
 function getMasterProduct(productId) {
     const product = PRODUCTS.find(p => p.id === productId);
     if (!product) return null;
+    let price = product.price;
+    let originalPrice = product.originalPrice;
+    let stock = product.stock || 50;
+    let marketCostTHB = product.marketCostTHB || 0;
+
+    // Check G2G market benchmark default if available
+    if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[productId]) {
+        const benchmark = G2G_MARKET_FEED.benchmarks[productId];
+        if (typeof benchmark.g2gStock === 'number') {
+            stock = benchmark.g2gStock;
+        }
+        if (typeof benchmark.baseCostUSD === 'number') {
+            marketCostTHB = Math.round(benchmark.baseCostUSD * 36.50 * 100) / 100;
+        }
+    }
+
     try {
         const customPrices = JSON.parse(localStorage.getItem('supinkly_custom_prices') || '{}');
         const custom = customPrices && customPrices[productId];
         if (custom) {
-            return {
-                ...product,
-                price: typeof custom.price === 'number' ? custom.price : product.price,
-                originalPrice: typeof custom.originalPrice === 'number' ? custom.originalPrice : product.originalPrice,
-                stock: typeof custom.g2gStockAvailable === 'number' ? custom.g2gStockAvailable : (product.stock || 50),
-                marketCostTHB: custom.marketCostTHB
-            };
+            if (typeof custom.price === 'number') price = custom.price;
+            if (typeof custom.originalPrice === 'number') originalPrice = custom.originalPrice;
+            if (typeof custom.g2gStockAvailable === 'number' && custom.g2gStockAvailable > 0) stock = custom.g2gStockAvailable;
+            if (typeof custom.marketCostTHB === 'number') marketCostTHB = custom.marketCostTHB;
         }
     } catch (e) {
         // fallback
     }
-    return product;
+
+    return {
+        ...product,
+        price,
+        originalPrice,
+        stock: stock || 50,
+        marketCostTHB
+    };
 }
