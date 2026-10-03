@@ -328,14 +328,38 @@ function calculateVerifiedTotal() {
     }, 0);
 }
 
-// Initialize Application
-document.addEventListener('DOMContentLoaded', async () => {
-    // Ensure search inputs start clean and prevent browser autofill residue
+// Function to ensure search inputs start completely empty and immune to browser autofill
+function purgeSearchInputs() {
     state.searchQuery = '';
     const dSearchInit = document.getElementById('search-input');
-    if (dSearchInit) dSearchInit.value = '';
+    if (dSearchInit) {
+        dSearchInit.value = '';
+        dSearchInit.defaultValue = '';
+    }
     const mSearchInit = document.getElementById('mobile-search-input');
-    if (mSearchInit) mSearchInit.value = '';
+    if (mSearchInit) {
+        mSearchInit.value = '';
+        mSearchInit.defaultValue = '';
+    }
+    const dClear = document.getElementById('desktop-search-clear');
+    if (dClear) dClear.classList.add('hidden');
+    const mClear = document.getElementById('mobile-search-clear');
+    if (mClear) mClear.classList.add('hidden');
+}
+
+// Lifecycle listeners to defeat delayed browser autofill
+window.addEventListener('load', purgeSearchInputs);
+window.addEventListener('pageshow', () => {
+    purgeSearchInputs();
+    if (typeof applyFilters === 'function') applyFilters();
+});
+
+// Initialize Application
+document.addEventListener('DOMContentLoaded', async () => {
+    purgeSearchInputs();
+    setTimeout(purgeSearchInputs, 80);
+    setTimeout(purgeSearchInputs, 350);
+    setTimeout(purgeSearchInputs, 800);
 
     syncStockCount();
     initHeader();
@@ -504,17 +528,38 @@ function selectType(type) {
 function initFilters() {
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
+        const sanitizeSearchVal = (raw) => {
+            if (!raw) return '';
+            // If browser autofilled an email address, discard it
+            if (raw.includes('@') && (raw.endsWith('.com') || raw.endsWith('.net') || raw.endsWith('.co.th') || raw.endsWith('.org'))) {
+                return '';
+            }
+            return raw;
+        };
+
         searchInput.addEventListener('input', (e) => {
-            state.searchQuery = e.target.value.toLowerCase().trim();
+            const cleanVal = sanitizeSearchVal(e.target.value);
+            if (cleanVal !== e.target.value) {
+                e.target.value = cleanVal;
+            }
+            state.searchQuery = cleanVal.toLowerCase().trim();
             const dClear = document.getElementById('desktop-search-clear');
-            if (dClear) dClear.classList.toggle('hidden', !e.target.value);
+            if (dClear) dClear.classList.toggle('hidden', !cleanVal);
             const mInput = document.getElementById('mobile-search-input');
-            if (mInput && mInput.value !== e.target.value) {
-                mInput.value = e.target.value;
+            if (mInput && mInput.value !== cleanVal) {
+                mInput.value = cleanVal;
                 const clearBtn = document.getElementById('mobile-search-clear');
-                if (clearBtn) clearBtn.classList.toggle('hidden', !e.target.value);
+                if (clearBtn) clearBtn.classList.toggle('hidden', !cleanVal);
             }
             applyFilters();
+        });
+
+        searchInput.addEventListener('focus', (e) => {
+            if (e.target.value.includes('@')) {
+                e.target.value = '';
+                state.searchQuery = '';
+                applyFilters();
+            }
         });
     }
 
@@ -4774,6 +4819,11 @@ function clearDesktopSearch() {
 }
 
 function handleMobileSearchInput(val) {
+    if (val && val.includes('@') && (val.endsWith('.com') || val.endsWith('.net') || val.endsWith('.co.th') || val.endsWith('.org'))) {
+        val = '';
+        const m = document.getElementById('mobile-search-input');
+        if (m) m.value = '';
+    }
     state.searchQuery = (val || '').toLowerCase().trim();
     const clearBtn = document.getElementById('mobile-search-clear');
     if (clearBtn) clearBtn.classList.toggle('hidden', !val);

@@ -178,16 +178,17 @@
 
             <!-- Search Bar (Desktop) -->
             <div class="hidden md:flex flex-1 max-w-md mx-6">
-                <div class="relative w-full">
+                <form role="search" action="javascript:void(0)" autocomplete="off" onsubmit="event.preventDefault(); return false;" class="relative w-full">
                     <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-pink-500 text-sm pointer-events-none"></i>
-                    <input type="search" id="search-input" name="search-query" role="searchbox"
-                           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true"
+                    <input type="search" id="search-input" role="searchbox"
+                           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                           data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
                            placeholder="ค้นหาบัญชี เช่น CapCut, Claude, Grok, Windows..." 
                            class="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
-                    <button id="desktop-search-clear" onclick="clearDesktopSearch()" title="ล้างคำค้นหา" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs transition-colors">
+                    <button type="button" id="desktop-search-clear" onclick="clearDesktopSearch()" title="ล้างคำค้นหา" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs transition-colors">
                         <i class="fa-solid fa-circle-xmark"></i>
                     </button>
-                </div>
+                </form>
             </div>
 
             <div class="flex items-center gap-1.5 sm:gap-3">
@@ -209,16 +210,17 @@
 
         <!-- Search Bar (Mobile) -->
         <div class="md:hidden px-3 pb-2.5 pt-0.5">
-            <div class="relative w-full">
+            <form role="search" action="javascript:void(0)" autocomplete="off" onsubmit="event.preventDefault(); return false;" class="relative w-full">
                 <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-xs pointer-events-none"></i>
-                <input type="search" id="mobile-search-input" name="mobile-search-query" role="searchbox"
-                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true"
+                <input type="search" id="mobile-search-input" role="searchbox"
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                       data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
                        oninput="handleMobileSearchInput(this.value)" placeholder="ค้นหา เช่น CapCut, Claude, Windows..." 
                        class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-100 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 outline-none font-medium focus:bg-white focus:border-pink-400 transition-all shadow-2xs">
-                <button id="mobile-search-clear" onclick="clearMobileSearch()" title="ล้างคำค้นหา" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs transition-colors">
+                <button type="button" id="mobile-search-clear" onclick="clearMobileSearch()" title="ล้างคำค้นหา" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs transition-colors">
                     <i class="fa-solid fa-circle-xmark"></i>
                 </button>
-            </div>
+            </form>
         </div>
     </header>
 
@@ -1407,9 +1409,10 @@
             <h3 class="text-base font-bold text-slate-900 mb-1">ยืนยันสิทธิ์ผู้ดูแลระบบ (Admin)</h3>
             <p class="text-xs text-slate-500 mb-4 font-medium">กรุณากรอกรหัส PIN เพื่อเข้าจัดการสต็อกและการตั้งค่าร้านค้า</p>
 
-            <form onsubmit="handleAdminPinSubmit(event)" class="space-y-3">
+            <form onsubmit="handleAdminPinSubmit(event)" class="space-y-3" autocomplete="on">
+                <input type="text" name="username" value="admin" autocomplete="username" class="sr-only hidden" style="display:none!important;" tabindex="-1" aria-hidden="true">
                 <div>
-                    <input type="password" id="admin-pin-input" maxlength="8" placeholder="กรอกรหัส PIN ผู้ดูแลร้าน" required autofocus
+                    <input type="password" id="admin-pin-input" name="admin_pin" autocomplete="current-password" maxlength="8" placeholder="กรอกรหัส PIN ผู้ดูแลร้าน" required autofocus
                            class="w-full text-center tracking-widest text-xl font-mono px-3 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-pink-600 font-bold focus:border-pink-500 outline-none">
                 </div>
                 <div class="flex items-center gap-2">
@@ -2391,7 +2394,7 @@ W11PR-XXXX-XXXX-XXXX"
             <div class="px-5 sm:px-6 py-4 overflow-y-auto flex-1 overscroll-contain">
 
                 <!-- 1. LOGIN FORM -->
-                <div id="auth-form-login">
+                <form id="auth-form-login" onsubmit="event.preventDefault(); handleLogin();" autocomplete="on">
                     <div class="space-y-3.5">
                         <!-- Email Input Group -->
                         <div>
@@ -2404,7 +2407,7 @@ W11PR-XXXX-XXXX-XXXX"
                                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
                                     <i class="fa-regular fa-envelope"></i>
                                 </span>
-                                <input id="login-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com"
+                                <input id="login-email" name="username" type="email" inputmode="email" autocomplete="username" placeholder="name@example.com"
                                     class="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                             </div>
                         </div>
@@ -2424,7 +2427,7 @@ W11PR-XXXX-XXXX-XXXX"
                                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
                                     <i class="fa-solid fa-lock"></i>
                                 </span>
-                                <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••"
+                                <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="••••••••"
                                     class="w-full pl-10 pr-12 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                                 <button type="button" onclick="togglePasswordVisibility('login-password', this)"
                                     class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm transition-colors"
@@ -2441,7 +2444,7 @@ W11PR-XXXX-XXXX-XXXX"
                         </div>
 
                         <!-- Login Submit Button -->
-                        <button onclick="handleLogin()" id="login-btn"
+                        <button type="submit" id="login-btn"
                             class="w-full py-3.5 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-[0.98] transition-all hover:opacity-95">
                             <i class="fa-solid fa-right-to-bracket"></i>
                             <span>เข้าสู่ระบบทันที</span>
@@ -2463,10 +2466,10 @@ W11PR-XXXX-XXXX-XXXX"
                             <span>ระบบเข้ารหัสความปลอดภัยมาตรฐานสากล SSL 256-Bit</span>
                         </div>
                     </div>
-                </div>
+                </form>
 
                 <!-- 2. REGISTER FORM -->
-                <div id="auth-form-register" class="hidden">
+                <form id="auth-form-register" class="hidden" onsubmit="event.preventDefault(); handleRegister();" autocomplete="on">
                     <div class="space-y-3.5">
                         <!-- Display Name Input Group -->
                         <div>
@@ -2480,7 +2483,7 @@ W11PR-XXXX-XXXX-XXXX"
                                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
                                     <i class="fa-regular fa-user"></i>
                                 </span>
-                                <input id="register-name" type="text" autocomplete="name" placeholder="เช่น Supat, น้องพิงค์" maxlength="60"
+                                <input id="register-name" name="name" type="text" autocomplete="name" placeholder="เช่น Supat, น้องพิงค์" maxlength="60"
                                     class="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                             </div>
                         </div>
@@ -2497,7 +2500,7 @@ W11PR-XXXX-XXXX-XXXX"
                                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
                                     <i class="fa-regular fa-envelope"></i>
                                 </span>
-                                <input id="register-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com"
+                                <input id="register-email" name="username" type="email" inputmode="email" autocomplete="username" placeholder="name@example.com"
                                     class="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                             </div>
                             <p class="text-[10px] text-slate-400 mt-1">ระบบจะส่งรหัส OTP และคีย์สินค้าเข้าอีเมลนี้</p>
@@ -2515,7 +2518,7 @@ W11PR-XXXX-XXXX-XXXX"
                                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
                                     <i class="fa-solid fa-lock"></i>
                                 </span>
-                                <input id="register-password" type="password" autocomplete="new-password" placeholder="ตั้งรหัสผ่านความปลอดภัยสูง"
+                                <input id="register-password" name="password" type="password" autocomplete="new-password" placeholder="ตั้งรหัสผ่านความปลอดภัยสูง"
                                     class="w-full pl-10 pr-12 py-3 rounded-2xl border-2 border-slate-200 text-slate-800 placeholder-slate-400 text-sm font-medium outline-none transition-all bg-slate-50/80 focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10">
                                 <button type="button" onclick="togglePasswordVisibility('register-password', this)"
                                     class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm transition-colors"
@@ -2544,7 +2547,7 @@ W11PR-XXXX-XXXX-XXXX"
                         </div>
 
                         <!-- Register Submit Button -->
-                        <button onclick="handleRegister()" id="register-btn"
+                        <button type="submit" id="register-btn"
                             class="w-full py-3.5 rounded-2xl gradient-btn text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-[0.98] transition-all hover:opacity-95">
                             <i class="fa-solid fa-user-plus"></i>
                             <span>สร้างบัญชีสมาชิกฟรี</span>
@@ -2560,7 +2563,7 @@ W11PR-XXXX-XXXX-XXXX"
                             </p>
                         </div>
                     </div>
-                </div>
+                </form>
 
                 <!-- 3. OTP VERIFICATION FORM -->
                 <div id="auth-form-otp" class="hidden">
