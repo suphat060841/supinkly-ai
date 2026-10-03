@@ -1,6 +1,6 @@
 /**
  * Supinkly.AI — User Authentication Module
- * จัดการ login / register / session สำหรับลูกค้า
+ * จัดการ login / register / forgot-password / session สำหรับลูกค้า
  */
 
 const USER_AUTH = (() => {
@@ -42,7 +42,51 @@ const USER_AUTH = (() => {
             body: JSON.stringify({ email, password, displayName })
         });
         const data = await res.json();
-        if (data.success) saveSession(data.token, data.expiresAt, data.user);
+        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
+        return data;
+    }
+
+    // ── Verify Registration OTP ────────────────────────────────
+    async function verifyOtp(email, otp) {
+        const res  = await fetch('/api/auth/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp })
+        });
+        const data = await res.json();
+        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
+        return data;
+    }
+
+    // ── Resend Registration OTP ────────────────────────────────
+    async function resendOtp(email) {
+        const res  = await fetch('/api/auth/resend-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        return await res.json();
+    }
+
+    // ── Forgot Password (Request OTP) ──────────────────────────
+    async function forgotPassword(email) {
+        const res  = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        return await res.json();
+    }
+
+    // ── Reset Password (Verify OTP & Save New Password) ─────────
+    async function resetPassword(email, otp, newPassword) {
+        const res  = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp, newPassword })
+        });
+        const data = await res.json();
+        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
         return data;
     }
 
@@ -54,7 +98,7 @@ const USER_AUTH = (() => {
             body: JSON.stringify({ email, password })
         });
         const data = await res.json();
-        if (data.success) saveSession(data.token, data.expiresAt, data.user);
+        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
         return data;
     }
 
@@ -105,5 +149,20 @@ const USER_AUTH = (() => {
         } catch { return []; }
     }
 
-    return { getToken, getUser, getHeaders, isLoggedIn, register, login, logout, verifySession, linkLocalOrders, fetchMyOrders };
+    return { 
+        getToken, 
+        getUser, 
+        getHeaders, 
+        isLoggedIn, 
+        register, 
+        verifyOtp, 
+        resendOtp, 
+        forgotPassword, 
+        resetPassword, 
+        login, 
+        logout, 
+        verifySession, 
+        linkLocalOrders, 
+        fetchMyOrders 
+    };
 })();

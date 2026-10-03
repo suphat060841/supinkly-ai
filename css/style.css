@@ -196,3 +196,39 @@ body {
     }
 }
 
+/* ==========================================================
+   Mobile Optimization & Touch Ergonomics
+   ========================================================== */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent iOS Safari auto-zoom when focusing inputs */
+@media (max-width: 640px) {
+    input:not([type="checkbox"]):not([type="radio"]), 
+    select, 
+    textarea {
+        font-size: 16px !important;
+    }
+}
+
+/* Smooth Touch Momentum Scrolling */
+.scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+/* iPhone Home Indicator Safe Area Bottom */
+.pb-safe {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+}
+
+/* Tactile Active Feedback for Mobile Buttons */
+.touch-active {
+    transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.touch-active:active {
+    transform: scale(0.96);
+    opacity: 0.9;
+}
+

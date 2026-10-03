@@ -193,7 +193,7 @@ const SlipVerifier = {
 
         // Anti-Replay Check: Did this slip file get used before?
         if (isSlipAlreadyUsed(computedFingerprint, null)) {
-            throw new Error("สลิปใบนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้ (Anti-Replay Protection)");
+            throw new Error("สลิปใบนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้");
         }
 
         // 1. Production Web Server Verification (Node.js Backend)

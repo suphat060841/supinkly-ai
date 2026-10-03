@@ -339,8 +339,14 @@ function saveCart() {
 
 function saveOrders() {
     localStorage.setItem('supinkly_orders', JSON.stringify(state.orders));
+    const orderCount = state.orders ? state.orders.length : 0;
     const navCnt = document.getElementById('nav-orders-count');
-    if (navCnt) navCnt.textContent = state.orders.length;
+    if (navCnt) navCnt.textContent = orderCount;
+    const mNavCnt = document.getElementById('mobile-nav-orders-count');
+    if (mNavCnt) {
+        mNavCnt.textContent = orderCount;
+        mNavCnt.classList.toggle('hidden', orderCount <= 0);
+    }
 }
 
 // Header & User Actions
@@ -352,15 +358,23 @@ function initHeader() {
     const user = isLoggedIn ? USER_AUTH.getUser() : null;
     const displayName = user?.displayName || user?.email?.split('@')[0] || '';
 
+    // Synchronize mobile bottom nav orders count
+    const orderCount = state.orders ? state.orders.length : 0;
+    const mNavCnt = document.getElementById('mobile-nav-orders-count');
+    if (mNavCnt) {
+        mNavCnt.textContent = orderCount;
+        mNavCnt.classList.toggle('hidden', orderCount <= 0);
+    }
+
     if (isLoggedIn && user) {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                <button onclick="openOrdersModal()" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-                    <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
                 </button>
                 <div class="relative group">
-                    <button class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0">
+                    <button class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active">
                         <i class="fa-solid fa-circle-user text-emerald-500 text-base"></i>
                         <span class="hidden sm:inline max-w-[80px] truncate">${escapeHTML(displayName)}</span>
                         <i class="fa-solid fa-chevron-down text-[10px] text-emerald-500"></i>
@@ -383,11 +397,11 @@ function initHeader() {
     } else {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                <button onclick="openOrdersModal()" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-                    <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
                 </button>
-                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0">
+                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active">
                     <i class="fa-solid fa-right-to-bracket text-sm"></i>
                     <span class="hidden sm:inline">เข้าสู่ระบบ</span>
                 </button>
@@ -447,6 +461,12 @@ function initFilters() {
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
             state.searchQuery = e.target.value.toLowerCase().trim();
+            const mInput = document.getElementById('mobile-search-input');
+            if (mInput && mInput.value !== e.target.value) {
+                mInput.value = e.target.value;
+                const clearBtn = document.getElementById('mobile-search-clear');
+                if (clearBtn) clearBtn.classList.toggle('hidden', !e.target.value);
+            }
             applyFilters();
         });
     }
@@ -551,7 +571,7 @@ function renderProducts() {
             : 0;
 
         return `
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
                 
                 <div>
                     <!-- Header of Card: Brand & Plan Type -->
@@ -634,12 +654,12 @@ function renderProducts() {
                     </div>
                     <div class="flex items-center gap-1.5 sm:gap-2">
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
-                            class="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-sm transition-all shadow-2xs hover:scale-105 active:scale-95">
+                            class="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-sm transition-all shadow-2xs hover:scale-105 active:scale-95 touch-active">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-3.5 sm:px-4 h-10 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md shadow-pink-500/20 hover:scale-[1.02] active:scale-95 transition-all ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
+                            class="gradient-btn px-3.5 sm:px-4 h-10 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md shadow-pink-500/20 hover:scale-[1.02] active:scale-95 touch-active transition-all ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
                             <i class="fa-solid fa-cart-plus"></i>
                             <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
@@ -673,6 +693,10 @@ function resetFilters() {
     state.searchQuery = '';
     const searchInput = document.getElementById('search-input');
     if (searchInput) searchInput.value = '';
+    const mInput = document.getElementById('mobile-search-input');
+    if (mInput) mInput.value = '';
+    const clearBtn = document.getElementById('mobile-search-clear');
+    if (clearBtn) clearBtn.classList.add('hidden');
     renderBrandTabs();
     selectType('all');
     applyFilters();
@@ -773,6 +797,11 @@ function updateCartUI() {
     if (countBadge) {
         countBadge.textContent = totalCount;
         countBadge.classList.toggle('hidden', totalCount <= 0);
+    }
+    const mCartBadge = document.getElementById('mobile-nav-cart-count');
+    if (mCartBadge) {
+        mCartBadge.textContent = totalCount;
+        mCartBadge.classList.toggle('hidden', totalCount <= 0);
     }
 
     if (subtotalEl) subtotalEl.textContent = `฿${verifiedTotal.toFixed(2)}`;
@@ -1059,7 +1088,7 @@ async function submitSlipVerification() {
                 transRef: result.transRef,
                 slipFingerprint: SlipVerifier.fileFingerprint,
                 items: deliveredItems,
-                status: hasPendingFulfillment ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" : "🟢 จัดส่งสำเร็จทันที (Instant Vault)"
+                status: hasPendingFulfillment ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" : "🟢 จัดส่งสำเร็จทันที"
             };
         }
 
@@ -2361,6 +2390,28 @@ async function openAdminModal() {
     const pinInput = document.getElementById('admin-new-pin');
     if (pinInput) pinInput.value = '';
 
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            const setRes = await fetch('/api/admin/settings', { headers: ADMIN_AUTH.getHeaders() });
+            const setData = await setRes.json();
+            if (setData.success && setData.smtpConfig) {
+                const s = setData.smtpConfig;
+                const hostEl = document.getElementById('admin-smtp-host');
+                if (hostEl) hostEl.value = s.host || '';
+                const portEl = document.getElementById('admin-smtp-port');
+                if (portEl) portEl.value = s.port || 465;
+                const userEl = document.getElementById('admin-smtp-user');
+                if (userEl) userEl.value = s.user || '';
+                const passEl = document.getElementById('admin-smtp-pass');
+                if (passEl) passEl.value = s.pass || '';
+                const fromEl = document.getElementById('admin-smtp-from');
+                if (fromEl) fromEl.value = s.from || '';
+                const resendEl = document.getElementById('admin-smtp-resend');
+                if (resendEl) resendEl.value = s.resendKey || '';
+            }
+        } catch (e) {}
+    }
+
     await syncAdminOrdersFromServer();
     renderAdminOrdersList();
     renderAdminStockList();
@@ -2749,6 +2800,13 @@ async function saveAdminSettings() {
     const newBranchId = (document.getElementById('admin-slipok-branch') ? document.getElementById('admin-slipok-branch').value : '').trim();
     const newPin = (document.getElementById('admin-new-pin') ? document.getElementById('admin-new-pin').value : '').trim();
 
+    const smtpHost = (document.getElementById('admin-smtp-host')?.value || '').trim();
+    const smtpPort = parseInt(document.getElementById('admin-smtp-port')?.value || '465', 10);
+    const smtpUser = (document.getElementById('admin-smtp-user')?.value || '').trim();
+    const smtpPass = (document.getElementById('admin-smtp-pass')?.value || '').trim();
+    const smtpFrom = (document.getElementById('admin-smtp-from')?.value || '').trim();
+    const smtpResend = (document.getElementById('admin-smtp-resend')?.value || '').trim();
+
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
         if (!/^[0-9]{10,15}$/.test(cleanPhone)) {
@@ -2787,7 +2845,32 @@ async function saveAdminSettings() {
         }
     }
 
-    showToast("บันทึกการตั้งค่าร้านค้าเรียบร้อยแล้ว", "success");
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({
+                    promptPayNumber: STORE_CONFIG.promptPayNumber,
+                    promptPayAccountName: STORE_CONFIG.promptPayAccountName,
+                    slipOkBranchId: STORE_CONFIG.slipOkBranchId,
+                    newPin: newPin || undefined,
+                    smtpConfig: {
+                        host: smtpHost,
+                        port: smtpPort,
+                        user: smtpUser,
+                        pass: smtpPass || undefined,
+                        from: smtpFrom,
+                        resendKey: smtpResend || undefined
+                    }
+                })
+            });
+        } catch (e) {
+            console.warn("Failed to sync settings to server:", e);
+        }
+    }
+
+    showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว", "success");
     closeAdminModal();
 }
 
@@ -3220,26 +3303,126 @@ function closeAuthModal() {
 }
 
 function switchAuthTab(tab) {
-    const loginForm    = document.getElementById('auth-form-login');
-    const registerForm = document.getElementById('auth-form-register');
-    const tabLogin     = document.getElementById('auth-tab-login');
-    const tabRegister  = document.getElementById('auth-tab-register');
+    const loginForm         = document.getElementById('auth-form-login');
+    const registerForm      = document.getElementById('auth-form-register');
+    const otpForm           = document.getElementById('auth-form-otp');
+    const forgotRequestForm = document.getElementById('auth-form-forgot-request');
+    const forgotVerifyForm  = document.getElementById('auth-form-forgot-verify');
+    const tabLogin          = document.getElementById('auth-tab-login');
+    const tabRegister       = document.getElementById('auth-tab-register');
+    const tabContainer      = tabLogin ? tabLogin.parentElement : null;
+
+    // Reset error messages on tab switch
+    ['login', 'register', 'otp', 'forgot-request', 'forgot-verify'].forEach(f => setAuthError(f, ''));
+
+    // Bind Enter key handlers once
+    const loginPass = document.getElementById('login-password');
+    if (loginPass && !loginPass.dataset.bound) {
+        loginPass.dataset.bound = 'true';
+        loginPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLogin(); });
+    }
+    const regPass = document.getElementById('register-password');
+    if (regPass && !regPass.dataset.bound) {
+        regPass.dataset.bound = 'true';
+        regPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleRegister(); });
+    }
+
+    // Hide all forms first
+    loginForm?.classList.add('hidden');
+    registerForm?.classList.add('hidden');
+    otpForm?.classList.add('hidden');
+    forgotRequestForm?.classList.add('hidden');
+    forgotVerifyForm?.classList.add('hidden');
 
     if (tab === 'login') {
         loginForm?.classList.remove('hidden');
-        registerForm?.classList.add('hidden');
+        if (tabContainer) tabContainer.classList.remove('hidden');
         tabLogin?.classList.add('border-pink-500', 'text-pink-600');
         tabLogin?.classList.remove('border-transparent', 'text-slate-500');
         tabRegister?.classList.remove('border-pink-500', 'text-pink-600');
         tabRegister?.classList.add('border-transparent', 'text-slate-500');
-    } else {
-        loginForm?.classList.add('hidden');
+    } else if (tab === 'register') {
         registerForm?.classList.remove('hidden');
+        if (tabContainer) tabContainer.classList.remove('hidden');
         tabRegister?.classList.add('border-pink-500', 'text-pink-600');
         tabRegister?.classList.remove('border-transparent', 'text-slate-500');
         tabLogin?.classList.remove('border-pink-500', 'text-pink-600');
         tabLogin?.classList.add('border-transparent', 'text-slate-500');
+    } else if (tab === 'otp') {
+        otpForm?.classList.remove('hidden');
+        if (tabContainer) tabContainer.classList.add('hidden');
+    } else if (tab === 'forgot-request') {
+        forgotRequestForm?.classList.remove('hidden');
+        if (tabContainer) tabContainer.classList.add('hidden');
+        const loginEmailVal = (document.getElementById('login-email')?.value || '').trim();
+        const forgotEmailInp = document.getElementById('forgot-email');
+        if (forgotEmailInp) {
+            if (loginEmailVal && !forgotEmailInp.value) {
+                forgotEmailInp.value = loginEmailVal;
+            }
+            if (!forgotEmailInp.dataset.bound) {
+                forgotEmailInp.dataset.bound = 'true';
+                forgotEmailInp.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') handleForgotPasswordRequest();
+                });
+            }
+            setTimeout(() => forgotEmailInp.focus(), 120);
+        }
+    } else if (tab === 'forgot-verify') {
+        forgotVerifyForm?.classList.remove('hidden');
+        if (tabContainer) tabContainer.classList.add('hidden');
+        setTimeout(() => document.getElementById('forgot-otp-input')?.focus(), 120);
     }
+}
+
+let otpResendTimer = null;
+let otpResendSeconds = 60;
+
+function startOtpCountdown(seconds = 60) {
+    if (otpResendTimer) clearInterval(otpResendTimer);
+    otpResendSeconds = seconds;
+    const btn = document.getElementById('resend-otp-btn');
+    const span = document.getElementById('resend-otp-countdown');
+    if (btn) btn.disabled = true;
+    if (span) span.textContent = String(otpResendSeconds);
+
+    otpResendTimer = setInterval(() => {
+        otpResendSeconds--;
+        if (span) span.textContent = String(otpResendSeconds);
+        if (otpResendSeconds <= 0) {
+            clearInterval(otpResendTimer);
+            otpResendTimer = null;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> ขอรหัส OTP ใหม่`;
+            }
+        }
+    }, 1000);
+}
+
+let forgotResendTimer = null;
+let forgotResendSeconds = 60;
+
+function startForgotOtpCountdown(seconds = 60) {
+    if (forgotResendTimer) clearInterval(forgotResendTimer);
+    forgotResendSeconds = seconds;
+    const btn = document.getElementById('forgot-resend-btn');
+    const span = document.getElementById('forgot-resend-countdown');
+    if (btn) btn.disabled = true;
+    if (span) span.textContent = String(forgotResendSeconds);
+
+    forgotResendTimer = setInterval(() => {
+        forgotResendSeconds--;
+        if (span) span.textContent = String(forgotResendSeconds);
+        if (forgotResendSeconds <= 0) {
+            clearInterval(forgotResendTimer);
+            forgotResendTimer = null;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> ขอรหัสใหม่`;
+            }
+        }
+    }, 1000);
 }
 
 function setAuthError(formType, msg) {
@@ -3266,7 +3449,7 @@ function setAuthBtnLoading(btnId, loading) {
 
 async function handleLogin() {
     if (typeof USER_AUTH === 'undefined') {
-        showToast('ระบบ login ใช้งานได้เฉพาะเมื่อเปิดผ่าน server เท่านั้น', 'warning');
+        showToast('ไม่สามารถเชื่อมต่อระบบสมาชิกได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง', 'warning');
         return;
     }
     const email    = (document.getElementById('login-email')?.value || '').trim();
@@ -3299,7 +3482,7 @@ async function handleLogin() {
 
 async function handleRegister() {
     if (typeof USER_AUTH === 'undefined') {
-        showToast('ระบบสมัครสมาชิกใช้งานได้เฉพาะเมื่อเปิดผ่าน server เท่านั้น', 'warning');
+        showToast('ไม่สามารถเชื่อมต่อระบบสมาชิกได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง', 'warning');
         return;
     }
     const name     = (document.getElementById('register-name')?.value || '').trim();
@@ -3320,11 +3503,39 @@ async function handleRegister() {
     try {
         const result = await USER_AUTH.register(email, password, name || undefined);
         if (result.success) {
-            state.user = result.user;
-            closeAuthModal();
-            await syncUserOrdersFromServer();
-            initHeader();
-            showToast(`✅ สมัครสมาชิกสำเร็จ! ยินดีต้อนรับ ${escapeHTML(result.user?.displayName || email)}`, 'success');
+            if (result.requireOtp) {
+                state.pendingRegistrationEmail = email;
+                switchAuthTab('otp');
+                const targetEmailEl = document.getElementById('auth-otp-target-email');
+                if (targetEmailEl) targetEmailEl.textContent = email;
+
+                const otpInput = document.getElementById('auth-otp-input');
+                if (otpInput) {
+                    otpInput.value = '';
+                    if (!otpInput.dataset.bound) {
+                        otpInput.dataset.bound = 'true';
+                        otpInput.addEventListener('input', (e) => {
+                            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+                            if (e.target.value.length === 6) {
+                                handleVerifyOtp();
+                            }
+                        });
+                        otpInput.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') handleVerifyOtp();
+                        });
+                    }
+                    setTimeout(() => otpInput.focus(), 150);
+                }
+
+                startOtpCountdown(60);
+                showToast(result.message || 'ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว', 'info');
+            } else {
+                state.user = result.user;
+                closeAuthModal();
+                await syncUserOrdersFromServer();
+                initHeader();
+                showToast(`✅ สมัครสมาชิกสำเร็จ! ยินดีต้อนรับ ${escapeHTML(result.user?.displayName || email)}`, 'success');
+            }
         } else {
             setAuthError('register', result.message || 'สมัครสมาชิกไม่สำเร็จ');
         }
@@ -3332,6 +3543,260 @@ async function handleRegister() {
         setAuthError('register', 'เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
         setAuthBtnLoading('register-btn', false);
+    }
+}
+
+async function handleVerifyOtp() {
+    if (typeof USER_AUTH === 'undefined') return;
+    const email = state.pendingRegistrationEmail || (document.getElementById('register-email')?.value || '').trim();
+    const otp = (document.getElementById('auth-otp-input')?.value || '').trim();
+
+    setAuthError('otp', '');
+    if (!email) {
+        setAuthError('otp', 'ไม่พบข้อมูลอีเมล กรุณากลับไปสมัครสมาชิกใหม่');
+        return;
+    }
+    if (!otp || !/^\d{6}$/.test(otp)) {
+        setAuthError('otp', 'กรุณากรอกรหัส OTP เป็นตัวเลข 6 หลักให้ครบถ้วน');
+        return;
+    }
+
+    const btn = document.getElementById('verify-otp-btn');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-sm"></i> กำลังตรวจสอบ...`;
+    }
+
+    try {
+        const result = await USER_AUTH.verifyOtp(email, otp);
+        if (result.success) {
+            state.user = result.user;
+            state.pendingRegistrationEmail = null;
+            if (otpResendTimer) {
+                clearInterval(otpResendTimer);
+                otpResendTimer = null;
+            }
+            closeAuthModal();
+            await syncUserOrdersFromServer();
+            initHeader();
+            showToast(`🎉 ยืนยันอีเมลสำเร็จ! ยินดีต้อนรับคุณ ${escapeHTML(result.user?.displayName || email)}`, 'success');
+        } else {
+            setAuthError('otp', result.message || 'รหัส OTP ไม่ถูกต้อง');
+        }
+    } catch {
+        setAuthError('otp', 'เกิดข้อผิดพลาดในการตรวจสอบรหัส OTP');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+async function handleResendOtp() {
+    if (typeof USER_AUTH === 'undefined') return;
+    const email = state.pendingRegistrationEmail || (document.getElementById('register-email')?.value || '').trim();
+    if (!email) {
+        setAuthError('otp', 'ไม่พบข้อมูลอีเมล กรุณากลับไปสมัครสมาชิกใหม่');
+        return;
+    }
+
+    const btn = document.getElementById('resend-otp-btn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const result = await USER_AUTH.resendOtp(email);
+        if (result.success) {
+            startOtpCountdown(60);
+            showToast(result.message || 'ส่งรหัส OTP ชุดใหม่ไปยังอีเมลแล้ว', 'info');
+        } else {
+            setAuthError('otp', result.message || 'ขอรหัส OTP ใหม่อีกครั้งไม่สำเร็จ');
+            if (btn) btn.disabled = false;
+        }
+    } catch {
+        setAuthError('otp', 'เกิดข้อผิดพลาดในการขอรหัส OTP ใหม่');
+        if (btn) btn.disabled = false;
+    }
+}
+
+function handleBackToRegister() {
+    switchAuthTab('register');
+    setAuthError('register', '');
+}
+
+// ==========================================
+// FORGOT & RESET PASSWORD HANDLERS
+// ==========================================
+
+async function handleForgotPasswordRequest() {
+    if (typeof USER_AUTH === 'undefined') {
+        showToast('ไม่สามารถเชื่อมต่อระบบสมาชิกได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง', 'warning');
+        return;
+    }
+    const email = (document.getElementById('forgot-email')?.value || '').trim();
+    setAuthError('forgot-request', '');
+
+    if (!email) {
+        setAuthError('forgot-request', 'กรุณาระบุอีเมลที่ลงทะเบียนไว้');
+        return;
+    }
+
+    const btn = document.getElementById('forgot-request-btn');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-sm"></i> กำลังส่งรหัส OTP...`;
+    }
+
+    try {
+        const result = await USER_AUTH.forgotPassword(email);
+        if (result.success) {
+            state.pendingResetEmail = email;
+            switchAuthTab('forgot-verify');
+            const targetEl = document.getElementById('auth-forgot-target-email');
+            if (targetEl) targetEl.textContent = email;
+
+            const otpInput = document.getElementById('forgot-otp-input');
+            if (otpInput) {
+                otpInput.value = '';
+                if (!otpInput.dataset.bound) {
+                    otpInput.dataset.bound = 'true';
+                    otpInput.addEventListener('input', (e) => {
+                        e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+                        if (e.target.value.length === 6) {
+                            const newPass = document.getElementById('forgot-new-password')?.value;
+                            if (!newPass) {
+                                document.getElementById('forgot-new-password')?.focus();
+                            }
+                        }
+                    });
+                    otpInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') handleResetPasswordSubmit();
+                    });
+                }
+                setTimeout(() => otpInput.focus(), 150);
+            }
+
+            const newPassInp = document.getElementById('forgot-new-password');
+            if (newPassInp) {
+                newPassInp.value = '';
+                if (!newPassInp.dataset.bound) {
+                    newPassInp.dataset.bound = 'true';
+                    newPassInp.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') document.getElementById('forgot-confirm-password')?.focus();
+                    });
+                }
+            }
+
+            const confirmPassInp = document.getElementById('forgot-confirm-password');
+            if (confirmPassInp) {
+                confirmPassInp.value = '';
+                if (!confirmPassInp.dataset.bound) {
+                    confirmPassInp.dataset.bound = 'true';
+                    confirmPassInp.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') handleResetPasswordSubmit();
+                    });
+                }
+            }
+
+            startForgotOtpCountdown(60);
+            showToast(result.message || 'ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว', 'info');
+        } else {
+            setAuthError('forgot-request', result.message || 'ส่งรหัส OTP ไม่สำเร็จ');
+        }
+    } catch {
+        setAuthError('forgot-request', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+async function handleResetPasswordSubmit() {
+    if (typeof USER_AUTH === 'undefined') return;
+    const email = state.pendingResetEmail || (document.getElementById('forgot-email')?.value || '').trim();
+    const otp = (document.getElementById('forgot-otp-input')?.value || '').trim();
+    const newPassword = (document.getElementById('forgot-new-password')?.value || '').trim();
+    const confirmPassword = (document.getElementById('forgot-confirm-password')?.value || '').trim();
+
+    setAuthError('forgot-verify', '');
+
+    if (!email) {
+        setAuthError('forgot-verify', 'ไม่พบข้อมูลอีเมล กรุณากลับไประบุอีเมลใหม่');
+        return;
+    }
+    if (!otp || !/^\d{6}$/.test(otp)) {
+        setAuthError('forgot-verify', 'กรุณากรอกรหัส OTP ตัวเลข 6 หลักให้ครบถ้วน');
+        return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+        setAuthError('forgot-verify', 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        setAuthError('forgot-verify', 'รหัสผ่านใหม่และรหัสผ่านยืนยันไม่ตรงกัน');
+        return;
+    }
+
+    const btn = document.getElementById('forgot-verify-btn');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-sm"></i> กำลังบันทึก...`;
+    }
+
+    try {
+        const result = await USER_AUTH.resetPassword(email, otp, newPassword);
+        if (result.success) {
+            state.user = result.user;
+            state.pendingResetEmail = null;
+            if (forgotResendTimer) {
+                clearInterval(forgotResendTimer);
+                forgotResendTimer = null;
+            }
+            closeAuthModal();
+            await syncUserOrdersFromServer();
+            initHeader();
+            showToast(`🎉 ตั้งรหัสผ่านใหม่สำเร็จ และเข้าสู่ระบบเรียบร้อยแล้ว`, 'success');
+        } else {
+            setAuthError('forgot-verify', result.message || 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ');
+        }
+    } catch {
+        setAuthError('forgot-verify', 'เกิดข้อผิดพลาดในการตั้งรหัสผ่านใหม่');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+async function handleResendResetOtp() {
+    if (typeof USER_AUTH === 'undefined') return;
+    const email = state.pendingResetEmail || (document.getElementById('forgot-email')?.value || '').trim();
+    if (!email) {
+        setAuthError('forgot-verify', 'ไม่พบข้อมูลอีเมล กรุณากลับไประบุอีเมลใหม่');
+        return;
+    }
+
+    const btn = document.getElementById('forgot-resend-btn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const result = await USER_AUTH.forgotPassword(email);
+        if (result.success) {
+            startForgotOtpCountdown(60);
+            showToast(result.message || 'ส่งรหัส OTP กู้คืนรหัสผ่านชุดใหม่ไปยังอีเมลแล้ว', 'info');
+        } else {
+            setAuthError('forgot-verify', result.message || 'ขอรหัส OTP ใหม่อีกครั้งไม่สำเร็จ');
+            if (btn) btn.disabled = false;
+        }
+    } catch {
+        setAuthError('forgot-verify', 'เกิดข้อผิดพลาดในการขอรหัส OTP ใหม่');
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -3373,5 +3838,145 @@ function togglePasswordVisibility(inputId, btn) {
         icon.className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
     }
 }
+
+// ==========================================
+// MOBILE UX & BOTTOM NAVIGATION HELPERS
+// ==========================================
+
+async function downloadCheckoutQR() {
+    const qrImg = document.getElementById('promptpay-qr-img');
+    if (!qrImg || !qrImg.src) {
+        showToast('ไม่พบรูปภาพ QR Code กรุณารอสักครู่', 'warning');
+        return;
+    }
+    showToast('กำลังบันทึกรูป QR Code...', 'info');
+    try {
+        const response = await fetch(qrImg.src);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `PromptPay_QR_${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        showToast('บันทึกรูป QR เรียบร้อย! เปิดแอปธนาคารแล้วเลือกสแกนรูปภาพได้เลย', 'success');
+    } catch {
+        const a = document.createElement('a');
+        a.href = qrImg.src;
+        a.target = '_blank';
+        a.download = 'PromptPay_QR.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('เปิดรูป QR Code แล้ว สามารถแตะค้างเพื่อบันทึกภาพได้เลย', 'info');
+    }
+}
+
+function copyCheckoutTotal() {
+    const total = calculateVerifiedTotal();
+    if (total <= 0) {
+        showToast('ไม่มียอดที่ต้องชำระ', 'warning');
+        return;
+    }
+    const strTotal = total.toFixed(2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(strTotal).then(() => {
+            showToast(`คัดลอกยอดเงิน ฿${strTotal} เรียบร้อยแล้ว`, 'success');
+        }).catch(() => {
+            copyFallback(strTotal);
+        });
+    } else {
+        copyFallback(strTotal);
+    }
+}
+
+function copyFallback(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        showToast(`คัดลอกยอดเงิน ฿${text} เรียบร้อยแล้ว`, 'success');
+    } catch {
+        showToast(`ยอดเงิน: ฿${text}`, 'info');
+    }
+    document.body.removeChild(ta);
+}
+
+function toggleCheckoutBankGuide() {
+    const details = document.getElementById('checkout-bank-details');
+    const icon = document.getElementById('checkout-bank-toggle-icon');
+    const text = document.getElementById('checkout-bank-toggle-text');
+    if (!details) return;
+    const isHidden = details.classList.contains('hidden');
+    if (isHidden) {
+        details.classList.remove('hidden');
+        if (icon) icon.className = 'fa-solid fa-chevron-up text-[10px]';
+        if (text) text.textContent = 'ซ่อนรายละเอียด';
+    } else {
+        details.classList.add('hidden');
+        if (icon) icon.className = 'fa-solid fa-chevron-down text-[10px]';
+        if (text) text.textContent = 'วิธีชำระ & แอป';
+    }
+}
+
+function mobileNavGoHome() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (state.filterBrand !== 'all') {
+        selectBrand('all');
+    }
+}
+
+function mobileNavGoCategories() {
+    const bar = document.getElementById('catalog-filter-bar') || document.getElementById('product-catalog-section');
+    if (bar) {
+        const offset = 90;
+        const bodyRect = document.body.getBoundingClientRect().top;
+        const elementRect = bar.getBoundingClientRect().top;
+        const elementPosition = elementRect - bodyRect;
+        const offsetPosition = elementPosition - offset;
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+        });
+    }
+}
+
+function mobileNavFocusSearch() {
+    const input = document.getElementById('mobile-search-input');
+    if (input) {
+        input.focus();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        const desktopInput = document.getElementById('search-input');
+        if (desktopInput) desktopInput.focus();
+    }
+}
+
+function handleMobileSearchInput(val) {
+    state.searchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('mobile-search-clear');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !val);
+    const desktopSearch = document.getElementById('search-input');
+    if (desktopSearch && desktopSearch.value !== val) desktopSearch.value = val;
+    applyFilters();
+}
+
+function clearMobileSearch() {
+    const input = document.getElementById('mobile-search-input');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('mobile-search-clear');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    const desktopSearch = document.getElementById('search-input');
+    if (desktopSearch) desktopSearch.value = '';
+    state.searchQuery = '';
+    applyFilters();
+}
+
 
 

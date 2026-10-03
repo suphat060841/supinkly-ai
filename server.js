@@ -10,6 +10,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
+const mailService = require('./mail-service');
 const upload = multer({ 
     limits: { fileSize: 15 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
@@ -195,7 +196,10 @@ if (!fs.existsSync(DB_FILE)) {
         usedTransRefs: [],
         inventory: {},
         orders: [],
-        users: []  // { id, email, passwordHash, displayName, createdAt }
+        users: [],  // { id, email, passwordHash, displayName, createdAt, emailVerified }
+        pendingRegistrations: {}, // normalEmail -> { userId, email, displayName, passwordHash, otpHash, attempts, expiresAt, lastSentAt }
+        passwordResets: {},       // normalEmail -> { email, userId, otpHash, attempts, expiresAt, lastSentAt }
+        smtpConfig: {}
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2));
 }
@@ -204,13 +208,23 @@ function getDb() {
     try {
         if (fs.existsSync(DB_FILE)) {
             const raw = fs.readFileSync(DB_FILE, 'utf-8');
-            return JSON.parse(raw);
+            const data = JSON.parse(raw);
+            if (!data.pendingRegistrations) data.pendingRegistrations = {};
+            if (!data.passwordResets) data.passwordResets = {};
+            if (!data.users) data.users = [];
+            if (!data.smtpConfig) data.smtpConfig = {};
+            return data;
         }
     } catch (err) {
         console.error("Database read error, trying backup:", err.message);
         if (fs.existsSync(DB_BAK)) {
             try {
-                return JSON.parse(fs.readFileSync(DB_BAK, 'utf-8'));
+                const data = JSON.parse(fs.readFileSync(DB_BAK, 'utf-8'));
+                if (!data.pendingRegistrations) data.pendingRegistrations = {};
+                if (!data.passwordResets) data.passwordResets = {};
+                if (!data.users) data.users = [];
+                if (!data.smtpConfig) data.smtpConfig = {};
+                return data;
             } catch (e) {}
         }
     }
@@ -223,7 +237,11 @@ function getDb() {
         usedSlips: [],
         usedTransRefs: [],
         inventory: {},
-        orders: []
+        orders: [],
+        users: [],
+        pendingRegistrations: {},
+        passwordResets: {},
+        smtpConfig: {}
     };
 }
 
@@ -308,7 +326,7 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         // SHA-256 fingerprint จากไฟล์จริง
         const slipHash = computeSlipSHA256(req.file.buffer);
         if (db.usedSlips && db.usedSlips.includes(slipHash)) {
-            return res.status(400).json({ success: false, message: "สลิปนี้เคยถูกใช้งานไปแล้ว (Anti-Replay)" });
+            return res.status(400).json({ success: false, message: "สลิปนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้" });
         }
 
         // Validate cart items and calculate expected total price
@@ -426,12 +444,12 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         const currentDb = getDb();
 
         if (currentDb.usedSlips && currentDb.usedSlips.includes(slipHash)) {
-            return res.status(400).json({ success: false, message: "สลิปนี้เคยถูกใช้งานไปแล้ว (Anti-Replay)" });
+            return res.status(400).json({ success: false, message: "สลิปนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้" });
         }
         if (transRef) {
             if (!currentDb.usedTransRefs) currentDb.usedTransRefs = [];
             if (currentDb.usedTransRefs.includes(transRef)) {
-                return res.status(400).json({ success: false, message: "เลขอ้างอิงสลิป (transRef) เคยถูกใช้งานแล้ว (Anti-Replay)" });
+                return res.status(400).json({ success: false, message: "สลิปนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้" });
             }
             currentDb.usedTransRefs.push(transRef);
             // [SECURITY] Cap to last 10,000 entries to prevent unbounded growth
@@ -496,7 +514,7 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             paymentMethod: "Thai QR PromptPay",
             transRef: transRef || "REF-" + Date.now().toString(36).toUpperCase(),
             items: deliveredItems,
-            status: hasPending ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" : "🟢 จัดส่งสำเร็จทันที (Instant Vault)",
+            status: hasPending ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" : "🟢 จัดส่งสำเร็จทันที",
             slipHash
         };
         if (!currentDb.orders) currentDb.orders = [];
@@ -600,6 +618,73 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
     res.json({ success: true, order });
 });
 
+// 6.1 API: Admin Fetch Store & SMTP Settings
+app.get('/api/admin/settings', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const smtp = db.smtpConfig || {};
+    res.json({
+        success: true,
+        promptPayNumber: db.promptPayNumber || "0982949371",
+        promptPayAccountName: db.promptPayAccountName || "สุพัฒน์ มีสมบัติ",
+        slipOkBranchId: db.slipOkBranchId || "77491",
+        smtpConfig: {
+            host: process.env.SMTP_HOST || smtp.host || '',
+            port: parseInt(process.env.SMTP_PORT || smtp.port || '465', 10),
+            user: process.env.SMTP_USER || smtp.user || '',
+            pass: (process.env.SMTP_PASS || smtp.pass) ? '******' : '',
+            from: process.env.SMTP_FROM || smtp.from || '',
+            resendKey: (process.env.RESEND_API_KEY || smtp.resendKey) ? '******' : ''
+        }
+    });
+});
+
+// 6.2 API: Admin Update Store & SMTP Settings
+app.post('/api/admin/settings', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { promptPayNumber, promptPayAccountName, slipOkBranchId, newPin, smtpConfig } = req.body;
+    const db = getDb();
+
+    if (promptPayNumber) {
+        const clean = String(promptPayNumber).replace(/[^0-9]/g, '');
+        if (clean.length >= 10 && clean.length <= 15) {
+            db.promptPayNumber = clean;
+        }
+    }
+    if (promptPayAccountName && typeof promptPayAccountName === 'string') {
+        db.promptPayAccountName = promptPayAccountName.slice(0, 100).trim();
+    }
+    if (slipOkBranchId && typeof slipOkBranchId === 'string') {
+        db.slipOkBranchId = slipOkBranchId.slice(0, 32).trim();
+    }
+    if (newPin && typeof newPin === 'string') {
+        const pinClean = newPin.trim();
+        if (pinClean.length >= 4 && pinClean.length <= 16) {
+            db.adminPinHash = hashPin(pinClean);
+        }
+    }
+    if (smtpConfig && typeof smtpConfig === 'object') {
+        if (!db.smtpConfig) db.smtpConfig = {};
+        if (smtpConfig.host !== undefined) db.smtpConfig.host = String(smtpConfig.host).trim();
+        if (smtpConfig.port !== undefined) db.smtpConfig.port = parseInt(smtpConfig.port, 10) || 465;
+        if (smtpConfig.user !== undefined) db.smtpConfig.user = String(smtpConfig.user).trim();
+        if (smtpConfig.pass !== undefined && smtpConfig.pass !== '******') {
+            db.smtpConfig.pass = String(smtpConfig.pass).trim();
+        }
+        if (smtpConfig.from !== undefined) db.smtpConfig.from = String(smtpConfig.from).trim();
+        if (smtpConfig.resendKey !== undefined && smtpConfig.resendKey !== '******') {
+            db.smtpConfig.resendKey = String(smtpConfig.resendKey).trim();
+        }
+    }
+
+    saveDb(db);
+    res.json({ success: true, message: "บันทึกการตั้งค่าสำเร็จ" });
+});
+
 const orderLookupRateLimit = rateLimit({
     windowMs: 60 * 1000,
     max: 20,
@@ -660,6 +745,13 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
 const USER_TOKEN_SECRET = process.env.USER_TOKEN_SECRET || 'supinkly_sec_user_token_2026';
 const revokedUserTokens = new Set();
 
+function isLocalRequest(req) {
+    if (process.env.NODE_ENV === 'production') return false;
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    const host = req.hostname || (req.headers.host || '').split(':')[0];
+    return host === 'localhost' || host === '127.0.0.1' || ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
 function hashPassword(password, userId) {
     const salt = (process.env.USER_SALT || 'supinkly_user_salt_2026') + userId;
     return crypto.createHash('sha256').update(salt + String(password).trim()).digest('hex');
@@ -672,10 +764,11 @@ function verifyPassword(enteredPw, storedHash, userId) {
 }
 
 // Cryptographic stateless token generator (Survives server restart & zero memory leak)
-function generateUserToken(userId, email, durationMs = 30 * 24 * 60 * 60 * 1000) {
+function generateUserToken(userId, email, tokenVersion = 1, durationMs = 30 * 24 * 60 * 60 * 1000) {
     const expiresAt = Date.now() + durationMs;
     const nonce = crypto.randomBytes(8).toString('hex');
-    const payload = `${userId}.${expiresAt}.${nonce}`;
+    const version = tokenVersion || 1;
+    const payload = `${userId}.${expiresAt}.${version}.${nonce}`;
     const hmac = crypto.createHmac('sha256', USER_TOKEN_SECRET)
         .update(`${payload}.${email}`)
         .digest('hex');
@@ -688,8 +781,18 @@ function verifyUserToken(token) {
     if (revokedUserTokens.has(token)) return null;
 
     const parts = token.split('.');
-    if (parts.length !== 4) return null; // [userId, expiresAt, nonce, hmac]
-    const [userId, expiresAtStr, nonce, hmac] = parts;
+    if (parts.length !== 4 && parts.length !== 5) return null;
+
+    let userId, expiresAtStr, tokenVersion, nonce, hmac;
+    if (parts.length === 5) {
+        let tokenVersionStr;
+        [userId, expiresAtStr, tokenVersionStr, nonce, hmac] = parts;
+        tokenVersion = parseInt(tokenVersionStr, 10);
+    } else {
+        // Backwards compatibility with legacy 4-part tokens
+        [userId, expiresAtStr, nonce, hmac] = parts;
+        tokenVersion = null;
+    }
 
     const expiresAt = parseInt(expiresAtStr, 10);
     if (isNaN(expiresAt) || Date.now() > expiresAt) return null;
@@ -698,7 +801,16 @@ function verifyUserToken(token) {
     const user = (db.users || []).find(u => u.id === userId);
     if (!user) return null;
 
-    const payload = `${userId}.${expiresAt}.${nonce}`;
+    // Check tokenVersion: mismatched version indicates session was invalidated (e.g. password reset)
+    const currentVersion = user.tokenVersion || 1;
+    if (tokenVersion !== null && tokenVersion !== currentVersion) {
+        return null;
+    }
+
+    const payload = parts.length === 5
+        ? `${userId}.${expiresAt}.${tokenVersion}.${nonce}`
+        : `${userId}.${expiresAt}.${nonce}`;
+
     const expectedHmac = crypto.createHmac('sha256', USER_TOKEN_SECRET)
         .update(`${payload}.${user.email}`)
         .digest('hex');
@@ -722,46 +834,195 @@ const userAuthRateLimit = rateLimit({
     message: { success: false, message: "ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอสักครู่" }
 });
 
-// U1. Register
-app.post('/api/auth/register', userAuthRateLimit, (req, res) => {
-    const { email, password, displayName } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ success: false, message: "กรุณากรอกอีเมลและรหัสผ่าน" });
-    }
-    if (!isValidEmail(email)) {
-        return res.status(400).json({ success: false, message: "รูปแบบอีเมลไม่ถูกต้อง" });
-    }
-    const pw = String(password).trim();
-    if (pw.length < 6 || pw.length > 128) {
-        return res.status(400).json({ success: false, message: "รหัสผ่านต้องมีความยาว 6-128 ตัวอักษร" });
-    }
+const otpRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: { success: false, message: "ทำรายการ OTP บ่อยเกินไป กรุณารอสักครู่" }
+});
 
-    const db = getDb();
-    if (!db.users) db.users = [];
-    const normalEmail = email.trim().toLowerCase();
-    if (db.users.find(u => u.email === normalEmail)) {
-        // [SECURITY] Return generic message to prevent user enumeration
-        return res.status(200).json({ success: false, message: "หากอีเมลนี้ยังไม่เคยลงทะเบียน จะมีอีเมลยืนยันส่งไปให้ กรุณาตรวจสอบ Inbox ของคุณ" });
+// U1. Register (Step 1: Send 6-Digit Verification OTP to Email)
+app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
+    try {
+        const { email, password, displayName } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: "กรุณากรอกอีเมลและรหัสผ่าน" });
+        }
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ success: false, message: "รูปแบบอีเมลไม่ถูกต้อง" });
+        }
+        const pw = String(password).trim();
+        if (pw.length < 6 || pw.length > 128) {
+            return res.status(400).json({ success: false, message: "รหัสผ่านต้องมีความยาว 6-128 ตัวอักษร" });
+        }
+
+        const db = getDb();
+        if (!db.users) db.users = [];
+        if (!db.pendingRegistrations) db.pendingRegistrations = {};
+        const normalEmail = email.trim().toLowerCase();
+
+        // Check if user already exists
+        if (db.users.find(u => u.email === normalEmail)) {
+            return res.status(400).json({ success: false, message: "อีเมลนี้มีบัญชีในระบบแล้ว กรุณาเข้าสู่ระบบ หรือใช้อีเมลอื่น" });
+        }
+
+        const now = Date.now();
+        const pending = db.pendingRegistrations[normalEmail];
+        if (pending && (now - (pending.lastSentAt || 0) < 45000)) {
+            const waitSec = Math.ceil((45000 - (now - pending.lastSentAt)) / 1000);
+            return res.status(429).json({ success: false, message: `กรุณารออีก ${waitSec} วินาทีก่อนขอรหัสใหม่อีกครั้ง` });
+        }
+
+        // Sanitize displayName to prevent control characters and formatting attacks
+        const cleanDisplayName = displayName
+            ? String(displayName).replace(/[\r\n\t\x00-\x1f]/g, '').slice(0, 60).trim()
+            : normalEmail.split('@')[0];
+
+        const pendingUserId = 'U' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString('hex').toUpperCase();
+        const otp = String(crypto.randomInt(100000, 999999));
+        const otpHash = crypto.createHash('sha256').update(normalEmail + ':' + otp).digest('hex');
+
+        db.pendingRegistrations[normalEmail] = {
+            userId: pendingUserId,
+            email: normalEmail,
+            displayName: cleanDisplayName || 'สมาชิก Supinkly',
+            passwordHash: hashPassword(pw, pendingUserId),
+            otpHash,
+            attempts: 0,
+            expiresAt: now + 10 * 60 * 1000, // 10 minutes
+            lastSentAt: now
+        };
+        saveDb(db);
+
+        const mailResult = await mailService.sendOtpEmail(normalEmail, otp, cleanDisplayName, db);
+
+        res.json({
+            success: true,
+            requireOtp: true,
+            email: normalEmail,
+            message: "ระบบได้ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว กรุณาตรวจสอบกล่องข้อความ"
+        });
+    } catch (err) {
+        console.error('Registration OTP error:', err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการส่งรหัส OTP กรุณาลองใหม่" });
     }
+});
 
-    // Sanitize displayName to prevent control characters and formatting attacks
-    const cleanDisplayName = displayName
-        ? String(displayName).replace(/[\r\n\t\x00-\x1f]/g, '').slice(0, 60).trim()
-        : normalEmail.split('@')[0];
+// U1.1 Verify OTP and Complete Registration
+app.post('/api/auth/verify-otp', otpRateLimit, (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ success: false, message: "กรุณาระบุอีเมลและรหัส OTP 6 หลัก" });
+        }
+        const normalEmail = String(email).trim().toLowerCase();
+        const cleanOtp = String(otp).trim();
+        if (!/^\d{6}$/.test(cleanOtp)) {
+            return res.status(400).json({ success: false, message: "รหัส OTP ต้องเป็นตัวเลข 6 หลัก" });
+        }
 
-    const userId = 'U' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString('hex').toUpperCase();
-    const user = {
-        id: userId,
-        email: normalEmail,
-        displayName: cleanDisplayName || 'สมาชิก Supinkly',
-        passwordHash: hashPassword(pw, userId),
-        createdAt: new Date().toISOString()
-    };
-    db.users.push(user);
-    saveDb(db);
+        const db = getDb();
+        if (!db.pendingRegistrations) db.pendingRegistrations = {};
+        const pending = db.pendingRegistrations[normalEmail];
 
-    const { token, expiresAt } = generateUserToken(userId, normalEmail);
-    res.json({ success: true, token, expiresAt, user: { id: userId, email: normalEmail, displayName: user.displayName } });
+        if (!pending) {
+            return res.status(400).json({ success: false, message: "ไม่พบข้อมูลการลงทะเบียน หรือรหัสหมดอายุ กรุณาสมัครใหม่อีกครั้ง" });
+        }
+
+        if (Date.now() > pending.expiresAt) {
+            delete db.pendingRegistrations[normalEmail];
+            saveDb(db);
+            return res.status(400).json({ success: false, message: "รหัส OTP หมดอายุแล้ว (เกิน 10 นาที) กรุณาสมัครใหม่อีกครั้ง" });
+        }
+
+        if ((pending.attempts || 0) >= 5) {
+            delete db.pendingRegistrations[normalEmail];
+            saveDb(db);
+            return res.status(400).json({ success: false, message: "กรอกรหัสผิดเกิน 5 ครั้ง รหัส OTP ถูกยกเลิกเพื่อความปลอดภัย กรุณาสมัครใหม่อีกครั้ง" });
+        }
+
+        const enteredHash = crypto.createHash('sha256').update(normalEmail + ':' + cleanOtp).digest('hex');
+        const isMatch = enteredHash.length === pending.otpHash.length &&
+                        crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(pending.otpHash));
+
+        if (!isMatch) {
+            pending.attempts = (pending.attempts || 0) + 1;
+            const remaining = 5 - pending.attempts;
+            if (pending.attempts >= 5) {
+                delete db.pendingRegistrations[normalEmail];
+                saveDb(db);
+                return res.status(400).json({ success: false, message: "กรอกรหัสผิดเกิน 5 ครั้ง รหัส OTP ถูกยกเลิกเพื่อความปลอดภัย กรุณาสมัครใหม่อีกครั้ง" });
+            }
+            saveDb(db);
+            return res.status(400).json({ success: false, message: `รหัส OTP ไม่ถูกต้อง (เหลือโอกาสลองอีก ${remaining} ครั้ง)` });
+        }
+
+        // OTP Verified Successfully! Create the permanent user account
+        if (!db.users) db.users = [];
+        const user = {
+            id: pending.userId,
+            email: pending.email,
+            displayName: pending.displayName || 'สมาชิก Supinkly',
+            passwordHash: pending.passwordHash,
+            tokenVersion: 1,
+            emailVerified: true,
+            createdAt: new Date().toISOString()
+        };
+        db.users.push(user);
+        delete db.pendingRegistrations[normalEmail];
+        saveDb(db);
+
+        const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+        res.json({
+            success: true,
+            token,
+            expiresAt,
+            user: { id: user.id, email: user.email, displayName: user.displayName }
+        });
+    } catch (err) {
+        console.error('Verify OTP error:', err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการตรวจสอบ OTP" });
+    }
+});
+
+// U1.2 Resend OTP
+app.post('/api/auth/resend-otp', otpRateLimit, async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ success: false, message: "กรุณาระบุอีเมล" });
+        }
+        const normalEmail = String(email).trim().toLowerCase();
+        const db = getDb();
+        if (!db.pendingRegistrations) db.pendingRegistrations = {};
+        const pending = db.pendingRegistrations[normalEmail];
+
+        if (!pending) {
+            return res.status(400).json({ success: false, message: "ไม่พบข้อมูลการลงทะเบียนที่รอการยืนยัน กรุณาสมัครใหม่อีกครั้ง" });
+        }
+
+        const now = Date.now();
+        if (now - (pending.lastSentAt || 0) < 45000) {
+            const waitSec = Math.ceil((45000 - (now - pending.lastSentAt)) / 1000);
+            return res.status(429).json({ success: false, message: `กรุณารออีก ${waitSec} วินาทีก่อนขอรหัสใหม่อีกครั้ง` });
+        }
+
+        const otp = String(crypto.randomInt(100000, 999999));
+        pending.otpHash = crypto.createHash('sha256').update(normalEmail + ':' + otp).digest('hex');
+        pending.attempts = 0;
+        pending.expiresAt = now + 10 * 60 * 1000;
+        pending.lastSentAt = now;
+        saveDb(db);
+
+        const mailResult = await mailService.sendOtpEmail(normalEmail, otp, pending.displayName, db);
+
+        res.json({
+            success: true,
+            message: "ระบบได้ส่งรหัส OTP ชุดใหม่ไปยังอีเมลของคุณแล้ว"
+        });
+    } catch (err) {
+        console.error('Resend OTP error:', err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการส่งรหัส OTP ใหม่" });
+    }
 });
 
 // U2. Login
@@ -774,7 +1035,7 @@ app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
     const db = getDb();
     if (!db.users) db.users = [];
     const normalEmail = email.trim().toLowerCase();
-    const user = db.users.find(u => u.email === normalEmail);
+    const user = db.users.find(u => (u.email || '').toLowerCase() === normalEmail);
 
     // [SECURITY] Always run verifyPassword in constant time to prevent timing-based user enumeration
     const DUMMY_HASH = hashPassword('dummy_check_supinkly', 'DUMMY_USER_ID_0000');
@@ -786,8 +1047,160 @@ app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
         return res.status(401).json({ success: false, message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
     }
 
-    const { token, expiresAt } = generateUserToken(user.id, normalEmail);
+    const { token, expiresAt } = generateUserToken(user.id, normalEmail, user.tokenVersion || 1);
     res.json({ success: true, token, expiresAt, user: { id: user.id, email: normalEmail, displayName: user.displayName } });
+});
+
+// U2.1 Forgot Password: Request OTP to reset password
+app.post('/api/auth/forgot-password', userAuthRateLimit, async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email || !isValidEmail(email)) {
+            return res.status(400).json({ success: false, message: "กรุณาระบุอีเมลที่ถูกต้อง" });
+        }
+
+        const normalEmail = email.trim().toLowerCase();
+        const db = getDb();
+        if (!db.users) db.users = [];
+        if (!db.passwordResets) db.passwordResets = {};
+
+        // [SECURITY] Cooldown check applies to ALL requested emails (prevents 429-based enumeration)
+        const now = Date.now();
+        const existingReset = db.passwordResets[normalEmail];
+        if (existingReset && (now - (existingReset.lastSentAt || 0) < 45000)) {
+            const waitSec = Math.ceil((45000 - (now - existingReset.lastSentAt)) / 1000);
+            return res.status(429).json({ success: false, message: `กรุณารออีก ${waitSec} วินาทีก่อนขอรหัสใหม่อีกครั้ง` });
+        }
+
+        const user = db.users.find(u => (u.email || '').toLowerCase() === normalEmail);
+
+        // [SECURITY] Anti-User Enumeration:
+        // Set cooldown and simulate processing delay so non-existing emails cannot be detected via timing
+        if (!user) {
+            db.passwordResets[normalEmail] = {
+                lastSentAt: now,
+                expiresAt: now + 5 * 60 * 1000,
+                dummy: true
+            };
+            saveDb(db);
+            await new Promise(r => setTimeout(r, 150 + Math.floor(Math.random() * 100)));
+            return res.json({
+                success: true,
+                message: "หากอีเมลนี้มีอยู่ในระบบ เราได้ส่งรหัส OTP 6 หลักสำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว",
+                email: normalEmail
+            });
+        }
+
+        const otp = String(crypto.randomInt(100000, 999999));
+        const otpHash = crypto.createHash('sha256').update(normalEmail + ':reset:' + otp).digest('hex');
+
+        db.passwordResets[normalEmail] = {
+            email: normalEmail,
+            userId: user.id,
+            otpHash,
+            attempts: 0,
+            expiresAt: now + 10 * 60 * 1000, // 10 minutes
+            lastSentAt: now
+        };
+        saveDb(db);
+
+        const mailResult = await mailService.sendResetPasswordEmail(normalEmail, otp, user.displayName, db);
+
+        res.json({
+            success: true,
+            message: "หากอีเมลนี้มีอยู่ในระบบ เราได้ส่งรหัส OTP 6 หลักสำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว",
+            email: normalEmail
+        });
+    } catch (err) {
+        console.error('Forgot password error:', err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการส่งรหัสกู้คืนรหัสผ่าน" });
+    }
+});
+
+// U2.2 Reset Password: Verify OTP and save new password
+app.post('/api/auth/reset-password', otpRateLimit, (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ success: false, message: "กรุณากรอกข้อมูลให้ครบถ้วน (อีเมล, รหัส OTP, รหัสผ่านใหม่)" });
+        }
+
+        const normalEmail = String(email).trim().toLowerCase();
+        const cleanOtp = String(otp).trim();
+        const pw = String(newPassword).trim();
+
+        if (!/^\d{6}$/.test(cleanOtp)) {
+            return res.status(400).json({ success: false, message: "รหัส OTP ต้องเป็นตัวเลข 6 หลัก" });
+        }
+        if (pw.length < 6 || pw.length > 128) {
+            return res.status(400).json({ success: false, message: "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
+        }
+
+        const db = getDb();
+        if (!db.passwordResets) db.passwordResets = {};
+        const resetRecord = db.passwordResets[normalEmail];
+
+        if (!resetRecord || resetRecord.dummy) {
+            return res.status(400).json({ success: false, message: "ไม่พบคำขอรีเซ็ตรหัสผ่าน หรือรหัสหมดอายุ กรุณาขอรหัสใหม่อีกครั้ง" });
+        }
+
+        if (Date.now() > resetRecord.expiresAt) {
+            delete db.passwordResets[normalEmail];
+            saveDb(db);
+            return res.status(400).json({ success: false, message: "รหัส OTP หมดอายุแล้ว (เกิน 10 นาที) กรุณาขอรหัสใหม่อีกครั้ง" });
+        }
+
+        if ((resetRecord.attempts || 0) >= 5) {
+            delete db.passwordResets[normalEmail];
+            saveDb(db);
+            return res.status(400).json({ success: false, message: "กรอกรหัสผิดเกิน 5 ครั้ง คำขอถูกยกเลิกเพื่อความปลอดภัย กรุณาทำรายการใหม่อีกครั้ง" });
+        }
+
+        const enteredHash = crypto.createHash('sha256').update(normalEmail + ':reset:' + cleanOtp).digest('hex');
+        const isMatch = enteredHash.length === resetRecord.otpHash.length &&
+                        crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(resetRecord.otpHash));
+
+        if (!isMatch) {
+            resetRecord.attempts = (resetRecord.attempts || 0) + 1;
+            const remaining = 5 - resetRecord.attempts;
+            if (resetRecord.attempts >= 5) {
+                delete db.passwordResets[normalEmail];
+                saveDb(db);
+                return res.status(400).json({ success: false, message: "กรอกรหัสผิดเกิน 5 ครั้ง คำขอถูกยกเลิกเพื่อความปลอดภัย กรุณาทำรายการใหม่อีกครั้ง" });
+            }
+            saveDb(db);
+            return res.status(400).json({ success: false, message: `รหัส OTP ไม่ถูกต้อง (เหลือโอกาสลองอีก ${remaining} ครั้ง)` });
+        }
+
+        // OTP Validated! Update user password
+        if (!db.users) db.users = [];
+        const user = db.users.find(u => u.id === resetRecord.userId || (u.email || '').toLowerCase() === normalEmail);
+        if (!user) {
+            delete db.passwordResets[normalEmail];
+            saveDb(db);
+            return res.status(404).json({ success: false, message: "ไม่พบบัญชีผู้ใช้งานในระบบ" });
+        }
+
+        // Invalidate all existing sessions across all devices
+        user.tokenVersion = (user.tokenVersion || 1) + 1;
+        user.passwordHash = hashPassword(pw, user.id);
+        user.passwordUpdatedAt = new Date().toISOString();
+        delete db.passwordResets[normalEmail];
+        saveDb(db);
+
+        // Auto-login the user with new token bound to updated tokenVersion
+        const { token, expiresAt } = generateUserToken(user.id, normalEmail, user.tokenVersion);
+        res.json({
+            success: true,
+            message: "ตั้งรหัสผ่านใหม่และเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว",
+            token,
+            expiresAt,
+            user: { id: user.id, email: normalEmail, displayName: user.displayName }
+        });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
+    }
 });
 
 // U3. Logout
