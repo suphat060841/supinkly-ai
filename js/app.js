@@ -3045,6 +3045,10 @@ function startAdminAnalyticsPolling() {
     fetchAdminAnalytics(false);
     adminAnalyticsPollingTimer = setInterval(() => {
         fetchAdminAnalytics(false);
+        const usersTab = document.getElementById('admin-tab-users');
+        if (usersTab && !usersTab.classList.contains('hidden')) {
+            renderAdminUsersList();
+        }
     }, 5000);
 }
 
@@ -3291,10 +3295,27 @@ function quickChatWithOnlineUser(sessionId, displayName) {
 }
 
 // ==========================================
-// ADMIN USER / MEMBER MANAGEMENT
+// ADMIN USER / MEMBER MANAGEMENT (REAL-TIME ONLINE/OFFLINE TRACKING)
 // ==========================================
 let adminUserSearchQuery = '';
+let adminUserStatusFilter = 'all'; // 'all' | 'online' | 'offline'
 let cachedAdminUsers = [];
+
+function filterAdminUsersStatus(status) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    adminUserStatusFilter = status;
+    ['all', 'online', 'offline'].forEach(s => {
+        const btn = document.getElementById(`admin-users-filter-${s}`);
+        if (btn) {
+            if (s === status) {
+                btn.className = "px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs font-bold cursor-pointer transition-all";
+            } else {
+                btn.className = "px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 font-bold cursor-pointer transition-all flex items-center gap-1";
+            }
+        }
+    });
+    renderAdminUsersList();
+}
 
 async function renderAdminUsersList() {
     const tableBody = document.getElementById('admin-users-table');
@@ -3306,7 +3327,7 @@ async function renderAdminUsersList() {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5" class="py-8 text-center text-rose-500 text-xs font-bold">
+                <td colspan="6" class="py-8 text-center text-rose-500 text-xs font-bold">
                     กรุณาเข้าสู่ระบบหลังร้านเพื่อดูรายชื่อสมาชิก
                 </td>
             </tr>
@@ -3326,11 +3347,58 @@ async function renderAdminUsersList() {
         }
     }
 
+    // Cross-reference with live analytics active users for instantaneous real-time sync
+    const liveActiveUsers = (state.analytics && state.analytics.live && Array.isArray(state.analytics.live.activeUsers)) 
+        ? state.analytics.live.activeUsers 
+        : [];
+    
+    if (liveActiveUsers.length > 0) {
+        cachedAdminUsers.forEach(u => {
+            const normalEmail = (u.email || '').toLowerCase();
+            const liveMatch = liveActiveUsers.find(act => 
+                (act.userId && act.userId === u.id) || 
+                (act.email && act.email.toLowerCase() === normalEmail)
+            );
+            if (liveMatch) {
+                u.isOnline = true;
+                u.onlineSession = {
+                    sessionId: liveMatch.sessionId,
+                    page: liveMatch.page || 'หน้าแรก',
+                    currentProduct: liveMatch.currentProduct || '',
+                    lastAction: liveMatch.lastAction || 'เปิดหน้าเว็บ',
+                    cartCount: liveMatch.cartCount || 0,
+                    cartTotal: liveMatch.cartTotal || 0,
+                    lastSeenSec: liveMatch.lastSeenSec || 0
+                };
+            }
+        });
+    }
+
     const totalUsers = cachedAdminUsers.length;
-    if (badge) badge.textContent = totalUsers;
-    if (statUsers) statUsers.textContent = `${totalUsers} คน`;
+    const onlineUsers = cachedAdminUsers.filter(u => u.isOnline).length;
+    const offlineUsers = totalUsers - onlineUsers;
+
+    if (badge) badge.textContent = `${totalUsers}`;
+    if (statUsers) statUsers.textContent = `${totalUsers} คน (ออนไลน์ ${onlineUsers})`;
+
+    // Update filter pill counts
+    const cntAll = document.getElementById('admin-users-count-all');
+    if (cntAll) cntAll.textContent = totalUsers;
+    const cntOnline = document.getElementById('admin-users-count-online');
+    if (cntOnline) cntOnline.textContent = onlineUsers;
+    const cntOffline = document.getElementById('admin-users-count-offline');
+    if (cntOffline) cntOffline.textContent = offlineUsers;
 
     let filtered = [...cachedAdminUsers];
+
+    // Status filter
+    if (adminUserStatusFilter === 'online') {
+        filtered = filtered.filter(u => u.isOnline);
+    } else if (adminUserStatusFilter === 'offline') {
+        filtered = filtered.filter(u => !u.isOnline);
+    }
+
+    // Search query
     if (adminUserSearchQuery) {
         const q = adminUserSearchQuery.toLowerCase();
         filtered = filtered.filter(u => 
@@ -3341,18 +3409,21 @@ async function renderAdminUsersList() {
     }
 
     if (countLabel) {
-        countLabel.textContent = `พบสมาชิก ${filtered.length} คน (จากทั้งหมด ${totalUsers} คน)`;
+        const filterName = adminUserStatusFilter === 'online' ? ' (กำลังออนไลน์)' : (adminUserStatusFilter === 'offline' ? ' (ออฟไลน์)' : '');
+        countLabel.textContent = `พบสมาชิก ${filtered.length} คน${filterName} จากทั้งหมด ${totalUsers} คน`;
     }
 
     if (filtered.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5" class="py-12 text-center text-slate-400">
+                <td colspan="6" class="py-12 text-center text-slate-400">
                     <div class="w-12 h-12 mx-auto mb-2 rounded-2xl bg-slate-100 flex items-center justify-center text-xl text-slate-400">
                         <i class="fa-solid fa-user-slash"></i>
                     </div>
                     <div class="font-bold text-slate-600">ไม่พบข้อมูลสมาชิก</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5">ยังไม่มีการสมัครสมาชิก หรือไม่ตรงกับคำค้นหา</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">
+                        ${adminUserStatusFilter === 'online' ? 'ขณะนี้ไม่มีสมาชิกที่กำลังออนไลน์' : (adminUserStatusFilter === 'offline' ? 'ไม่มีสมาชิกที่ออฟไลน์' : 'ยังไม่มีการสมัครสมาชิก หรือไม่ตรงกับคำค้นหา')}
+                    </div>
                 </td>
             </tr>
         `;
@@ -3362,13 +3433,20 @@ async function renderAdminUsersList() {
     tableBody.innerHTML = filtered.map(u => {
         const dateStr = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
         const initial = (u.displayName || u.email || 'U').charAt(0).toUpperCase();
+        const isOnline = !!u.isOnline;
+        const sess = u.onlineSession;
 
         return `
-            <tr class="hover:bg-slate-50/80 transition-colors">
+            <tr class="hover:bg-slate-50/80 transition-colors ${isOnline ? 'bg-emerald-50/20' : ''}">
                 <td class="py-3 px-3.5">
                     <div class="flex items-center gap-2.5">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                            ${escapeHTML(initial)}
+                        <div class="relative shrink-0">
+                            <div class="w-8 h-8 rounded-full ${isOnline ? 'bg-gradient-to-tr from-emerald-500 to-teal-600 ring-2 ring-emerald-400 text-white' : 'bg-gradient-to-tr from-pink-500 to-purple-600 text-white'} flex items-center justify-center font-bold text-xs shadow-xs">
+                                ${escapeHTML(initial)}
+                            </div>
+                            ${isOnline 
+                                ? '<span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white animate-pulse" title="ออนไลน์อยู่ในขณะนี้"></span>' 
+                                : '<span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white" title="ออฟไลน์"></span>'}
                         </div>
                         <div class="min-w-0">
                             <div class="font-bold text-slate-900 truncate flex items-center gap-1.5">
@@ -3378,6 +3456,27 @@ async function renderAdminUsersList() {
                             <div class="text-[11px] text-slate-500 truncate font-mono">${escapeHTML(u.email)}</div>
                         </div>
                     </div>
+                </td>
+                <td class="py-3 px-3.5 text-center whitespace-nowrap">
+                    ${isOnline ? `
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                            <span>🟢 ออนไลน์</span>
+                        </span>
+                        ${sess ? `
+                            <div class="text-[10px] text-emerald-700 font-bold mt-1 truncate max-w-[150px] mx-auto" title="${escapeHTML(sess.lastAction || sess.page)}">
+                                <i class="fa-solid fa-location-dot text-[9px]"></i> ${escapeHTML(sess.page || 'หน้าแรก')}
+                            </div>
+                            <div class="text-[9px] text-slate-400 mt-0.5 font-mono">
+                                เคลื่อนไหว: ${sess.lastSeenSec < 10 ? 'เมื่อสักครู่' : `${sess.lastSeenSec} วิที่แล้ว`}
+                            </div>
+                        ` : ''}
+                    ` : `
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                            <span>⚪ ออฟไลน์</span>
+                        </span>
+                    `}
                 </td>
                 <td class="py-3 px-3.5 text-center">
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${u.emailVerified ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}">
@@ -3394,6 +3493,13 @@ async function renderAdminUsersList() {
                 </td>
                 <td class="py-3 px-3.5 text-right whitespace-nowrap">
                     <div class="flex items-center justify-end gap-1.5">
+                        ${isOnline && sess?.sessionId ? `
+                            <button onclick="quickChatWithOnlineUser('${escapeHTML(sess.sessionId)}', '${escapeHTML(u.displayName)}')" title="ทักแชทสดกับสมาชิกนี้" 
+                                    class="px-2.5 py-1.5 rounded-xl bg-pink-100 hover:bg-pink-200 text-pink-700 border border-pink-300 text-xs font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer">
+                                <i class="fa-solid fa-comments text-pink-600 text-[11px]"></i>
+                                <span class="hidden sm:inline">ทักแชท</span>
+                            </button>
+                        ` : ''}
                         <button onclick="viewUserOrders('${escapeHTML(u.email)}')" title="ดูคำสั่งซื้อของสมาชิกนี้" 
                                 class="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1 shadow-2xs">
                             <i class="fa-solid fa-receipt text-[11px]"></i>

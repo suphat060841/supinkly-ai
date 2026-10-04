@@ -1808,11 +1808,13 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
     }
 });
 
-// 6.3 API: Admin Fetch Users (Members List)
+// 6.3 API: Admin Fetch Users (Members List with Real-time Online/Offline Status)
 app.get('/api/admin/users', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
+    cleanStaleSessions();
+    const now = Date.now();
     const db = getDb();
     const users = db.users || [];
     const orders = db.orders || [];
@@ -1824,6 +1826,30 @@ app.get('/api/admin/users', adminRateLimit, (req, res) => {
             (o.recipientEmail && o.recipientEmail.toLowerCase() === (u.email || '').toLowerCase())
         );
         const totalSpent = userOrders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0);
+
+        // Check activeSessions for real-time online status
+        const normalEmail = (u.email || '').toLowerCase();
+        let isOnline = false;
+        let onlineSession = null;
+
+        for (const sess of activeSessions.values()) {
+            const matchesId = sess.userId && sess.userId === u.id;
+            const matchesEmail = sess.email && sess.email.toLowerCase() === normalEmail;
+            if ((matchesId || matchesEmail) && (now - sess.lastSeen <= 60000)) {
+                isOnline = true;
+                onlineSession = {
+                    sessionId: sess.sessionId,
+                    page: sess.page || 'หน้าแรก',
+                    currentProduct: sess.currentProduct || '',
+                    lastAction: sess.lastAction || 'เปิดหน้าเว็บ',
+                    cartCount: sess.cartCount || 0,
+                    cartTotal: sess.cartTotal || 0,
+                    lastSeenSec: Math.max(0, Math.floor((now - sess.lastSeen) / 1000))
+                };
+                break;
+            }
+        }
+
         return {
             id: u.id,
             email: u.email,
@@ -1831,11 +1857,28 @@ app.get('/api/admin/users', adminRateLimit, (req, res) => {
             emailVerified: !!u.emailVerified,
             createdAt: u.createdAt || null,
             ordersCount: userOrders.length,
-            totalSpent
+            totalSpent,
+            isOnline,
+            onlineSession
         };
-    }).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }).sort((a, b) => {
+        if (a.isOnline && !b.isOnline) return -1;
+        if (!a.isOnline && b.isOnline) return 1;
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
 
-    res.json({ success: true, users: enrichedUsers });
+    const onlineCount = enrichedUsers.filter(u => u.isOnline).length;
+    const offlineCount = enrichedUsers.length - onlineCount;
+
+    res.json({ 
+        success: true, 
+        users: enrichedUsers,
+        summary: {
+            total: enrichedUsers.length,
+            online: onlineCount,
+            offline: offlineCount
+        }
+    });
 });
 
 // 6.4 API: Admin Reset User Password
