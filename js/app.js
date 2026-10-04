@@ -340,7 +340,7 @@ const TELEMETRY = {
     updateStorefrontBadge(count) {
         const textEl = document.getElementById('storefront-online-text');
         if (textEl) {
-            textEl.textContent = `ออนไลน์ ${Math.max(1, count)} คน`;
+            textEl.textContent = 'ระบบพร้อมให้บริการ 24 ชม.';
         }
         const badgeEl = document.getElementById('admin-online-badge');
         if (badgeEl) {
