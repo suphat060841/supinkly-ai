@@ -493,3 +493,174 @@ function getMasterProduct(productId) {
         marketCostTHB
     };
 }
+
+// ==========================================
+// STORE PROMOTIONS & DISCOUNT COUPONS
+// ==========================================
+const DEFAULT_PROMOTIONS = [
+    {
+        code: "SUPINKLY10",
+        title: "ส่วนลดต้อนรับสมาชิกใหม่ 10%",
+        description: "รับส่วนลด 10% ทุกรายการ เมื่อสั่งซื้อขั้นต่ำ ฿100 (ลดสูงสุด ฿100)",
+        discountType: "percent",
+        type: "percentage",
+        discountValue: 10,
+        value: 10,
+        minSpend: 100,
+        maxDiscount: 100,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "🔥 โค้ดยอดฮิต",
+        color: "from-pink-500 to-rose-500"
+    },
+    {
+        code: "PINKLOVE50",
+        title: "ส่วนลดพิเศษ Supinkly ฿50",
+        description: "ลดทันที ฿50 เมื่อช้อปครบ ฿300 ขึ้นไป สิทธิ์คุ้มจุใจ",
+        discountType: "fixed",
+        type: "fixed",
+        discountValue: 50,
+        value: 50,
+        minSpend: 300,
+        maxDiscount: 50,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "💖 แนะนำ",
+        color: "from-purple-500 to-indigo-600"
+    },
+    {
+        code: "NEWAI20",
+        title: "ส่วนลดคีย์ AI สุดคุ้ม 20%",
+        description: "ลด 20% สำหรับคีย์และบัญชี AI ยอดขั้นต่ำ ฿250 (ลดสูงสุด ฿150)",
+        discountType: "percent",
+        type: "percentage",
+        discountValue: 20,
+        value: 20,
+        minSpend: 250,
+        maxDiscount: 150,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "⚡ AI สปีด",
+        color: "from-cyan-500 to-blue-600"
+    },
+    {
+        code: "VIP100",
+        title: "ส่วนลด VIP ลูกค้าคนสำคัญ ฿100",
+        description: "ลดทันที ฿100 เมื่อช้อปครบ ฿600 ขึ้นไป คุ้มที่สุดสำหรับแพ็คเกจใหญ่",
+        discountType: "fixed",
+        type: "fixed",
+        discountValue: 100,
+        value: 100,
+        minSpend: 600,
+        maxDiscount: 100,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "👑 VIP DEAL",
+        color: "from-amber-500 to-orange-600"
+    }
+];
+
+function getStorePromotions() {
+    try {
+        const stored = localStorage.getItem('supinkly_promotions');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed.map(p => {
+                    const isPct = (p.discountType === 'percent' || p.type === 'percentage' || p.type === 'percent');
+                    const val = typeof p.discountValue === 'number' ? p.discountValue : (typeof p.value === 'number' ? p.value : 0);
+                    return {
+                        ...p,
+                        discountType: isPct ? 'percent' : 'fixed',
+                        type: isPct ? 'percentage' : 'fixed',
+                        discountValue: val,
+                        value: val
+                    };
+                });
+            }
+        }
+    } catch (e) {}
+    localStorage.setItem('supinkly_promotions', JSON.stringify(DEFAULT_PROMOTIONS));
+    return DEFAULT_PROMOTIONS;
+}
+
+function saveStorePromotions(promos) {
+    try {
+        localStorage.setItem('supinkly_promotions', JSON.stringify(promos));
+    } catch (e) {}
+}
+
+function validateCouponCode(code, subtotal) {
+    if (!code || typeof code !== 'string') {
+        return { valid: false, message: "กรุณากรอกโค้ดส่วนลด" };
+    }
+    const cleanCode = code.trim().toUpperCase();
+    const promotions = getStorePromotions();
+    const coupon = promotions.find(p => (p.code || '').toUpperCase() === cleanCode);
+
+    if (!coupon) {
+        return { valid: false, message: `ไม่พบโค้ดส่วนลด "${cleanCode}" หรือโค้ดหมดอายุแล้ว` };
+    }
+
+    if (coupon.active === false) {
+        return { valid: false, message: `โค้ดส่วนลด "${cleanCode}" ถูกปิดใช้งานชั่วคราว` };
+    }
+
+    if (coupon.expiresAt) {
+        const exp = new Date(coupon.expiresAt + 'T23:59:59');
+        if (!isNaN(exp.getTime()) && Date.now() > exp.getTime()) {
+            return { valid: false, message: `โค้ดส่วนลด "${cleanCode}" หมดอายุการใช้งานแล้ว` };
+        }
+    }
+
+    if (coupon.usageLimit && typeof coupon.usedCount === 'number' && coupon.usedCount >= coupon.usageLimit) {
+        return { valid: false, message: `โค้ดส่วนลด "${cleanCode}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` };
+    }
+
+    const currentSubtotal = Math.max(0, subtotal || 0);
+    const minSpend = Math.max(0, coupon.minSpend || 0);
+
+    if (currentSubtotal < minSpend) {
+        return {
+            valid: false,
+            message: `โค้ด "${cleanCode}" ใช้ได้เมื่อมียอดสั่งซื้อขั้นต่ำ ฿${minSpend.toFixed(2)} (ขาดอีก ฿${(minSpend - currentSubtotal).toFixed(2)})`
+        };
+    }
+
+    const isPercent = (coupon.discountType === 'percent' || coupon.type === 'percentage' || coupon.type === 'percent');
+    const discountVal = typeof coupon.discountValue === 'number' ? coupon.discountValue : (typeof coupon.value === 'number' ? coupon.value : 0);
+
+    let discountAmount = 0;
+    if (isPercent) {
+        discountAmount = Math.round((currentSubtotal * discountVal / 100) * 100) / 100;
+        if (coupon.maxDiscount && coupon.maxDiscount > 0) {
+            discountAmount = Math.min(discountAmount, coupon.maxDiscount);
+        }
+    } else {
+        discountAmount = Math.min(currentSubtotal, discountVal);
+    }
+
+    discountAmount = Math.max(0, Math.round(discountAmount * 100) / 100);
+    const netTotal = Math.max(1, Math.round((currentSubtotal - discountAmount) * 100) / 100);
+
+    return {
+        valid: true,
+        coupon: {
+            ...coupon,
+            discountType: isPercent ? 'percent' : 'fixed',
+            type: isPercent ? 'percentage' : 'fixed',
+            discountValue: discountVal,
+            value: discountVal
+        },
+        code: coupon.code,
+        title: coupon.title,
+        type: isPercent ? 'percentage' : 'fixed',
+        discountType: isPercent ? 'percent' : 'fixed',
+        value: discountVal,
+        discountValue: discountVal,
+        discountAmount,
+        netTotal,
+        message: `ใช้โค้ด "${coupon.code}" สำเร็จ! ประหยัดไป ฿${discountAmount.toFixed(2)}`
+    };
+}
+

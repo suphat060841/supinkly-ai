@@ -205,7 +205,17 @@
                 </form>
             </div>
 
-            <div class="flex items-center gap-1.5 sm:gap-3">
+            <div class="flex items-center gap-1.5 sm:gap-2.5">
+                <!-- Coupons Promo Button -->
+                <button onclick="openCouponsModal()" title="ดูโค้ดส่วนลดและโปรโมชั่นทั้งหมด"
+                    class="relative h-9 sm:h-11 px-2.5 sm:px-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-50 to-pink-50 border-2 border-pink-300 hover:border-pink-500 text-pink-700 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active group">
+                    <span class="text-sm sm:text-base animate-bounce">🎟️</span>
+                    <span class="text-xs sm:text-sm font-black hidden sm:inline">โค้ดส่วนลด</span>
+                    <span class="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-black text-[9px] sm:text-[10px] uppercase shadow-xs">
+                        HOT
+                    </span>
+                </button>
+
                 <!-- Cart Button -->
                 <button onclick="openCartDrawer()"
                     class="relative h-9 sm:h-11 px-2.5 sm:px-4 rounded-xl sm:rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 shrink-0 touch-active">
@@ -242,6 +252,37 @@
             </form>
         </div>
     </header>
+
+    <!-- ==========================================
+         PROMOTIONAL DISCOUNT TICKER BAR
+         ========================================== -->
+    <div id="promo-ticker-bar" class="bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 border-b border-pink-200/90 py-2 px-3 shadow-2xs">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="px-2 py-0.5 rounded-full bg-pink-500 text-white font-bold text-[10px] animate-pulse shrink-0">🎁 โค้ดพิเศษ</span>
+                <span class="font-bold text-slate-800 text-[11px] sm:text-xs">แจกโค้ดส่วนลดต้อนรับ:</span>
+                <button type="button" onclick="copyAndApplyPromo('SUPINKLY10')" class="font-mono font-bold text-pink-600 bg-white border border-pink-300 hover:bg-pink-100 px-2 py-0.5 rounded-lg transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
+                    <span>SUPINKLY10</span>
+                    <span class="text-[10px] text-pink-500">(ลด 10%)</span>
+                    <i class="fa-regular fa-copy text-[10px]"></i>
+                </button>
+                <button type="button" onclick="copyAndApplyPromo('PINKLOVE50')" class="hidden sm:inline-flex font-mono font-bold text-purple-600 bg-white border border-purple-300 hover:bg-purple-100 px-2 py-0.5 rounded-lg transition-all shadow-2xs items-center gap-1 cursor-pointer">
+                    <span>PINKLOVE50</span>
+                    <span class="text-[10px] text-purple-500">(ลด ฿50)</span>
+                    <i class="fa-regular fa-copy text-[10px]"></i>
+                </button>
+                <button type="button" onclick="copyAndApplyPromo('NEWAI20')" class="hidden md:inline-flex font-mono font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-100 px-2 py-0.5 rounded-lg transition-all shadow-2xs items-center gap-1 cursor-pointer">
+                    <span>NEWAI20</span>
+                    <span class="text-[10px] text-blue-500">(ลด 20%)</span>
+                    <i class="fa-regular fa-copy text-[10px]"></i>
+                </button>
+            </div>
+            <button type="button" onclick="openCouponsModal()" class="text-[11px] sm:text-xs font-bold text-pink-600 hover:text-pink-700 flex items-center gap-1 hover:underline ml-auto">
+                <span>ดูโค้ดทั้งหมด (4 โค้ด)</span>
+                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </button>
+        </div>
+    </div>
 
     <!-- ==========================================
          HERO SECTION (Vibrant, Friendly, Clean)
@@ -927,12 +968,68 @@
         <div id="cart-items-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/40"></div>
 
         <div class="p-4 border-t border-slate-200 bg-white space-y-3 shadow-lg">
-            <div class="flex items-center justify-between text-sm text-slate-600 font-medium">
-                <span>ราคารวมสินค้า:</span>
-                <span id="cart-subtotal" class="font-bold text-slate-900">฿0.00</span>
+            <!-- Coupon / Promo Code Input Box -->
+            <div id="cart-coupon-box" class="p-3 rounded-2xl bg-gradient-to-r from-pink-50/80 via-purple-50/50 to-pink-50/80 border border-pink-200 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-ticket text-pink-500"></i>
+                        <span>โค้ดส่วนลด:</span>
+                    </span>
+                    <button type="button" onclick="openCouponsModal()" class="text-pink-600 font-bold hover:underline text-[11px] flex items-center gap-1">
+                        <span>ดูโค้ดทั้งหมด</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                    </button>
+                </div>
+
+                <!-- Applied Coupon Display -->
+                <div id="cart-coupon-applied-wrap" class="hidden p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center justify-between shadow-2xs">
+                    <div class="flex items-center gap-2 text-xs min-w-0">
+                        <span class="w-6 h-6 rounded-lg bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shrink-0">✓</span>
+                        <div class="truncate">
+                            <span id="cart-applied-coupon-code" class="font-mono font-black text-emerald-800"></span>
+                            <span id="cart-applied-coupon-desc" class="text-[10px] text-emerald-600 font-semibold block truncate"></span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="removeAppliedCoupon()" title="ยกเลิกโค้ดนี้" class="text-slate-400 hover:text-rose-600 p-1 text-xs shrink-0 transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Coupon Input Form -->
+                <div id="cart-coupon-input-wrap" class="flex items-center gap-1.5">
+                    <input type="text" id="cart-coupon-input" placeholder="กรอกโค้ด เช่น SUPINKLY10" maxlength="20"
+                        onkeydown="if(event.key==='Enter'){ event.preventDefault(); applyCouponFromCart(); }"
+                        class="flex-1 px-3 py-2 text-xs rounded-xl bg-white border border-slate-300 font-mono font-bold uppercase text-slate-800 placeholder-slate-400 focus:border-pink-500 outline-none transition-all shadow-inner">
+                    <button type="button" onclick="applyCouponFromCart()"
+                        class="px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-pink-500 to-rose-600 hover:scale-[1.02] active:scale-95 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer">
+                        ใช้โค้ด
+                    </button>
+                </div>
+
+                <!-- Quick Promo Code Suggestions -->
+                <div id="cart-quick-coupons" class="flex flex-wrap items-center gap-1 pt-0.5">
+                    <span class="text-[10px] text-slate-400 font-medium">แนะนำ:</span>
+                    <button type="button" onclick="quickApplyCoupon('SUPINKLY10')" class="px-2 py-0.5 rounded-md bg-white border border-pink-200 text-pink-600 font-mono text-[10px] font-bold hover:bg-pink-100 transition-colors shadow-2xs">SUPINKLY10</button>
+                    <button type="button" onclick="quickApplyCoupon('PINKLOVE50')" class="px-2 py-0.5 rounded-md bg-white border border-purple-200 text-purple-600 font-mono text-[10px] font-bold hover:bg-purple-100 transition-colors shadow-2xs">PINKLOVE50</button>
+                </div>
             </div>
-            <div
-                class="flex items-center justify-between text-base font-black text-slate-900 border-t border-slate-100 pt-2">
+
+            <!-- Price Breakdown -->
+            <div class="space-y-1 text-xs text-slate-600 font-medium">
+                <div class="flex items-center justify-between">
+                    <span>ราคารวมสินค้า:</span>
+                    <span id="cart-subtotal" class="font-bold text-slate-900">฿0.00</span>
+                </div>
+                <div id="cart-discount-row" class="hidden flex items-center justify-between text-emerald-600 font-bold">
+                    <span class="flex items-center gap-1">
+                        <i class="fa-solid fa-tag text-[10px]"></i>
+                        <span>ส่วนลดโปรโมชั่น:</span>
+                    </span>
+                    <span id="cart-discount-amount">-฿0.00</span>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between text-base font-black text-slate-900 border-t border-slate-100 pt-2">
                 <span>ยอดชำระสุทธิ:</span>
                 <span id="cart-total" class="text-2xl text-pink-600">฿0.00</span>
             </div>
@@ -1400,11 +1497,85 @@
                 </div>
             </div>
 
-            <div class="mt-4 pt-3 border-t border-slate-200">
-                <span class="text-xs font-bold text-slate-600 block mb-1">รายการสินค้าในคำสั่งซื้อนี้:</span>
+            <div class="mt-4 pt-3 border-t border-slate-200 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-bold text-slate-700">รายการสินค้าในคำสั่งซื้อนี้:</span>
+                    <span id="checkout-discount-badge" class="hidden px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                        <i class="fa-solid fa-tag text-emerald-600"></i>
+                        <span id="checkout-discount-badge-text">ส่วนลดโค้ด</span>
+                    </span>
+                </div>
                 <div id="checkout-items-summary" class="max-h-24 overflow-y-auto space-y-1"></div>
+                <div id="checkout-discount-summary-row" class="hidden pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-600 font-bold">
+                    <span class="flex items-center gap-1">
+                        <i class="fa-solid fa-gift"></i>
+                        <span>ส่วนลดโปรโมชั่น (<span id="checkout-summary-code"></span>):</span>
+                    </span>
+                    <span id="checkout-discount-amount">-฿0.00</span>
+                </div>
             </div>
 
+        </div>
+    </div>
+
+    <!-- ==========================================
+         COUPONS & PROMOTIONS SHOWCASE MODAL (Kawaii)
+         ========================================== -->
+    <div id="coupons-modal"
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div
+            class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-5 sm:p-7 border-2 border-pink-300 relative max-h-[92vh] flex flex-col shadow-2xl">
+
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-slate-200 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 text-white flex items-center justify-center text-xl shadow-md shadow-pink-500/20 shrink-0">
+                        <i class="fa-solid fa-tags"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base sm:text-lg font-bold text-slate-900">โค้ดส่วนลด & โปรโมชั่น</h3>
+                            <span id="coupons-modal-count-badge"
+                                class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-100 text-pink-700">4 โค้ด</span>
+                        </div>
+                        <p class="text-xs text-slate-500 font-medium">คัดลอกหรือกดใช้งานโค้ดเพื่อรับส่วนลดทันทีในตะกร้า</p>
+                    </div>
+                </div>
+                <button onclick="closeCouponsModal()"
+                    class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-base transition-colors shrink-0"
+                    title="ปิดหน้าต่าง">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Promotion Highlight / Banner Tip -->
+            <div
+                class="mt-3.5 p-3 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 border border-pink-200 text-xs text-slate-700 flex items-center gap-2 shrink-0">
+                <div class="w-7 h-7 rounded-xl bg-pink-500 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
+                    <i class="fa-solid fa-sparkles"></i>
+                </div>
+                <div class="text-[11px] leading-tight">
+                    <strong class="text-pink-600 font-bold">ใช้ได้ทันทีไม่มีกั๊ก!</strong> ยอดรวมในตะกร้าและ PromptPay QR จะคำนวณลดลงให้อัตโนมัติเมื่อกดใช้โค้ด
+                </div>
+            </div>
+
+            <!-- Coupons List Container (Scrollable) -->
+            <div id="coupons-modal-list" class="mt-4 space-y-3 overflow-y-auto flex-1 pr-1 max-h-[58vh]">
+                <!-- Injected by JavaScript renderCouponsModal() -->
+            </div>
+
+            <!-- Footer Action -->
+            <div class="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <span class="text-[11px] text-slate-400 font-medium">
+                    <i class="fa-solid fa-circle-info text-pink-500"></i> สามารถใช้ได้ 1 โค้ดต่อคำสั่งซื้อ
+                </span>
+                <button onclick="closeCouponsModal(); openCartDrawer();"
+                    class="px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-pink-500/20">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span>เปิดตะกร้าสินค้า</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1781,6 +1952,13 @@
                     class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
                     <i class="fa-solid fa-boxes-stacked"></i>
                     <span>🏷️ สต็อก & กำไรราคา</span>
+                </button>
+                <button id="admin-tab-btn-coupons" onclick="switchAdminTab('coupons')"
+                    class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    <i class="fa-solid fa-tags text-pink-500"></i>
+                    <span>🎟️ โค้ดส่วนลด</span>
+                    <span id="admin-coupons-badge"
+                        class="px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 text-xs font-bold">0</span>
                 </button>
                 <button id="admin-tab-btn-users" onclick="switchAdminTab('users')"
                     class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
@@ -2250,6 +2428,181 @@
                             </tr>
                         </thead>
                         <tbody id="admin-users-table" class="divide-y divide-slate-100">
+                            <!-- Injected by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 5: COUPONS & PROMOTIONS MANAGEMENT -->
+            <div id="admin-tab-coupons" class="hidden mt-4 space-y-3.5">
+                <!-- Guide Pill -->
+                <div
+                    class="p-3.5 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 border border-pink-200 text-xs text-slate-700 space-y-1">
+                    <div class="font-bold text-slate-900 flex items-center gap-2">
+                        <span
+                            class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-bold">🎟️</span>
+                        <span>ระบบจัดการโปรโมชั่นและโค้ดส่วนลด (Coupons & Promo Codes):</span>
+                    </div>
+                    <p class="text-[11px] text-slate-600 leading-relaxed font-medium">
+                        สร้างหรือปรับแต่งโค้ดส่วนลดได้ทั้งแบบเปอร์เซ็นต์ (%) และลดเงินสด (฿) กำหนดยอดสั่งซื้อขั้นต่ำ วันหมดอายุ และจำกัดจำนวนสิทธิ์ ระบบจะนำไปคำนวณและปรับลดทั้งในตะกร้าและ PromptPay QR ให้อัตโนมัติ
+                    </p>
+                </div>
+
+                <!-- Action Toolbar -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <div class="relative flex-1">
+                        <i
+                            class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="admin-coupon-search" oninput="handleAdminCouponSearch(this.value)"
+                            placeholder="ค้นหาโค้ดส่วนลด เช่น SUPINKLY, PINKLOVE..."
+                            class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
+                        <button id="admin-coupon-clear-search" onclick="clearAdminCouponSearch()"
+                            class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" onclick="toggleAdminCouponForm()" id="admin-coupon-toggle-form-btn"
+                            class="px-3.5 py-2 rounded-xl gradient-btn text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-plus text-xs"></i>
+                            <span>สร้างโค้ดส่วนลดใหม่</span>
+                        </button>
+                        <button type="button" onclick="renderAdminCouponsList()"
+                            class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs">
+                            <i class="fa-solid fa-rotate text-[11px]"></i>
+                            <span>รีเฟรช</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Add / Edit Coupon Form Card (Collapsible) -->
+                <div id="admin-coupon-form-card" class="hidden p-4 rounded-2xl bg-white border-2 border-pink-300 shadow-md space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 id="admin-coupon-form-title" class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-ticket text-pink-500"></i>
+                            <span>เพิ่มโค้ดส่วนลดใหม่</span>
+                        </h4>
+                        <button type="button" onclick="toggleAdminCouponForm(false)" class="text-slate-400 hover:text-slate-600 text-xs">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <form onsubmit="handleAdminCouponFormSubmit(event)" class="space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    รหัสโค้ด (Coupon Code) <span class="text-rose-500">*</span>:
+                                </label>
+                                <input type="text" id="admin-coupon-code-input" required maxlength="25"
+                                    placeholder="เช่น SUPINKLY15"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono font-bold uppercase outline-none focus:bg-white focus:border-pink-500">
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    ประเภทส่วนลด (Type) <span class="text-rose-500">*</span>:
+                                </label>
+                                <select id="admin-coupon-type-input" onchange="handleAdminCouponTypeChange(this.value)"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-bold outline-none focus:bg-white focus:border-pink-500">
+                                    <option value="percent">เปอร์เซ็นต์ (%) ส่วนลด</option>
+                                    <option value="fixed">จำนวนเงินสด (฿ บาท)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    มูลค่าส่วนลด (Value) <span class="text-rose-500">*</span>:
+                                </label>
+                                <div class="relative">
+                                    <input type="number" id="admin-coupon-val-input" required min="1" step="any"
+                                        placeholder="เช่น 10 (สำหรับ 10%)"
+                                        class="w-full pl-3 pr-10 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-bold outline-none focus:bg-white focus:border-pink-500">
+                                    <span id="admin-coupon-val-unit"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    ยอดสั่งซื้อขั้นต่ำ (฿ Min Spend):
+                                </label>
+                                <input type="number" id="admin-coupon-min-input" min="0" step="any" value="0"
+                                    placeholder="0 = ไม่มียอดขั้นต่ำ"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-bold outline-none focus:bg-white focus:border-pink-500">
+                            </div>
+
+                            <div id="admin-coupon-maxdisc-group">
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    ลดสูงสุดไม่เกิน (฿ Max Discount):
+                                </label>
+                                <input type="number" id="admin-coupon-maxdisc-input" min="0" step="any"
+                                    placeholder="เว้นว่างไว้หากไม่จำกัด"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-bold outline-none focus:bg-white focus:border-pink-500">
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    จำกัดสิทธิ์ใช้งาน (Max Uses):
+                                </label>
+                                <input type="number" id="admin-coupon-limit-input" min="0" step="1"
+                                    placeholder="เว้นว่างไว้หากใช้ได้ไม่จำกัด"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-bold outline-none focus:bg-white focus:border-pink-500">
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    วันหมดอายุ (Expiry Date):
+                                </label>
+                                <input type="date" id="admin-coupon-expiry-input"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-medium outline-none focus:bg-white focus:border-pink-500">
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label class="text-[11px] font-bold text-slate-700 block mb-1">
+                                    คำอธิบายโปรโมชั่น (Description):
+                                </label>
+                                <input type="text" id="admin-coupon-desc-input" required
+                                    placeholder="เช่น ส่วนลดพิเศษสำหรับลูกค้าใหม่ ฉลองต้อนรับเปิดร้าน"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-medium outline-none focus:bg-white focus:border-pink-500">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                                <input type="checkbox" id="admin-coupon-active-input" checked
+                                    class="w-4 h-4 text-pink-600 rounded border-slate-300 focus:ring-pink-500">
+                                <span>เปิดใช้งานโค้ดนี้ทันที (Active)</span>
+                            </label>
+
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="toggleAdminCouponForm(false)"
+                                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all">
+                                    ยกเลิก
+                                </button>
+                                <button type="submit" id="admin-coupon-save-btn"
+                                    class="px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
+                                    <i class="fa-solid fa-floppy-disk"></i>
+                                    <span>บันทึกโค้ด</span>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Coupons Table -->
+                <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs max-h-[56vh]">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 sticky top-0 z-10">
+                            <tr>
+                                <th class="py-3 px-3.5">รหัสโค้ด & คำอธิบาย</th>
+                                <th class="py-3 px-3.5 text-center">ประเภท & ส่วนลด</th>
+                                <th class="py-3 px-3.5 text-center">เงื่อนไขการใช้งาน</th>
+                                <th class="py-3 px-3.5 text-center">สถานะ</th>
+                                <th class="py-3 px-3.5 text-right">การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-coupons-table" class="divide-y divide-slate-100">
                             <!-- Injected by JavaScript -->
                         </tbody>
                     </table>

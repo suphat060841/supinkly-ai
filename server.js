@@ -176,6 +176,14 @@ const checkoutRateLimit = rateLimit({
     message: { success: false, message: "Too many checkout attempts. Please slow down." },
 });
 
+const couponValidateRateLimit = rateLimit({
+    windowMs: 60 * 1000,   // 1 นาที
+    max: 20,               // สูงสุด 20 ครั้ง / นาที (ป้องกัน dictionary / enumeration scan โค้ดส่วนลด)
+    message: { success: false, message: "ตรวจสอบโค้ดส่วนลดบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่" },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // ─── [FIX #3] PIN Hashing Helpers ────────────────────────────────────────────
 // ❌ Before: PIN เก็บเป็น plaintext "8899"
 // ✅ After: เก็บเป็น SHA-256 hash (server-side)
@@ -266,6 +274,58 @@ const DB_FILE = path.join(__dirname, 'secure_database.json');
 const DB_TMP = path.join(__dirname, 'secure_database.json.tmp');
 const DB_BAK = path.join(__dirname, 'secure_database.json.bak');
 
+// Default Store Promotions & Discount Coupons
+const DEFAULT_SERVER_COUPONS = [
+    {
+        code: "SUPINKLY10",
+        title: "ส่วนลดต้อนรับสมาชิกใหม่ 10%",
+        description: "รับส่วนลด 10% ทุกรายการ เมื่อสั่งซื้อขั้นต่ำ ฿100 (ลดสูงสุด ฿100)",
+        type: "percentage",
+        value: 10,
+        minSpend: 100,
+        maxDiscount: 100,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "🔥 โค้ดยอดฮิต"
+    },
+    {
+        code: "PINKLOVE50",
+        title: "ส่วนลดพิเศษ Supinkly ฿50",
+        description: "ลดทันที ฿50 เมื่อช้อปครบ ฿300 ขึ้นไป สิทธิ์คุ้มจุใจ",
+        type: "fixed",
+        value: 50,
+        minSpend: 300,
+        maxDiscount: 50,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "💖 แนะนำ"
+    },
+    {
+        code: "NEWAI20",
+        title: "ส่วนลดคีย์ AI สุดคุ้ม 20%",
+        description: "ลด 20% สำหรับคีย์และบัญชี AI ยอดขั้นต่ำ ฿250 (ลดสูงสุด ฿150)",
+        type: "percentage",
+        value: 20,
+        minSpend: 250,
+        maxDiscount: 150,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "⚡ AI สปีด"
+    },
+    {
+        code: "VIP100",
+        title: "ส่วนลด VIP ลูกค้าคนสำคัญ ฿100",
+        description: "ลดทันที ฿100 เมื่อช้อปครบ ฿600 ขึ้นไป คุ้มที่สุดสำหรับแพ็คเกจใหญ่",
+        type: "fixed",
+        value: 100,
+        minSpend: 600,
+        maxDiscount: 100,
+        expiresAt: "2026-12-31",
+        active: true,
+        badge: "👑 VIP DEAL"
+    }
+];
+
 // Initialize database file if not exists
 if (!fs.existsSync(DB_FILE)) {
     const initialDb = {
@@ -280,6 +340,7 @@ if (!fs.existsSync(DB_FILE)) {
         inventory: {},
         orders: [],
         users: [],  // { id, email, passwordHash, displayName, createdAt, emailVerified }
+        coupons: DEFAULT_SERVER_COUPONS,
         pendingRegistrations: {}, // normalEmail -> { userId, email, displayName, passwordHash, otpHash, attempts, expiresAt, lastSentAt }
         passwordResets: {},       // normalEmail -> { email, userId, otpHash, attempts, expiresAt, lastSentAt }
         smtpConfig: {}
@@ -297,6 +358,9 @@ function getDb() {
             if (!data.users) data.users = [];
             if (!data.smtpConfig) data.smtpConfig = {};
             if (!data.customPrices) data.customPrices = {};
+            if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
+                data.coupons = DEFAULT_SERVER_COUPONS;
+            }
             return data;
         }
     } catch (err) {
@@ -309,6 +373,9 @@ function getDb() {
                 if (!data.users) data.users = [];
                 if (!data.smtpConfig) data.smtpConfig = {};
                 if (!data.customPrices) data.customPrices = {};
+                if (!data.coupons || !Array.isArray(data.coupons)) {
+                    data.coupons = DEFAULT_SERVER_COUPONS;
+                }
                 return data;
             } catch (e) {}
         }
@@ -318,6 +385,7 @@ function getDb() {
         promptPayNumber: process.env.PROMPTPAY_NUMBER || "0982949371",
         promptPayAccountName: process.env.PROMPTPAY_NAME || "สุพัฒน์ มีสมบัติ",
         slipOkApiKey: process.env.SLIPOK_API_KEY || "",
+        coupons: DEFAULT_SERVER_COUPONS,
         slipOkBranchId: process.env.SLIPOK_BRANCH_ID || "77491",
         usedSlips: [],
         usedTransRefs: [],
@@ -529,6 +597,56 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             expectedTotal += unitPrice * qty;
         }
 
+        const originalSubtotal = expectedTotal;
+        let appliedCouponInfo = null;
+        let discountAmount = 0;
+
+        const promoCode = (req.body.promoCode || '').trim().toUpperCase();
+        if (promoCode) {
+            const coupons = db.coupons || DEFAULT_SERVER_COUPONS;
+            const coupon = coupons.find(c => c.code && c.code.toUpperCase() === promoCode && c.active);
+            if (!coupon) {
+                return res.status(400).json({ success: false, message: `ไม่พบโค้ดส่วนลด "${promoCode}" หรือโค้ดถูกปิดใช้งาน` });
+            }
+
+            if (coupon.expiresAt) {
+                const exp = new Date(coupon.expiresAt + 'T23:59:59');
+                if (!isNaN(exp.getTime()) && Date.now() > exp.getTime()) {
+                    return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${promoCode}" หมดอายุแล้ว` });
+                }
+            }
+
+            if (coupon.usageLimit && typeof coupon.usedCount === 'number' && coupon.usedCount >= coupon.usageLimit) {
+                return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${promoCode}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` });
+            }
+
+            if (expectedTotal < (coupon.minSpend || 0)) {
+                return res.status(400).json({ success: false, message: `ยอดสั่งซื้อไม่ถึงเกณฑ์ขั้นต่ำสำหรับโค้ดส่วนลด "${promoCode}" (ขั้นต่ำ ฿${coupon.minSpend})` });
+            }
+
+            const isPercent = (coupon.discountType === 'percent' || coupon.type === 'percentage' || coupon.type === 'percent');
+            const val = typeof coupon.discountValue === 'number' ? coupon.discountValue : (typeof coupon.value === 'number' ? coupon.value : 0);
+            if (isPercent) {
+                discountAmount = Math.round((expectedTotal * val / 100) * 100) / 100;
+                if (coupon.maxDiscount && coupon.maxDiscount > 0) {
+                    discountAmount = Math.min(discountAmount, coupon.maxDiscount);
+                }
+            } else {
+                discountAmount = Math.min(expectedTotal, val);
+            }
+            discountAmount = Math.max(0, Math.round(discountAmount * 100) / 100);
+            expectedTotal = Math.max(1, Math.round((expectedTotal - discountAmount) * 100) / 100);
+            appliedCouponInfo = {
+                code: coupon.code,
+                title: coupon.title,
+                type: isPercent ? 'percentage' : 'fixed',
+                discountType: isPercent ? 'percent' : 'fixed',
+                value: val,
+                discountValue: val,
+                discountAmount
+            };
+        }
+
         let transRef = null;
         let isAutoVerified = false;
 
@@ -699,6 +817,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             email: orderEmail,
             recipientEmail: orderEmail,
             userId: userSession.userId,
+            subtotal: originalSubtotal,
+            discountAmount: discountAmount,
+            coupon: appliedCouponInfo,
             totalAmount: expectedTotal,
             paymentMethod: "Thai QR PromptPay",
             transRef: transRef || "REF-" + Date.now().toString(36).toUpperCase(),
@@ -708,6 +829,16 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         };
         if (!currentDb.orders) currentDb.orders = [];
         currentDb.orders.unshift(order);
+
+        // [COUPON USAGE] Increment usedCount for the redeemed promotion
+        if (appliedCouponInfo && appliedCouponInfo.code) {
+            if (!currentDb.coupons) currentDb.coupons = [...DEFAULT_SERVER_COUPONS];
+            const targetCoupon = currentDb.coupons.find(c => c.code && c.code.toUpperCase() === appliedCouponInfo.code.toUpperCase());
+            if (targetCoupon) {
+                targetCoupon.usedCount = (targetCoupon.usedCount || 0) + 1;
+            }
+        }
+
         saveDb(currentDb);
 
         // [NOTIFICATION & RECEIPT] Fire-and-forget Discord alert & Email receipt
@@ -722,6 +853,197 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         console.error('checkout error:', err.message);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในระบบ" });
     }
+});
+
+// ─── [PROMOTIONS & DISCOUNT COUPONS API] ────────────────────────────────────
+
+// Public: Get all active promotions (exclude expired or quota-exhausted coupons)
+app.get('/api/promotions', (req, res) => {
+    try {
+        const db = getDb();
+        const now = Date.now();
+        const coupons = (db.coupons || DEFAULT_SERVER_COUPONS).filter(c => {
+            if (!c || c.active === false) return false;
+            if (c.expiresAt) {
+                const exp = new Date(c.expiresAt + 'T23:59:59');
+                if (!isNaN(exp.getTime()) && now > exp.getTime()) return false;
+            }
+            if (c.usageLimit && typeof c.usedCount === 'number' && c.usedCount >= c.usageLimit) {
+                return false;
+            }
+            return true;
+        });
+        res.json({ success: true, promotions: coupons });
+    } catch (err) {
+        res.json({ success: true, promotions: DEFAULT_SERVER_COUPONS.filter(c => c.active) });
+    }
+});
+
+// Public: Validate a coupon against current subtotal (Rate-limited to prevent brute-force scans)
+app.post('/api/promotions/validate', couponValidateRateLimit, (req, res) => {
+    const { code, subtotal } = req.body;
+    if (!code || typeof code !== 'string') {
+        return res.status(400).json({ success: false, message: "กรุณาระบุโค้ดส่วนลด" });
+    }
+    const cleanCode = code.trim().toUpperCase();
+    const db = getDb();
+    const coupons = db.coupons || DEFAULT_SERVER_COUPONS;
+    const coupon = coupons.find(c => c.code && c.code.toUpperCase() === cleanCode);
+
+    if (!coupon || !coupon.active) {
+        return res.status(400).json({ success: false, message: `ไม่พบโค้ดส่วนลด "${cleanCode}" หรือโค้ดถูกปิดใช้งาน` });
+    }
+
+    if (coupon.expiresAt) {
+        const exp = new Date(coupon.expiresAt + 'T23:59:59');
+        if (!isNaN(exp.getTime()) && Date.now() > exp.getTime()) {
+            return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${cleanCode}" หมดอายุแล้ว` });
+        }
+    }
+
+    if (coupon.usageLimit && typeof coupon.usedCount === 'number' && coupon.usedCount >= coupon.usageLimit) {
+        return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${cleanCode}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` });
+    }
+
+    const currentSubtotal = Math.max(0, parseFloat(subtotal) || 0);
+    const minSpend = Math.max(0, coupon.minSpend || 0);
+    if (currentSubtotal < minSpend) {
+        return res.status(400).json({
+            success: false,
+            message: `โค้ด "${cleanCode}" ใช้ได้เมื่อสั่งซื้อขั้นต่ำ ฿${minSpend.toFixed(2)} (ขาดอีก ฿${(minSpend - currentSubtotal).toFixed(2)})`
+        });
+    }
+
+    const isPercent = (coupon.discountType === 'percent' || coupon.type === 'percentage' || coupon.type === 'percent');
+    const val = typeof coupon.discountValue === 'number' ? coupon.discountValue : (typeof coupon.value === 'number' ? coupon.value : 0);
+
+    let discountAmount = 0;
+    if (isPercent) {
+        discountAmount = Math.round((currentSubtotal * val / 100) * 100) / 100;
+        if (coupon.maxDiscount && coupon.maxDiscount > 0) {
+            discountAmount = Math.min(discountAmount, coupon.maxDiscount);
+        }
+    } else {
+        discountAmount = Math.min(currentSubtotal, val);
+    }
+    discountAmount = Math.max(0, Math.round(discountAmount * 100) / 100);
+    const netTotal = Math.max(1, Math.round((currentSubtotal - discountAmount) * 100) / 100);
+
+    res.json({
+        success: true,
+        coupon: {
+            code: coupon.code,
+            title: coupon.title,
+            type: isPercent ? 'percentage' : 'fixed',
+            discountType: isPercent ? 'percent' : 'fixed',
+            value: val,
+            discountValue: val,
+            discountAmount,
+            netTotal
+        },
+        message: `ใช้โค้ด "${coupon.code}" สำเร็จ! ประหยัดไป ฿${discountAmount.toFixed(2)}`
+    });
+});
+
+// Admin: Get all coupons (active and inactive)
+app.get('/api/admin/coupons', (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    res.json({ success: true, coupons: db.coupons || DEFAULT_SERVER_COUPONS });
+});
+
+// Admin: Create or update a coupon
+app.post('/api/admin/coupons', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { code, title, description, type, discountType, value, discountValue, minSpend, maxDiscount, expiresAt, active, badge, usageLimit } = req.body;
+    if (!code || typeof code !== 'string') {
+        return res.status(400).json({ success: false, message: "กรุณาระบุรหัสโค้ดส่วนลด" });
+    }
+    const cleanCode = code.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    if (!cleanCode) {
+        return res.status(400).json({ success: false, message: "รหัสโค้ดต้องเป็นตัวอักษรภาษาอังกฤษหรือตัวเลข" });
+    }
+    const numVal = parseFloat(value !== undefined ? value : discountValue);
+    if (isNaN(numVal) || numVal <= 0) {
+        return res.status(400).json({ success: false, message: "มูลค่าส่วนลดต้องมากกว่า 0" });
+    }
+
+    const resolvedType = (type || discountType) === 'fixed' ? 'fixed' : 'percentage';
+    if (resolvedType === 'percentage' && numVal > 100) {
+        return res.status(400).json({ success: false, message: "ส่วนลดแบบเปอร์เซ็นต์ต้องไม่เกิน 100%" });
+    }
+
+    const db = getDb();
+    if (!db.coupons) db.coupons = [...DEFAULT_SERVER_COUPONS];
+
+    const existingIndex = db.coupons.findIndex(c => c.code && c.code.toUpperCase() === cleanCode);
+    const existingCoupon = existingIndex > -1 ? db.coupons[existingIndex] : null;
+
+    const couponObj = {
+        code: cleanCode,
+        title: String(title || description || cleanCode).trim().slice(0, 80),
+        description: String(description || title || '').trim().slice(0, 200),
+        type: resolvedType,
+        discountType: resolvedType === 'fixed' ? 'fixed' : 'percent',
+        value: numVal,
+        discountValue: numVal,
+        minSpend: Math.max(0, parseFloat(minSpend) || 0),
+        maxDiscount: Math.max(0, parseFloat(maxDiscount) || 0),
+        usageLimit: (usageLimit && parseInt(usageLimit, 10) > 0) ? parseInt(usageLimit, 10) : null,
+        usedCount: existingCoupon ? (existingCoupon.usedCount || 0) : 0,
+        expiresAt: expiresAt ? String(expiresAt).slice(0, 10) : '2026-12-31',
+        active: active !== false,
+        badge: String(badge || '').trim().slice(0, 30),
+        updatedAt: new Date().toISOString()
+    };
+
+    if (existingIndex > -1) {
+        db.coupons[existingIndex] = couponObj;
+    } else {
+        db.coupons.unshift(couponObj);
+    }
+    saveDb(db);
+
+    res.json({ success: true, message: `บันทึกโค้ดส่วนลด "${cleanCode}" เรียบร้อยแล้ว`, coupon: couponObj });
+});
+
+// Admin: Toggle active status
+app.post('/api/admin/coupons/:code/toggle', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const code = (req.params.code || '').trim().toUpperCase();
+    const db = getDb();
+    if (!db.coupons) db.coupons = [...DEFAULT_SERVER_COUPONS];
+    const coupon = db.coupons.find(c => c.code && c.code.toUpperCase() === code);
+    if (!coupon) {
+        return res.status(404).json({ success: false, message: "ไม่พบโค้ดส่วนลดนี้" });
+    }
+    coupon.active = !coupon.active;
+    coupon.updatedAt = new Date().toISOString();
+    saveDb(db);
+    res.json({ success: true, active: coupon.active, message: `ปรับสถานะโค้ด "${code}" เป็น ${coupon.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} แล้ว` });
+});
+
+// Admin: Delete a coupon
+app.delete('/api/admin/coupons/:code', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const code = (req.params.code || '').trim().toUpperCase();
+    const db = getDb();
+    if (!db.coupons) db.coupons = [...DEFAULT_SERVER_COUPONS];
+    const beforeLen = db.coupons.length;
+    db.coupons = db.coupons.filter(c => c.code && c.code.toUpperCase() !== code);
+    if (db.coupons.length === beforeLen) {
+        return res.status(404).json({ success: false, message: "ไม่พบโค้ดส่วนลดนี้" });
+    }
+    saveDb(db);
+    res.json({ success: true, message: `ลบโค้ดส่วนลด "${code}" เรียบร้อยแล้ว` });
 });
 
 // 2. API: Admin Authenticated Stock Management
@@ -1170,8 +1492,45 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
             users: [],
             pendingRegistrations: {},
             passwordResets: {},
-            smtpConfig: {}
+            smtpConfig: {},
+            coupons: []
         };
+
+        // Sanitize coupons
+        if (Array.isArray(restored.coupons) && restored.coupons.length > 0) {
+            sanitizedDb.coupons = restored.coupons.filter(c => 
+                c && typeof c === 'object' && 
+                typeof c.code === 'string' && 
+                /^[A-Z0-9_\-]{2,32}$/i.test(c.code.trim()) &&
+                (typeof c.value === 'number' || typeof c.discountValue === 'number')
+            ).map(c => {
+                const code = c.code.trim().toUpperCase();
+                const isPercent = (c.type === 'percentage' || c.discountType === 'percent');
+                const val = parseFloat(c.value !== undefined ? c.value : c.discountValue) || 0;
+                return {
+                    code,
+                    title: String(c.title || code).trim().slice(0, 80),
+                    description: String(c.description || '').trim().slice(0, 200),
+                    type: isPercent ? 'percentage' : 'fixed',
+                    discountType: isPercent ? 'percent' : 'fixed',
+                    value: isPercent ? Math.min(100, Math.max(0, val)) : Math.max(0, val),
+                    discountValue: isPercent ? Math.min(100, Math.max(0, val)) : Math.max(0, val),
+                    minSpend: Math.max(0, parseFloat(c.minSpend) || 0),
+                    maxDiscount: Math.max(0, parseFloat(c.maxDiscount) || 0),
+                    usageLimit: (c.usageLimit && parseInt(c.usageLimit, 10) > 0) ? parseInt(c.usageLimit, 10) : null,
+                    usedCount: Math.max(0, parseInt(c.usedCount, 10) || 0),
+                    expiresAt: c.expiresAt ? String(c.expiresAt).slice(0, 10) : '2026-12-31',
+                    active: c.active !== false,
+                    badge: String(c.badge || '').trim().slice(0, 30),
+                    updatedAt: typeof c.updatedAt === 'string' ? c.updatedAt : new Date().toISOString()
+                };
+            });
+            if (sanitizedDb.coupons.length === 0) {
+                sanitizedDb.coupons = currentDb.coupons || [...DEFAULT_SERVER_COUPONS];
+            }
+        } else {
+            sanitizedDb.coupons = currentDb.coupons || [...DEFAULT_SERVER_COUPONS];
+        }
 
         // Sanitize customPrices
         if (restored.customPrices && typeof restored.customPrices === 'object' && !Array.isArray(restored.customPrices)) {
@@ -1247,7 +1606,8 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
             stats: {
                 orders: sanitizedDb.orders.length,
                 users: sanitizedDb.users.length,
-                inventoryProducts: Object.keys(sanitizedDb.inventory).length
+                inventoryProducts: Object.keys(sanitizedDb.inventory).length,
+                coupons: sanitizedDb.coupons.length
             }
         });
     } catch (err) {

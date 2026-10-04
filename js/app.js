@@ -243,6 +243,7 @@ const state = {
     inventory: getSecureInventory(),
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
+    appliedCoupon: JSON.parse(localStorage.getItem('supinkly_applied_coupon') || 'null'),
     user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
     orders: JSON.parse(localStorage.getItem('supinkly_orders') || '[]'),
     filterBrand: 'all',
@@ -964,8 +965,61 @@ function updateCartUI() {
         mCartBadge.classList.toggle('hidden', totalCount <= 0);
     }
 
+    // Calculate Promo Discount & Net Total
+    let discountAmount = 0;
+    let netTotal = verifiedTotal;
+
+    const discountRow = document.getElementById('cart-discount-row');
+    const discountAmtEl = document.getElementById('cart-discount-amount');
+    const appliedWrap = document.getElementById('cart-coupon-applied-wrap');
+    const appliedCodeEl = document.getElementById('cart-applied-coupon-code');
+    const appliedDescEl = document.getElementById('cart-applied-coupon-desc');
+    const inputWrap = document.getElementById('cart-coupon-input-wrap');
+    const quickCoupons = document.getElementById('cart-quick-coupons');
+
+    if (state.appliedCoupon && verifiedTotal > 0) {
+        const valRes = typeof validateCouponCode === 'function' 
+            ? validateCouponCode(state.appliedCoupon.code, verifiedTotal)
+            : { valid: false, message: 'ไม่สามารถตรวจสอบโค้ดได้' };
+
+        if (valRes.valid) {
+            discountAmount = valRes.discountAmount;
+            netTotal = valRes.netTotal;
+
+            if (discountRow) discountRow.classList.remove('hidden');
+            if (discountAmtEl) discountAmtEl.textContent = `-฿${discountAmount.toFixed(2)}`;
+
+            if (appliedWrap) {
+                appliedWrap.classList.remove('hidden');
+                if (appliedCodeEl) appliedCodeEl.textContent = valRes.coupon.code;
+                if (appliedDescEl) {
+                    const typeLabel = valRes.coupon.discountType === 'percent' 
+                        ? `ลด ${valRes.coupon.discountValue}%` 
+                        : `ลด ฿${valRes.coupon.discountValue}`;
+                    appliedDescEl.textContent = `${typeLabel} • ${valRes.coupon.description || 'ส่วนลดพิเศษ'}`;
+                }
+            }
+            if (inputWrap) inputWrap.classList.add('hidden');
+            if (quickCoupons) quickCoupons.classList.add('hidden');
+        } else {
+            // Auto remove if coupon condition is no longer met
+            state.appliedCoupon = null;
+            try { localStorage.removeItem('supinkly_applied_coupon'); } catch {}
+
+            if (discountRow) discountRow.classList.add('hidden');
+            if (appliedWrap) appliedWrap.classList.add('hidden');
+            if (inputWrap) inputWrap.classList.remove('hidden');
+            if (quickCoupons) quickCoupons.classList.remove('hidden');
+        }
+    } else {
+        if (discountRow) discountRow.classList.add('hidden');
+        if (appliedWrap) appliedWrap.classList.add('hidden');
+        if (inputWrap) inputWrap.classList.remove('hidden');
+        if (quickCoupons) quickCoupons.classList.remove('hidden');
+    }
+
     if (subtotalEl) subtotalEl.textContent = `฿${verifiedTotal.toFixed(2)}`;
-    if (totalEl) totalEl.textContent = `฿${verifiedTotal.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `฿${netTotal.toFixed(2)}`;
 
     if (checkoutBtn) {
         checkoutBtn.disabled = state.cart.length === 0 || verifiedTotal <= 0;
@@ -1079,10 +1133,51 @@ function startCheckout() {
         showToast("ยอดชำระเงินต้องมากกว่า 0 บาท", "warning");
         return;
     }
+
+    let discountAmount = 0;
+    let netTotal = verifiedTotal;
+    let appliedPromo = null;
+
+    if (state.appliedCoupon) {
+        const valRes = typeof validateCouponCode === 'function' 
+            ? validateCouponCode(state.appliedCoupon.code, verifiedTotal)
+            : { valid: false };
+        if (valRes.valid) {
+            discountAmount = valRes.discountAmount;
+            netTotal = valRes.netTotal;
+            appliedPromo = valRes.coupon;
+        } else {
+            state.appliedCoupon = null;
+            try { localStorage.removeItem('supinkly_applied_coupon'); } catch {}
+        }
+    }
+
     const refCode = "SPK" + Math.floor(100000 + Math.random() * 900000);
 
     document.getElementById('checkout-ref-code').textContent = refCode;
-    document.getElementById('checkout-total-amount').textContent = `฿${verifiedTotal.toFixed(2)}`;
+    document.getElementById('checkout-total-amount').textContent = `฿${netTotal.toFixed(2)}`;
+
+    // Update discount badge and summary row in checkout modal
+    const discBadge = document.getElementById('checkout-discount-badge');
+    const discBadgeText = document.getElementById('checkout-discount-badge-text');
+    const discSummaryRow = document.getElementById('checkout-discount-summary-row');
+    const discSummaryCode = document.getElementById('checkout-summary-code');
+    const discSummaryAmt = document.getElementById('checkout-discount-amount');
+
+    if (appliedPromo && discountAmount > 0) {
+        if (discBadge) {
+            discBadge.classList.remove('hidden');
+            if (discBadgeText) discBadgeText.textContent = `โค้ด ${appliedPromo.code} (-฿${discountAmount.toFixed(2)})`;
+        }
+        if (discSummaryRow) {
+            discSummaryRow.classList.remove('hidden');
+            if (discSummaryCode) discSummaryCode.textContent = appliedPromo.code;
+            if (discSummaryAmt) discSummaryAmt.textContent = `-฿${discountAmount.toFixed(2)}`;
+        }
+    } else {
+        if (discBadge) discBadge.classList.add('hidden');
+        if (discSummaryRow) discSummaryRow.classList.add('hidden');
+    }
     
     // Bind and lock email input to logged-in user account
     const emailInp = document.getElementById('checkout-email-input');
@@ -1100,7 +1195,7 @@ function startCheckout() {
 
     SlipVerifier.clearSlip();
 
-    const emvPayload = generatePromptPayPayload(STORE_CONFIG.promptPayNumber, verifiedTotal);
+    const emvPayload = generatePromptPayPayload(STORE_CONFIG.promptPayNumber, netTotal);
     const qrImg = document.getElementById('promptpay-qr-img');
     if (qrImg) {
         qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(emvPayload)}`;
@@ -1223,6 +1318,9 @@ async function submitSlipVerification() {
             formData.append('slip', SlipVerifier.selectedFile);
             formData.append('email', recipientEmail);
             formData.append('cartItems', JSON.stringify(state.cart.map(i => ({ productId: i.productId, quantity: i.quantity }))));
+            if (state.appliedCoupon && state.appliedCoupon.code) {
+                formData.append('promoCode', state.appliedCoupon.code);
+            }
 
             const headers = { 'x-user-token': token };
 
@@ -1248,7 +1346,19 @@ async function submitSlipVerification() {
             finalOrder = data.order;
         } else {
             // Local file:// protocol fallback for offline developer testing
-            const result = await SlipVerifier.verifySlip(verifiedTotal, STORE_CONFIG.promptPayNumber, state.cart, recipientEmail);
+            let discountAmount = 0;
+            let netTotal = verifiedTotal;
+            let appliedPromoObj = null;
+            if (state.appliedCoupon) {
+                const val = typeof validateCouponCode === 'function' ? validateCouponCode(state.appliedCoupon.code, verifiedTotal) : { valid: false };
+                if (val.valid) {
+                    discountAmount = val.discountAmount;
+                    netTotal = val.netTotal;
+                    appliedPromoObj = val.coupon;
+                }
+            }
+
+            const result = await SlipVerifier.verifySlip(netTotal, STORE_CONFIG.promptPayNumber, state.cart, recipientEmail);
             const deliveredItems = [];
             let hasPendingFulfillment = false;
             for (const item of state.cart) {
@@ -1281,7 +1391,10 @@ async function submitSlipVerification() {
             finalOrder = {
                 orderId: "SPK-" + Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 6).toUpperCase(),
                 date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
-                totalAmount: verifiedTotal,
+                subtotal: verifiedTotal,
+                discount: discountAmount,
+                promoCode: appliedPromoObj ? appliedPromoObj.code : null,
+                totalAmount: netTotal,
                 paymentMethod: "Thai QR PromptPay",
                 recipientEmail: recipientEmail,
                 transRef: result.transRef,
@@ -1315,6 +1428,9 @@ async function submitSlipVerification() {
 
             state.cart = [];
             saveCart();
+
+            state.appliedCoupon = null;
+            try { localStorage.removeItem('supinkly_applied_coupon'); } catch {}
 
             syncStockCount();
             renderProducts();
@@ -2053,7 +2169,7 @@ function switchAdminTab(tabName) {
         return;
     }
 
-    const tabs = ['orders', 'stock', 'users', 'settings'];
+    const tabs = ['orders', 'stock', 'coupons', 'users', 'settings'];
     tabs.forEach(t => {
         const btn = document.getElementById(`admin-tab-btn-${t}`);
         const panel = document.getElementById(`admin-tab-${t}`);
@@ -2072,6 +2188,7 @@ function switchAdminTab(tabName) {
 
     if (tabName === 'orders') renderAdminOrdersList();
     if (tabName === 'stock') renderAdminStockList();
+    if (tabName === 'coupons') renderAdminCouponsList();
     if (tabName === 'users') renderAdminUsersList();
 }
 
@@ -2651,6 +2768,7 @@ async function openAdminModal() {
     await syncAdminOrdersFromServer();
     renderAdminOrdersList();
     renderAdminStockList();
+    renderAdminCouponsList();
     renderAdminUsersList();
     switchAdminTab('orders');
     modal.classList.remove('hidden');
@@ -3889,6 +4007,175 @@ function initEvents() {
             else promptAdminLogin();
         }
     });
+
+    // Global ESC Key Handler: Intelligently close modals/drawers in priority order (Topmost / Nested first)
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            // 1. Highest Priority: Nested / Child Admin Modals
+            const adminChatPanel = document.getElementById('admin-chat-panel');
+            if (adminChatPanel && !adminChatPanel.classList.contains('hidden')) {
+                e.preventDefault();
+                closeAdminChatPanel();
+                return;
+            }
+
+            const adminFulfillModal = document.getElementById('admin-fulfill-modal');
+            if (adminFulfillModal && !adminFulfillModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeFulfillModal();
+                return;
+            }
+
+            const editPriceModal = document.getElementById('edit-price-modal');
+            if (editPriceModal && !editPriceModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeEditPriceModal();
+                return;
+            }
+
+            const addStockModal = document.getElementById('add-stock-modal');
+            if (addStockModal && !addStockModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeAddStockModal();
+                return;
+            }
+
+            const adminResetPwModal = document.getElementById('admin-reset-pw-modal');
+            if (adminResetPwModal && !adminResetPwModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeAdminResetPwModal();
+                return;
+            }
+
+            const adminCouponFormCard = document.getElementById('admin-coupon-form-card');
+            if (adminCouponFormCard && !adminCouponFormCard.classList.contains('hidden')) {
+                e.preventDefault();
+                toggleAdminCouponForm(false);
+                return;
+            }
+
+            // 2. Medium Priority: Main Storefront & Admin Modals
+            const adminPinModal = document.getElementById('admin-pin-modal');
+            if (adminPinModal && !adminPinModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeAdminPinModal();
+                return;
+            }
+
+            const adminModal = document.getElementById('admin-modal');
+            if (adminModal && !adminModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeAdminModal();
+                return;
+            }
+
+            const checkoutModal = document.getElementById('checkout-modal');
+            if (checkoutModal && !checkoutModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeCheckoutModal();
+                return;
+            }
+
+            const vaultModal = document.getElementById('vault-modal');
+            if (vaultModal && !vaultModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeVaultModal();
+                return;
+            }
+
+            const productDetailModal = document.getElementById('product-detail-modal');
+            if (productDetailModal && !productDetailModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeProductDetailModal();
+                return;
+            }
+
+            const authModal = document.getElementById('auth-modal');
+            if (authModal && !authModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeAuthModal();
+                return;
+            }
+
+            const couponsModal = document.getElementById('coupons-modal');
+            if (couponsModal && !couponsModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeCouponsModal();
+                return;
+            }
+
+            const ordersModal = document.getElementById('orders-modal');
+            if (ordersModal && !ordersModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeOrdersModal();
+                return;
+            }
+
+            const warrantyModal = document.getElementById('warranty-modal');
+            if (warrantyModal && !warrantyModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeWarrantyModal();
+                return;
+            }
+
+            // 3. Lower Priority: Floating Panels & Drawers
+            const chatWin = document.getElementById('spk-chat-window');
+            if (chatWin && !chatWin.classList.contains('hidden')) {
+                e.preventDefault();
+                const chatCloseBtn = document.getElementById('spk-chat-close');
+                if (chatCloseBtn) {
+                    chatCloseBtn.click();
+                } else {
+                    chatWin.classList.add('hidden');
+                }
+                return;
+            }
+
+            const cartDrawer = document.getElementById('cart-drawer');
+            const drawerOverlay = document.getElementById('drawer-overlay');
+            if ((cartDrawer && !cartDrawer.classList.contains('translate-x-full')) ||
+                (drawerOverlay && !drawerOverlay.classList.contains('hidden'))) {
+                e.preventDefault();
+                closeCartDrawer();
+                return;
+            }
+
+            // 4. Input & Search defocus fallback on ESC
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                const tag = (document.activeElement.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+                    document.activeElement.blur();
+                }
+            }
+        }
+    });
+
+    // Backdrop click listeners to dismiss modals when clicking outside dialog content
+    const backdropModalBindings = [
+        { id: 'admin-fulfill-modal', close: closeFulfillModal },
+        { id: 'edit-price-modal', close: closeEditPriceModal },
+        { id: 'add-stock-modal', close: closeAddStockModal },
+        { id: 'admin-reset-pw-modal', close: closeAdminResetPwModal },
+        { id: 'admin-pin-modal', close: closeAdminPinModal },
+        { id: 'admin-modal', close: closeAdminModal },
+        { id: 'checkout-modal', close: closeCheckoutModal },
+        { id: 'vault-modal', close: closeVaultModal },
+        { id: 'product-detail-modal', close: closeProductDetailModal },
+        { id: 'coupons-modal', close: closeCouponsModal },
+        { id: 'orders-modal', close: closeOrdersModal },
+        { id: 'warranty-modal', close: closeWarrantyModal }
+    ];
+
+    backdropModalBindings.forEach(({ id, close }) => {
+        const modal = document.getElementById(id);
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    close();
+                }
+            });
+        }
+    });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -4824,7 +5111,15 @@ async function downloadCheckoutQR() {
 }
 
 function copyCheckoutTotal() {
-    const total = calculateVerifiedTotal();
+    let total = calculateVerifiedTotal();
+    if (state.appliedCoupon) {
+        const valRes = typeof validateCouponCode === 'function' 
+            ? validateCouponCode(state.appliedCoupon.code, total)
+            : { valid: false };
+        if (valRes.valid) {
+            total = valRes.netTotal;
+        }
+    }
     if (total <= 0) {
         showToast('ไม่มียอดที่ต้องชำระ', 'warning');
         return;
@@ -4952,5 +5247,646 @@ function clearMobileSearch() {
     applyFilters();
 }
 
+// ==========================================
+// STOREFRONT COUPON & PROMOTION ACTIONS
+// ==========================================
 
+async function applyCouponFromCart() {
+    const input = document.getElementById('cart-coupon-input');
+    const code = (input ? input.value : '').trim().toUpperCase();
 
+    if (!code) {
+        showToast("กรุณากรอกรหัสโค้ดส่วนลด", "warning");
+        if (input) input.focus();
+        return;
+    }
+
+    const verifiedSubtotal = calculateVerifiedTotal();
+    if (!state.cart || state.cart.length === 0 || verifiedSubtotal <= 0) {
+        showToast("กรุณาเลือกสินค้าใส่ตะกร้าก่อนใช้โค้ดส่วนลด", "warning");
+        return;
+    }
+
+    let result = null;
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            const res = await fetch('/api/promotions/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, subtotal: verifiedSubtotal })
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.coupon) {
+                result = {
+                    valid: true,
+                    coupon: data.coupon,
+                    discountAmount: data.coupon.discountAmount,
+                    netTotal: data.coupon.netTotal,
+                    message: data.message
+                };
+            } else {
+                result = { valid: false, message: data.message || "โค้ดส่วนลดไม่ถูกต้องหรือไม่สามารถใช้งานได้" };
+            }
+        } catch (e) {
+            result = typeof validateCouponCode === 'function'
+                ? validateCouponCode(code, verifiedSubtotal)
+                : { valid: false, message: "ระบบตรวจสอบโค้ดส่วนลดขัดข้อง" };
+        }
+    } else {
+        result = typeof validateCouponCode === 'function'
+            ? validateCouponCode(code, verifiedSubtotal)
+            : { valid: false, message: "ระบบตรวจสอบโค้ดส่วนลดขัดข้อง" };
+    }
+
+    if (!result || !result.valid) {
+        showToast((result && result.message) || "โค้ดส่วนลดไม่ถูกต้องหรือไม่สามารถใช้งานได้", "warning");
+        return;
+    }
+
+    state.appliedCoupon = result.coupon;
+    try {
+        localStorage.setItem('supinkly_applied_coupon', JSON.stringify(result.coupon));
+    } catch {}
+
+    if (input) input.value = '';
+    updateCartUI();
+
+    showToast(`🎉 ใช้โค้ด "${result.coupon.code}" สำเร็จ! ลดทันที ฿${result.discountAmount.toFixed(2)}`, "success");
+}
+
+function quickApplyCoupon(code) {
+    const input = document.getElementById('cart-coupon-input');
+    if (input) input.value = code;
+    applyCouponFromCart();
+}
+
+function removeAppliedCoupon(notify = true) {
+    state.appliedCoupon = null;
+    try {
+        localStorage.removeItem('supinkly_applied_coupon');
+    } catch {}
+
+    updateCartUI();
+    if (notify) {
+        showToast("ยกเลิกการใช้โค้ดส่วนลดเรียบร้อยแล้ว", "info");
+    }
+}
+
+function copyAndApplyPromo(code) {
+    code = (code || '').trim().toUpperCase();
+    if (!code) return;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).catch(() => {});
+    }
+
+    closeCouponsModal();
+    openCartDrawer();
+
+    const input = document.getElementById('cart-coupon-input');
+    if (input) input.value = code;
+
+    const verifiedSubtotal = calculateVerifiedTotal();
+    if (state.cart && state.cart.length > 0 && verifiedSubtotal > 0) {
+        applyCouponFromCart();
+    } else {
+        showToast(`📋 คัดลอกโค้ด "${code}" แล้ว! เลือกสินค้าใส่ตะกร้าเพื่อรับส่วนลดได้ทันที`, "success");
+    }
+}
+
+function openCouponsModal() {
+    renderCouponsModal();
+    const modal = document.getElementById('coupons-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeCouponsModal() {
+    const modal = document.getElementById('coupons-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function renderCouponsModal() {
+    const list = document.getElementById('coupons-modal-list');
+    const badge = document.getElementById('coupons-modal-count-badge');
+    if (!list) return;
+
+    let promos = typeof getStorePromotions === 'function' ? getStorePromotions() : [];
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            const res = await fetch('/api/promotions');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && Array.isArray(data.promotions)) {
+                    promos = data.promotions;
+                }
+            }
+        } catch (e) {
+            console.warn("Could not fetch remote promotions, using local store:", e);
+        }
+    }
+
+    const activePromos = promos.filter(p => p && p.active !== false);
+    if (badge) badge.textContent = `${activePromos.length} โค้ด`;
+
+    if (activePromos.length === 0) {
+        list.innerHTML = `
+            <div class="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200 p-6">
+                <div class="w-12 h-12 mx-auto mb-2 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-ticket-simple"></i>
+                </div>
+                <p class="text-sm font-bold text-slate-800">ขณะนี้ยังไม่มีโค้ดโปรโมชั่นเปิดใช้งาน</p>
+                <p class="text-xs text-slate-500 mt-1">โปรดติดตามโค้ดพิเศษเทศกาลใหม่ๆ เร็วๆ นี้</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = activePromos.map(promo => {
+        const isApplied = state.appliedCoupon && state.appliedCoupon.code === promo.code;
+        const isPercent = promo.discountType === 'percent';
+        const discBadgeText = isPercent ? `ลด ${promo.discountValue}%` : `ลด ฿${promo.discountValue}`;
+        const minSpendText = (promo.minSpend && promo.minSpend > 0) ? `ขั้นต่ำ ฿${promo.minSpend}` : 'ไม่มีขั้นต่ำ';
+        const expiryText = promo.expiresAt ? `หมดเขต: ${promo.expiresAt}` : 'ไม่มีวันหมดอายุ';
+        const maxDiscText = (isPercent && promo.maxDiscount) ? ` (สูงสุด ฿${promo.maxDiscount})` : '';
+
+        return `
+            <div class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-pink-50/50 via-white to-purple-50/40 border-2 ${isApplied ? 'border-emerald-400 bg-emerald-50/20' : 'border-pink-200'} hover:border-pink-300 transition-all shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 relative overflow-hidden group">
+                
+                <!-- Left Tag / Info -->
+                <div class="flex items-start gap-3 min-w-0 flex-1">
+                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 text-white flex flex-col items-center justify-center p-1 text-center shrink-0 shadow-sm shadow-pink-500/20">
+                        <span class="text-[10px] font-medium leading-none opacity-90">${isPercent ? 'ส่วนลด' : 'ลดทันที'}</span>
+                        <span class="text-base font-black leading-tight mt-0.5">${isPercent ? `${promo.discountValue}%` : `฿${promo.discountValue}`}</span>
+                        <span class="text-[9px] font-bold opacity-80 leading-none">OFF</span>
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-mono font-black text-pink-600 text-sm tracking-wider bg-white border border-pink-300 px-2.5 py-0.5 rounded-lg select-all shadow-2xs">
+                                ${escapeHTML(promo.code)}
+                            </span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isPercent ? 'bg-pink-100 text-pink-700' : 'bg-purple-100 text-purple-700'}">
+                                ${discBadgeText}${maxDiscText}
+                            </span>
+                            ${isApplied ? `
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                                    <i class="fa-solid fa-circle-check text-[10px] text-emerald-600"></i> กำลังใช้อยู่
+                                </span>
+                            ` : ''}
+                        </div>
+
+                        <p class="text-xs text-slate-700 font-semibold mt-1 truncate">
+                            ${escapeHTML(promo.description || 'โค้ดส่วนลดพิเศษ')}
+                        </p>
+
+                        <div class="flex items-center gap-2 mt-1.5 text-[11px] text-slate-500 flex-wrap">
+                            <span class="flex items-center gap-1">
+                                <i class="fa-solid fa-basket-shopping text-pink-500 text-[10px]"></i>
+                                <span>${minSpendText}</span>
+                            </span>
+                            <span>•</span>
+                            <span class="flex items-center gap-1">
+                                <i class="fa-regular fa-clock text-slate-400 text-[10px]"></i>
+                                <span>${expiryText}</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Action Button -->
+                <div class="flex items-center sm:self-center shrink-0">
+                    ${isApplied ? `
+                        <button type="button" onclick="removeAppliedCoupon()" class="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-rose-600 hover:text-rose-700 text-xs font-bold transition-all border border-slate-200 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-xmark"></i>
+                            <span>ยกเลิกใช้โค้ด</span>
+                        </button>
+                    ` : `
+                        <button type="button" onclick="copyAndApplyPromo('${escapeHTML(promo.code)}')" class="w-full sm:w-auto px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 hover:scale-105 active:scale-95 touch-active cursor-pointer">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>คัดลอก & นำไปใช้</span>
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ==========================================
+// ADMIN COUPON MANAGEMENT ACTIONS
+// ==========================================
+
+let adminCouponSearchQuery = '';
+let cachedAdminCoupons = [];
+let editingCouponOriginalCode = null;
+
+function handleAdminCouponSearch(val) {
+    adminCouponSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('admin-coupon-clear-search');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !adminCouponSearchQuery);
+    renderAdminCouponsList();
+}
+
+function clearAdminCouponSearch() {
+    adminCouponSearchQuery = '';
+    const input = document.getElementById('admin-coupon-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('admin-coupon-clear-search');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    renderAdminCouponsList();
+}
+
+function toggleAdminCouponForm(forceShow) {
+    const card = document.getElementById('admin-coupon-form-card');
+    const toggleBtn = document.getElementById('admin-coupon-toggle-form-btn');
+    if (!card) return;
+
+    const willShow = typeof forceShow === 'boolean' ? forceShow : card.classList.contains('hidden');
+    if (willShow) {
+        card.classList.remove('hidden');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = `<i class="fa-solid fa-chevron-up text-xs"></i> <span>ซ่อนแบบฟอร์ม</span>`;
+        }
+        if (!editingCouponOriginalCode) {
+            resetAdminCouponForm();
+        }
+    } else {
+        card.classList.add('hidden');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = `<i class="fa-solid fa-plus text-xs"></i> <span>สร้างโค้ดส่วนลดใหม่</span>`;
+        }
+        editingCouponOriginalCode = null;
+    }
+}
+
+function resetAdminCouponForm() {
+    editingCouponOriginalCode = null;
+    const titleEl = document.getElementById('admin-coupon-form-title');
+    if (titleEl) {
+        titleEl.innerHTML = `<i class="fa-solid fa-ticket text-pink-500"></i> <span>เพิ่มโค้ดส่วนลดใหม่</span>`;
+    }
+    const codeInp = document.getElementById('admin-coupon-code-input');
+    if (codeInp) {
+        codeInp.value = '';
+        codeInp.readOnly = false;
+    }
+    const typeInp = document.getElementById('admin-coupon-type-input');
+    if (typeInp) typeInp.value = 'percent';
+    const valInp = document.getElementById('admin-coupon-val-input');
+    if (valInp) valInp.value = '';
+    const minInp = document.getElementById('admin-coupon-min-input');
+    if (minInp) minInp.value = '0';
+    const maxInp = document.getElementById('admin-coupon-maxdisc-input');
+    if (maxInp) maxInp.value = '';
+    const limInp = document.getElementById('admin-coupon-limit-input');
+    if (limInp) limInp.value = '';
+    const expInp = document.getElementById('admin-coupon-expiry-input');
+    if (expInp) expInp.value = '';
+    const descInp = document.getElementById('admin-coupon-desc-input');
+    if (descInp) descInp.value = '';
+    const actInp = document.getElementById('admin-coupon-active-input');
+    if (actInp) actInp.checked = true;
+
+    handleAdminCouponTypeChange('percent');
+}
+
+function handleAdminCouponTypeChange(val) {
+    const unitEl = document.getElementById('admin-coupon-val-unit');
+    const maxGroup = document.getElementById('admin-coupon-maxdisc-group');
+    if (val === 'fixed') {
+        if (unitEl) unitEl.textContent = '฿';
+        if (maxGroup) maxGroup.classList.add('hidden');
+    } else {
+        if (unitEl) unitEl.textContent = '%';
+        if (maxGroup) maxGroup.classList.remove('hidden');
+    }
+}
+
+async function renderAdminCouponsList() {
+    const tbody = document.getElementById('admin-coupons-table');
+    const badge = document.getElementById('admin-coupons-badge');
+    if (!tbody) return;
+
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-8 text-center text-rose-500 text-xs font-bold">
+                    กรุณาเข้าสู่ระบบหลังร้านเพื่อจัดการโค้ดส่วนลด
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let coupons = typeof getStorePromotions === 'function' ? getStorePromotions() : [];
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            const res = await fetch('/api/admin/coupons', {
+                headers: ADMIN_AUTH.getHeaders()
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && Array.isArray(data.coupons)) {
+                    coupons = data.coupons;
+                }
+            }
+        } catch (e) {
+            console.warn("Could not fetch remote admin coupons:", e);
+        }
+    }
+
+    cachedAdminCoupons = coupons;
+    const activeCount = coupons.filter(c => c && c.active !== false).length;
+    if (badge) badge.textContent = activeCount;
+
+    let filtered = [...coupons];
+    if (adminCouponSearchQuery) {
+        const q = adminCouponSearchQuery;
+        filtered = filtered.filter(c => 
+            (c.code && c.code.toLowerCase().includes(q)) ||
+            (c.description && c.description.toLowerCase().includes(q))
+        );
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-12 text-center text-slate-400">
+                    <div class="w-12 h-12 mx-auto mb-2 rounded-2xl bg-slate-100 flex items-center justify-center text-xl text-slate-400">
+                        <i class="fa-solid fa-ticket-simple"></i>
+                    </div>
+                    <div class="font-bold text-slate-600">ไม่พบโค้ดส่วนลด</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">กดปุ่ม "สร้างโค้ดส่วนลดใหม่" เพื่อเริ่มแจกโปรโมชั่น</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(c => {
+        const isPercent = c.discountType === 'percent';
+        const valBadge = isPercent ? `-${c.discountValue}%` : `-฿${c.discountValue}`;
+        const minSpendText = c.minSpend > 0 ? `ขั้นต่ำ ฿${c.minSpend}` : 'ไม่มีขั้นต่ำ';
+        const maxDiscText = (isPercent && c.maxDiscount) ? ` (สูงสุด ฿${c.maxDiscount})` : '';
+        const limitText = c.usageLimit ? `ใช้ได้ ${c.usageLimit} ครั้ง` : 'ไม่จำกัดสิทธิ์';
+        const usedCount = c.usedCount || 0;
+        const expiryText = c.expiresAt ? c.expiresAt : 'ตลอดชีพ';
+        const isActive = c.active !== false;
+
+        return `
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="py-3 px-3.5">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono font-bold text-slate-900 text-xs sm:text-sm bg-pink-50 border border-pink-200 px-2 py-0.5 rounded-lg select-all">
+                            ${escapeHTML(c.code)}
+                        </span>
+                    </div>
+                    <div class="text-[11px] text-slate-500 mt-1 line-clamp-1">
+                        ${escapeHTML(c.description || '-')}
+                    </div>
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <span class="inline-flex items-center gap-1 font-bold text-xs px-2.5 py-0.5 rounded-full ${isPercent ? 'bg-pink-100 text-pink-700 border border-pink-200' : 'bg-purple-100 text-purple-700 border border-purple-200'}">
+                        ${valBadge}${maxDiscText}
+                    </span>
+                    <div class="text-[10px] text-slate-400 mt-0.5 font-medium">${isPercent ? 'เปอร์เซ็นต์' : 'ลดเงินสด'}</div>
+                </td>
+                <td class="py-3 px-3.5 text-center text-[11px] text-slate-600">
+                    <div class="font-semibold text-slate-700">${minSpendText}</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">${limitText} (ใช้แล้ว ${usedCount}) • หมดอายุ: ${expiryText}</div>
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <button type="button" onclick="handleToggleAdminCoupon('${escapeHTML(c.code)}')"
+                        title="คลิกเพื่อสลับสถานะเปิด/ปิด"
+                        class="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${isActive ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-300 hover:bg-slate-200'}">
+                        ${isActive ? '🟢 เปิดใช้งาน' : '⚪ ปิดใช้งาน'}
+                    </button>
+                </td>
+                <td class="py-3 px-3.5 text-right space-x-1">
+                    <button type="button" onclick="handleEditAdminCoupon('${escapeHTML(c.code)}')"
+                        title="แก้ไขโค้ดนี้"
+                        class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-pink-50 text-slate-600 hover:text-pink-600 text-xs font-bold transition-all">
+                        <i class="fa-regular fa-pen-to-square"></i>
+                    </button>
+                    <button type="button" onclick="handleDeleteAdminCoupon('${escapeHTML(c.code)}')"
+                        title="ลบโค้ดนี้"
+                        class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 text-xs font-bold transition-all">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function handleEditAdminCoupon(code) {
+    const coupon = cachedAdminCoupons.find(c => c && c.code === code);
+    if (!coupon) return;
+
+    editingCouponOriginalCode = coupon.code;
+    toggleAdminCouponForm(true);
+
+    const titleEl = document.getElementById('admin-coupon-form-title');
+    if (titleEl) {
+        titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-pink-500"></i> <span>แก้ไขโค้ด: ${escapeHTML(coupon.code)}</span>`;
+    }
+
+    const codeInp = document.getElementById('admin-coupon-code-input');
+    if (codeInp) {
+        codeInp.value = coupon.code;
+        codeInp.readOnly = true;
+    }
+    const typeInp = document.getElementById('admin-coupon-type-input');
+    if (typeInp) typeInp.value = coupon.discountType || 'percent';
+    const valInp = document.getElementById('admin-coupon-val-input');
+    if (valInp) valInp.value = coupon.discountValue || '';
+    const minInp = document.getElementById('admin-coupon-min-input');
+    if (minInp) minInp.value = coupon.minSpend || 0;
+    const maxInp = document.getElementById('admin-coupon-maxdisc-input');
+    if (maxInp) maxInp.value = coupon.maxDiscount || '';
+    const limInp = document.getElementById('admin-coupon-limit-input');
+    if (limInp) limInp.value = coupon.usageLimit || '';
+    const expInp = document.getElementById('admin-coupon-expiry-input');
+    if (expInp) expInp.value = coupon.expiresAt || '';
+    const descInp = document.getElementById('admin-coupon-desc-input');
+    if (descInp) descInp.value = coupon.description || '';
+    const actInp = document.getElementById('admin-coupon-active-input');
+    if (actInp) actInp.checked = coupon.active !== false;
+
+    handleAdminCouponTypeChange(coupon.discountType || 'percent');
+}
+
+async function handleAdminCouponFormSubmit(e) {
+    e.preventDefault();
+
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const codeInp = document.getElementById('admin-coupon-code-input');
+    const typeInp = document.getElementById('admin-coupon-type-input');
+    const valInp = document.getElementById('admin-coupon-val-input');
+    const minInp = document.getElementById('admin-coupon-min-input');
+    const maxInp = document.getElementById('admin-coupon-maxdisc-input');
+    const limInp = document.getElementById('admin-coupon-limit-input');
+    const expInp = document.getElementById('admin-coupon-expiry-input');
+    const descInp = document.getElementById('admin-coupon-desc-input');
+    const actInp = document.getElementById('admin-coupon-active-input');
+
+    const code = (codeInp ? codeInp.value : '').trim().toUpperCase();
+    const discountType = typeInp ? typeInp.value : 'percent';
+    const discountValue = parseFloat(valInp ? valInp.value : 0) || 0;
+    const minSpend = parseFloat(minInp ? minInp.value : 0) || 0;
+    const maxDiscount = (maxInp && maxInp.value) ? parseFloat(maxInp.value) : null;
+    const usageLimit = (limInp && limInp.value) ? parseInt(limInp.value, 10) : null;
+    const expiresAt = (expInp && expInp.value) ? expInp.value : null;
+    const description = (descInp ? descInp.value : '').trim();
+    const active = actInp ? actInp.checked : true;
+
+    if (!code || !/^[A-Z0-9_-]{3,25}$/.test(code)) {
+        showToast("รหัสโค้ดต้องเป็นภาษาอังกฤษตัวพิมพ์ใหญ่หรือตัวเลข 3-25 ตัวอักษร", "warning");
+        if (codeInp) codeInp.focus();
+        return;
+    }
+
+    if (discountValue <= 0) {
+        showToast("มูลค่าส่วนลดต้องมากกว่า 0", "warning");
+        if (valInp) valInp.focus();
+        return;
+    }
+
+    if (discountType === 'percent' && discountValue > 100) {
+        showToast("ส่วนลดแบบเปอร์เซ็นต์ต้องไม่เกิน 100%", "warning");
+        if (valInp) valInp.focus();
+        return;
+    }
+
+    const payload = {
+        code,
+        discountType,
+        discountValue,
+        minSpend,
+        maxDiscount,
+        usageLimit,
+        expiresAt,
+        description,
+        active
+    };
+
+    const saveBtn = document.getElementById('admin-coupon-save-btn');
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+        if (window.location.protocol.startsWith('http')) {
+            const res = await fetch('/api/admin/coupons', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || "บันทึกโค้ดส่วนลดไม่สำเร็จ");
+            }
+        }
+
+        // Local storage sync for offline consistency
+        if (typeof getStorePromotions === 'function' && typeof saveStorePromotions === 'function') {
+            const localPromos = getStorePromotions();
+            const idx = localPromos.findIndex(p => p.code === code);
+            if (idx >= 0) {
+                localPromos[idx] = { ...localPromos[idx], ...payload };
+            } else {
+                localPromos.push({ ...payload, usedCount: 0 });
+            }
+            saveStorePromotions(localPromos);
+        }
+
+        showToast(`บันทึกโค้ดส่วนลด "${code}" เรียบร้อยแล้ว`, "success");
+        toggleAdminCouponForm(false);
+        renderAdminCouponsList();
+
+    } catch (err) {
+        showToast(err.message || "เกิดข้อผิดพลาดในการบันทึกโค้ดส่วนลด", "warning");
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+
+async function handleToggleAdminCoupon(code) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    try {
+        if (window.location.protocol.startsWith('http')) {
+            const res = await fetch(`/api/admin/coupons/${encodeURIComponent(code)}/toggle`, {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders()
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || "สลับสถานะโค้ดส่วนลดไม่สำเร็จ");
+            }
+        }
+
+        if (typeof getStorePromotions === 'function' && typeof saveStorePromotions === 'function') {
+            const localPromos = getStorePromotions();
+            const target = localPromos.find(p => p.code === code);
+            if (target) {
+                target.active = !target.active;
+                saveStorePromotions(localPromos);
+            }
+        }
+
+        showToast(`อัปเดตสถานะโค้ด "${code}" แล้ว`, "success");
+        renderAdminCouponsList();
+    } catch (err) {
+        showToast(err.message || "เกิดข้อผิดพลาดในการสลับสถานะ", "warning");
+    }
+}
+
+async function handleDeleteAdminCoupon(code) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    if (!confirm(`คุณต้องการลบโค้ดส่วนลด "${code}" ใช่หรือไม่?`)) {
+        return;
+    }
+
+    try {
+        if (window.location.protocol.startsWith('http')) {
+            const res = await fetch(`/api/admin/coupons/${encodeURIComponent(code)}`, {
+                method: 'DELETE',
+                headers: ADMIN_AUTH.getHeaders()
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || "ลบโค้ดส่วนลดไม่สำเร็จ");
+            }
+        }
+
+        if (typeof getStorePromotions === 'function' && typeof saveStorePromotions === 'function') {
+            const localPromos = getStorePromotions();
+            const filtered = localPromos.filter(p => p.code !== code);
+            saveStorePromotions(filtered);
+        }
+
+        if (state.appliedCoupon && state.appliedCoupon.code === code) {
+            removeAppliedCoupon(false);
+        }
+
+        showToast(`ลบโค้ดส่วนลด "${code}" เรียบร้อยแล้ว`, "info");
+        renderAdminCouponsList();
+    } catch (err) {
+        showToast(err.message || "เกิดข้อผิดพลาดในการลบโค้ดส่วนลด", "warning");
+    }
+}
