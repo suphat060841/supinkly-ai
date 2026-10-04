@@ -171,6 +171,9 @@ const ADMIN_AUTH = {
     },
 
     logout() {
+        if (typeof stopAdminAnalyticsPolling === 'function') {
+            stopAdminAnalyticsPolling();
+        }
         sessionStorage.removeItem('supinkly_admin_session');
     }
 };
@@ -251,7 +254,123 @@ const state = {
     searchQuery: '',
     sortBy: 'popular',
     qrTimer: null,
-    qrSecondsLeft: 900
+    qrSecondsLeft: 900,
+    analytics: null
+};
+
+// ==========================================
+// 📊 REAL-TIME TELEMETRY & LIVE TRACKING ENGINE
+// ==========================================
+const TELEMETRY = {
+    sessionId: null,
+    heartbeatTimer: null,
+
+    init() {
+        try {
+            let sid = sessionStorage.getItem('supinkly_session_id');
+            if (!sid || !/^ses_[a-zA-Z0-9_-]{8,32}$/.test(sid)) {
+                sid = 'ses_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+                sessionStorage.setItem('supinkly_session_id', sid);
+            }
+            this.sessionId = sid;
+        } catch (e) {
+            this.sessionId = 'ses_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+        }
+
+        // Fire initial page_view event
+        this.trackPageView('หน้าแรก ร้าน Supinkly.AI');
+
+        // Start heartbeat ping every 25s
+        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = setInterval(() => {
+            this.send('heartbeat');
+        }, 25000);
+    },
+
+    getCartSummary() {
+        let count = 0;
+        let total = 0;
+        if (state && Array.isArray(state.cart)) {
+            state.cart.forEach(item => {
+                const qty = item.quantity || 1;
+                count += qty;
+                const m = typeof getMasterProduct === 'function' ? getMasterProduct(item.productId) : null;
+                if (m) total += (m.price * qty);
+            });
+        }
+        return { count, total };
+    },
+
+    async send(action, extra = {}) {
+        if (!window.location.protocol.startsWith('http')) return;
+        if (!this.sessionId) this.init();
+
+        const { count, total } = this.getCartSummary();
+        const payload = {
+            sessionId: this.sessionId,
+            action: action || 'heartbeat',
+            page: extra.page || (extra.productId ? `ดูสินค้า: ${extra.productTitle || extra.productId}` : 'หน้าแรก'),
+            productId: extra.productId || null,
+            productTitle: extra.productTitle || null,
+            cartCount: count,
+            cartTotal: total
+        };
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+            const token = USER_AUTH.getToken();
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        try {
+            const res = await fetch('/api/telemetry/heartbeat', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && typeof data.onlineTotal === 'number') {
+                    this.updateStorefrontBadge(data.onlineTotal);
+                }
+            }
+        } catch (e) {}
+    },
+
+    updateStorefrontBadge(count) {
+        const textEl = document.getElementById('storefront-online-text');
+        if (textEl) {
+            textEl.textContent = `ออนไลน์ ${Math.max(1, count)} คน`;
+        }
+        const badgeEl = document.getElementById('admin-online-badge');
+        if (badgeEl) {
+            badgeEl.textContent = `${Math.max(0, count)} คน`;
+        }
+        const nowKpi = document.getElementById('admin-stat-online-now');
+        if (nowKpi && (!state.analytics || !state.analytics.live)) {
+            nowKpi.textContent = `${Math.max(0, count)} คน`;
+        }
+    },
+
+    trackPageView(pageName) {
+        this.send('page_view', { page: pageName || 'หน้าแรก' });
+    },
+
+    trackProductView(productId, productTitle) {
+        this.send('product_view', { productId, productTitle, page: `ดูสินค้า: ${productTitle || productId}` });
+    },
+
+    trackCartAdd(productId, productTitle) {
+        this.send('cart_add', { productId, productTitle, page: `หยิบใส่ตะกร้า: ${productTitle || productId}` });
+    },
+
+    trackCartView() {
+        this.send('cart_view', { page: 'เปิดดูตะกร้าสินค้า' });
+    },
+
+    trackCheckoutStart() {
+        this.send('checkout_start', { page: 'ขั้นตอนชำระเงิน' });
+    }
 };
 
 // Custom Price Management
@@ -411,6 +530,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Launch G2G Market Real-Time Auto-Sync Engine (Zero button clicks required)
     if (typeof G2G_SYNC !== 'undefined') {
         G2G_SYNC.init();
+    }
+
+    // Initialize Real-Time Store Telemetry & Online Traffic Tracking
+    if (typeof TELEMETRY !== 'undefined') {
+        TELEMETRY.init();
     }
 
     // Restore user session & sync server orders if logged in
@@ -889,6 +1013,10 @@ function addToCart(productId) {
         showToast(`เพิ่ม "${master.title}" ในตะกร้าแล้ว`, "success");
     }
 
+    if (typeof TELEMETRY !== 'undefined') {
+        TELEMETRY.trackCartAdd(master.id, master.title);
+    }
+
     saveCart();
 }
 
@@ -1074,6 +1202,9 @@ function updateCartUI() {
 }
 
 function openCartDrawer() {
+    if (typeof TELEMETRY !== 'undefined') {
+        TELEMETRY.trackCartView();
+    }
     const drawer = document.getElementById('cart-drawer');
     const overlay = document.getElementById('drawer-overlay');
     if (drawer && overlay) {
@@ -1095,6 +1226,9 @@ function closeCartDrawer() {
 // CHECKOUT & PROMPTPAY QR GENERATION
 // ==========================================
 function startCheckout() {
+    if (typeof TELEMETRY !== 'undefined') {
+        TELEMETRY.trackCheckoutStart();
+    }
     closeCartDrawer();
     state.cart = (state.cart || []).filter(item => item && item.productId && getMasterProduct(item.productId));
     state.cart.forEach(item => {
@@ -2169,7 +2303,7 @@ function switchAdminTab(tabName) {
         return;
     }
 
-    const tabs = ['orders', 'stock', 'coupons', 'users', 'settings'];
+    const tabs = ['orders', 'stock', 'coupons', 'users', 'analytics', 'settings'];
     tabs.forEach(t => {
         const btn = document.getElementById(`admin-tab-btn-${t}`);
         const panel = document.getElementById(`admin-tab-${t}`);
@@ -2190,6 +2324,7 @@ function switchAdminTab(tabName) {
     if (tabName === 'stock') renderAdminStockList();
     if (tabName === 'coupons') renderAdminCouponsList();
     if (tabName === 'users') renderAdminUsersList();
+    if (tabName === 'analytics') fetchAdminAnalytics(true);
 }
 
 function quickAdminNavigate(tabName, filter) {
@@ -2784,13 +2919,375 @@ async function openAdminModal() {
     renderAdminStockList();
     renderAdminCouponsList();
     renderAdminUsersList();
+    startAdminAnalyticsPolling();
     switchAdminTab('orders');
     modal.classList.remove('hidden');
 }
 
 function closeAdminModal() {
+    stopAdminAnalyticsPolling();
     const modal = document.getElementById('admin-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+// ==========================================
+// 📊 ADMIN ANALYTICS & LIVE TRAFFIC DASHBOARD
+// ==========================================
+let adminAnalyticsPollingTimer = null;
+let currentOnlineUsersFilter = 'all';
+
+async function fetchAdminAnalytics(showToastFeedback = false) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+
+    if (!window.location.protocol.startsWith('http')) {
+        const mockData = {
+            success: true,
+            live: {
+                onlineTotal: 3,
+                onlineMembersCount: 1,
+                onlineGuestsCount: 2,
+                activeUsers: [
+                    {
+                        sessionId: 'ses_sample1',
+                        role: 'member',
+                        displayName: 'สุพัฒน์ มีสมบัติ (Admin)',
+                        email: 'admin@supinkly.ai',
+                        page: 'จัดการระบบหลังบ้าน',
+                        lastAction: 'ตรวจสอบสถิติร้านค้า',
+                        cartCount: 0,
+                        cartTotal: 0,
+                        lastSeenSec: 3
+                    },
+                    {
+                        sessionId: 'ses_sample2',
+                        role: 'guest',
+                        displayName: 'ผู้เยี่ยมชม #A48B',
+                        page: 'ดูสินค้า: CapCut Pro 1M Private',
+                        lastAction: 'เพิ่ม CapCut Pro ลงตะกร้า',
+                        cartCount: 1,
+                        cartTotal: 129,
+                        lastSeenSec: 15
+                    },
+                    {
+                        sessionId: 'ses_sample3',
+                        role: 'guest',
+                        displayName: 'ผู้เยี่ยมชม #71F0',
+                        page: 'หน้าแรก ร้าน Supinkly.AI',
+                        lastAction: 'เข้าชมหน้าแรก',
+                        cartCount: 0,
+                        cartTotal: 0,
+                        lastSeenSec: 35
+                    }
+                ]
+            },
+            today: {
+                date: new Date().toISOString().split('T')[0],
+                uniqueVisitors: 42,
+                pageViews: 128,
+                productViewsTotal: 58,
+                cartAddsTotal: 16,
+                checkoutStarts: 9,
+                ordersCount: (state.orders || []).length || 5,
+                revenue: (state.orders || []).reduce((acc, o) => acc + (o.totalAmount || 0), 0) || 1450,
+                conversionRate: '11.9%',
+                topProducts: [
+                    { productId: 'cpc-01', title: 'CapCut Pro 1M Private', price: 129, views: 24, cartAdds: 7 },
+                    { productId: 'cld-01', title: 'Claude Pro 1M Private', price: 490, views: 18, cartAdds: 4 },
+                    { productId: 'win-11', title: 'Windows 11 Pro OEM Key', price: 290, views: 11, cartAdds: 3 }
+                ],
+                recentEvents: [
+                    { type: 'cart_add', user: 'ผู้เยี่ยมชม #A48B', time: '14:32:10', text: 'เพิ่ม "CapCut Pro 1M Private" ลงตะกร้า' },
+                    { type: 'product_view', user: 'ผู้เยี่ยมชม #71F0', time: '14:28:45', text: 'กำลังดูรายละเอียด "Claude Pro"' },
+                    { type: 'order_success', user: 'customer@gmail.com', time: '14:15:20', text: 'สั่งซื้อสำเร็จ SPK-98214 ยอด ฿290.00' }
+                ]
+            }
+        };
+        state.analytics = mockData;
+        renderAdminAnalyticsDashboard(mockData);
+        if (showToastFeedback) {
+            showToast(`อัปเดตสถิติสดแล้ว (ออนไลน์ 3 คน)`, 'success');
+        }
+        return;
+    }
+
+    const refreshIcon = document.getElementById('analytics-refresh-icon');
+    if (refreshIcon) refreshIcon.classList.add('fa-spin');
+
+    try {
+        const res = await fetch('/api/admin/analytics', {
+            headers: ADMIN_AUTH.getHeaders()
+        });
+
+        if (res.status === 401 || res.status === 403) {
+            stopAdminAnalyticsPolling();
+            ADMIN_AUTH.logout();
+            promptAdminLogin();
+            return;
+        }
+
+        const data = await res.json();
+        if (data.success) {
+            state.analytics = data;
+            renderAdminAnalyticsDashboard(data);
+            if (showToastFeedback) {
+                showToast(`อัปเดตสถิติสดแล้ว (ออนไลน์ ${data.live?.onlineTotal || 0} คน)`, 'success');
+            }
+        }
+    } catch (err) {
+        console.warn('[ANALYTICS] Fetch error:', err.message);
+    } finally {
+        if (refreshIcon) refreshIcon.classList.remove('fa-spin');
+    }
+}
+
+function startAdminAnalyticsPolling() {
+    if (adminAnalyticsPollingTimer) clearInterval(adminAnalyticsPollingTimer);
+    fetchAdminAnalytics(false);
+    adminAnalyticsPollingTimer = setInterval(() => {
+        fetchAdminAnalytics(false);
+    }, 5000);
+}
+
+function stopAdminAnalyticsPolling() {
+    if (adminAnalyticsPollingTimer) {
+        clearInterval(adminAnalyticsPollingTimer);
+        adminAnalyticsPollingTimer = null;
+    }
+}
+
+function setOnlineUsersFilter(filter) {
+    currentOnlineUsersFilter = filter;
+    ['all', 'members', 'guests'].forEach(f => {
+        const btn = document.getElementById(`filter-online-${f}`);
+        if (btn) {
+            if (f === filter) {
+                btn.className = "px-2.5 py-1 rounded-lg bg-white text-slate-900 shadow-2xs font-bold cursor-pointer";
+            } else {
+                btn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 font-medium cursor-pointer";
+            }
+        }
+    });
+    if (state.analytics && state.analytics.live) {
+        renderActiveUsersList(state.analytics.live.activeUsers || []);
+    }
+}
+
+function renderAdminAnalyticsDashboard(data) {
+    const live = data.live || {};
+    const today = data.today || {};
+
+    // 1. Update Top KPI Strip
+    const statOnlineNow = document.getElementById('admin-stat-online-now');
+    if (statOnlineNow) statOnlineNow.textContent = `${live.onlineTotal || 0} คน`;
+    const statOnlineSub = document.getElementById('admin-stat-online-sub');
+    if (statOnlineSub) statOnlineSub.textContent = `${live.onlineMembersCount || 0} สมาชิก / ${live.onlineGuestsCount || 0} ทั่วไป`;
+    const badgeOnline = document.getElementById('admin-online-badge');
+    if (badgeOnline) badgeOnline.textContent = `${live.onlineTotal || 0} คน`;
+
+    // 2. Update Tab Funnel Metric Cards
+    const actNow = document.getElementById('analytics-active-now');
+    if (actNow) actNow.textContent = live.onlineTotal || 0;
+    const actNowSub = document.getElementById('analytics-active-now-sub');
+    if (actNowSub) actNowSub.textContent = `${live.onlineMembersCount || 0} สมาชิก / ${live.onlineGuestsCount || 0} ทั่วไป`;
+
+    const dailyVisitors = document.getElementById('analytics-daily-visitors');
+    if (dailyVisitors) dailyVisitors.textContent = today.uniqueVisitors || 0;
+    const pageviewsBadge = document.getElementById('analytics-pageviews-badge');
+    if (pageviewsBadge) pageviewsBadge.textContent = `${today.pageViews || 0} วิว`;
+    const pageviewsText = document.getElementById('analytics-pageviews-text');
+    if (pageviewsText) pageviewsText.textContent = `เปิดชมรวม ${today.pageViews || 0} หน้าวันนี้`;
+
+    const productViews = document.getElementById('analytics-product-views');
+    if (productViews) productViews.textContent = today.productViewsTotal || 0;
+    const cartAddsText = document.getElementById('analytics-cart-adds-text');
+    if (cartAddsText) cartAddsText.textContent = `หยิบลงตะกร้า ${today.cartAddsTotal || 0} ครั้งวันนี้`;
+
+    const todayRev = document.getElementById('analytics-today-revenue');
+    if (todayRev) todayRev.textContent = `฿${(today.revenue || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const convRate = document.getElementById('analytics-conversion-rate');
+    if (convRate) convRate.textContent = `${today.conversionRate || '0.0%'} ซื้อ`;
+    const ordersCountText = document.getElementById('analytics-orders-count-text');
+    if (ordersCountText) ordersCountText.textContent = `สั่งซื้อสำเร็จ ${today.ordersCount || 0} ออเดอร์`;
+
+    const syncLabel = document.getElementById('analytics-last-sync-label');
+    if (syncLabel) {
+        const timeNow = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        syncLabel.textContent = `อัปเดตล่าสุด ${timeNow}`;
+    }
+
+    // 3. Render Online Users List
+    renderActiveUsersList(live.activeUsers || []);
+
+    // 4. Render Top Demanded Products
+    renderTopDemandedProducts(today.topProducts || []);
+
+    // 5. Render Live Activity Feed
+    renderLiveRecentEvents(today.recentEvents || []);
+}
+
+function renderActiveUsersList(users) {
+    const container = document.getElementById('analytics-active-users-list');
+    if (!container) return;
+
+    let filtered = users || [];
+    if (currentOnlineUsersFilter === 'members') {
+        filtered = filtered.filter(u => u.role === 'member');
+    } else if (currentOnlineUsersFilter === 'guests') {
+        filtered = filtered.filter(u => u.role === 'guest');
+    }
+
+    if (!filtered || filtered.length === 0) {
+        container.innerHTML = `
+            <div class="py-12 text-center text-xs text-slate-400">
+                <div class="w-12 h-12 mx-auto mb-2 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 text-lg">
+                    <i class="fa-solid fa-user-slash"></i>
+                </div>
+                <p class="font-bold text-slate-600">ไม่มีผู้ใช้งานในกลุ่มนี้ในขณะนี้</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">ระบบจะแสดงอัตโนมัติทันทีที่มีคนเปิดหน้าเว็บ</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = filtered.map(u => {
+        const isMember = u.role === 'member';
+        const initial = (u.displayName || 'G').charAt(0).toUpperCase();
+        const lastSec = u.lastSeenSec || 0;
+        const timeAgoText = lastSec < 10 ? 'เมื่อสักครู่' : `${lastSec} วินาทีที่แล้ว`;
+
+        return `
+            <div class="p-3.5 rounded-2xl ${isMember ? 'bg-gradient-to-r from-purple-50/60 to-pink-50/40 border border-purple-200' : 'bg-slate-50/80 border border-slate-200'} flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 hover:shadow-sm transition-all">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="relative shrink-0">
+                        <div class="w-10 h-10 rounded-2xl ${isMember ? 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white' : 'bg-slate-200 text-slate-700'} flex items-center justify-center font-black text-sm shadow-xs">
+                            ${escapeHTML(initial)}
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="text-xs font-bold text-slate-900 truncate">${escapeHTML(u.displayName || 'ผู้เยี่ยมชม')}</span>
+                            <span class="px-2 py-0.2 rounded-full text-[10px] font-bold ${isMember ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-600'}">
+                                ${isMember ? '👑 สมาชิก' : '👤 ผู้เยี่ยมชม'}
+                            </span>
+                            ${u.email ? `<span class="text-[11px] text-slate-500 truncate font-mono">(${escapeHTML(u.email)})</span>` : ''}
+                        </div>
+                        <div class="text-[11px] text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                            <span class="font-medium text-pink-600"><i class="fa-solid fa-location-dot text-[10px]"></i> ${escapeHTML(u.page || 'หน้าแรก')}</span>
+                            ${u.cartCount > 0 ? `<span class="px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px]"><i class="fa-solid fa-cart-shopping"></i> ${u.cartCount} ชิ้น (฿${(u.cartTotal || 0).toFixed(2)})</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                    <div class="text-right">
+                        <div class="text-[10px] text-slate-400 font-medium">เคลื่อนไหวล่าสุด</div>
+                        <div class="text-[11px] font-bold text-emerald-600 flex items-center gap-1 justify-end">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> ${timeAgoText}
+                        </div>
+                    </div>
+                    <button type="button" onclick="quickChatWithOnlineUser(this.dataset.sid, this.dataset.name)" data-sid="${escapeHTML(u.sessionId)}" data-name="${escapeHTML(u.displayName)}" title="ทักแชทสดกับผู้ใช้นี้"
+                        class="px-2.5 py-1.5 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer">
+                        <i class="fa-solid fa-comments text-pink-500"></i>
+                        <span class="hidden sm:inline">ทักแชท</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderTopDemandedProducts(products) {
+    const container = document.getElementById('analytics-top-products-list');
+    if (!container) return;
+
+    if (!products || products.length === 0) {
+        container.innerHTML = `
+            <div class="py-8 text-center text-xs text-slate-400">
+                <i class="fa-solid fa-chart-simple text-base mb-1"></i>
+                <p>ยังไม่มีข้อมูลการเลือกดูสินค้าวันนี้</p>
+            </div>
+        `;
+        return;
+    }
+
+    const maxViews = Math.max(1, ...products.map(p => p.views || 0));
+
+    container.innerHTML = products.map((p, idx) => {
+        const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : `${idx + 1}.`));
+        const pct = Math.min(100, Math.round((p.views / maxViews) * 100));
+
+        return `
+            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs space-y-1.5">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="font-bold text-xs shrink-0">${medal}</span>
+                        <span class="font-bold text-slate-800 truncate" title="${escapeHTML(p.title)}">${escapeHTML(p.title)}</span>
+                    </div>
+                    <span class="font-bold text-pink-600 shrink-0">฿${p.price.toFixed(2)}</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px] text-slate-500">
+                    <div class="flex-1 bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-gradient-to-r from-pink-500 to-amber-500 h-full rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                    <span class="shrink-0 font-medium"><i class="fa-solid fa-eye text-slate-400"></i> ${p.views} วิว</span>
+                    <span class="shrink-0 font-bold text-amber-700"><i class="fa-solid fa-cart-arrow-down text-amber-500"></i> ${p.cartAdds} ใส่ตะกร้า</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderLiveRecentEvents(events) {
+    const container = document.getElementById('analytics-recent-events-list');
+    if (!container) return;
+
+    if (!events || events.length === 0) {
+        container.innerHTML = `
+            <div class="py-8 text-center text-xs text-slate-400">
+                <i class="fa-solid fa-wave-square text-base mb-1"></i>
+                <p>ยังไม่มีบันทึกกิจกรรมในวันนี้</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = events.slice(0, 20).map(evt => {
+        let icon = '<i class="fa-solid fa-eye text-slate-500"></i>';
+        let bg = 'bg-slate-50 border-slate-200';
+        if (evt.type === 'cart_add') {
+            icon = '<i class="fa-solid fa-cart-plus text-amber-500"></i>';
+            bg = 'bg-amber-50/50 border-amber-200';
+        } else if (evt.type === 'checkout_start') {
+            icon = '<i class="fa-solid fa-credit-card text-purple-500"></i>';
+            bg = 'bg-purple-50/50 border-purple-200';
+        } else if (evt.type === 'order_success') {
+            icon = '<i class="fa-solid fa-circle-check text-emerald-600"></i>';
+            bg = 'bg-emerald-50 border-emerald-300';
+        }
+
+        return `
+            <div class="p-2 rounded-xl border ${bg} text-[11px] flex items-start gap-2">
+                <div class="mt-0.5 shrink-0">${icon}</div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="font-bold text-slate-800 truncate">${escapeHTML(evt.user || 'ผู้เยี่ยมชม')}</span>
+                        <span class="text-[10px] text-slate-400 font-mono shrink-0">${evt.time || ''}</span>
+                    </div>
+                    <p class="text-slate-600 truncate mt-0.5">${escapeHTML(evt.text || '')}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function quickChatWithOnlineUser(sessionId, displayName) {
+    const safeName = (displayName || 'ลูกค้า').replace(/[<>&"']/g, '').slice(0, 50);
+    const adminChatBtn = document.getElementById('admin-chat-fab') || document.querySelector('[onclick*="toggleAdminChat"]');
+    if (adminChatBtn) {
+        adminChatBtn.click();
+    }
+    showToast(`เปิดหน้าต่างแชทกับ: ${safeName}`, 'info');
 }
 
 // ==========================================
@@ -3901,6 +4398,10 @@ function openProductDetailModal(productId) {
     const product = getMasterProduct(productId);
     if (!product) return;
 
+    if (typeof TELEMETRY !== 'undefined') {
+        TELEMETRY.trackProductView(product.id, product.title);
+    }
+
     const modal = document.getElementById('product-detail-modal');
     if (!modal) return;
 
@@ -4282,8 +4783,18 @@ const ADMIN_CHAT = (() => {
         let formattedText = escapeHTML(m.text || '');
         if (isBot || !isOwn) {
             formattedText = formattedText
-                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>')
-                .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-pink-600 underline font-semibold break-all">$1</a>');
+                .replace(/\*\*([^*\n<>&]+)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>')
+                .replace(/(https?:\/\/[a-zA-Z0-9\-_.~:/?#[\]@!$&*+,;=%]+)/g, (matched) => {
+                    const clean = matched.replace(/[.,;:)\]]+$/, '');
+                    try {
+                        const u = new URL(clean);
+                        if (u.protocol === 'http:' || u.protocol === 'https:') {
+                            const safeHref = escapeHTML(u.href);
+                            return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-pink-600 underline font-semibold break-all">${escapeHTML(clean)}</a>`;
+                        }
+                    } catch {}
+                    return clean;
+                });
         }
 
         bubble.innerHTML = `

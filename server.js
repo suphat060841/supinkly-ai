@@ -225,6 +225,22 @@ const couponValidateRateLimit = rateLimit({
     legacyHeaders: false,
 });
 
+const telemetryRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    message: { success: false, message: "Too many telemetry pings" },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const sessionCheckRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    message: { success: false, message: "คำขอบ่อยเกินไป กรุณารอสักครู่" },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // ─── [FIX #3] PIN Hashing Helpers ────────────────────────────────────────────
 // ❌ Before: PIN เก็บเป็น plaintext "8899"
 // ✅ After: เก็บเป็น SHA-256 hash (server-side)
@@ -298,14 +314,6 @@ function authenticateAdmin(req) {
         const expiry = adminSessions.get(token);
         if (Date.now() < expiry) return true;
         adminSessions.delete(token);
-    }
-
-    // 3. Header or body PIN fallback (Emergency authentication if session expired)
-    const pinHeader = req.headers['x-admin-pin'] || (req.body && req.body.adminPin ? String(req.body.adminPin).trim() : null);
-    if (pinHeader) {
-        const db = getDb();
-        const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
-        if (verifyPin(pinHeader, storedHash)) return true;
     }
 
     return false;
@@ -399,6 +407,7 @@ function getDb() {
             if (!data.users) data.users = [];
             if (!data.smtpConfig) data.smtpConfig = {};
             if (!data.customPrices) data.customPrices = {};
+            if (!data.analytics) data.analytics = {};
             if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
                 data.coupons = DEFAULT_SERVER_COUPONS;
             }
@@ -414,6 +423,7 @@ function getDb() {
                 if (!data.users) data.users = [];
                 if (!data.smtpConfig) data.smtpConfig = {};
                 if (!data.customPrices) data.customPrices = {};
+                if (!data.analytics) data.analytics = {};
                 if (!data.coupons || !Array.isArray(data.coupons)) {
                     data.coupons = DEFAULT_SERVER_COUPONS;
                 }
@@ -436,7 +446,8 @@ function getDb() {
         users: [],
         pendingRegistrations: {},
         passwordResets: {},
-        smtpConfig: {}
+        smtpConfig: {},
+        analytics: {}
     };
 }
 
@@ -457,6 +468,120 @@ function saveDb(data) {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────
+// 📊 REAL-TIME TELEMETRY & DAILY ANALYTICS HELPERS
+// ─────────────────────────────────────────────────────────────
+const MAX_ACTIVE_SESSIONS = 500;
+const activeSessions = new Map(); // sessionId -> { sessionId, userId, email, displayName, role, lastSeen, startedAt, page, currentProduct, lastAction, cartCount, cartTotal }
+
+function cleanStaleSessions() {
+    const now = Date.now();
+    for (const [sid, sess] of activeSessions.entries()) {
+        if (now - sess.lastSeen > 60000) {
+            activeSessions.delete(sid);
+        }
+    }
+}
+
+function sanitizeTelemetryText(str, maxLen = 80) {
+    if (!str || typeof str !== 'string') return '';
+    return str
+        .replace(/<[^>]*>/g, '') // remove HTML tags
+        .replace(/[\r\n\t\x00-\x1f\x7f]/g, ' ') // remove control characters
+        .replace(/\s+/g, ' ') // normalize whitespace
+        .trim()
+        .slice(0, maxLen);
+}
+
+function getTodayKey() {
+    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function initTodayAnalytics(dateKey) {
+    return {
+        date: dateKey,
+        visitors: [],        // array of unique sessionId strings
+        pageViews: 0,
+        productViews: {},    // productId -> count
+        cartAdds: {},        // productId -> count
+        checkoutStarts: 0,
+        ordersCount: 0,
+        revenue: 0,
+        recentEvents: []     // rolling last 40 events
+    };
+}
+
+function getTodayAnalytics(db) {
+    if (!db.analytics) db.analytics = {};
+    const key = getTodayKey();
+    if (!db.analytics[key]) {
+        db.analytics[key] = initTodayAnalytics(key);
+    }
+    // Prune days older than 30 days
+    const allKeys = Object.keys(db.analytics);
+    if (allKeys.length > 30) {
+        allKeys.sort();
+        while (allKeys.length > 30) {
+            const oldKey = allKeys.shift();
+            delete db.analytics[oldKey];
+        }
+    }
+    return db.analytics[key];
+}
+
+let analyticsDirty = false;
+let analyticsSaveTimer = null;
+
+function markAnalyticsDirty() {
+    analyticsDirty = true;
+    if (!analyticsSaveTimer) {
+        analyticsSaveTimer = setTimeout(() => {
+            analyticsSaveTimer = null;
+            if (analyticsDirty) {
+                analyticsDirty = false;
+                try {
+                    const freshDb = getDb();
+                    saveDb(freshDb);
+                } catch (e) {
+                    console.warn('[ANALYTICS] Debounced flush error:', e.message);
+                }
+            }
+        }, 15000); // Flush to disk at most once every 15s to prevent I/O thrashing & race conditions
+    }
+}
+
+function addAnalyticsEvent(db, evt) {
+    const today = getTodayAnalytics(db);
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
+    const fullEvent = {
+        id: 'EVT-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        ts: Date.now(),
+        time: timeStr,
+        type: evt.type || 'info',
+        user: sanitizeTelemetryText(evt.user || 'ผู้เยี่ยมชม', 60),
+        role: evt.role === 'member' ? 'member' : 'guest',
+        text: sanitizeTelemetryText(evt.text || '', 160),
+        productId: (typeof evt.productId === 'string' && /^[a-z0-9\-]{1,32}$/.test(evt.productId)) ? evt.productId : null,
+        amount: typeof evt.amount === 'number' ? Math.max(0, Math.round(evt.amount * 100) / 100) : null
+    };
+    if (!today.recentEvents) today.recentEvents = [];
+    today.recentEvents.unshift(fullEvent);
+    if (today.recentEvents.length > 40) {
+        today.recentEvents = today.recentEvents.slice(0, 40);
+    }
+    return fullEvent;
+}
+
+// Auto prune sessions inactive for > 60 seconds
+setInterval(() => {
+    cleanStaleSessions();
+}, 20000);
 
 // ─── [FIX #4] Email Validation Helper ───────────────────────────────────────
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
@@ -880,6 +1005,24 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             }
         }
 
+        // [ANALYTICS] Record verified order into daily analytics
+        try {
+            const todayKey = getTodayKey();
+            if (!currentDb.analytics) currentDb.analytics = {};
+            if (!currentDb.analytics[todayKey]) currentDb.analytics[todayKey] = initTodayAnalytics(todayKey);
+            currentDb.analytics[todayKey].ordersCount = (currentDb.analytics[todayKey].ordersCount || 0) + 1;
+            currentDb.analytics[todayKey].revenue = (currentDb.analytics[todayKey].revenue || 0) + expectedTotal;
+            addAnalyticsEvent(currentDb, {
+                type: 'order_success',
+                user: (userSession && userSession.displayName) ? userSession.displayName : orderEmail,
+                role: userSession ? 'member' : 'guest',
+                text: `สั่งซื้อสำเร็จ ${order.orderId} ยอด ฿${expectedTotal.toFixed(2)} (${deliveredItems.map(i => i.productTitle).join(', ')})`,
+                amount: expectedTotal
+            });
+        } catch (analyticsErr) {
+            console.warn('[ANALYTICS] Order tracking error:', analyticsErr.message);
+        }
+
         saveDb(currentDb);
 
         // [NOTIFICATION & RECEIPT] Fire-and-forget Discord alert & Email receipt
@@ -987,7 +1130,7 @@ app.post('/api/promotions/validate', couponValidateRateLimit, (req, res) => {
 });
 
 // Admin: Get all coupons (active and inactive)
-app.get('/api/admin/coupons', (req, res) => {
+app.get('/api/admin/coupons', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
@@ -1184,7 +1327,7 @@ app.post('/api/admin/login', adminRateLimit, (req, res) => {
 });
 
 // 4. API: Admin Session Check
-app.post('/api/admin/verify-session', (req, res) => {
+app.post('/api/admin/verify-session', adminRateLimit, (req, res) => {
     if (authenticateAdmin(req)) {
         return res.json({ success: true, valid: true });
     }
@@ -1542,7 +1685,8 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
             pendingRegistrations: {},
             passwordResets: {},
             smtpConfig: {},
-            coupons: []
+            coupons: [],
+            analytics: (restored.analytics && typeof restored.analytics === 'object') ? restored.analytics : (currentDb.analytics || {})
         };
 
         // Sanitize coupons
@@ -2303,7 +2447,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // U4. Verify Session
-app.post('/api/auth/verify-session', (req, res) => {
+app.post('/api/auth/verify-session', sessionCheckRateLimit, (req, res) => {
     const session = authenticateUser(req);
     if (session) {
         return res.json({ success: true, valid: true, user: { id: session.userId, email: session.email, displayName: session.displayName } });
@@ -2312,7 +2456,7 @@ app.post('/api/auth/verify-session', (req, res) => {
 });
 
 // U5. Link Local Orders (Secure Claiming: Requires possession of orderId + matching email)
-app.post('/api/auth/link-local-orders', (req, res) => {
+app.post('/api/auth/link-local-orders', sessionCheckRateLimit, (req, res) => {
     const session = authenticateUser(req);
     if (!session) {
         return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
@@ -2342,7 +2486,7 @@ app.post('/api/auth/link-local-orders', (req, res) => {
 });
 
 // U6. Get My Orders (Protected: strictly returns orders authenticated to this account)
-app.get('/api/auth/my-orders', (req, res) => {
+app.get('/api/auth/my-orders', sessionCheckRateLimit, (req, res) => {
     const session = authenticateUser(req);
     if (!session) {
         return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
@@ -2351,6 +2495,251 @@ app.get('/api/auth/my-orders', (req, res) => {
     // [SECURITY FIX] Return orders belonging to this userId. Unauthenticated registrations cannot hijack past guest orders.
     const myOrders = (db.orders || []).filter(o => o.userId && o.userId === session.userId);
     res.json({ success: true, orders: myOrders });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 📊 REAL-TIME TELEMETRY & ANALYTICS API ENDPOINTS
+// ─────────────────────────────────────────────────────────────
+
+// T1. Public Telemetry Heartbeat & Action Tracker (Zero PII leak, Rate-limited, Sanitized)
+const ALLOWED_TELEMETRY_ACTIONS = new Set([
+    'heartbeat', 'page_view', 'product_view', 'cart_add', 'cart_view', 'checkout_start'
+]);
+const FORBIDDEN_PRODUCT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+app.post('/api/telemetry/heartbeat', telemetryRateLimit, (req, res) => {
+    try {
+        const { sessionId, action, productId, productTitle, cartCount, cartTotal, page } = req.body || {};
+        if (!sessionId || typeof sessionId !== 'string' || !/^[a-zA-Z0-9_\-]{6,48}$/.test(sessionId)) {
+            return res.status(400).json({ success: false, message: "sessionId ไม่ถูกต้อง" });
+        }
+
+        // Enforce activeSessions memory ceiling (Anti-DoS)
+        if (!activeSessions.has(sessionId) && activeSessions.size >= MAX_ACTIVE_SESSIONS) {
+            cleanStaleSessions();
+            if (activeSessions.size >= MAX_ACTIVE_SESSIONS) {
+                const oldestKey = activeSessions.keys().next().value;
+                if (oldestKey) activeSessions.delete(oldestKey);
+            }
+        }
+
+        const userSession = authenticateUser(req);
+        const role = userSession ? 'member' : 'guest';
+        const userId = userSession ? userSession.userId : null;
+        const email = userSession ? userSession.email : null;
+        const displayName = userSession ? (userSession.displayName || userSession.email.split('@')[0]) : `ผู้เยี่ยมชม #${sessionId.slice(-4).toUpperCase()}`;
+
+        const cleanAction = (typeof action === 'string' && ALLOWED_TELEMETRY_ACTIONS.has(action)) ? action : 'heartbeat';
+
+        const safeProductId = (typeof productId === 'string' && /^[a-z0-9\-]{1,32}$/.test(productId) && !FORBIDDEN_PRODUCT_KEYS.has(productId) && MASTER_CATALOG[productId])
+            ? productId
+            : null;
+
+        const now = Date.now();
+        let session = activeSessions.get(sessionId);
+
+        const currentProduct = sanitizeTelemetryText(
+            productTitle || (safeProductId ? MASTER_CATALOG[safeProductId].title : (session?.currentProduct || '')),
+            80
+        );
+        const currentPage = sanitizeTelemetryText(page || session?.page || 'หน้าแรก', 60);
+        const numCartCount = typeof cartCount === 'number' ? Math.max(0, Math.min(100, Math.floor(cartCount))) : (session?.cartCount || 0);
+        const numCartTotal = typeof cartTotal === 'number' ? Math.max(0, Math.min(1000000, Math.round(cartTotal * 100) / 100)) : (session?.cartTotal || 0);
+
+        let lastAction = session?.lastAction || 'เข้าชมหน้าแรก';
+        if (cleanAction === 'page_view') lastAction = `เข้าชม: ${currentPage}`;
+        else if (cleanAction === 'product_view') lastAction = `เลือกดู: ${currentProduct || safeProductId || 'สินค้า'}`;
+        else if (cleanAction === 'cart_add') lastAction = `เพิ่มลงตะกร้า: ${currentProduct || safeProductId || 'สินค้า'}`;
+        else if (cleanAction === 'cart_view') lastAction = `เปิดดูตะกร้า (${numCartCount} ชิ้น ยอด ฿${numCartTotal.toFixed(2)})`;
+        else if (cleanAction === 'checkout_start') lastAction = `เริ่มต้นชำระเงิน (${numCartCount} ชิ้น ยอด ฿${numCartTotal.toFixed(2)})`;
+
+        session = {
+            sessionId,
+            userId,
+            email,
+            displayName: sanitizeTelemetryText(displayName, 60),
+            role,
+            lastSeen: now,
+            startedAt: session ? session.startedAt : now,
+            page: currentPage,
+            currentProduct,
+            lastAction,
+            cartCount: numCartCount,
+            cartTotal: numCartTotal
+        };
+        activeSessions.set(sessionId, session);
+
+        // Update database daily analytics
+        const db = getDb();
+        const today = getTodayAnalytics(db);
+        if (!today.visitors.includes(sessionId)) {
+            today.visitors.push(sessionId);
+            if (today.visitors.length > 5000) today.visitors = today.visitors.slice(-5000);
+        }
+
+        let shouldMarkDirty = false;
+        if (cleanAction === 'page_view') {
+            today.pageViews = (today.pageViews || 0) + 1;
+            shouldMarkDirty = true;
+        } else if (cleanAction === 'product_view' && safeProductId) {
+            today.productViews[safeProductId] = (today.productViews[safeProductId] || 0) + 1;
+            addAnalyticsEvent(db, {
+                type: 'product_view',
+                user: displayName,
+                role,
+                text: `กำลังดูรายละเอียด "${currentProduct || safeProductId}"`,
+                productId: safeProductId
+            });
+            shouldMarkDirty = true;
+        } else if (cleanAction === 'cart_add' && safeProductId) {
+            today.cartAdds[safeProductId] = (today.cartAdds[safeProductId] || 0) + 1;
+            addAnalyticsEvent(db, {
+                type: 'cart_add',
+                user: displayName,
+                role,
+                text: `เพิ่ม "${currentProduct || safeProductId}" ลงตะกร้า`,
+                productId: safeProductId,
+                amount: numCartTotal
+            });
+            shouldMarkDirty = true;
+        } else if (cleanAction === 'checkout_start') {
+            today.checkoutStarts = (today.checkoutStarts || 0) + 1;
+            addAnalyticsEvent(db, {
+                type: 'checkout_start',
+                user: displayName,
+                role,
+                text: `เข้าสู่หน้าสแกนชำระเงิน (${numCartCount} ชิ้น ยอด ฿${numCartTotal.toFixed(2)})`,
+                amount: numCartTotal
+            });
+            shouldMarkDirty = true;
+        }
+
+        if (shouldMarkDirty) {
+            markAnalyticsDirty();
+        }
+
+        res.json({
+            success: true,
+            onlineTotal: activeSessions.size,
+            role,
+            displayName: session.displayName
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// T2. Public Fast Online Counter (For store header badge)
+app.get('/api/online-count', (req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=5');
+    const count = Math.max(1, activeSessions.size);
+    res.json({
+        success: true,
+        onlineTotal: count
+    });
+});
+
+// T3. Admin Real-Time Analytics & Online Users Dashboard
+app.get('/api/admin/analytics', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const today = getTodayAnalytics(db);
+    const now = Date.now();
+
+    // Prune stale sessions (> 60s of inactivity)
+    for (const [sid, sess] of activeSessions.entries()) {
+        if (now - sess.lastSeen > 60000) {
+            activeSessions.delete(sid);
+        }
+    }
+
+    const liveList = Array.from(activeSessions.values()).map(s => ({
+        sessionId: s.sessionId,
+        role: s.role,
+        userId: s.userId,
+        email: s.email,
+        displayName: s.displayName,
+        page: s.page,
+        currentProduct: s.currentProduct,
+        lastAction: s.lastAction,
+        cartCount: s.cartCount,
+        cartTotal: s.cartTotal,
+        lastSeenSec: Math.max(0, Math.floor((now - s.lastSeen) / 1000)),
+        onlineDurationSec: Math.max(0, Math.floor((now - s.startedAt) / 1000))
+    })).sort((a, b) => {
+        if (a.role === 'member' && b.role !== 'member') return -1;
+        if (b.role === 'member' && a.role !== 'member') return 1;
+        return a.lastSeenSec - b.lastSeenSec;
+    });
+
+    const onlineMembers = liveList.filter(s => s.role === 'member');
+    const onlineGuests = liveList.filter(s => s.role === 'guest');
+
+    // Aggregate today's orders & revenue directly from db.orders
+    const todayStrPrefix = new Date().toLocaleDateString('th-TH', { dateStyle: 'medium' });
+    const todayIsoDate = getTodayKey();
+    let todayOrdersCount = 0;
+    let todayRevenue = 0;
+
+    (db.orders || []).forEach(o => {
+        const orderDateStr = o.date || '';
+        if (orderDateStr.includes(todayStrPrefix) || orderDateStr.includes(todayIsoDate)) {
+            todayOrdersCount++;
+            todayRevenue += (o.totalAmount || 0);
+        }
+    });
+
+    if (today.ordersCount > todayOrdersCount) todayOrdersCount = today.ordersCount;
+    if (today.revenue > todayRevenue) todayRevenue = today.revenue;
+
+    const uniqueVisitorsCount = Math.max(today.visitors.length, liveList.length);
+    const conversionRate = uniqueVisitorsCount > 0 
+        ? ((todayOrdersCount / uniqueVisitorsCount) * 100).toFixed(1) + '%' 
+        : '0.0%';
+
+    // Top products by views and cart additions
+    const topProducts = Object.keys(MASTER_CATALOG).map(pid => {
+        const p = MASTER_CATALOG[pid];
+        const views = (today.productViews && today.productViews[pid]) || 0;
+        const cartAdds = (today.cartAdds && today.cartAdds[pid]) || 0;
+        return {
+            productId: pid,
+            title: p.title,
+            brand: p.brand,
+            price: (db.customPrices && db.customPrices[pid]?.price) || p.price,
+            views,
+            cartAdds
+        };
+    }).filter(p => p.views > 0 || p.cartAdds > 0)
+      .sort((a, b) => (b.views + b.cartAdds * 2) - (a.views + a.cartAdds * 2));
+
+    const productViewsTotal = Object.values(today.productViews || {}).reduce((s, v) => s + v, 0);
+    const cartAddsTotal = Object.values(today.cartAdds || {}).reduce((s, v) => s + v, 0);
+
+    res.json({
+        success: true,
+        live: {
+            onlineTotal: liveList.length,
+            onlineMembersCount: onlineMembers.length,
+            onlineGuestsCount: onlineGuests.length,
+            activeUsers: liveList
+        },
+        today: {
+            date: today.date,
+            uniqueVisitors: uniqueVisitorsCount,
+            pageViews: today.pageViews || 0,
+            productViewsTotal,
+            cartAddsTotal,
+            checkoutStarts: today.checkoutStarts || 0,
+            ordersCount: todayOrdersCount,
+            revenue: todayRevenue,
+            conversionRate,
+            topProducts: topProducts.slice(0, 10),
+            recentEvents: (today.recentEvents || []).slice(0, 30)
+        }
+    });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -2687,7 +3076,7 @@ server.headersTimeout = 65000;
 server.requestTimeout = 60000;
 server.keepAliveTimeout = 61000;
 
-const wss = new WebSocketServer({ server, path: '/ws/chat' });
+const wss = new WebSocketServer({ server, path: '/ws/chat', maxPayload: 64 * 1024 });
 
 function broadcast(payload, filterFn = () => true) {
     const msg = JSON.stringify(payload);
@@ -2755,6 +3144,7 @@ wss.on('connection', (ws, req) => {
 
         let data;
         try { data = JSON.parse(raw); } catch { return; }
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return;
 
         // ── AUTH: ลงทะเบียน role ──────────────────────────────────
         if (data.type === 'auth') {
@@ -2782,7 +3172,8 @@ wss.on('connection', (ws, req) => {
                 }
             } else if (data.role === 'customer') {
                 clientInfo.role = 'customer';
-                clientInfo.name = data.name ? String(data.name).slice(0, 40) : `ลูกค้า #${sessionId.slice(0, 5)}`;
+                const cleanName = sanitizeTelemetryText(data.name || '', 40);
+                clientInfo.name = cleanName || `ลูกค้า #${sessionId.slice(0, 5)}`;
                 const adminOnline = getAdminCount() > 0;
                 ws.send(JSON.stringify({ type: 'auth_ok', role: 'customer', adminOnline }));
                 // แจ้งแอดมินว่ามีลูกค้าใหม่
@@ -2819,12 +3210,16 @@ wss.on('connection', (ws, req) => {
             const text = String(data.text || '').trim().slice(0, 2000);
             if (!text) return;
 
+            const safeTargetSid = (typeof data.targetSessionId === 'string' && /^[a-zA-Z0-9_\-]{6,48}$/.test(data.targetSessionId))
+                ? data.targetSessionId
+                : null;
+
             const payload = {
                 type: 'message',
                 from: clientInfo.role,
                 name: clientInfo.name,
                 text,
-                sessionId: clientInfo.role === 'customer' ? sessionId : data.targetSessionId,
+                sessionId: clientInfo.role === 'customer' ? sessionId : safeTargetSid,
                 ts: Date.now()
             };
 
@@ -2870,11 +3265,9 @@ wss.on('connection', (ws, req) => {
                     }, 1100);
                 }
             } else if (clientInfo.role === 'admin') {
-                // แอดมินตอบข้อความ: บันทึกเวลาเพื่อหยุดบอทไม่ให้พูดแทรกแอดมิน 20 วินาที
-                if (data.targetSessionId) {
-                    lastAdminReplyPerSession.set(data.targetSessionId, Date.now());
-                }
-                const target = clients.get(data.targetSessionId);
+                if (!safeTargetSid) return;
+                lastAdminReplyPerSession.set(safeTargetSid, Date.now());
+                const target = clients.get(safeTargetSid);
                 if (target && target.ws.readyState === 1) {
                     target.ws.send(JSON.stringify({ ...payload, from: 'admin' }));
                 }
@@ -2887,9 +3280,14 @@ wss.on('connection', (ws, req) => {
             if (clientInfo.role === 'customer') {
                 broadcast({ type: 'typing', sessionId, name: clientInfo.name }, c => c.role === 'admin');
             } else if (clientInfo.role === 'admin') {
-                const target = clients.get(data.targetSessionId);
-                if (target && target.ws.readyState === 1) {
-                    target.ws.send(JSON.stringify({ type: 'typing', from: 'admin' }));
+                const targetSid = (typeof data.targetSessionId === 'string' && /^[a-zA-Z0-9_\-]{6,48}$/.test(data.targetSessionId))
+                    ? data.targetSessionId
+                    : null;
+                if (targetSid) {
+                    const target = clients.get(targetSid);
+                    if (target && target.ws.readyState === 1) {
+                        target.ws.send(JSON.stringify({ type: 'typing', from: 'admin' }));
+                    }
                 }
             }
         }

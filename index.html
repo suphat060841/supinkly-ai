@@ -181,8 +181,12 @@
                         Supinkly<span class="text-pink-500">.AI</span>
                     </div>
                     <div
-                        class="text-[9px] sm:text-xs text-slate-500 font-bold tracking-wider -mt-0.5 flex items-center gap-1">
+                        class="text-[9px] sm:text-xs text-slate-500 font-bold tracking-wider -mt-0.5 flex items-center gap-1.5 flex-wrap">
                         <span class="text-amber-500">★</span> DIGITAL SHOP
+                        <span id="storefront-online-pill" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold shadow-2xs" title="มีผู้ใช้งานกำลังเลือกดูสินค้าในขณะนี้">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span id="storefront-online-text">ออนไลน์ 1 คน</span>
+                        </span>
                     </div>
                 </div>
             </a>
@@ -1919,7 +1923,7 @@
             </div>
 
             <!-- Admin Dashboard KPI Stat Cards (Clickable Quick Jump) -->
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 mt-4 pb-4 border-b border-slate-100 shrink-0">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 mt-4 pb-4 border-b border-slate-100 shrink-0">
                 <!-- Sales KPI -->
                 <div onclick="quickAdminNavigate('orders', 'all')"
                     class="p-3.5 rounded-2xl bg-gradient-to-br from-pink-50/80 to-rose-50/40 border border-pink-200 flex flex-col justify-between shadow-2xs cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
@@ -1974,7 +1978,7 @@
 
                 <!-- Total Members KPI -->
                 <div onclick="switchAdminTab('users')"
-                    class="p-3.5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50/40 border border-purple-200 flex flex-col justify-between shadow-2xs col-span-2 sm:col-span-1 cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
+                    class="p-3.5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50/40 border border-purple-200 flex flex-col justify-between shadow-2xs cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
                     title="คลิกเพื่อจัดการสมาชิก">
                     <div class="flex items-center justify-between">
                         <span class="text-[11px] font-bold text-purple-700 flex items-center gap-1">
@@ -1983,6 +1987,26 @@
                         <i class="fa-solid fa-arrow-right text-[10px] text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                     </div>
                     <span id="admin-stat-total-users" class="text-base sm:text-xl font-black text-purple-900 mt-1">0 คน</span>
+                </div>
+
+                <!-- Live Online Users KPI -->
+                <div onclick="switchAdminTab('analytics')"
+                    class="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-300 flex flex-col justify-between shadow-2xs cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
+                    title="คลิกเพื่อดูสถิติและรายชื่อผู้ใช้ออนไลน์สด">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5">
+                            <span class="relative flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span>ออนไลน์ขณะนี้</span>
+                        </span>
+                        <i class="fa-solid fa-arrow-right text-[10px] text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    </div>
+                    <div class="mt-1 flex items-baseline justify-between">
+                        <span id="admin-stat-online-now" class="text-base sm:text-xl font-black text-emerald-700">0 คน</span>
+                        <span id="admin-stat-online-sub" class="text-[10px] font-bold text-emerald-600">สด</span>
+                    </div>
                 </div>
             </div>
 
@@ -2013,6 +2037,13 @@
                     <span>จัดการสมาชิก</span>
                     <span id="admin-users-badge"
                         class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">0</span>
+                </button>
+                <button id="admin-tab-btn-analytics" onclick="switchAdminTab('analytics')"
+                    class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer">
+                    <i class="fa-solid fa-chart-line text-emerald-600"></i>
+                    <span>สถิติ & ผู้ใช้ออนไลน์</span>
+                    <span id="admin-online-badge"
+                        class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">0 คน</span>
                 </button>
                 <button id="admin-tab-btn-settings" onclick="switchAdminTab('settings')"
                     class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer">
@@ -2675,6 +2706,170 @@
                             <!-- Injected by JavaScript -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- TAB 6: REAL-TIME TRAFFIC & DAILY FUNNEL ANALYTICS -->
+            <div id="admin-tab-analytics" class="hidden mt-4 space-y-4">
+                <!-- Analytics Header Bar -->
+                <div class="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-2xs">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-lg shadow-sm">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-black text-slate-900">สถิติคนเข้าใช้งาน & สมาชิกออนไลน์สด</h3>
+                                <span class="px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-800 text-[10px] font-black flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span> LIVE
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-600 font-medium">ดูจำนวนคนใช้งานต่อวัน สมาชิกที่กำลังออนไลน์ และพฤติกรรมการเลือกดู/สั่งซื้อสินค้าแบบ Real-time</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                        <span id="analytics-last-sync-label" class="text-[11px] text-slate-500 font-medium">อัปเดตอัตโนมัติทุก 5 วิ</span>
+                        <button onclick="fetchAdminAnalytics(true)" title="รีเฟรชสถิติล่าสุดทันที"
+                            class="px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-rotate text-xs" id="analytics-refresh-icon"></i>
+                            <span>รีเฟรชสด</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4 Real-time Daily Funnel Metric Cards -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <!-- 1. Real-time Active Now -->
+                    <div class="p-4 rounded-2xl bg-white border border-emerald-200 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                                <span>กำลังออนไลน์ขณะนี้</span>
+                            </span>
+                            <span id="analytics-active-now-sub" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">0 สมาชิก / 0 ทั่วไป</span>
+                        </div>
+                        <div class="mt-2 flex items-baseline gap-2">
+                            <span id="analytics-active-now" class="text-2xl sm:text-3xl font-black text-emerald-600">0</span>
+                            <span class="text-xs font-bold text-slate-500">คน</span>
+                        </div>
+                        <div class="mt-1 text-[11px] text-slate-400">อัปเดตแบบเรียลไทม์ (Active ภายใน 60 วิ)</div>
+                    </div>
+
+                    <!-- 2. Daily Visitors & Pageviews -->
+                    <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                                <i class="fa-solid fa-users text-cyan-600"></i>
+                                <span>ผู้เข้าชมวันนี้</span>
+                            </span>
+                            <span id="analytics-pageviews-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-bold">0 วิว</span>
+                        </div>
+                        <div class="mt-2 flex items-baseline gap-2">
+                            <span id="analytics-daily-visitors" class="text-2xl sm:text-3xl font-black text-slate-900">0</span>
+                            <span class="text-xs font-bold text-slate-500">คน (Unique)</span>
+                        </div>
+                        <div class="mt-1 text-[11px] text-slate-400" id="analytics-pageviews-text">เปิดชมรวม 0 หน้าวันนี้</div>
+                    </div>
+
+                    <!-- 3. Browsing & Product Interest -->
+                    <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                                <i class="fa-solid fa-eye text-amber-500"></i>
+                                <span>การเลือกดู & ใส่ตะกร้า</span>
+                            </span>
+                            <span id="analytics-interest-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">ความสนใจ</span>
+                        </div>
+                        <div class="mt-2 flex items-baseline gap-2">
+                            <span id="analytics-product-views" class="text-2xl sm:text-3xl font-black text-amber-600">0</span>
+                            <span class="text-xs font-bold text-slate-500">ครั้งที่ดู</span>
+                        </div>
+                        <div class="mt-1 text-[11px] text-slate-500 font-medium" id="analytics-cart-adds-text">หยิบลงตะกร้า 0 ครั้งวันนี้</div>
+                    </div>
+
+                    <!-- 4. Conversion & Daily Orders -->
+                    <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                                <i class="fa-solid fa-bag-shopping text-pink-500"></i>
+                                <span>การสั่งซื้อ & รายได้วันนี้</span>
+                            </span>
+                            <span id="analytics-conversion-rate" class="text-[10px] px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 font-black">0% ซื้อ</span>
+                        </div>
+                        <div class="mt-2 flex items-baseline gap-2">
+                            <span id="analytics-today-revenue" class="text-2xl sm:text-3xl font-black text-pink-600">฿0.00</span>
+                        </div>
+                        <div class="mt-1 text-[11px] text-slate-500 font-medium" id="analytics-orders-count-text">สั่งซื้อสำเร็จ 0 ออเดอร์</div>
+                    </div>
+                </div>
+
+                <!-- Main Grid: Live Online Users (Left) & Demand + Activity Feed (Right) -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <!-- Left: Online Users Directory (7 cols) -->
+                    <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 flex flex-col space-y-3">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                                    <span class="relative flex h-2.5 w-2.5">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                                    </span>
+                                    <span>ผู้ใช้งานที่กำลังออนไลน์อยู่ในขณะนี้</span>
+                                </h4>
+                                <p class="text-[11px] text-slate-500 font-medium">ดูว่าใครกำลังเปิดเว็บ กำลังดูสินค้าตัวไหน หรือมีอะไรอยู่ในตะกร้า</p>
+                            </div>
+                            <div class="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-xs font-bold shrink-0">
+                                <button type="button" onclick="setOnlineUsersFilter('all')" id="filter-online-all"
+                                    class="px-2.5 py-1 rounded-lg bg-white text-slate-900 shadow-2xs cursor-pointer">ทั้งหมด</button>
+                                <button type="button" onclick="setOnlineUsersFilter('members')" id="filter-online-members"
+                                    class="px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer">เฉพาะสมาชิก</button>
+                                <button type="button" onclick="setOnlineUsersFilter('guests')" id="filter-online-guests"
+                                    class="px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer">ผู้เยี่ยมชม</button>
+                            </div>
+                        </div>
+
+                        <!-- Active Users Container -->
+                        <div id="analytics-active-users-list" class="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+                            <!-- Injected by JavaScript -->
+                            <div class="py-12 text-center text-xs text-slate-400">
+                                <i class="fa-solid fa-spinner fa-spin text-lg mb-2"></i>
+                                <p>กำลังโหลดข้อมูลผู้ใช้งานสด...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Product Interest Ranking & Live Activity Log (5 cols) -->
+                    <div class="lg:col-span-5 space-y-4">
+                        <!-- Top Browsed & Selected Products -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 flex flex-col space-y-3">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                                    <i class="fa-solid fa-fire text-amber-500"></i>
+                                    <span>สินค้าที่คนเลือกดู & ใส่ตะกร้ามากสุดวันนี้</span>
+                                </h4>
+                                <span class="text-[10px] text-slate-400 font-bold">TOP DEMAND</span>
+                            </div>
+
+                            <div id="analytics-top-products-list" class="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                <!-- Injected by JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Live Activity Feed Stream -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 flex flex-col space-y-3">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                                    <i class="fa-solid fa-bolt text-cyan-600"></i>
+                                    <span>กิจกรรมสดของลูกค้า (Live Stream)</span>
+                                </h4>
+                                <span class="text-[10px] text-slate-400 font-bold">TODAY LOG</span>
+                            </div>
+
+                            <div id="analytics-recent-events-list" class="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                                <!-- Injected by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

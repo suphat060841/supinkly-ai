@@ -35,9 +35,19 @@ const CHAT = (() => {
         const boldClass = isOwn ? 'font-bold text-white underline decoration-white/30' : 'font-bold text-slate-900';
         const linkClass = isOwn ? 'text-white underline font-bold hover:text-white/80' : 'text-pink-600 underline font-semibold hover:text-pink-700';
         // Bold **text**
-        escaped = escaped.replace(/\*\*(.*?)\*\*/g, `<strong class="${boldClass}">$1</strong>`);
-        // Clickable Links
-        escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, `<a href="$1" target="_blank" rel="noopener noreferrer" class="${linkClass} break-all">$1</a>`);
+        escaped = escaped.replace(/\*\*([^*\n<>&]+)\*\*/g, `<strong class="${boldClass}">$1</strong>`);
+        // Clickable Links: Strict RFC 3986 URL character matching + escapeHTML on href to prevent DOM XSS
+        escaped = escaped.replace(/(https?:\/\/[a-zA-Z0-9\-_.~:/?#[\]@!$&*+,;=%]+)/g, (matched) => {
+            const clean = matched.replace(/[.,;:)\]]+$/, '');
+            try {
+                const u = new URL(clean);
+                if (u.protocol === 'http:' || u.protocol === 'https:') {
+                    const safeHref = escapeHTML(u.href);
+                    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="${linkClass} break-all">${escapeHTML(clean)}</a>`;
+                }
+            } catch {}
+            return clean;
+        });
         return escaped;
     }
 
