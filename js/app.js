@@ -4080,13 +4080,6 @@ function initEvents() {
                 return;
             }
 
-            const adminChatPanel = document.getElementById('admin-chat-panel');
-            if (adminChatPanel && !adminChatPanel.classList.contains('hidden')) {
-                e.preventDefault();
-                closeAdminChatPanel();
-                return;
-            }
-
             const adminModal = document.getElementById('admin-modal');
             if (adminModal && !adminModal.classList.contains('hidden')) {
                 e.preventDefault();
