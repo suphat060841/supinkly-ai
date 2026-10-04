@@ -728,6 +728,23 @@ function renderProducts() {
                         </span>
                     </div>
 
+                    <!-- Commercial 3D Kawaii Product Banner Thumbnail -->
+                    <div class="relative w-full aspect-square rounded-2xl overflow-hidden mb-3 bg-slate-100 border border-slate-100 shadow-2xs group-hover:shadow-md transition-all cursor-pointer" data-action="detail" data-product-id="${escapeHTML(product.id)}" title="คลิกเพื่อดูรายละเอียดและสั่งซื้อ">
+                        <img src="${escapeHTML(product.image || 'images/products/' + product.id + '.jpg')}" 
+                             alt="${escapeHTML(product.title)}" 
+                             loading="lazy"
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                             onerror="this.parentElement.style.display='none';">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-2.5 pointer-events-none">
+                            <span class="text-[11px] font-bold text-white bg-slate-900/70 backdrop-blur-xs px-2.5 py-1 rounded-xl flex items-center gap-1.5 shadow-sm">
+                                <i class="fa-regular fa-eye"></i> ดูรายละเอียด
+                            </span>
+                            <span class="text-[10px] font-bold text-pink-300 bg-pink-950/80 px-2 py-0.5 rounded-lg border border-pink-500/30">
+                                ลิขสิทธิ์แท้
+                            </span>
+                        </div>
+                    </div>
+
                     <!-- Marketing Badge (e.g. ⭐ แพ็คขายดีติดดาว / 🔥 ขายดีอันดับ 1) -->
                     ${product.badge ? `
                         <div class="mb-2">
@@ -977,8 +994,11 @@ function updateCartUI() {
 
                 return `
                     <div class="p-3.5 rounded-2xl bg-white border border-slate-200 flex items-center gap-3 shadow-sm">
-                        <div class="w-11 h-11 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center font-bold text-xs text-pink-600 shrink-0">
-                            ${escapeHTML(master.brandCode)}
+                        <div class="w-12 h-12 rounded-xl bg-pink-50 border border-pink-200 overflow-hidden shrink-0 flex items-center justify-center font-bold text-xs text-pink-600">
+                            <img src="${escapeHTML(master.image || 'images/products/' + master.id + '.jpg')}" alt="${escapeHTML(master.brandCode)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                            <div class="hidden w-full h-full flex items-center justify-center font-bold text-xs text-pink-600">
+                                ${escapeHTML(master.brandCode)}
+                            </div>
                         </div>
                         <div class="flex-1 min-w-0">
                             <h4 class="text-xs font-normal text-slate-800 truncate">${escapeHTML(master.title)}</h4>
@@ -1092,9 +1112,12 @@ function startCheckout() {
             const master = getMasterProduct(i.productId);
             if (!master) return '';
             return `
-                <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-normal">
-                    <span class="truncate flex-1 pr-2 font-normal">${escapeHTML(master.title)} (x${i.quantity})</span>
-                    <span class="font-semibold text-pink-600">฿${(master.price * i.quantity).toFixed(2)}</span>
+                <div class="flex items-center justify-between text-xs py-1.5 text-slate-700 font-normal border-b border-slate-100 last:border-0">
+                    <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                        <img src="${escapeHTML(master.image || 'images/products/' + master.id + '.jpg')}" alt="${escapeHTML(master.title)}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" onerror="this.style.display='none';">
+                        <span class="truncate font-normal">${escapeHTML(master.title)} (x${i.quantity})</span>
+                    </div>
+                    <span class="font-semibold text-pink-600 shrink-0">฿${(master.price * i.quantity).toFixed(2)}</span>
                 </div>
             `;
         }).join('');
@@ -3747,6 +3770,14 @@ function openProductDetailModal(productId) {
 
     const stateProd = (state.products || []).find(p => p.id === productId);
     const availableStock = (stateProd && stateProd.stock) || product.stock || (state.inventory[productId] || []).length || 50;
+
+    const imgEl = document.getElementById('modal-product-img');
+    const imgWrap = document.getElementById('modal-product-img-wrap');
+    if (imgEl) {
+        if (imgWrap) imgWrap.style.display = 'block';
+        imgEl.src = product.image || `images/products/${product.id}.jpg`;
+        imgEl.alt = product.title;
+    }
 
     document.getElementById('modal-product-brand').textContent = product.brand;
     document.getElementById('modal-product-type').textContent = product.type;

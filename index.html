@@ -194,8 +194,8 @@
                     <i
                         class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-pink-500 text-sm pointer-events-none"></i>
                     <input type="text" id="search-input" role="searchbox" autocomplete="off" autocorrect="off"
-                        autocapitalize="off" spellcheck="false" name="supinkly_search_query_nocache" data-lpignore="true" data-1p-ignore="true"
-                        data-bwignore="true" data-form-type="other"
+                        autocapitalize="off" spellcheck="false" name="supinkly_search_query_nocache"
+                        data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
                         placeholder="ค้นหาบัญชี เช่น CapCut, Claude, Grok, Windows..."
                         class="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
                     <button type="button" id="desktop-search-clear" onclick="clearDesktopSearch()" title="ล้างคำค้นหา"
@@ -231,9 +231,9 @@
                 <i
                     class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-xs pointer-events-none"></i>
                 <input type="text" id="mobile-search-input" role="searchbox" autocomplete="off" autocorrect="off"
-                    autocapitalize="off" spellcheck="false" name="supinkly_mobile_search_nocache" data-lpignore="true" data-1p-ignore="true"
-                    data-bwignore="true" data-form-type="other" oninput="handleMobileSearchInput(this.value)"
-                    placeholder="ค้นหา เช่น CapCut, Claude, Windows..."
+                    autocapitalize="off" spellcheck="false" name="supinkly_mobile_search_nocache" data-lpignore="true"
+                    data-1p-ignore="true" data-bwignore="true" data-form-type="other"
+                    oninput="handleMobileSearchInput(this.value)" placeholder="ค้นหา เช่น CapCut, Claude, Windows..."
                     class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-100 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 outline-none font-medium focus:bg-white focus:border-pink-400 transition-all shadow-2xs">
                 <button type="button" id="mobile-search-clear" onclick="clearMobileSearch()" title="ล้างคำค้นหา"
                     class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs transition-colors">
@@ -2535,10 +2535,15 @@ W11PR-XXXX-XXXX-XXXX"
             </div>
 
             <div class="mt-4 space-y-4">
-                <h2 id="modal-product-title" class="text-lg font-normal text-slate-800 leading-snug"></h2>
+                <!-- Product Promotional Commercial Banner -->
+                <div id="modal-product-img-wrap" class="relative w-full max-w-xs mx-auto aspect-square rounded-2xl overflow-hidden shadow-md border-2 border-pink-200 bg-slate-50">
+                    <img id="modal-product-img" src="" alt="Product Banner" class="w-full h-full object-cover" onerror="document.getElementById('modal-product-img-wrap').style.display='none';">
+                </div>
+
+                <h2 id="modal-product-title" class="text-base sm:text-lg font-bold text-slate-900 leading-snug text-center"></h2>
 
                 <p id="modal-product-desc"
-                    class="text-xs sm:text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200 font-medium">
+                    class="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200 font-medium whitespace-pre-line">
                 </p>
 
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
