@@ -2175,12 +2175,12 @@ function switchAdminTab(tabName) {
         const panel = document.getElementById(`admin-tab-${t}`);
         if (t === tabName) {
             if (btn) {
-                btn.className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white flex items-center gap-2 shadow-sm transition-all shrink-0";
+                btn.className = "px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-pink-500 to-rose-600 text-white flex items-center gap-2 shadow-md shadow-pink-500/25 transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.remove('hidden');
         } else {
             if (btn) {
-                btn.className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0";
+                btn.className = "px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.add('hidden');
         }
@@ -2190,6 +2190,18 @@ function switchAdminTab(tabName) {
     if (tabName === 'stock') renderAdminStockList();
     if (tabName === 'coupons') renderAdminCouponsList();
     if (tabName === 'users') renderAdminUsersList();
+}
+
+function quickAdminNavigate(tabName, filter) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("กรุณาเข้าสู่ระบบหลังร้านก่อนดำเนินการ", "warning");
+        promptAdminLogin();
+        return;
+    }
+    switchAdminTab(tabName);
+    if (tabName === 'orders' && filter) {
+        filterAdminOrders(filter);
+    }
 }
 
 function handleAdminOrderSearch(val) {
@@ -2220,9 +2232,9 @@ function filterAdminOrders(filterType) {
         const btn = document.getElementById(`admin-order-filter-${f}`);
         if (btn) {
             if (f === filterType) {
-                btn.className = "px-3 py-2 rounded-xl bg-pink-100 text-pink-700 font-bold transition-all";
+                btn.className = "px-3.5 py-2 rounded-xl bg-pink-500 text-white font-black shadow-xs transition-all cursor-pointer";
             } else {
-                btn.className = "px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all";
+                btn.className = "px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all cursor-pointer";
             }
         }
     });
@@ -2732,6 +2744,8 @@ async function openAdminModal() {
             }
             const setData = await setRes.json();
             if (setData.success) {
+                const geminiEl = document.getElementById('admin-gemini-api-key');
+                if (geminiEl) geminiEl.value = setData.geminiApiKey || '';
                 const discordEl = document.getElementById('admin-discord-webhook');
                 if (discordEl) discordEl.value = setData.discordWebhookUrl || '';
                 if (setData.smtpConfig) {
@@ -3439,6 +3453,7 @@ async function saveAdminSettings() {
     const smtpMailjetKey = (document.getElementById('admin-smtp-mailjet-key')?.value || '').trim();
     const smtpMailjetSecret = (document.getElementById('admin-smtp-mailjet-secret')?.value || '').trim();
     const discordWebhookUrl = (document.getElementById('admin-discord-webhook')?.value || '').trim();
+    const geminiApiKey = (document.getElementById('admin-gemini-api-key')?.value || '').trim();
 
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
@@ -3489,6 +3504,7 @@ async function saveAdminSettings() {
                     slipOkBranchId: STORE_CONFIG.slipOkBranchId,
                     newPin: newPin || undefined,
                     discordWebhookUrl: discordWebhookUrl !== '******' ? discordWebhookUrl : undefined,
+                    geminiApiKey: geminiApiKey !== '******' ? geminiApiKey : undefined,
                     smtpConfig: {
                         host: smtpHost,
                         port: smtpPort,
@@ -3524,6 +3540,7 @@ async function saveAdminSettings() {
     const mailjetKeyEl2 = document.getElementById('admin-smtp-mailjet-key');
     const mailjetSecEl2 = document.getElementById('admin-smtp-mailjet-secret');
     const discordEl2 = document.getElementById('admin-discord-webhook');
+    const geminiEl2 = document.getElementById('admin-gemini-api-key');
     if (passEl2 && passEl2.value && passEl2.value !== '******') passEl2.value = '******';
     if (resendEl2 && resendEl2.value && resendEl2.value !== '******') resendEl2.value = '******';
     if (brevoEl2 && brevoEl2.value && brevoEl2.value !== '******') brevoEl2.value = '******';
@@ -3531,6 +3548,7 @@ async function saveAdminSettings() {
     if (mailjetKeyEl2 && mailjetKeyEl2.value && mailjetKeyEl2.value !== '******') mailjetKeyEl2.value = '******';
     if (mailjetSecEl2 && mailjetSecEl2.value && mailjetSecEl2.value !== '******') mailjetSecEl2.value = '******';
     if (discordEl2 && discordEl2.value && discordEl2.value !== '******') discordEl2.value = '******';
+    if (geminiEl2 && geminiEl2.value && geminiEl2.value !== '******') geminiEl2.value = '******';
 
     showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว ⚠️ หากใช้ Render ให้ตั้ง Environment Variables เพื่อให้ค่าถาวร", "success");
     closeAdminModal();
@@ -4062,6 +4080,13 @@ function initEvents() {
                 return;
             }
 
+            const adminChatPanel = document.getElementById('admin-chat-panel');
+            if (adminChatPanel && !adminChatPanel.classList.contains('hidden')) {
+                e.preventDefault();
+                closeAdminChatPanel();
+                return;
+            }
+
             const adminModal = document.getElementById('admin-modal');
             if (adminModal && !adminModal.classList.contains('hidden')) {
                 e.preventDefault();
@@ -4249,17 +4274,32 @@ const ADMIN_CHAT = (() => {
         if (!box) box = document.getElementById('admin-messages');
         if (!box) return;
         const isOwn = m.from === 'admin' && m.own;
+        const isBot = m.from === 'bot';
 
         const wrap = document.createElement('div');
         wrap.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} gap-2`;
         const bubble = document.createElement('div');
-        bubble.className = `max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm font-medium leading-relaxed shadow-xs
+        bubble.className = `max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm font-medium leading-relaxed shadow-xs
             ${isOwn
                 ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-br-md'
-                : 'bg-white border border-slate-200 text-slate-900 rounded-bl-md'}`;
+                : isBot
+                    ? 'bg-pink-50/90 border border-pink-200 text-slate-800 rounded-bl-md'
+                    : 'bg-white border border-slate-200 text-slate-900 rounded-bl-md'}`;
+        
+        let formattedText = escapeHTML(m.text || '');
+        if (isBot || !isOwn) {
+            formattedText = formattedText
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>')
+                .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-pink-600 underline font-semibold break-all">$1</a>');
+        }
+
         bubble.innerHTML = `
-            ${!isOwn ? `<div class="text-[10px] font-bold text-emerald-600 mb-0.5 flex items-center gap-1"><i class="fa-solid fa-user text-[9px]"></i> ${escapeHTML(m.name || 'ลูกค้า')}</div>` : ''}
-            <div class="whitespace-pre-wrap break-words">${escapeHTML(m.text)}</div>
+            ${isBot
+                ? `<div class="text-[10px] font-bold text-pink-600 mb-0.5 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse"></span><i class="fa-solid fa-robot text-[10px]"></i> 🤖 น้องพิงกี้ (AI บอทช่วยตอบ)</div>`
+                : !isOwn
+                    ? `<div class="text-[10px] font-bold text-emerald-600 mb-0.5 flex items-center gap-1"><i class="fa-solid fa-user text-[9px]"></i> ${escapeHTML(m.name || 'ลูกค้า')}</div>`
+                    : ''}
+            <div class="whitespace-pre-wrap break-words">${formattedText}</div>
             <div class="text-[10px] mt-1 ${isOwn ? 'text-white/60 text-right' : 'text-slate-400'}">${fmtTime(m.ts)}</div>
         `;
         wrap.appendChild(bubble);

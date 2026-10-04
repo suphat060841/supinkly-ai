@@ -1863,114 +1863,161 @@
     </div>
 
     <!-- ==========================================
-         SECURED ADMIN MODAL (Clean Bright Layout)
+         SECURED ADMIN MODAL (Spacious & Intuitive Layout)
          ========================================== -->
     <div id="admin-modal"
-        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        class="hidden fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4">
         <div
-            class="bg-white max-w-3xl w-full rounded-3xl p-6 sm:p-7 border border-slate-200 relative max-h-[92vh] overflow-y-auto shadow-2xl">
+            class="bg-white max-w-5xl xl:max-w-6xl w-full rounded-[28px] sm:rounded-[32px] p-4 sm:p-7 border border-slate-200/80 relative max-h-[94vh] overflow-y-auto shadow-2xl flex flex-col">
 
-            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
+            <!-- Modal Header & Quick Action Buttons -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-3 shrink-0">
                 <div class="flex items-center gap-3">
                     <div
-                        class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-lg">
-                        <i class="fa-solid fa-gears"></i>
+                        class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 via-rose-500 to-purple-600 text-white flex items-center justify-center text-xl shadow-md shadow-pink-500/25 shrink-0">
+                        <i class="fa-solid fa-gauge-high"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-bold text-slate-900">ระบบจัดการหลังบ้าน & คลังสต็อก (Admin)</h3>
-                        <p class="text-xs text-emerald-700 font-bold flex items-center gap-1">
-                            <i class="fa-solid fa-lock"></i> สิทธิ์ผู้ดูแลระบบได้รับการยืนยันแล้ว
-                        </p>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base sm:text-lg font-black text-slate-900">ระบบจัดการหลังบ้าน & คลังสต็อก (Admin)</h3>
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> แอดมินออนไลน์
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500 font-medium mt-0.5">ควบคุมคำสั่งซื้อ ส่งมอบรหัส คลังสินค้า โค้ดส่วนลด และสมาชิกร้านค้า Supinkly.AI</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="handleAdminLogout()"
-                        class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                        <span>ออกจากระบบ</span>
+
+                <!-- Top Quick Tools -->
+                <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
+                    <button type="button" onclick="openAdminChatPanel()" title="เปิด Live Chat ดูแชทลูกค้า"
+                        class="px-3 py-2 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-comments text-pink-600"></i>
+                        <span>แชทลูกค้า</span>
                     </button>
-                    <button onclick="closeAdminModal()"
-                        class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm">
+                    <button type="button" onclick="openAdminModal()" title="รีเฟรชข้อมูลทั้งหมด"
+                        class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-rotate text-slate-500"></i>
+                        <span class="hidden sm:inline">รีเฟรช</span>
+                    </button>
+                    <button type="button" onclick="closeAdminModal()" title="ดูหน้าร้านค้า"
+                        class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-store text-purple-600"></i>
+                        <span class="hidden md:inline">ดูหน้าร้าน</span>
+                    </button>
+                    <button type="button" onclick="handleAdminLogout()" title="ออกจากระบบแอดมิน"
+                        class="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <span class="hidden sm:inline">ออก</span>
+                    </button>
+                    <button type="button" onclick="closeAdminModal()"
+                        class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm transition-colors cursor-pointer shrink-0"
+                        title="ปิดหน้าต่าง (กด ESC เพื่อปิด)">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Admin Dashboard KPI Stat Cards -->
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-3.5 pb-3 border-b border-slate-100">
-                <div
-                    class="p-3 rounded-2xl bg-pink-50/60 border border-pink-200 flex flex-col justify-between shadow-2xs">
-                    <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                        <i class="fa-solid fa-coins text-pink-500"></i> ยอดขายสะสม
-                    </span>
-                    <span id="admin-stat-sales" class="text-base sm:text-lg font-bold text-pink-600 mt-1">฿0.00</span>
+            <!-- Admin Dashboard KPI Stat Cards (Clickable Quick Jump) -->
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 mt-4 pb-4 border-b border-slate-100 shrink-0">
+                <!-- Sales KPI -->
+                <div onclick="quickAdminNavigate('orders', 'all')"
+                    class="p-3.5 rounded-2xl bg-gradient-to-br from-pink-50/80 to-rose-50/40 border border-pink-200 flex flex-col justify-between shadow-2xs cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
+                    title="คลิกเพื่อดูออเดอร์ทั้งหมด">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-coins text-pink-500"></i> ยอดขายสะสม
+                        </span>
+                        <i class="fa-solid fa-arrow-right text-[10px] text-pink-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    </div>
+                    <span id="admin-stat-sales" class="text-base sm:text-xl font-black text-pink-600 mt-1">฿0.00</span>
                 </div>
-                <div
-                    class="p-3 rounded-2xl bg-amber-50/70 border border-amber-300 flex flex-col justify-between shadow-2xs">
-                    <span class="text-[11px] font-bold text-amber-800 flex items-center gap-1">
-                        <i class="fa-solid fa-hourglass-half text-amber-600"></i> รอส่งมอบรหัส
-                    </span>
-                    <span id="admin-stat-pending" class="text-base sm:text-lg font-bold text-amber-900 mt-1">0
-                        ออเดอร์</span>
+
+                <!-- Pending Orders KPI (Critical) -->
+                <div onclick="quickAdminNavigate('orders', 'pending')"
+                    class="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/40 border-2 border-amber-300 flex flex-col justify-between shadow-2xs cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
+                    title="คลิกเพื่อไปหน้าส่งมอบรหัส (รอจัดส่ง)">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-amber-900 flex items-center gap-1">
+                            <i class="fa-solid fa-hourglass-half text-amber-600 animate-spin" style="animation-duration: 4s;"></i> รอส่งมอบรหัส
+                        </span>
+                        <span class="text-[9px] px-1.5 py-0.2 rounded-md bg-amber-200 text-amber-900 font-bold">ด่วน</span>
+                    </div>
+                    <span id="admin-stat-pending" class="text-base sm:text-xl font-black text-amber-900 mt-1">0 ออเดอร์</span>
                 </div>
-                <div
-                    class="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex flex-col justify-between shadow-2xs">
-                    <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check text-emerald-600"></i> จัดส่งสำเร็จแล้ว
-                    </span>
-                    <span id="admin-stat-delivered" class="text-base sm:text-lg font-bold text-emerald-700 mt-1">0
-                        รายการ</span>
+
+                <!-- Delivered KPI -->
+                <div onclick="quickAdminNavigate('orders', 'delivered')"
+                    class="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/40 border border-emerald-200 flex flex-col justify-between shadow-2xs cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
+                    title="คลิกเพื่อดูออเดอร์จัดส่งสำเร็จ">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-circle-check text-emerald-600"></i> จัดส่งสำเร็จ
+                        </span>
+                        <i class="fa-solid fa-arrow-right text-[10px] text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    </div>
+                    <span id="admin-stat-delivered" class="text-base sm:text-xl font-black text-emerald-700 mt-1">0 รายการ</span>
                 </div>
-                <div
-                    class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between shadow-2xs">
-                    <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                        <i class="fa-solid fa-receipt text-cyan-600"></i> ออเดอร์ทั้งหมด
-                    </span>
-                    <span id="admin-stat-total-orders" class="text-base sm:text-lg font-bold text-slate-900 mt-1">0
-                        รายการ</span>
+
+                <!-- Total Orders KPI -->
+                <div onclick="quickAdminNavigate('orders', 'all')"
+                    class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between shadow-2xs cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
+                    title="คลิกเพื่อดูออเดอร์ทั้งหมด">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-receipt text-cyan-600"></i> ออเดอร์ทั้งหมด
+                        </span>
+                        <i class="fa-solid fa-arrow-right text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    </div>
+                    <span id="admin-stat-total-orders" class="text-base sm:text-xl font-black text-slate-900 mt-1">0 รายการ</span>
                 </div>
-                <div
-                    class="p-3 rounded-2xl bg-purple-50/70 border border-purple-200 flex flex-col justify-between shadow-2xs col-span-2 sm:col-span-1">
-                    <span class="text-[11px] font-bold text-purple-700 flex items-center gap-1">
-                        <i class="fa-solid fa-users text-purple-600"></i> สมาชิกทั้งหมด
-                    </span>
-                    <span id="admin-stat-total-users" class="text-base sm:text-lg font-bold text-purple-900 mt-1">0
-                        คน</span>
+
+                <!-- Total Members KPI -->
+                <div onclick="switchAdminTab('users')"
+                    class="p-3.5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50/40 border border-purple-200 flex flex-col justify-between shadow-2xs col-span-2 sm:col-span-1 cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all group"
+                    title="คลิกเพื่อจัดการสมาชิก">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-purple-700 flex items-center gap-1">
+                            <i class="fa-solid fa-users text-purple-600"></i> สมาชิกทั้งหมด
+                        </span>
+                        <i class="fa-solid fa-arrow-right text-[10px] text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    </div>
+                    <span id="admin-stat-total-users" class="text-base sm:text-xl font-black text-purple-900 mt-1">0 คน</span>
                 </div>
             </div>
 
             <!-- Admin Navigation Tabs -->
-            <div class="flex items-center gap-2 border-b border-slate-200 py-3 overflow-x-auto">
+            <div class="flex items-center gap-2 border-b border-slate-200 py-3 overflow-x-auto shrink-0">
                 <button id="admin-tab-btn-orders" onclick="switchAdminTab('orders')"
-                    class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white flex items-center gap-2 shadow-sm transition-all shrink-0">
+                    class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-pink-500 to-rose-600 text-white flex items-center gap-2 shadow-md shadow-pink-500/25 transition-all shrink-0 cursor-pointer">
                     <i class="fa-solid fa-box-open"></i>
-                    <span>📦 จัดการออเดอร์ (Fulfill)</span>
+                    <span>จัดการออเดอร์ (Fulfill)</span>
                     <span id="admin-pending-badge"
-                        class="px-2 py-0.5 rounded-full bg-white text-pink-600 text-xs font-bold">0</span>
+                        class="px-2 py-0.5 rounded-full bg-white text-pink-600 text-xs font-black shadow-xs">0</span>
                 </button>
                 <button id="admin-tab-btn-stock" onclick="switchAdminTab('stock')"
-                    class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer">
                     <i class="fa-solid fa-boxes-stacked"></i>
-                    <span>🏷️ สต็อก & กำไรราคา</span>
+                    <span>สต็อก & กำไรราคา</span>
                 </button>
                 <button id="admin-tab-btn-coupons" onclick="switchAdminTab('coupons')"
-                    class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer">
                     <i class="fa-solid fa-tags text-pink-500"></i>
-                    <span>🎟️ โค้ดส่วนลด</span>
+                    <span>โค้ดส่วนลด</span>
                     <span id="admin-coupons-badge"
                         class="px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 text-xs font-bold">0</span>
                 </button>
                 <button id="admin-tab-btn-users" onclick="switchAdminTab('users')"
-                    class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer">
                     <i class="fa-solid fa-users"></i>
-                    <span>👥 จัดการสมาชิก</span>
+                    <span>จัดการสมาชิก</span>
                     <span id="admin-users-badge"
                         class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">0</span>
                 </button>
                 <button id="admin-tab-btn-settings" onclick="switchAdminTab('settings')"
-                    class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0">
+                    class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer">
                     <i class="fa-solid fa-sliders"></i>
-                    <span>⚙️ ตั้งค่าระบบ</span>
+                    <span>ตั้งค่าระบบ</span>
                 </button>
             </div>
 
@@ -1978,44 +2025,51 @@
             <div id="admin-tab-orders" class="mt-4 space-y-3.5">
                 <!-- Model 1 Guide Pill -->
                 <div
-                    class="p-3.5 rounded-2xl bg-gradient-to-r from-pink-50 to-amber-50 border border-pink-200 text-xs text-slate-700 space-y-1">
-                    <div class="font-bold text-slate-900 flex items-center gap-2">
+                    class="p-3.5 rounded-2xl bg-gradient-to-r from-pink-50 via-amber-50 to-pink-50 border border-pink-200 text-xs text-slate-700 space-y-1.5 shadow-2xs">
+                    <div class="font-black text-slate-900 flex items-center gap-2">
                         <span
-                            class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-bold">1</span>
-                        <span>คู่มือจัดส่งตามออเดอร์ (Zero-Stock On-Demand):</span>
+                            class="w-6 h-6 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white flex items-center justify-center text-xs font-black shadow-xs">1</span>
+                        <span>คู่มือจัดส่งตามออเดอร์ (Zero-Stock On-Demand 3 ขั้นตอนง่ายๆ):</span>
                     </div>
-                    <p class="text-[11px] text-slate-600 leading-relaxed font-medium">
-                        ลูกค้าจ่ายเงินเรียบร้อยแล้ว &gt; แอดมินกด <b>"🛒 ไปซื้อใน G2G"</b> &gt; นำ Email:Password หรือ
-                        Key มากด <b>"🔑 ส่งมอบรหัส"</b> ลูกค้าจะได้รับรหัสทันทีแบบ Real-time
-                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 pt-1">
+                        <div class="p-2 rounded-xl bg-white/80 border border-pink-100 flex items-start gap-1.5">
+                            <b class="text-pink-600">ขั้นที่ 1:</b> ลูกค้าสั่งซื้อ & โอนสแกน PromptPay ตรวจสลิปสำเร็จ
+                        </div>
+                        <div class="p-2 rounded-xl bg-white/80 border border-pink-100 flex items-start gap-1.5">
+                            <b class="text-pink-600">ขั้นที่ 2:</b> แอดมินกดปุ่ม <b>"🛒 ไปซื้อใน G2G"</b> เพื่อรับรหัสจากตลาด
+                        </div>
+                        <div class="p-2 rounded-xl bg-white/80 border border-pink-100 flex items-start gap-1.5">
+                            <b class="text-pink-600">ขั้นที่ 3:</b> กด <b>"🔑 ส่งมอบรหัส"</b> รหัสจะส่งเข้าคลังและอีเมลลูกค้าทันที
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Orders Filter & Search Toolbar -->
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                     <div class="relative flex-1">
                         <i
-                            class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
                         <input type="text" id="admin-order-search" oninput="handleAdminOrderSearch(this.value)"
                             placeholder="ค้นหาเลขออเดอร์ (SPK-...), อีเมลลูกค้า, หรือชื่อสินค้า..."
-                            class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
+                            class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500 transition-all shadow-inner">
                         <button id="admin-order-clear-search" onclick="clearAdminOrderSearch()"
                             class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                             <i class="fa-solid fa-xmark text-xs"></i>
                         </button>
                     </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                        <div class="flex items-center gap-1 text-xs font-bold">
+                    <div class="flex items-center flex-wrap gap-2 shrink-0">
+                        <div class="flex items-center gap-1 text-xs font-bold bg-slate-100 p-1 rounded-2xl">
                             <button onclick="filterAdminOrders('all')" id="admin-order-filter-all"
-                                class="px-3 py-2 rounded-xl bg-pink-100 text-pink-700 font-bold transition-all">ทั้งหมด</button>
+                                class="px-3.5 py-1.5 rounded-xl bg-pink-500 text-white font-black shadow-xs transition-all cursor-pointer">ทั้งหมด</button>
                             <button onclick="filterAdminOrders('pending')" id="admin-order-filter-pending"
-                                class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all">🟡
+                                class="px-3.5 py-1.5 rounded-xl bg-transparent hover:bg-slate-200 text-slate-700 font-bold transition-all cursor-pointer">🟡
                                 รอจัดส่ง</button>
                             <button onclick="filterAdminOrders('delivered')" id="admin-order-filter-delivered"
-                                class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all">🟢
+                                class="px-3.5 py-1.5 rounded-xl bg-transparent hover:bg-slate-200 text-slate-700 font-bold transition-all cursor-pointer">🟢
                                 จัดส่งสำเร็จ</button>
                         </div>
                         <button onclick="exportOrdersToCSV()" title="ส่งออกรายงานคำสั่งซื้อเป็นไฟล์ CSV"
-                            class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs">
+                            class="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
                             <i class="fa-solid fa-file-csv text-emerald-600 text-sm"></i>
                             <span class="hidden sm:inline">ส่งออก CSV</span>
                         </button>
@@ -2024,8 +2078,8 @@
 
                 <div class="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
                     <span id="admin-orders-count-label"></span>
-                    <button onclick="renderAdminOrdersList()" class="hover:text-pink-600 flex items-center gap-1">
-                        <i class="fa-solid fa-rotate text-[10px]"></i> รีเฟรชรายการ
+                    <button onclick="renderAdminOrdersList()" class="hover:text-pink-600 flex items-center gap-1 font-bold text-xs transition-colors cursor-pointer">
+                        <i class="fa-solid fa-rotate text-[11px]"></i> รีเฟรชรายการ
                     </button>
                 </div>
 
@@ -2083,124 +2137,126 @@
             </div>
 
             <!-- TAB 3: SETTINGS FORM -->
-            <div id="admin-tab-settings"
-                class="hidden mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <h4 class="text-xs sm:text-sm font-bold text-pink-600 flex items-center gap-1.5">
-                    <i class="fa-solid fa-sliders"></i> ตั้งค่าบัญชีและระบบความปลอดภัย
-                </h4>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div>
-                        <label class="text-xs font-bold text-slate-700 block mb-1">ชื่อบัญชีรับเงิน:</label>
-                        <input type="text" id="admin-account-name" value="สุพัฒน์ มีสมบัติ"
-                            placeholder="ชื่อ-นามสกุล เจ้าของบัญชี"
-                            class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 outline-none focus:border-pink-500">
+            <div id="admin-tab-settings" class="hidden mt-4 space-y-4">
+                
+                <!-- Section 1: Payment & PromptPay Gateway -->
+                <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3.5">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-xs shadow-2xs">
+                                <i class="fa-solid fa-qrcode"></i>
+                            </span>
+                            <span>ข้อมูลรับเงินพร้อมเพย์ & SlipOK (Payment Gateway)</span>
+                        </h4>
+                        <span class="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                            ✓ ตรวจสลิปอัตโนมัติ
+                        </span>
                     </div>
-                    <div>
-                        <label class="text-xs font-bold text-slate-700 block mb-1">เบอร์พร้อมเพย์รับเงิน (ซ่อน):</label>
-                        <input type="password" id="admin-promptpay-input" placeholder="กรอกเบอร์พร้อมเพย์รับเงิน"
-                            class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 font-mono outline-none focus:border-pink-500">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK Branch ID:</label>
-                        <input type="text" id="admin-slipok-branch" value="77491" placeholder="เช่น 77491"
-                            class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:border-pink-500">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK Gateway Status:</label>
-                        <div
-                            class="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 font-bold flex items-center gap-1.5">
-                            <i class="fa-solid fa-shield-halved text-emerald-600"></i>
-                            <span>ปลอดภัย: ตรวจสลิปฝั่ง Server ป้องกันข้อมูลรั่วไหล</span>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 block mb-1">ชื่อบัญชีรับเงิน:</label>
+                            <input type="text" id="admin-account-name" value="สุพัฒน์ มีสมบัติ"
+                                placeholder="ชื่อ-นามสกุล เจ้าของบัญชี"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-bold text-slate-900 outline-none focus:bg-white focus:border-pink-500">
                         </div>
-                    </div>
-                    <div class="sm:col-span-2">
-                        <label class="text-xs font-bold text-slate-700 block mb-1">เปลี่ยนรหัส PIN แอดมิน:</label>
-                        <input type="password" id="admin-new-pin"
-                            placeholder="PIN ใหม่ 4-8 หลัก (เว้นว่างไว้หากไม่ต้องการเปลี่ยน)"
-                            class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:border-pink-500">
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 block mb-1">เบอร์พร้อมเพย์รับเงิน (ซ่อน):</label>
+                            <input type="password" id="admin-promptpay-input" placeholder="กรอกเบอร์พร้อมเพย์รับเงิน"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-bold text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK Branch ID:</label>
+                            <input type="text" id="admin-slipok-branch" value="77491" placeholder="เช่น 77491"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
+                        </div>
+                        <div class="sm:col-span-2 lg:col-span-3">
+                            <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK Gateway Status:</label>
+                            <div
+                                class="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 font-bold flex items-center gap-1.5">
+                                <i class="fa-solid fa-shield-halved text-emerald-600"></i>
+                                <span>ปลอดภัย: ตรวจสลิปฝั่ง Server ป้องกันข้อมูลรั่วไหล (พร้อมใช้งาน SlipOK Real-time API)</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Discord Real-time Order Notification Webhook -->
-                <div class="mt-4 pt-3 border-t border-slate-200">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <h4 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                            <i class="fa-brands fa-discord text-[#5865F2] text-sm sm:text-base"></i>
-                            แจ้งเตือนออเดอร์ใหม่เข้ามือถือผ่าน Discord Webhook
+                <!-- Section 2: Discord Webhook -->
+                <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-xl bg-[#5865F2]/10 text-[#5865F2] flex items-center justify-center text-xs shadow-2xs">
+                                <i class="fa-brands fa-discord"></i>
+                            </span>
+                            <span>แจ้งเตือนออเดอร์ใหม่เข้ามือถือผ่าน Discord Webhook</span>
                         </h4>
-                        <span
-                            class="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
+                        <span class="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
                             ⚡ แจ้งเตือน 24 ชม.
                         </span>
                     </div>
-                    <p class="text-[11px] text-slate-500 mb-2 leading-relaxed">
-                        เมื่อลูกค้าโอนเงินหรือมีออเดอร์ On-Demand ระบบจะส่งข้อความแจ้งเตือนเข้าห้องแชท Discord ทันที
-                        ช่วยให้แอดมินรู้ตัวและส่งมอบคีย์ได้ทันใจ
+                    <p class="text-[11px] text-slate-500 leading-relaxed font-medium">
+                        เมื่อลูกค้าโอนเงินหรือมีออเดอร์ On-Demand ระบบจะส่งข้อความแจ้งเตือนเข้าห้องแชท Discord ทันที ช่วยให้แอดมินรู้ตัวและส่งมอบคีย์ได้ทันใจ
                     </p>
                     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <input type="text" id="admin-discord-webhook" placeholder="https://discord.com/api/webhooks/..."
-                            class="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-[#5865F2]">
+                            class="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono outline-none focus:bg-white focus:border-[#5865F2]">
                         <button type="button" id="admin-test-discord-btn" onclick="handleAdminTestDiscord()"
-                            class="px-3.5 py-2 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-2xs">
+                            class="px-4 py-2 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-2xs cursor-pointer active:scale-95">
                             <i class="fa-solid fa-bell"></i>
                             <span>ทดสอบส่งเข้า Discord</span>
                         </button>
                     </div>
-                    <div id="admin-test-discord-result" class="hidden mt-2 p-2.5 rounded-xl text-xs font-medium"></div>
+                    <div id="admin-test-discord-result" class="hidden p-2.5 rounded-xl text-xs font-medium"></div>
                 </div>
 
-                <!-- Email & SMTP Delivery Configuration -->
-                <div class="mt-4 pt-3 border-t border-slate-200">
-                    <h4 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5 mb-2">
-                        <i class="fa-solid fa-envelope-open-text text-pink-600"></i> ตั้งค่าการส่งอีเมล OTP (Gmail SMTP
-                        / Resend API)
-                    </h4>
+                <!-- Section 3: Email & SMTP Configuration -->
+                <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3.5">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-xs shadow-2xs">
+                                <i class="fa-solid fa-envelope-open-text"></i>
+                            </span>
+                            <span>ตั้งค่าการส่งอีเมล OTP & ใบเสร็จ (Gmail SMTP / Brevo / Resend / Mailjet)</span>
+                        </h4>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="applySmtpPreset('gmail-465')"
+                                class="px-2.5 py-1 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-700 text-[11px] font-bold border border-pink-200 transition-colors cursor-pointer">
+                                <i class="fa-brands fa-google text-[10px]"></i> Gmail 465 (SSL)
+                            </button>
+                            <button type="button" onclick="applySmtpPreset('gmail-587')"
+                                class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold border border-purple-200 transition-colors cursor-pointer">
+                                <i class="fa-brands fa-google text-[10px]"></i> Gmail 587
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Render Ephemeral Disk Warning -->
                     <div
-                        class="p-3 bg-amber-50 rounded-xl border border-amber-300 mb-3 text-[11px] text-amber-900 leading-relaxed">
-                        <div class="font-bold text-amber-800 flex items-center gap-1.5 mb-1.5">
+                        class="p-3 bg-amber-50 rounded-xl border border-amber-300 text-[11px] text-amber-900 leading-relaxed font-medium">
+                        <div class="font-bold text-amber-800 flex items-center gap-1.5 mb-1">
                             <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
                             ⚠️ Render Free Tier: ค่าที่บันทึกจะหายหลัง Deploy/Restart
                         </div>
                         <div class="leading-relaxed">
-                            Render Free ใช้ <strong>Ephemeral Filesystem</strong> — ค่าที่บันทึกไว้จะถูกลบทุกครั้งที่
-                            Render Deploy หรือ Restart เซิร์ฟเวอร์<br>
-                            <strong class="text-amber-800">วิธีบันทึกถาวร 100%:</strong> ไปที่ <strong>Render Dashboard
-                                → Environment → Add Environment Variable</strong> แล้วใส่ค่าเหล่านี้:
-                        </div>
-                        <div id="render-env-guide"
-                            class="mt-2 bg-white/80 border border-amber-200 rounded-lg p-2 font-mono text-[10px] text-slate-800 space-y-0.5 select-all">
-                            <div>DISCORD_WEBHOOK_URL=<span
-                                    class="text-indigo-600 font-bold">[https://discord.com/api/webhooks/...]</span>
-                            </div>
-                            <div>BREVO_API_KEY=<span class="text-emerald-700 font-bold">[วาง Brevo API Key
-                                    ที่นี่]</span></div>
-                            <div>RESEND_API_KEY=<span class="text-blue-700 font-bold">[หรือ Resend API Key]</span></div>
-                            <div>SMTP_HOST=smtp.gmail.com</div>
-                            <div>SMTP_PORT=465</div>
-                            <div>SMTP_USER=<span class="text-slate-500">your@gmail.com</span></div>
-                            <div>SMTP_PASS=<span class="text-slate-500">app-password-16-digits</span></div>
-                            <div>SMTP_FROM=<span class="text-slate-500">Supinkly.AI &lt;your@gmail.com&gt;</span></div>
-                        </div>
-                        <div class="mt-1.5 text-[10px] text-amber-700">💡 หากตั้ง env vars ใน Render แล้ว ค่าจะ
-                            <strong>แสดงเป็น ******</strong> ในช่องด้านล่าง และไม่หายเมื่อ restart
+                            หากใช้งาน Render Free เซิร์ฟเวอร์จะรีสตาร์ตเป็นระยะ แนะนำนำค่าไปกรอกใน <strong>Render Dashboard → Environment</strong> เพื่อบันทึกถาวร 100%
                         </div>
                     </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">SMTP Host:</label>
                             <input type="text" id="admin-smtp-host" placeholder="เช่น smtp.gmail.com"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">SMTP Port:</label>
                             <input type="number" id="admin-smtp-port" placeholder="465" value="465"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">SMTP User / Email:</label>
                             <input type="text" id="admin-smtp-user" placeholder="your-shop@gmail.com"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
                         <div>
                             <div class="flex items-center justify-between mb-1">
@@ -2212,31 +2268,31 @@
                                 </a>
                             </div>
                             <input type="password" id="admin-smtp-pass" placeholder="•••••••••••••••• (16 หลัก)"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">Sender From (ชื่อผู้ส่ง):</label>
                             <input type="text" id="admin-smtp-from"
                                 placeholder="Supinkly.AI &lt;your-shop@gmail.com&gt;"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs outline-none focus:border-pink-500">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs outline-none focus:bg-white focus:border-pink-500">
                         </div>
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <label class="text-xs font-bold text-slate-700">Brevo API Key <span
-                                        class="text-emerald-600 font-bold">(แนะนำ ✅ ฟรี 300 เมล/วัน)</span>:</label>
+                                        class="text-emerald-600 font-bold">(แนะนำ ✅ ฟรี 300/วัน)</span>:</label>
                                 <a href="https://app.brevo.com/settings/keys/api" target="_blank"
                                     rel="noopener noreferrer"
                                     class="text-[10px] text-emerald-600 hover:underline font-bold">
-                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> สมัครฟรี / ดู API Key
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ดู API Key
                                 </a>
                             </div>
                             <input type="password" id="admin-smtp-brevo" placeholder="xkeysib-••••••••••••••••"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-emerald-300 text-xs font-mono outline-none focus:border-emerald-500">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-emerald-300 text-xs font-mono outline-none focus:bg-white focus:border-emerald-500">
                         </div>
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <label class="text-xs font-bold text-slate-700">SendGrid API Key <span
-                                        class="text-blue-600 font-bold">(ฟรี 100 เมล/วัน)</span>:</label>
+                                        class="text-blue-600 font-bold">(ฟรี 100/วัน)</span>:</label>
                                 <a href="https://app.sendgrid.com/settings/api_keys" target="_blank"
                                     rel="noopener noreferrer"
                                     class="text-[10px] text-blue-600 hover:underline font-bold">
@@ -2244,81 +2300,44 @@
                                 </a>
                             </div>
                             <input type="password" id="admin-smtp-sendgrid" placeholder="SG.••••••••••••••••"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-blue-200 text-xs font-mono outline-none focus:border-blue-400">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-blue-200 text-xs font-mono outline-none focus:bg-white focus:border-blue-400">
                         </div>
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <label class="text-xs font-bold text-slate-700">Mailjet API Key <span
-                                        class="text-violet-600 font-bold">(ฟรี 200 เมล/วัน)</span>:</label>
+                                        class="text-violet-600 font-bold">(ฟรี 200/วัน)</span>:</label>
                                 <a href="https://app.mailjet.com/account/apikeys" target="_blank"
                                     rel="noopener noreferrer"
                                     class="text-[10px] text-violet-600 hover:underline font-bold">
-                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ดู API Key
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ดู Key
                                 </a>
                             </div>
                             <input type="password" id="admin-smtp-mailjet-key" placeholder="Mailjet API Key"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 text-xs font-mono outline-none focus:border-violet-400">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-violet-200 text-xs font-mono outline-none focus:bg-white focus:border-violet-400">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">Mailjet Secret Key:</label>
                             <input type="password" id="admin-smtp-mailjet-secret" placeholder="Mailjet Secret Key"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 text-xs font-mono outline-none focus:border-violet-400">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-violet-200 text-xs font-mono outline-none focus:bg-white focus:border-violet-400">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-700 block mb-1">Resend API Key (ถ้ามี):</label>
                             <input type="password" id="admin-smtp-resend" placeholder="re_••••••••••••"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
-                        <div class="sm:col-span-2 lg:col-span-3">
-                            <div class="flex items-center justify-between mb-1">
-                                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                    <i class="fa-regular fa-image text-pink-500"></i>
-                                    <span>Logo URL ในหัวอีเมล (Logo URL for Email Header):</span>
-                                </label>
-                                <span
-                                    class="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-medium border border-emerald-200">
-                                    ✓ ค่าเริ่มต้น: รูปมาสค็อต Supinkly.AI จาก GitHub CDN
-                                </span>
-                            </div>
+                        <div class="sm:col-span-2">
+                            <label class="text-xs font-bold text-slate-700 flex items-center justify-between mb-1">
+                                <span>Logo URL ในหัวอีเมล:</span>
+                                <span class="text-[10px] text-emerald-700 font-medium">✓ ค่าเริ่มต้น: รูปมาสค็อต Supinkly</span>
+                            </label>
                             <input type="text" id="admin-smtp-logourl"
                                 placeholder="https://raw.githubusercontent.com/suphat060841/supinkly-ai/main/images/logo.jpg"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono outline-none focus:border-pink-500">
-                            <p class="text-[10px] text-slate-500 mt-1">
-                                รูป Logo จะแสดงตรงหัวตารางในอีเมล OTP, อีเมลรีเซ็ตรหัสผ่าน, และอีเมลใบเสร็จจัดส่งสินค้า
-                                (เว้นว่างไว้จะใช้ค่าเริ่มต้นของระบบอัตโนมัติ)
-                            </p>
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
-                    </div>
-
-                    <!-- App Password Tip -->
-                    <div
-                        class="mt-2.5 text-[11px] text-slate-600 bg-pink-50/50 border border-pink-100 rounded-xl p-2.5 flex items-start gap-2">
-                        <i class="fa-solid fa-lightbulb text-amber-500 text-sm mt-0.5 shrink-0"></i>
-                        <div class="leading-relaxed">
-                            <strong>วิธีตั้งค่า Gmail:</strong> ต้องเปิด <strong>2-Step Verification</strong> ใน Google
-                            Account ก่อน จากนั้นเข้าไปที่
-                            <a href="https://myaccount.google.com/apppasswords" target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-pink-600 font-bold underline">myaccount.google.com/apppasswords</a>
-                            เพื่อสร้าง <em>"App Password 16 หลัก"</em> มาใส่ในช่องด้านบน (ระบบจะตัดช่องว่างให้อัตโนมัติ)
-                        </div>
-                    </div>
-
-                    <!-- Presets & Guide Helper -->
-                    <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
-                        <span class="text-[11px] font-bold text-slate-500">เลือกค่าสำเร็จรูป:</span>
-                        <button type="button" onclick="applySmtpPreset('gmail-465')"
-                            class="px-2.5 py-1 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-700 text-[11px] font-bold border border-pink-200 transition-colors">
-                            <i class="fa-brands fa-google text-[10px]"></i> Gmail (Port 465 SSL)
-                        </button>
-                        <button type="button" onclick="applySmtpPreset('gmail-587')"
-                            class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold border border-purple-200 transition-colors">
-                            <i class="fa-brands fa-google text-[10px]"></i> Gmail (Port 587 STARTTLS)
-                        </button>
                     </div>
 
                     <!-- Test Connection Box -->
-                    <div class="mt-3.5 p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                    <div class="mt-3.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs">
                         <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                             <div class="flex-1">
                                 <label class="text-[11px] font-bold text-slate-700 block mb-1">
@@ -2326,64 +2345,114 @@
                                 </label>
                                 <input type="email" id="admin-test-email-target"
                                     placeholder="ใส่อีเมลของคุณ เช่น your-email@gmail.com"
-                                    class="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-xs outline-none focus:bg-white focus:border-pink-500">
+                                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs outline-none focus:border-pink-500">
                             </div>
                             <div class="sm:self-end">
                                 <button type="button" id="admin-test-email-btn" onclick="handleAdminTestEmail()"
-                                    class="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                    class="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer active:scale-95">
                                     <i class="fa-solid fa-bolt text-amber-400"></i>
                                     <span>ทดสอบส่งทันที</span>
                                 </button>
                             </div>
                         </div>
+                        <div id="admin-test-email-result" class="hidden mt-2.5 p-3 rounded-xl text-xs font-medium"></div>
+                    </div>
+                </div>
 
-                        <!-- Live Diagnostic Result Area -->
-                        <div id="admin-test-email-result" class="hidden mt-2.5 p-3 rounded-xl text-xs font-medium">
+                <!-- Section 4: Database Backup & Security PIN -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Backup & Restore -->
+                    <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                            <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs shadow-2xs">
+                                    <i class="fa-solid fa-database"></i>
+                                </span>
+                                <span>สำรอง & กู้คืนฐานข้อมูล (Backup & Restore)</span>
+                            </h4>
+                            <span class="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-bold">JSON</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-relaxed font-medium">
+                            ดาวน์โหลดไฟล์สำรองข้อมูลคำสั่งซื้อ สต็อก และสมาชิก หรือนำเข้าไฟล์ JSON เพื่อกู้คืนข้อมูล
+                        </p>
+                        <div class="flex flex-wrap items-center gap-2 pt-1">
+                            <button type="button" onclick="downloadDatabaseBackup()"
+                                class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                                <i class="fa-solid fa-cloud-arrow-down"></i>
+                                <span>ดาวน์โหลดสำรอง (JSON)</span>
+                            </button>
+                            <label
+                                class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95">
+                                <i class="fa-solid fa-cloud-arrow-up text-pink-600"></i>
+                                <span>กู้คืนข้อมูล (Restore)</span>
+                                <input type="file" id="admin-restore-file-input" accept=".json" class="hidden"
+                                    onchange="handleDatabaseRestore(this)">
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Security Admin PIN -->
+                    <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                            <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xs shadow-2xs">
+                                    <i class="fa-solid fa-key"></i>
+                                </span>
+                                <span>ความปลอดภัย & เปลี่ยนรหัส PIN แอดมิน</span>
+                            </h4>
+                            <span class="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full font-bold">PIN 4-8 หลัก</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-relaxed font-medium">
+                            ตั้งรหัส PIN ใหม่สำหรับเข้าสู่ระบบหลังบ้าน (เว้นว่างไว้หากไม่ต้องการเปลี่ยน)
+                        </p>
+                        <div>
+                            <input type="password" id="admin-new-pin"
+                                placeholder="กรอกรหัส PIN ใหม่ (4-8 ตัวเลข)"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
                     </div>
                 </div>
 
-                <!-- Database Backup & Restore (JSON Export / Import) -->
-                <div class="mt-4 pt-3 border-t border-slate-200">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <h4 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                            <i class="fa-solid fa-database text-cyan-600"></i> สำรองและกู้คืนฐานข้อมูลร้านค้า (Database
-                            Backup & Restore)
+                <!-- Section 5: AI Chatbot & Google Gemini API Integration -->
+                <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-xs shadow-2xs">
+                                <i class="fa-solid fa-robot"></i>
+                            </span>
+                            <span>ตั้งค่า AI ผู้ช่วยน้องพิงกี้ (Live Chat AI & Gemini API)</span>
                         </h4>
-                        <span class="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-bold">
-                            JSON Archive
+                        <span class="text-[10px] text-pink-700 bg-pink-50 px-2 py-0.5 rounded-full font-bold">
+                            🤖 AI อัจฉริยะ 24 ชม.
                         </span>
                     </div>
-                    <p class="text-[11px] text-slate-500 mb-2.5 leading-relaxed">
-                        ดาวน์โหลดสำรองข้อมูลคำสั่งซื้อ สต็อก และสมาชิกเก็บไว้ในคอมพิวเตอร์
-                        หรือนำเข้าไฟล์สำรองเพื่อกู้คืนข้อมูลกรณี Re-deploy บน Cloud
+                    <p class="text-[11px] text-slate-500 leading-relaxed font-medium">
+                        บอทน้องพิงกี้สามารถตอบคำถาม ค้นหาสินค้า แจกโค้ดส่วนลด และเช็คสถานะคำสั่งซื้อจากฐานข้อมูลได้ทันที หากต้องการเสริมพลังด้วย <strong>Google Gemini AI</strong> เพื่อตอบคำถามอิสระได้เหมือนคนจริง สามารถนำ API Key ฟรีมาวางที่นี่ได้ครับ
                     </p>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button type="button" onclick="downloadDatabaseBackup()"
-                            class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs">
-                            <i class="fa-solid fa-cloud-arrow-down"></i>
-                            <span>📥 ดาวน์โหลดสำรองฐานข้อมูล (Backup JSON)</span>
-                        </button>
-
-                        <label
-                            class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                            <i class="fa-solid fa-cloud-arrow-up text-pink-600"></i>
-                            <span>📤 กู้คืนฐานข้อมูล (Restore JSON)</span>
-                            <input type="file" id="admin-restore-file-input" accept=".json" class="hidden"
-                                onchange="handleDatabaseRestore(this)">
-                        </label>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-slate-700">Google Gemini API Key (ไม่บังคับ / มีระบบตอบอัตโนมัติรองรับอยู่แล้ว):</label>
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
+                                class="text-[10px] text-pink-600 hover:underline font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> รับ API Key ฟรีที่ Google AI Studio
+                            </a>
+                        </div>
+                        <input type="password" id="admin-gemini-api-key" placeholder="AIzaSy••••••••••••••••••••••••"
+                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between pt-2">
+                <!-- Sticky Bottom Save Bar -->
+                <div class="p-4 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 border-2 border-pink-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+                    <div class="flex items-center gap-2 text-xs text-slate-700 font-medium">
+                        <i class="fa-solid fa-shield-halved text-pink-600 text-base"></i>
+                        <span>การตั้งค่าทั้งหมดจะถูกบันทึกและมีผลทันทีหลังกดปุ่ม</span>
+                    </div>
                     <button onclick="saveAdminSettings()"
-                        class="px-4 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm flex items-center gap-1.5">
+                        class="w-full sm:w-auto px-6 py-3 rounded-2xl gradient-btn text-white text-xs sm:text-sm font-black shadow-lg shadow-pink-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all">
                         <i class="fa-solid fa-floppy-disk"></i>
-                        <span>บันทึกการตั้งค่า</span>
+                        <span>บันทึกการตั้งค่าทั้งหมด</span>
                     </button>
-                    <span class="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check"></i> พร้อมใช้งาน SlipOK Real-time API
-                    </span>
                 </div>
             </div>
 

@@ -258,3 +258,12 @@ input[type="search"]::-webkit-search-results-decoration {
     display: none;
 }
 
+/* Hide scrollbar utility for smooth chips scrolling */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+

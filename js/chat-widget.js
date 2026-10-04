@@ -1,6 +1,6 @@
 /**
  * Supinkly.AI — Live Chat Widget (Customer Side)
- * WebSocket real-time chat with admin
+ * Real-time chat with Admin & AI Assistant Bot ("🤖 น้องพิงกี้")
  */
 
 const CHAT = (() => {
@@ -27,6 +27,18 @@ const CHAT = (() => {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    function formatChatText(text, isOwn = false) {
+        if (!text && text !== 0) return '';
+        let escaped = escapeHTML(text);
+        const boldClass = isOwn ? 'font-bold text-white underline decoration-white/30' : 'font-bold text-slate-900';
+        const linkClass = isOwn ? 'text-white underline font-bold hover:text-white/80' : 'text-pink-600 underline font-semibold hover:text-pink-700';
+        // Bold **text**
+        escaped = escaped.replace(/\*\*(.*?)\*\*/g, `<strong class="${boldClass}">$1</strong>`);
+        // Clickable Links
+        escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, `<a href="$1" target="_blank" rel="noopener noreferrer" class="${linkClass} break-all">$1</a>`);
+        return escaped;
     }
 
     /* ── Inject widget HTML ───────────────────────────────────────── */
@@ -56,7 +68,10 @@ const CHAT = (() => {
                         <i class="fa-solid fa-headset"></i>
                     </div>
                     <div>
-                        <div class="text-white font-bold text-sm leading-tight">แชทสดกับแอดมิน</div>
+                        <div class="text-white font-bold text-sm leading-tight flex items-center gap-1.5">
+                            <span>แชทสดกับร้าน</span>
+                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-normal">AI บอท 24h</span>
+                        </div>
                         <div id="spk-chat-status" class="text-white/80 text-[11px] font-medium flex items-center gap-1">
                             <span id="spk-status-dot" class="w-1.5 h-1.5 rounded-full bg-white/50 inline-block"></span>
                             <span id="spk-status-text">กำลังเชื่อมต่อ...</span>
@@ -70,10 +85,10 @@ const CHAT = (() => {
 
             <!-- Name input (shown before auth) -->
             <div id="spk-name-form" class="p-4 border-b border-slate-100 bg-slate-50">
-                <p class="text-xs font-bold text-slate-700 mb-2">กรอกชื่อเพื่อเริ่มแชท</p>
+                <p class="text-xs font-bold text-slate-700 mb-2">กรอกชื่อเพื่อเริ่มแชท (มีน้องพิงกี้ AI คอยตอบทันที)</p>
                 <div class="flex gap-2">
                     <input id="spk-name-input" type="text" maxlength="40"
-                        placeholder="ชื่อของคุณ เช่น สมชาย..."
+                        placeholder="ชื่อของคุณ เช่น ลูกค้าประจำ..."
                         class="flex-1 px-3 py-2 rounded-xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none transition-colors">
                     <button id="spk-name-btn"
                         class="px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shrink-0 hover:opacity-90 transition-opacity">
@@ -85,23 +100,45 @@ const CHAT = (() => {
             <!-- Messages -->
             <div id="spk-messages"
                 class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/60"
-                style="min-height: 200px; max-height: 280px;">
+                style="min-height: 220px; max-height: 300px;">
                 <div id="spk-welcome-msg" class="text-center">
                     <div class="inline-block px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
-                        👋 สวัสดีครับ! มีอะไรให้ช่วยไหม?
+                        👋 สวัสดีครับ! สอบถามรายละเอียดหรือปัญหาได้เลยครับ
                     </div>
                 </div>
             </div>
 
+            <!-- Quick FAQ Suggestion Chips -->
+            <div id="spk-quick-chips" class="hidden px-3 py-2 bg-slate-50/90 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth">
+                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="เช็คสถานะออเดอร์">
+                    📦 เช็คสถานะออเดอร์
+                </button>
+                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="วิธีสั่งซื้อ">
+                    💳 วิธีสั่งซื้อ & รับรหัส
+                </button>
+                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="ขอโค้ดส่วนลด">
+                    🎟️ ขอโค้ดส่วนลด
+                </button>
+                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="การรับประกัน">
+                    🛡️ การรับประกัน 30 วัน
+                </button>
+                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="Private ต่างกับ Shared ยังไง">
+                    💡 Private vs Shared
+                </button>
+                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="ติดต่อแอดมิน">
+                    👤 ติดต่อแอดมินคนจริง
+                </button>
+            </div>
+
             <!-- Typing indicator -->
-            <div id="spk-typing" class="hidden px-4 py-1 text-[11px] text-slate-400 font-medium italic bg-white border-t border-slate-100">
-                แอดมินกำลังพิมพ์...
+            <div id="spk-typing" class="hidden px-4 py-1.5 text-[11px] text-pink-600 font-medium italic bg-pink-50/60 border-t border-pink-100 flex items-center gap-1.5">
+                <i class="fa-solid fa-spinner fa-spin text-[10px]"></i> <span id="spk-typing-text">แอดมินกำลังพิมพ์...</span>
             </div>
 
             <!-- Input -->
             <div id="spk-input-area" class="hidden px-3 py-3 bg-white border-t border-slate-200 flex items-end gap-2 shrink-0">
                 <textarea id="spk-msg-input"
-                    placeholder="พิมพ์ข้อความ..."
+                    placeholder="พิมพ์ข้อความคุยกับแอดมินหรือบอท..."
                     rows="1"
                     class="flex-1 px-3 py-2.5 rounded-2xl border-2 border-slate-200 focus:border-pink-500 text-sm font-medium outline-none resize-none transition-colors leading-snug"
                     style="max-height: 100px;"></textarea>
@@ -126,21 +163,26 @@ const CHAT = (() => {
 
         const isOwn = own || from === 'customer';
         const isAdmin = from === 'admin';
+        const isBot = from === 'bot';
 
         const wrap = document.createElement('div');
         wrap.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} gap-2`;
 
         const bubble = document.createElement('div');
-        bubble.className = `max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm font-medium leading-relaxed shadow-xs
+        bubble.className = `max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm font-medium leading-relaxed shadow-xs
             ${isOwn
                 ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-br-md'
-                : isAdmin
-                    ? 'bg-white border border-slate-200 text-slate-900 rounded-bl-md'
+                : isBot
+                    ? 'bg-pink-50/95 border border-pink-200 text-slate-800 rounded-bl-md'
                     : 'bg-white border border-slate-200 text-slate-900 rounded-bl-md'}`;
 
         bubble.innerHTML = `
-            ${isAdmin ? `<div class="text-[10px] font-bold text-pink-600 mb-0.5 flex items-center gap-1"><i class="fa-solid fa-headset text-[9px]"></i> แอดมิน</div>` : ''}
-            <div class="whitespace-pre-wrap break-words">${escapeHTML(text)}</div>
+            ${isBot
+                ? `<div class="text-[10px] font-bold text-pink-600 mb-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse"></span> 🤖 น้องพิงกี้ (AI ผู้ช่วย)</div>`
+                : isAdmin
+                    ? `<div class="text-[10px] font-bold text-purple-600 mb-0.5 flex items-center gap-1"><i class="fa-solid fa-headset text-[9px]"></i> แอดมิน</div>`
+                    : ''}
+            <div class="whitespace-pre-wrap break-words">${formatChatText(text, isOwn)}</div>
             <div class="text-[10px] mt-1 ${isOwn ? 'text-white/60 text-right' : 'text-slate-400'}">${fmtTime(ts || Date.now())}</div>
         `;
         wrap.appendChild(bubble);
@@ -199,20 +241,27 @@ const CHAT = (() => {
 
             if (msg.type === 'session')     { sessionId = msg.sessionId; }
             if (msg.type === 'auth_ok')     {
-                setStatus(msg.adminOnline ? 'แอดมินออนไลน์ พร้อมตอบ 🟢' : 'รอแอดมิน... (จะตอบเร็วๆ นี้)', msg.adminOnline);
+                setStatus(msg.adminOnline ? 'แอดมินออนไลน์ พร้อมดูแล 🟢' : 'บอทน้องพิงกี้พร้อมช่วย 24 ชม. ✨', true);
                 document.getElementById('spk-name-form').classList.add('hidden');
                 document.getElementById('spk-input-area').classList.remove('hidden');
+                document.getElementById('spk-quick-chips')?.classList.remove('hidden');
             }
-            if (msg.type === 'admin_status') setStatus(msg.online ? 'แอดมินออนไลน์ พร้อมตอบ 🟢' : 'รอแอดมิน... (จะตอบเร็วๆ นี้)', msg.online);
+            if (msg.type === 'admin_status') setStatus(msg.online ? 'แอดมินออนไลน์ พร้อมดูแล 🟢' : 'บอทน้องพิงกี้พร้อมช่วย 24 ชม. ✨', msg.online);
             if (msg.type === 'message')      {
                 appendMsg(msg);
                 // clear typing
-                document.getElementById('spk-typing').classList.add('hidden');
+                document.getElementById('spk-typing')?.classList.add('hidden');
             }
             if (msg.type === 'typing') {
                 const el = document.getElementById('spk-typing');
-                if (el) el.classList.remove('hidden');
-                setTimeout(() => el && el.classList.add('hidden'), 3000);
+                const txt = document.getElementById('spk-typing-text');
+                if (el) {
+                    if (txt) {
+                        txt.textContent = msg.from === 'bot' ? '🤖 น้องพิงกี้กำลังคิดคำตอบ...' : 'แอดมินกำลังพิมพ์...';
+                    }
+                    el.classList.remove('hidden');
+                }
+                setTimeout(() => el && el.classList.add('hidden'), 3500);
             }
         };
 
@@ -237,13 +286,18 @@ const CHAT = (() => {
         inp.style.height = '';
     }
 
+    function sendQuickQuestion(questionText) {
+        if (!questionText || !ws || ws.readyState !== 1) return;
+        ws.send(JSON.stringify({ type: 'message', text: questionText }));
+    }
+
     /* ── Init ─────────────────────────────────────────────────────── */
     function init() {
         injectWidget();
 
-        const btn    = document.getElementById('spk-chat-btn');
-        const win    = document.getElementById('spk-chat-window');
-        const close  = document.getElementById('spk-chat-close');
+        const btn     = document.getElementById('spk-chat-btn');
+        const win     = document.getElementById('spk-chat-window');
+        const close   = document.getElementById('spk-chat-close');
         const nameBtn = document.getElementById('spk-name-btn');
         const nameInp = document.getElementById('spk-name-input');
         const msgInp  = document.getElementById('spk-msg-input');
@@ -263,6 +317,14 @@ const CHAT = (() => {
             win.classList.add('hidden');
         });
 
+        // Close on ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && opened) {
+                opened = false;
+                win.classList.add('hidden');
+            }
+        });
+
         // Start chat (auth as customer)
         const startChat = () => {
             const name = nameInp.value.trim() || 'ลูกค้า';
@@ -271,6 +333,14 @@ const CHAT = (() => {
         };
         nameBtn.addEventListener('click', startChat);
         nameInp.addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
+
+        // Quick FAQ chips binding
+        document.querySelectorAll('.spk-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const q = chip.dataset.q;
+                if (q) sendQuickQuestion(q);
+            });
+        });
 
         // Auto-resize textarea
         msgInp.addEventListener('input', () => {
