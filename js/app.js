@@ -720,23 +720,9 @@ function initHeader() {
         mNavCnt.classList.toggle('hidden', orderCount <= 0);
     }
 
-    const adminHeaderBtn = isAdminActive ? `
-        <button onclick="openAdminModal()" class="h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500 via-rose-500 to-pink-500 text-white shadow-md shadow-pink-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ระบบจัดการหลังบ้าน (เซสชันแอดมินทำงานอยู่)">
-            <i class="fa-solid fa-gears text-sm"></i>
-            <span class="hidden md:inline">หลังบ้าน</span>
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        </button>
-    ` : `
-        <button onclick="promptAdminLogin()" class="hidden lg:flex h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200/80 transition-all shadow-2xs items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="จัดการร้านค้า">
-            <i class="fa-solid fa-gears text-slate-500"></i>
-            <span class="hidden xl:inline">หลังบ้าน</span>
-        </button>
-    `;
-
     if (isLoggedIn && user) {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                ${adminHeaderBtn}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
@@ -755,9 +741,6 @@ function initHeader() {
                         <button onclick="openOrdersModal()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
                             <i class="fa-solid fa-box-open text-purple-500 w-4"></i> คีย์ของฉัน
                         </button>
-                        <button onclick="promptAdminLogin()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-t border-slate-100">
-                            <i class="fa-solid fa-gears text-amber-500 w-4"></i> จัดการร้านค้า
-                        </button>
                         <button onclick="handleUserLogout()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100">
                             <i class="fa-solid fa-right-from-bracket w-4"></i> ออกจากระบบ
                         </button>
@@ -768,7 +751,6 @@ function initHeader() {
     } else {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                ${adminHeaderBtn}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
@@ -2418,6 +2400,11 @@ window.addEventListener('keydown', (e) => {
         promptAdminLogin();
     }
 });
+
+// Auto-open admin modal if ?admin or ?backend parameter is present in URL
+if (typeof window !== 'undefined' && window.location && (new URLSearchParams(window.location.search).has('admin') || new URLSearchParams(window.location.search).has('backend'))) {
+    setTimeout(promptAdminLogin, 400);
+}
 
 // ==========================================
 // G2G MARKET LINK HELPER (ADMIN ONLY)

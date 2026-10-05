@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Supinkly.AI - ศูนย์รวมบริการบัญชี AI และสินค้าดิจิทัลแท้ ครบวงจร</title>
     
+    <!-- Favicon & App Icons (Browser Tab Logo) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="images/pop_new.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="images/pop_new.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="images/pop_new.png">
+    <link rel="shortcut icon" type="image/png" href="images/pop_new.png">
+    
     <!-- Google Fonts: Prompt & Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,7 +58,7 @@
             <!-- Brand Logo with Mascot (Click opens Mascot / Welcome Popup) -->
             <div class="flex items-center gap-3 shrink-0">
                 <button type="button" onclick="openLogoPopup()" title="คลิกเพื่อดูข้อมูลร้านและรับโค้ดส่วนลดพิเศษ!" class="cursor-pointer relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md shadow-pink-500/20 hover:scale-105 transition-transform bg-white shrink-0 flex items-center justify-center p-0.5 group">
-                    <img src="images/logo.jpg" 
+                    <img src="images/pop_new.png" 
                          alt="Supinkly.AI Logo" 
                          class="w-full h-full object-contain transition-transform group-hover:scale-105"
                          onerror="this.src='images/logo.jpg'">
@@ -67,51 +73,19 @@
                 </a>
             </div>
 
-            <!-- Desktop Navigation Menus -->
-            <nav class="hidden lg:flex items-center gap-1.5">
-                <a href="index.html" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-pink-600 bg-pink-50 hover:bg-pink-100 transition-colors flex items-center gap-1.5">
-                    <i class="fa-solid fa-house"></i>
-                    <span>หน้าแรก</span>
-                </a>
-                <a href="#products-section" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-1.5">
-                    <i class="fa-solid fa-shapes text-pink-500"></i>
-                    <span>สินค้าทั้งหมด</span>
-                </a>
-                <a href="#warranty-section" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-1.5">
-                    <i class="fa-solid fa-shield-halved text-emerald-500"></i>
-                    <span>การรับประกัน</span>
-                </a>
-                <a href="#faq-section" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-1.5">
-                    <i class="fa-solid fa-circle-question text-sky-500"></i>
-                    <span>FAQ</span>
-                </a>
-                <a href="https://www.facebook.com/profile.php?id=61594837747580" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-1.5">
-                    <i class="fa-brands fa-facebook"></i>
-                    <span>ติดต่อเรา</span>
-                </a>
-                <button type="button" onclick="openLiveChat()" class="ml-1 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black text-white bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 transition-all shadow-md shadow-pink-500/25 flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95">
-                    <span class="relative flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                    </span>
-                    <i class="fa-solid fa-comments"></i>
-                    <span>แชท Live สด</span>
-                </button>
-            </nav>
-
             <!-- Search Bar (Desktop) -->
-            <div class="hidden md:flex flex-1 max-w-xs xl:max-w-sm mx-2">
+            <div class="hidden md:flex flex-1 max-w-lg xl:max-w-xl mx-4">
                 <div class="relative w-full">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
                     <input type="text" id="search-input" placeholder="ค้นหาบัญชี เช่น CapCut, Claude, Grok..." 
-                           class="w-full pl-9 pr-4 py-2 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs sm:text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
+                           class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs sm:text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
                 </div>
             </div>
 
-            <!-- Actions: Cart & User Account & Mobile Menu Toggle -->
+            <!-- Actions: Cart & User Account -->
             <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
                 <!-- Cart Button -->
-                <button onclick="openCartDrawer()" class="relative p-2.5 sm:px-3.5 sm:py-2 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center gap-2">
+                <button onclick="openCartDrawer()" class="relative p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center gap-2 cursor-pointer">
                     <i class="fa-solid fa-cart-shopping text-base text-pink-500"></i>
                     <span class="text-xs font-bold text-slate-800 hidden sm:inline">ตะกร้า</span>
                     <span id="cart-count-badge" class="hidden absolute -top-1.5 -right-1.5 sm:static sm:w-auto sm:h-auto px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-[10px] sm:text-xs flex items-center justify-center shadow-md">
@@ -119,15 +93,10 @@
                     </span>
                 </button>
 
-                <!-- User & Protected Admin Section -->
+                <!-- User Section -->
                 <div id="user-header-section">
                     <!-- Populated by JavaScript -->
                 </div>
-
-                <!-- Mobile Menu Hamburger Button -->
-                <button onclick="openMobileMenu()" type="button" class="lg:hidden p-2.5 rounded-2xl bg-white border-2 border-slate-200 hover:border-pink-300 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center justify-center cursor-pointer" title="เปิดเมนูหลัก">
-                    <i class="fa-solid fa-bars text-lg"></i>
-                </button>
             </div>
         </div>
 
@@ -157,8 +126,8 @@
                         <span id="g2g-last-sync-time">สินค้าแท้ 100% พร้อมส่งมอบตลอด 24 ชม.</span>
                     </div>
                 </div>
-                <h1 class="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 leading-relaxed max-w-3xl">
-                    ศูนย์รวมบัญชีและคีย์แท้ <span class="gradient-supinkly font-black">CapCut, Google AI, Google, Grok, Claude, Adobe</span> และ <span class="text-purple-600 font-black">Microsoft</span> ให้บริการด้วยระบบที่เป็นมาตรฐาน พร้อม ระบบตรวจสอบสลิปการชำระเงินอัตโนมัติ และ ระบบจัดส่งข้อมูลการเข้าใช้งานเข้าสู่คลังอย่างรวดเร็ว เพื่อให้ลูกค้าได้รับบริการอย่างสะดวกและเป็นระบบ มั่นใจได้ทุกคำสั่งซื้อ ด้วยการรับประกันสินค้าและบริการหลังการขาย
+                <h1 class="text-xs sm:text-sm font-normal text-slate-600 leading-relaxed max-w-3xl">
+                    ศูนย์รวมบัญชีและคีย์แท้ CapCut, Google AI, Google, Grok, Claude, Adobe และ Microsoft พร้อมระบบตรวจสอบและจัดส่งอัตโนมัติ มาตรฐานการให้บริการ พร้อมรับประกันทุกคำสั่งซื้อ
                 </h1>
 
                 <!-- Value Props Badges (Bright Cards) -->
@@ -712,7 +681,7 @@
             <div class="space-y-3">
                 <div class="flex items-center gap-2.5">
                     <div onclick="openLogoPopup()" class="cursor-pointer w-10 h-10 rounded-xl overflow-hidden border-2 border-pink-400 shrink-0 p-0.5 bg-white hover:scale-105 transition-transform" title="คลิกเปิดข้อมูลร้าน">
-                        <img src="images/logo.jpg" 
+                        <img src="images/pop_new.png" 
                              alt="Supinkly Logo" class="w-full h-full object-contain"
                              onerror="this.src='images/logo.jpg'">
                     </div>
@@ -721,18 +690,6 @@
                 <p class="text-slate-500 text-xs leading-relaxed font-medium">
                     ศูนย์รวมบริการบัญชี AI ซอฟต์แวร์ และสินค้าดิจิทัลแท้ระดับสากล ปลอดภัย รวดเร็ว รับประกันทุกคำสั่งซื้อ
                 </p>
-                <div class="pt-2 flex flex-wrap items-center gap-2 text-xs">
-                    <a href="#warranty-section" class="text-pink-600 hover:underline font-bold">การรับประกัน</a>
-                    <span class="text-slate-300">•</span>
-                    <a href="#faq-section" class="text-pink-600 hover:underline font-bold">คำถามพบบ่อย</a>
-                    <span class="text-slate-300">•</span>
-                    <button type="button" onclick="openLiveChat()" class="text-pink-600 hover:underline font-bold inline-flex items-center gap-1 cursor-pointer">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>แชท Live สด</span>
-                    </button>
-                    <span class="text-slate-300">•</span>
-                    <a href="https://www.facebook.com/profile.php?id=61594837747580" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-bold">Facebook</a>
-                </div>
             </div>
             <div>
                 <h4 class="font-bold text-slate-900 mb-3 text-sm">แบรนด์ที่จำหน่าย</h4>
@@ -796,10 +753,7 @@
         </div>
         <div class="max-w-7xl mx-auto mt-8 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-slate-500 text-xs font-medium gap-2">
             <span>&copy; 2026 Supinkly.AI. All rights reserved.</span>
-            <button onclick="promptAdminLogin()" class="text-slate-400/60 hover:text-slate-600 transition-colors flex items-center gap-1.5 text-[11px]" title="จัดการร้านค้า">
-                <i class="fa-solid fa-lock text-[10px]"></i>
-                <span>จัดการร้านค้า</span>
-            </button>
+            <span class="text-slate-400 text-[11px]">แพลตฟอร์มบริการดิจิทัลแท้ 24 ชม.</span>
         </div>
     </footer>
 
@@ -3208,41 +3162,42 @@ W11PR-XXXX-XXXX-XXXX"
     <!-- ==========================================
          LOGO / WELCOME MASCOT POPUP MODAL (pop_new.png)
          ========================================== -->
-    <div id="logo-popup-modal" class="hidden fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md transition-all">
-        <div class="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border-0 text-center auth-modal-card overflow-hidden">
+    <div id="logo-popup-modal" class="hidden fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md transition-all">
+        <div class="relative w-full max-w-xl sm:max-w-2xl bg-white rounded-[32px] p-6 sm:p-9 shadow-2xl border-2 border-pink-200/80 text-center auth-modal-card overflow-hidden">
             <!-- Background Radial Glows -->
-            <div class="absolute -top-20 -left-20 w-44 h-44 bg-pink-400/25 rounded-full blur-3xl pointer-events-none"></div>
-            <div class="absolute -bottom-20 -right-20 w-44 h-44 bg-purple-400/25 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -top-24 -left-24 w-60 h-60 bg-pink-400/25 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -right-24 w-60 h-60 bg-purple-400/25 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-to-tr from-pink-300/20 via-purple-300/20 to-cyan-300/20 rounded-full blur-3xl pointer-events-none"></div>
 
             <!-- Close Button -->
-            <button onclick="closeLogoPopup()" type="button" class="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer" title="ปิดหน้าต่าง">
-                <i class="fa-solid fa-xmark text-lg"></i>
+            <button onclick="closeLogoPopup()" type="button" class="absolute top-5 right-5 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer z-10" title="ปิดหน้าต่าง">
+                <i class="fa-solid fa-xmark text-xl"></i>
             </button>
 
-            <!-- Mascot Image (pop_new.png) - Large, borderless, clean drop shadow -->
-            <div class="relative mx-auto w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 max-h-[340px] mb-3 filter drop-shadow-2xl hover:scale-105 transition-transform duration-300 flex items-center justify-center">
+            <!-- Mascot Image (pop_new.png) - Extra Large, Beautiful, Floating -->
+            <div class="relative mx-auto w-72 h-72 sm:w-96 sm:h-96 md:w-[420px] md:h-[420px] max-h-[460px] mb-2 filter drop-shadow-[0_20px_45px_rgba(255,46,126,0.32)] transition-transform duration-300 flex items-center justify-center mascot-float">
                 <img src="images/pop_new.png" 
                      alt="Supinkly.AI Mascot" 
-                     class="w-full h-full object-contain"
+                     class="w-full h-full object-contain select-none"
                      onerror="this.src='images/logo.jpg'">
             </div>
 
             <!-- Title & Subtitle -->
-            <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-black mb-2 shadow-xs">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-pink-100/90 text-pink-700 text-xs font-black mb-2.5 shadow-xs border border-pink-200">
                 <span>🐰</span> Supinkly Shop Official
             </div>
             <h3 class="text-2xl sm:text-3xl font-black text-slate-900 leading-snug">
                 ยินดีต้อนรับสู่ <span class="gradient-supinkly font-['Outfit']">Supinkly.AI</span>
             </h3>
-            <p class="text-xs sm:text-sm text-slate-600 font-medium mt-1.5 max-w-md mx-auto leading-relaxed">
-                ศูนย์รวมบัญชีและคีย์แท้ CapCut, Google AI, Google, Grok, Claude, Adobe และ Microsoft พร้อมส่งมอบ 24 ชม.
+            <p class="text-xs sm:text-sm text-slate-500 font-normal mt-2 max-w-lg mx-auto leading-relaxed">
+                ศูนย์รวมบัญชีและคีย์แท้ CapCut, Google AI, Google, Grok, Claude, Adobe และ Microsoft พร้อมระบบตรวจสอบและจัดส่งอัตโนมัติ มาตรฐานการให้บริการ พร้อมรับประกันทุกคำสั่งซื้อ
             </p>
 
             <!-- Welcome Coupon Code Box -->
-            <div class="mt-4 p-3.5 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 border-2 border-dashed border-pink-300 flex items-center justify-between gap-3 shadow-inner">
+            <div class="mt-5 p-4 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 border-2 border-dashed border-pink-300 flex items-center justify-between gap-3 shadow-inner max-w-lg mx-auto">
                 <div class="text-left">
                     <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">โค้ดส่วนลดต้อนรับสมาชิก</div>
-                    <div class="text-lg font-black text-pink-600 font-mono tracking-wider">SUPINKLY10</div>
+                    <div class="text-xl font-black text-pink-600 font-mono tracking-wider">SUPINKLY10</div>
                     <div class="text-[11px] text-slate-600 font-medium">ลด 10% ทันทีทุกคำสั่งซื้อ (ขั้นต่ำ ฿100)</div>
                 </div>
                 <button type="button" onclick="copyAndApplyPromoCode('SUPINKLY10')" class="px-4 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-black text-xs shadow-md shadow-pink-500/30 flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shrink-0">
@@ -3252,36 +3207,36 @@ W11PR-XXXX-XXXX-XXXX"
             </div>
 
             <!-- Value Highlights -->
-            <div class="grid grid-cols-2 gap-2 mt-4 text-left text-xs">
-                <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2.5">
-                    <i class="fa-solid fa-clock-rotate-left text-pink-500 text-base shrink-0"></i>
+            <div class="grid grid-cols-2 gap-3 mt-4 text-left text-xs max-w-lg mx-auto">
+                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                    <i class="fa-solid fa-bolt text-amber-500 text-lg shrink-0"></i>
                     <div>
-                        <div class="font-bold text-slate-800">พร้อมส่งมอบ 24 ชม.</div>
-                        <div class="text-[10px] text-slate-500 font-medium">ส่งมอบทันทีหลังชำระเงิน</div>
+                        <div class="font-bold text-slate-800">ส่งรหัสใน 5 วินาที</div>
+                        <div class="text-[11px] text-slate-500 font-medium">ระบบ AI Vault 24 ชม.</div>
                     </div>
                 </div>
-                <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2.5">
-                    <i class="fa-solid fa-shield-halved text-emerald-500 text-base shrink-0"></i>
+                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                    <i class="fa-solid fa-shield-halved text-emerald-500 text-lg shrink-0"></i>
                     <div>
                         <div class="font-bold text-slate-800">รับประกันแท้ 100%</div>
-                        <div class="text-[10px] text-slate-500 font-medium">เคลมไว คืนเงินจริง</div>
+                        <div class="text-[11px] text-slate-500 font-medium">เคลมไว ดูแลตลอดการใช้งาน</div>
                     </div>
                 </div>
             </div>
 
             <!-- Modal Action Buttons -->
-            <div class="mt-5 flex flex-col sm:flex-row items-center gap-2.5">
-                <button type="button" onclick="closeLogoPopup(); scrollToProducts();" class="w-full sm:flex-1 py-3 px-5 rounded-2xl gradient-btn text-white font-black text-sm shadow-lg shadow-pink-500/25 flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer">
+            <div class="mt-6 flex flex-col sm:flex-row items-center gap-3 max-w-lg mx-auto">
+                <button type="button" onclick="closeLogoPopup(); scrollToProducts();" class="w-full sm:flex-1 py-3.5 px-6 rounded-2xl gradient-btn text-white font-black text-sm shadow-lg shadow-pink-500/25 flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer">
                     <i class="fa-solid fa-bag-shopping"></i>
                     <span>เริ่มช้อปสินค้าเลย</span>
                 </button>
-                <button type="button" onclick="closeLogoPopup()" class="w-full sm:w-auto py-3 px-5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors cursor-pointer">
+                <button type="button" onclick="closeLogoPopup()" class="w-full sm:w-auto py-3.5 px-6 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors cursor-pointer">
                     ปิดหน้าต่าง
                 </button>
             </div>
 
             <!-- Do not show again today option -->
-            <div class="mt-3 flex items-center justify-center gap-2 text-xs text-slate-500">
+            <div class="mt-3.5 flex items-center justify-center gap-2 text-xs text-slate-400">
                 <input type="checkbox" id="logo-popup-dont-show" class="rounded border-slate-300 text-pink-500 focus:ring-pink-500 cursor-pointer">
                 <label for="logo-popup-dont-show" class="cursor-pointer select-none">ไม่ต้องแสดงหน้าต่างนี้อีกในวันนี้</label>
             </div>
@@ -3297,7 +3252,7 @@ W11PR-XXXX-XXXX-XXXX"
         <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-pink-50 to-purple-50">
             <div class="flex items-center gap-2.5">
                 <div onclick="openLogoPopup(); closeMobileMenu();" class="w-11 h-11 rounded-xl overflow-hidden border-2 border-pink-400 bg-white p-0.5 cursor-pointer flex items-center justify-center shadow-xs">
-                    <img src="images/logo.jpg" alt="Supinkly Logo" class="w-full h-full object-contain">
+                    <img src="images/pop_new.png" alt="Supinkly Logo" class="w-full h-full object-contain" onerror="this.src='images/logo.jpg'">
                 </div>
                 <div>
                     <div class="font-black text-slate-900 text-base gradient-supinkly font-['Outfit']">Supinkly.AI</div>
@@ -3346,13 +3301,6 @@ W11PR-XXXX-XXXX-XXXX"
             <button onclick="openLogoPopup(); closeMobileMenu();" class="w-full py-2.5 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm cursor-pointer">
                 <i class="fa-solid fa-gift"></i>
                 <span>ดูโปรโมชั่น & โค้ดลด 10%</span>
-            </button>
-            <button onclick="promptAdminLogin(); closeMobileMenu();" class="w-full py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-slate-100 to-pink-50/70 hover:from-slate-200 hover:to-pink-100 border border-pink-200/60 text-slate-700 hover:text-pink-700 text-xs font-bold flex items-center justify-between cursor-pointer transition-all shadow-2xs">
-                <span class="flex items-center gap-2">
-                    <i class="fa-solid fa-gears text-pink-500"></i>
-                    <span>จัดการร้านค้า</span>
-                </span>
-                <i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>
             </button>
         </div>
     </div>

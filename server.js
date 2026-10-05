@@ -223,6 +223,21 @@ app.get(['/images/pop_new.png', '/images/pop_new.jpg', '/images/pop_new'], (req,
     next();
 });
 
+// Explicit handler for browser tab favicon (favicon.ico / favicon.png)
+app.get(['/favicon.ico', '/favicon.png'], (req, res, next) => {
+    const pngPath = path.join(__dirname, 'images', 'pop_new.png');
+    if (fs.existsSync(pngPath)) {
+        res.setHeader('Content-Type', 'image/png');
+        return res.sendFile(pngPath);
+    }
+    const logoPath = path.join(__dirname, 'images', 'logo.jpg');
+    if (fs.existsSync(logoPath)) {
+        res.setHeader('Content-Type', 'image/jpeg');
+        return res.sendFile(logoPath);
+    }
+    next();
+});
+
 app.use(express.static(path.join(__dirname)));
 
 // ─── [FIX #2] Rate Limiting ─────────────────────────────────────────────────

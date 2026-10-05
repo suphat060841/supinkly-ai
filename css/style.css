@@ -267,3 +267,17 @@ input[type="search"]::-webkit-search-results-decoration {
     scrollbar-width: none;
 }
 
+/* Mascot Float Animation for Popup */
+@keyframes mascotFloat {
+    0%, 100% {
+        transform: translateY(0px) scale(1);
+    }
+    50% {
+        transform: translateY(-8px) scale(1.02);
+    }
+}
+.mascot-float {
+    animation: mascotFloat 3.6s ease-in-out infinite;
+}
+
+
