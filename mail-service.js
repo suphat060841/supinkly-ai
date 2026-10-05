@@ -77,7 +77,7 @@ class MailService {
 
     /**
      * Resolve public Logo URL for email templates
-     * Priority: config.logoUrl -> process.env.LOGO_URL -> db.smtpConfig.logoUrl -> APP_BASE_URL/images/logo.jpg -> GitHub Raw fallback
+     * Priority: config.logoUrl -> process.env.LOGO_URL -> db.smtpConfig.logoUrl -> APP_BASE_URL/images/pop_new.png -> GitHub Raw fallback
      */
     getLogoUrl(config = {}, db = {}) {
         if (config && config.logoUrl) return config.logoUrl.trim();
@@ -86,10 +86,10 @@ class MailService {
         if (smtp.logoUrl) return smtp.logoUrl.trim();
         if (process.env.APP_BASE_URL) {
             const base = process.env.APP_BASE_URL.replace(/\/+$/, '');
-            return `${base}/images/logo.jpg`;
+            return `${base}/images/pop_new.png`;
         }
         // Stable hosted fallback: Raw GitHub main branch (accessible worldwide via HTTPS, 100% email client compatible)
-        return 'https://raw.githubusercontent.com/suphat060841/supinkly-ai/main/images/logo.jpg';
+        return 'https://raw.githubusercontent.com/suphat060841/supinkly-ai/main/images/pop_new.png';
     }
 
     /**
@@ -134,8 +134,8 @@ class MailService {
                             <!-- Mascot Logo Badge -->
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 14px auto;">
                                 <tr>
-                                    <td style="width: 72px; height: 72px; border-radius: 20px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle;">
-                                        <img src="${safeLogoUrl}" width="72" height="72" alt="Supinkly.AI Logo" style="display: block; border-radius: 17px; border: 0; outline: none; width: 72px; height: 72px; object-fit: cover;" />
+                                    <td style="width: 76px; height: 76px; border-radius: 22px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle; padding: 4px;">
+                                        <img src="${safeLogoUrl}" width="76" height="76" alt="Supinkly.AI Mascot Logo" style="display: block; margin: 0 auto; border-radius: 18px; border: 0; outline: none; width: 76px; height: 76px; object-fit: contain;" />
                                     </td>
                                 </tr>
                             </table>
@@ -963,8 +963,8 @@ class MailService {
                             <!-- Mascot Logo Badge -->
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 14px auto;">
                                 <tr>
-                                    <td style="width: 72px; height: 72px; border-radius: 20px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle;">
-                                        <img src="${safeLogoUrl}" width="72" height="72" alt="Supinkly.AI Logo" style="display: block; border-radius: 17px; border: 0; outline: none; width: 72px; height: 72px; object-fit: cover;" />
+                                    <td style="width: 76px; height: 76px; border-radius: 22px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle; padding: 4px;">
+                                        <img src="${safeLogoUrl}" width="76" height="76" alt="Supinkly.AI Mascot Logo" style="display: block; margin: 0 auto; border-radius: 18px; border: 0; outline: none; width: 76px; height: 76px; object-fit: contain;" />
                                     </td>
                                 </tr>
                             </table>
@@ -1278,8 +1278,8 @@ class MailService {
                             <!-- Mascot Logo Badge -->
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 14px auto;">
                                 <tr>
-                                    <td style="width: 72px; height: 72px; border-radius: 20px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle;">
-                                        <img src="${safeLogoUrl}" width="72" height="72" alt="Supinkly.AI Logo" style="display: block; border-radius: 17px; border: 0; outline: none; width: 72px; height: 72px; object-fit: cover;" />
+                                    <td style="width: 76px; height: 76px; border-radius: 22px; overflow: hidden; background-color: #FFFFFF; border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 8px 24px rgba(0,0,0,0.18); text-align: center; vertical-align: middle; padding: 4px;">
+                                        <img src="${safeLogoUrl}" width="76" height="76" alt="Supinkly.AI Mascot Logo" style="display: block; margin: 0 auto; border-radius: 18px; border: 0; outline: none; width: 76px; height: 76px; object-fit: contain;" />
                                     </td>
                                 </tr>
                             </table>
@@ -1504,8 +1504,8 @@ class MailService {
                 <div style="text-align:center; margin-bottom:20px;">
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 12px auto;">
                         <tr>
-                            <td style="width: 64px; height: 64px; border-radius: 18px; overflow: hidden; background-color: #FFFFFF; border: 2px solid #FBCFE8; box-shadow: 0 4px 14px rgba(255,46,126,0.15); text-align: center; vertical-align: middle;">
-                                <img src="${safeLogoUrl}" width="64" height="64" alt="Supinkly.AI Logo" style="display: block; border-radius: 16px; border: 0; outline: none; width: 64px; height: 64px; object-fit: cover;" />
+                            <td style="width: 68px; height: 68px; border-radius: 20px; overflow: hidden; background-color: #FFFFFF; border: 2px solid #FBCFE8; box-shadow: 0 4px 14px rgba(255,46,126,0.15); text-align: center; vertical-align: middle; padding: 3px;">
+                                <img src="${safeLogoUrl}" width="68" height="68" alt="Supinkly.AI Mascot Logo" style="display: block; margin: 0 auto; border-radius: 17px; border: 0; outline: none; width: 68px; height: 68px; object-fit: contain;" />
                             </td>
                         </tr>
                     </table>

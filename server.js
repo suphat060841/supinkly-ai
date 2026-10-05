@@ -154,6 +154,15 @@ try {
         }
     }
 
+    // Ensure both png and jpg formats are mirrored
+    const destPngFile = path.join(imagesDir, 'pop_new.png');
+    const destJpgFile = path.join(imagesDir, 'pop_new.jpg');
+    if (fs.existsSync(destPngFile) && !fs.existsSync(destJpgFile)) {
+        try { fs.copyFileSync(destPngFile, destJpgFile); } catch {}
+    } else if (fs.existsSync(destJpgFile) && !fs.existsSync(destPngFile)) {
+        try { fs.copyFileSync(destJpgFile, destPngFile); } catch {}
+    }
+
     // Auto-sync all 19 product banner images
     const productsImgDir = path.join(imagesDir, 'products');
     if (!fs.existsSync(productsImgDir)) fs.mkdirSync(productsImgDir, { recursive: true });

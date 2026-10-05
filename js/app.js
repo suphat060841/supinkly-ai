@@ -594,7 +594,86 @@ document.addEventListener('DOMContentLoaded', async () => {
             initHeader();
         }
     }
+
+    // Automatic Welcome & Mascot Logo Popup Check (Shows once per day unless manually reopened)
+    try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        if (localStorage.getItem('supinkly_logo_pop_today') !== todayStr) {
+            setTimeout(() => {
+                if (typeof openLogoPopup === 'function') openLogoPopup();
+            }, 1200);
+        }
+    } catch {}
 });
+
+// ==========================================
+// WELCOME MASCOT & LOGO POPUP MODAL (pop_new.png)
+// ==========================================
+function openLogoPopup() {
+    const modal = document.getElementById('logo-popup-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+}
+
+function closeLogoPopup(forceDontShow = false) {
+    const modal = document.getElementById('logo-popup-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+    const dontShowCheck = document.getElementById('logo-popup-dont-show');
+    if (forceDontShow || (dontShowCheck && dontShowCheck.checked)) {
+        try {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            localStorage.setItem('supinkly_logo_pop_today', todayStr);
+        } catch {}
+    }
+}
+
+function copyAndApplyPromoCode(code = 'SUPINKLY10') {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).catch(() => {});
+    }
+    if (typeof quickApplyCoupon === 'function') {
+        quickApplyCoupon(code);
+    }
+    if (typeof showToast === 'function') {
+        showToast(`คัดลอกและใส่โค้ดส่วนลด "${code}" ในตะกร้าแล้ว! 🎉`, "success");
+    }
+    closeLogoPopup();
+}
+
+function scrollToProducts() {
+    const el = document.getElementById('products-section') || document.getElementById('products-grid');
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+// ==========================================
+// MOBILE SLIDE-OUT MENU DRAWER
+// ==========================================
+function openMobileMenu() {
+    const overlay = document.getElementById('mobile-menu-overlay');
+    const drawer = document.getElementById('mobile-menu-drawer');
+    if (overlay && drawer) {
+        overlay.classList.remove('hidden');
+        drawer.classList.remove('-translate-x-full');
+        document.body.classList.add('overflow-hidden');
+    }
+}
+
+function closeMobileMenu() {
+    const overlay = document.getElementById('mobile-menu-overlay');
+    const drawer = document.getElementById('mobile-menu-drawer');
+    if (overlay && drawer) {
+        overlay.classList.add('hidden');
+        drawer.classList.add('-translate-x-full');
+        document.body.classList.remove('overflow-hidden');
+    }
+}
 
 function saveCart() {
     localStorage.setItem('supinkly_cart', JSON.stringify(state.cart));
