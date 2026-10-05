@@ -970,6 +970,41 @@ function initFilters() {
         });
     }
 
+    const mSearchInput = document.getElementById('mobile-search-input');
+    if (mSearchInput) {
+        const sanitizeSearchVal = (raw) => {
+            if (!raw) return '';
+            if (raw.includes('@') && (raw.endsWith('.com') || raw.endsWith('.net') || raw.endsWith('.co.th') || raw.endsWith('.org'))) {
+                return '';
+            }
+            return raw;
+        };
+
+        mSearchInput.addEventListener('input', (e) => {
+            const cleanVal = sanitizeSearchVal(e.target.value);
+            if (cleanVal !== e.target.value) {
+                e.target.value = cleanVal;
+            }
+            state.searchQuery = cleanVal.toLowerCase().trim();
+            const mClear = document.getElementById('mobile-search-clear');
+            if (mClear) mClear.classList.toggle('hidden', !cleanVal);
+            if (searchInput && searchInput.value !== cleanVal) {
+                searchInput.value = cleanVal;
+                const dClear = document.getElementById('desktop-search-clear');
+                if (dClear) dClear.classList.toggle('hidden', !cleanVal);
+            }
+            applyFilters();
+        });
+
+        mSearchInput.addEventListener('focus', (e) => {
+            if (e.target.value.includes('@')) {
+                e.target.value = '';
+                state.searchQuery = '';
+                applyFilters();
+            }
+        });
+    }
+
     const sortSelect = document.getElementById('sort-select');
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => {
@@ -1080,62 +1115,68 @@ function renderProducts() {
             : 'border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10';
 
         return `
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border-2 ${cardBorderClass} flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 ${cardBorderClass} flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden shadow-xs hover:shadow-lg">
                 
                 <div>
                     <!-- Header of Card: Brand & Plan Type -->
-                    <div class="flex items-center justify-between gap-1.5 mb-2.5">
-                        <div class="flex items-center gap-2">
-                            <span class="w-8 h-8 rounded-xl bg-gradient-to-tr ${brandGrad} text-white flex items-center justify-center text-[11px] font-bold shadow-xs">
+                    <div class="flex items-center justify-between gap-1 mb-2">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr ${brandGrad} text-white flex items-center justify-center text-[9px] sm:text-[11px] font-bold shadow-2xs shrink-0">
                                 ${escapeHTML(product.brandCode)}
                             </span>
-                            <span class="text-xs font-bold text-slate-800 tracking-wide">${escapeHTML(product.brand)}</span>
+                            <span class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide truncate">${escapeHTML(product.brand)}</span>
                         </div>
-                        <span class="px-2.5 py-1 rounded-full text-[11px] font-medium border ${typeBadgeClass} flex items-center gap-1">
-                            <i class="${typeIcon} text-[10px]"></i>
+                        <span class="px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[11px] font-medium border ${typeBadgeClass} flex items-center gap-0.5 sm:gap-1 shrink-0">
+                            <i class="${typeIcon} text-[8px] sm:text-[10px]"></i>
                             <span>${escapeHTML(product.type)}</span>
                         </span>
                     </div>
 
                     <!-- Commercial 3D Kawaii Product Banner Thumbnail -->
-                    <div class="relative w-full aspect-square rounded-2xl overflow-hidden mb-3 bg-slate-100 border border-slate-100 shadow-2xs group-hover:shadow-md transition-all cursor-pointer" data-action="detail" data-product-id="${escapeHTML(product.id)}" title="คลิกเพื่อดูรายละเอียดและสั่งซื้อ">
+                    <div class="relative w-full aspect-square rounded-xl sm:rounded-2xl overflow-hidden mb-2 bg-slate-100 border border-slate-100 shadow-2xs group-hover:shadow-md transition-all cursor-pointer" data-action="detail" data-product-id="${escapeHTML(product.id)}" title="คลิกเพื่อดูรายละเอียดและสั่งซื้อ">
                         <img src="${escapeHTML(product.image || 'images/products/' + product.id + '.jpg')}" 
                              alt="${escapeHTML(product.title)}" 
                              loading="lazy"
                              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                              onerror="this.parentElement.style.display='none';">
-                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-2.5 pointer-events-none">
-                            <span class="text-[11px] font-bold text-white bg-slate-900/70 backdrop-blur-xs px-2.5 py-1 rounded-xl flex items-center gap-1.5 shadow-sm">
-                                <i class="fa-regular fa-eye"></i> ดูรายละเอียด
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-2 pointer-events-none">
+                            <span class="text-[10px] font-bold text-white bg-slate-900/70 backdrop-blur-xs px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                                <i class="fa-regular fa-eye"></i> ดูข้อมูล
                             </span>
-                            <span class="text-[10px] font-bold text-pink-300 bg-pink-950/80 px-2 py-0.5 rounded-lg border border-pink-500/30">
-                                ลิขสิทธิ์แท้
+                            <span class="text-[9px] font-bold text-pink-300 bg-pink-950/80 px-1.5 py-0.5 rounded border border-pink-500/30">
+                                แท้ 100%
                             </span>
                         </div>
                     </div>
 
-                    <!-- Marketing Badge (e.g. ⭐ แพ็คขายดีติดดาว / 🔥 ขายดีอันดับ 1) -->
+                    <!-- Marketing Badge -->
                     ${product.badge ? `
-                        <div class="mb-2">
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] border ${badgeClass}">
-                                ${isStarBadge && !product.badge.includes('⭐') ? '<i class="fa-solid fa-star text-amber-500 text-[10px]"></i>' : ''}
-                                <span>${escapeHTML(product.badge)}</span>
+                        <div class="mb-1.5">
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-md text-[9px] sm:text-[11px] border ${badgeClass}">
+                                ${isStarBadge && !product.badge.includes('⭐') ? '<i class="fa-solid fa-star text-amber-500 text-[9px]"></i>' : ''}
+                                <span class="truncate max-w-[120px] sm:max-w-none">${escapeHTML(product.badge)}</span>
                             </span>
                         </div>
                     ` : ''}
 
-                    <!-- Product Title (Regular font as requested) -->
-                    <h3 class="text-sm sm:text-base font-normal text-slate-800 line-clamp-2 min-h-[40px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <!-- Product Title -->
+                    <h3 class="text-xs sm:text-base font-normal text-slate-800 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
-                    <!-- Concise Subtitle Benefit -->
-                    <p class="text-xs text-slate-500 font-medium mt-1 leading-relaxed line-clamp-2 min-h-[32px]">
+                    <!-- Concise Subtitle Benefit (Desktop only to keep mobile cards neat) -->
+                    <p class="hidden sm:block text-xs text-slate-500 font-medium mt-1 leading-relaxed line-clamp-2 min-h-[32px]">
                         ${escapeHTML(product.subtitle || product.description)}
                     </p>
 
-                    <!-- 2x2 Neat Specs Grid -->
-                    <div class="grid grid-cols-2 gap-1.5 mt-3 text-[11px] font-medium text-slate-700">
+                    <!-- Mobile compact specs tag -->
+                    <div class="sm:hidden flex items-center gap-1 mt-1.5 text-[10px] font-medium text-slate-600 truncate">
+                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">🛡️ ${escapeHTML(product.duration || '30 วัน')}</span>
+                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">⚡ ส่งไว</span>
+                    </div>
+
+                    <!-- 2x2 Neat Specs Grid (Desktop) -->
+                    <div class="hidden sm:grid grid-cols-2 gap-1.5 mt-3 text-[11px] font-medium text-slate-700">
                         <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระยะเวลา: ${escapeHTML(product.duration || '30 วัน')}">
                             <i class="fa-regular fa-clock text-pink-500 text-xs shrink-0"></i>
                             <span class="truncate">${escapeHTML(product.duration || '30 วัน')}</span>
@@ -1155,40 +1196,39 @@ function renderProducts() {
                     </div>
 
                     <!-- Live Stock Counter & Rating -->
-                    <div class="flex items-center justify-between mt-3 text-xs font-medium border-t border-slate-100 pt-2.5">
-                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 font-medium' : 'text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200 font-medium'}">
-                            <span class="w-2 h-2 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-                            <span class="text-[11px]">${inStock ? `มีพร้อมส่ง (${product.stock} ชิ้น)` : 'สินค้าหมดชั่วคราว'}</span>
+                    <div class="flex items-center justify-between mt-2 sm:mt-3 text-[10px] sm:text-xs font-medium border-t border-slate-100 pt-1.5 sm:pt-2.5">
+                        <span class="flex items-center gap-1 ${inStock ? 'text-emerald-700 bg-emerald-50 px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg border border-rose-200'}">
+                            <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+                            <span class="text-[9px] sm:text-[11px]">${inStock ? `พร้อมส่ง (${product.stock})` : 'หมด'}</span>
                         </span>
-                        <span class="flex items-center gap-1 text-slate-500 text-[11px] font-medium">
-                            <i class="fa-solid fa-star text-amber-400 text-xs"></i>
+                        <span class="flex items-center gap-0.5 text-slate-500 text-[9px] sm:text-[11px] font-medium">
+                            <i class="fa-solid fa-star text-amber-400 text-[10px] sm:text-xs"></i>
                             <b class="text-slate-800 font-semibold">${product.rating || '5.0'}</b>
-                            <span class="text-slate-400">(${product.soldCount.toLocaleString()})</span>
                         </span>
                     </div>
                 </div>
 
                 <!-- Price and Action Buttons -->
-                <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <div>
-                        <div class="flex items-center gap-1.5">
-                            <span class="text-xs text-slate-400 line-through font-normal">฿${product.originalPrice.toFixed(2)}</span>
-                            ${discountPct > 0 ? `<span class="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md">-${discountPct}%</span>` : ''}
+                <div class="mt-2 sm:mt-3.5 pt-2 sm:pt-3 border-t border-slate-100 flex items-center justify-between gap-1 sm:gap-2">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1">
+                            <span class="text-[10px] sm:text-xs text-slate-400 line-through font-normal">฿${product.originalPrice.toFixed(0)}</span>
+                            ${discountPct > 0 ? `<span class="text-[8px] sm:text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1 rounded">-${discountPct}%</span>` : ''}
                         </div>
-                        <div class="text-2xl sm:text-2xl font-bold text-pink-600 flex items-baseline tracking-tight">
-                            <span class="text-sm font-semibold mr-0.5">฿</span>${product.price.toFixed(2)}
+                        <div class="text-sm sm:text-2xl font-black text-pink-600 flex items-baseline tracking-tight truncate">
+                            <span class="text-[11px] sm:text-sm font-semibold mr-0.5">฿</span>${product.price.toFixed(0)}
                         </div>
                     </div>
-                    <div class="flex items-center gap-1.5 sm:gap-2">
+                    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
-                            class="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-sm transition-all shadow-2xs hover:scale-105 active:scale-95 touch-active">
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs active:scale-95 touch-active cursor-pointer">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-3.5 sm:px-4 h-10 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md shadow-pink-500/20 hover:scale-[1.02] active:scale-95 touch-active transition-all ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
-                            <i class="fa-solid fa-cart-plus"></i>
-                            <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
+                            class="gradient-btn px-2 sm:px-4 h-7 sm:h-10 rounded-xl sm:rounded-2xl text-[10px] sm:text-sm font-bold flex items-center gap-1 shadow-md shadow-pink-500/20 active:scale-95 touch-active transition-all cursor-pointer ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
+                            <i class="fa-solid fa-cart-plus text-[10px] sm:text-xs"></i>
+                            <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
                     </div>
                 </div>
@@ -7454,7 +7494,7 @@ function renderVoucherHubSection() {
         }
 
         return `
-            <div class="voucher-ticket rounded-2xl overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-xl transition-all group ${isApplied ? 'ring-2 ring-emerald-500' : ''}">
+            <div class="voucher-ticket rounded-2xl overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-xl transition-all group min-w-[260px] max-w-[280px] sm:min-w-0 sm:max-w-none snap-start shrink-0 sm:shrink ${isApplied ? 'ring-2 ring-emerald-500' : ''}">
                 <div class="bg-gradient-to-r ${gradClass} p-4 text-white relative promo-shimmer">
                     <div class="flex items-center justify-between gap-1 mb-1.5">
                         <span class="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-[10px] font-black tracking-wider uppercase">
