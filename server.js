@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const mailService = require('./mail-service');
-const upload = multer({ 
+const upload = multer({
     limits: { fileSize: 15 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowedExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic'];
@@ -66,12 +66,12 @@ app.use((req, res, next) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=(), payment=()');
-    
+
     // HSTS (HTTP Strict Transport Security) - enforce HTTPS for 1 year
     if (process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https') {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     }
-    
+
     // Balanced Content Security Policy
     res.setHeader('Content-Security-Policy', [
         "default-src 'self'",
@@ -112,7 +112,7 @@ app.use(express.json({ limit: '1mb' }));
 // ป้องกันการเข้าถึงไฟล์ secure_database.json, .env, server.js, package.json ผ่านหน้าเว็บ
 app.use((req, res, next) => {
     let cleanPath = req.path;
-    try { cleanPath = decodeURIComponent(req.path); } catch {}
+    try { cleanPath = decodeURIComponent(req.path); } catch { }
     const forbidden = [
         /(^|\/)secure_database/i,
         /(^|\/)database\.json/i,
@@ -159,9 +159,9 @@ try {
     const destPngFile = path.join(imagesDir, 'pop_new.png');
     const destJpgFile = path.join(imagesDir, 'pop_new.jpg');
     if (fs.existsSync(destPngFile) && !fs.existsSync(destJpgFile)) {
-        try { fs.copyFileSync(destPngFile, destJpgFile); } catch {}
+        try { fs.copyFileSync(destPngFile, destJpgFile); } catch { }
     } else if (fs.existsSync(destJpgFile) && !fs.existsSync(destPngFile)) {
-        try { fs.copyFileSync(destJpgFile, destPngFile); } catch {}
+        try { fs.copyFileSync(destJpgFile, destPngFile); } catch { }
     }
 
     // Auto-sync all 19 product banner images
@@ -194,7 +194,7 @@ try {
     for (const [destName, srcPath] of Object.entries(productImagesMap)) {
         const destPath = path.join(productsImgDir, destName);
         if (fs.existsSync(srcPath)) {
-            try { fs.copyFileSync(srcPath, destPath); } catch {}
+            try { fs.copyFileSync(srcPath, destPath); } catch { }
         }
     }
 
@@ -205,7 +205,7 @@ try {
     const customerSlipBrain = path.join(brainDir, '.user_uploaded', 'media_1791164474838.jpg');
     const customerSlipLocal = path.join(slipsDir, 'slip_piyawat_224_10.jpg');
     if (fs.existsSync(customerSlipBrain) && !fs.existsSync(customerSlipLocal)) {
-        try { fs.copyFileSync(customerSlipBrain, customerSlipLocal); } catch {}
+        try { fs.copyFileSync(customerSlipBrain, customerSlipLocal); } catch { }
     }
 } catch (e) {
     // Non-blocking
@@ -358,18 +358,18 @@ const DB_BAK = path.join(__dirname, 'secure_database.json.bak');
 const BACKUPS_DIR = path.join(__dirname, 'backups');
 
 if (!fs.existsSync(BACKUPS_DIR)) {
-    try { fs.mkdirSync(BACKUPS_DIR, { recursive: true }); } catch (e) {}
+    try { fs.mkdirSync(BACKUPS_DIR, { recursive: true }); } catch (e) { }
 }
 
 function createAutoDatabaseSnapshot() {
     try {
         if (!fs.existsSync(DB_FILE)) return;
         if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
-        
+
         const now = new Date();
         const dateKey = now.toISOString().split('T')[0];
         const snapshotFile = path.join(BACKUPS_DIR, `snapshot_${dateKey}.json`);
-        
+
         fs.copyFileSync(DB_FILE, snapshotFile);
 
         // Keep last 14 snapshots, prune older ones
@@ -379,7 +379,7 @@ function createAutoDatabaseSnapshot() {
         if (files.length > 14) {
             const toDelete = files.slice(0, files.length - 14);
             toDelete.forEach(f => {
-                try { fs.unlinkSync(path.join(BACKUPS_DIR, f)); } catch {}
+                try { fs.unlinkSync(path.join(BACKUPS_DIR, f)); } catch { }
             });
         }
     } catch (e) {
@@ -504,7 +504,7 @@ function getDb() {
                     data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
                 }
                 return data;
-            } catch (e) {}
+            } catch (e) { }
         }
     }
     return {
@@ -533,7 +533,7 @@ function saveDb(data) {
         const jsonStr = JSON.stringify(data, null, 2);
         fs.writeFileSync(DB_TMP, jsonStr, 'utf-8');
         if (fs.existsSync(DB_FILE)) {
-            try { fs.copyFileSync(DB_FILE, DB_BAK); } catch (e) {}
+            try { fs.copyFileSync(DB_FILE, DB_BAK); } catch (e) { }
         }
         fs.renameSync(DB_TMP, DB_FILE);
     } catch (err) {
@@ -741,7 +741,7 @@ async function sendDiscordNotification(webhookUrl, order, isFulfillmentUpdate = 
     if (!isValidDiscordWebhookUrl(webhookUrl)) return;
     try {
         const isPending = (order.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment');
-        
+
         let color = 0x10B981; // emerald
         const safeOrderId = String(order.orderId || '-').replace(/[`\\]/g, '').slice(0, 32);
         let title = `🛒 มีคำสั่งซื้อใหม่ #${safeOrderId}`;
@@ -814,10 +814,10 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         // [AUTHENTICATION GATE] ผู้เล่นต้องเข้าสู่ระบบหรือสมัครสมาชิกก่อนชำระเงิน
         const userSession = authenticateUser(req);
         if (!userSession || !userSession.email) {
-            return res.status(401).json({ 
-                success: false, 
-                requireLogin: true, 
-                message: "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกคีย์เข้าบัญชีของคุณ" 
+            return res.status(401).json({
+                success: false,
+                requireLogin: true,
+                message: "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกคีย์เข้าบัญชีของคุณ"
             });
         }
 
@@ -930,7 +930,7 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         // ── Save slip image to disk for admin audit & fulfillment ──
         const slipsDir = path.join(__dirname, 'images', 'slips');
         if (!fs.existsSync(slipsDir)) {
-            try { fs.mkdirSync(slipsDir, { recursive: true }); } catch {}
+            try { fs.mkdirSync(slipsDir, { recursive: true }); } catch { }
         }
         const slipFilename = `${slipHash.slice(0, 20)}.jpg`;
         const slipFilePath = path.join(slipsDir, slipFilename);
@@ -964,9 +964,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                     console.warn("[SLIPOK] Non-success response:", slipJson);
                     // If SlipOK explicitly says the slip has duplicate usage or bank rejection
                     if (slipJson.code === 1001 || (slipJson.message && (slipJson.message.includes('สลิปซ้ำ') || slipJson.message.includes('ไม่พบข้อมูล')))) {
-                        return res.status(400).json({ 
-                            success: false, 
-                            message: slipJson.message || "สลิปไม่ถูกต้อง หรือไม่ผ่านการตรวจสอบจากระบบธนาคาร" 
+                        return res.status(400).json({
+                            success: false,
+                            message: slipJson.message || "สลิปไม่ถูกต้อง หรือไม่ผ่านการตรวจสอบจากระบบธนาคาร"
                         });
                     }
                     // Quota exhausted, branch inactive, or temporary service issue: fall back to manual review queue
@@ -981,9 +981,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                     // Check transferred amount
                     const transferred = parseFloat(slipData.amount);
                     if (isNaN(transferred) || transferred < expectedTotal) {
-                        return res.status(400).json({ 
-                            success: false, 
-                            message: `ยอดเงินในสลิป (฿${(transferred || 0).toFixed(2)}) ไม่ตรงกับยอดชำระที่ต้องโอน (฿${expectedTotal.toFixed(2)})` 
+                        return res.status(400).json({
+                            success: false,
+                            message: `ยอดเงินในสลิป (฿${(transferred || 0).toFixed(2)}) ไม่ตรงกับยอดชำระที่ต้องโอน (฿${expectedTotal.toFixed(2)})`
                         });
                     }
 
@@ -1380,10 +1380,10 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
         const sanitized = newCredentials.slice(0, MAX_BATCH).map(cred => {
             if (!cred || typeof cred !== 'object' || Array.isArray(cred)) return null;
             return {
-                ...(cred.email     ? { email:        String(cred.email).slice(0, 254) }        : {}),
-                ...(cred.password  ? { password:     String(cred.password).slice(0, 512) }     : {}),
-                ...(cred.key       ? { key:          String(cred.key).slice(0, 512) }          : {}),
-                ...(cred.link      ? { link:         String(cred.link).slice(0, 2048) }        : {}),
+                ...(cred.email ? { email: String(cred.email).slice(0, 254) } : {}),
+                ...(cred.password ? { password: String(cred.password).slice(0, 512) } : {}),
+                ...(cred.key ? { key: String(cred.key).slice(0, 512) } : {}),
+                ...(cred.link ? { link: String(cred.link).slice(0, 2048) } : {}),
                 ...(cred.instructions ? { instructions: String(cred.instructions).slice(0, 1000) } : {}),
             };
         }).filter(c => c !== null && (c.email || c.key || c.link));
@@ -1535,7 +1535,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
     if (!db.customProducts) db.customProducts = {};
     if (!db.customPrices) db.customPrices = {};
 
-    const prodId = (id && typeof id === 'string' && id.trim()) 
+    const prodId = (id && typeof id === 'string' && id.trim())
         ? id.trim().toLowerCase().replace(/[^a-z0-9\-]/g, '-')
         : 'prod-' + Date.now().toString(36);
 
@@ -1630,7 +1630,7 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
     const smtp = db.smtpConfig || {};
     const actualSlipOkKey = (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
     const hasSlipOkKey = actualSlipOkKey.length > 0;
-    const slipOkKeyHint = hasSlipOkKey 
+    const slipOkKeyHint = hasSlipOkKey
         ? (actualSlipOkKey.length > 8 ? actualSlipOkKey.slice(0, 4) + '••••••••' + actualSlipOkKey.slice(-4) : '••••••••')
         : '';
 
@@ -1643,8 +1643,8 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
         hasSlipOkKey,
         slipOkKeyHint,
         geminiApiKey: (process.env.GEMINI_API_KEY || db.geminiApiKey) ? '******' : '',
-        discordWebhookUrl: (process.env.DISCORD_WEBHOOK_URL || db.discordWebhookUrl) 
-            ? (process.env.DISCORD_WEBHOOK_URL ? '******' : (db.discordWebhookUrl || '')) 
+        discordWebhookUrl: (process.env.DISCORD_WEBHOOK_URL || db.discordWebhookUrl)
+            ? (process.env.DISCORD_WEBHOOK_URL ? '******' : (db.discordWebhookUrl || ''))
             : '',
         smtpConfig: {
             host: process.env.SMTP_HOST || smtp.host || '',
@@ -1652,12 +1652,12 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
             user: process.env.SMTP_USER || smtp.user || '',
             pass: (process.env.SMTP_PASS || smtp.pass) ? '******' : '',
             from: process.env.SMTP_FROM || smtp.from || '',
-            resendKey:     (process.env.RESEND_API_KEY     || smtp.resendKey)     ? '******' : '',
-            brevoKey:      (process.env.BREVO_API_KEY      || smtp.brevoKey)      ? '******' : '',
-            sendgridKey:   (process.env.SENDGRID_API_KEY   || smtp.sendgridKey)   ? '******' : '',
-            mailjetKey:    (process.env.MAILJET_API_KEY    || smtp.mailjetKey)    ? '******' : '',
+            resendKey: (process.env.RESEND_API_KEY || smtp.resendKey) ? '******' : '',
+            brevoKey: (process.env.BREVO_API_KEY || smtp.brevoKey) ? '******' : '',
+            sendgridKey: (process.env.SENDGRID_API_KEY || smtp.sendgridKey) ? '******' : '',
+            mailjetKey: (process.env.MAILJET_API_KEY || smtp.mailjetKey) ? '******' : '',
             mailjetSecret: (process.env.MAILJET_SECRET_KEY || smtp.mailjetSecret) ? '******' : '',
-            logoUrl:       process.env.LOGO_URL || smtp.logoUrl || ''
+            logoUrl: process.env.LOGO_URL || smtp.logoUrl || ''
         }
     });
 });
@@ -1805,23 +1805,23 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
                 saveDb(db);
                 autoSaved = true;
             }
-            return res.json({ 
-                success: true, 
+            return res.json({
+                success: true,
                 message: `เชื่อมต่อ SlipOK สำเร็จ! โควต้าคงเหลือ: ${quota} ครั้ง${autoSaved ? ' (บันทึกลงระบบอัตโนมัติแล้ว)' : ''}`,
                 quota,
                 saved: autoSaved,
                 branchId: targetBranchId
             });
         } else {
-            return res.status(400).json({ 
-                success: false, 
-                message: `SlipOK แจ้งเตือน: ${data.message || 'รหัส API Key หรือ Branch ID ไม่ถูกต้อง'}` 
+            return res.status(400).json({
+                success: false,
+                message: `SlipOK แจ้งเตือน: ${data.message || 'รหัส API Key หรือ Branch ID ไม่ถูกต้อง'}`
             });
         }
     } catch (err) {
-        return res.status(500).json({ 
-            success: false, 
-            message: `ไม่สามารถเชื่อมต่อไปยัง SlipOK ได้: ${err.message}` 
+        return res.status(500).json({
+            success: false,
+            message: `ไม่สามารถเชื่อมต่อไปยัง SlipOK ได้: ${err.message}`
         });
     }
 });
@@ -1884,12 +1884,12 @@ app.post('/api/admin/test-email', adminRateLimit, async (req, res) => {
             }
         }
 
-        const effectivePass    = customConfig?.pass        || db.smtpConfig?.pass        || process.env.SMTP_PASS;
-        const effectiveResend  = customConfig?.resendKey   || db.smtpConfig?.resendKey   || process.env.RESEND_API_KEY;
-        const effectiveBrevo   = customConfig?.brevoKey    || db.smtpConfig?.brevoKey    || process.env.BREVO_API_KEY;
-        const effectiveSg      = customConfig?.sendgridKey || db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
-        const effectiveMj      = (customConfig?.mailjetKey || db.smtpConfig?.mailjetKey  || process.env.MAILJET_API_KEY) &&
-                                 (customConfig?.mailjetSecret || db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY);
+        const effectivePass = customConfig?.pass || db.smtpConfig?.pass || process.env.SMTP_PASS;
+        const effectiveResend = customConfig?.resendKey || db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
+        const effectiveBrevo = customConfig?.brevoKey || db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
+        const effectiveSg = customConfig?.sendgridKey || db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
+        const effectiveMj = (customConfig?.mailjetKey || db.smtpConfig?.mailjetKey || process.env.MAILJET_API_KEY) &&
+            (customConfig?.mailjetSecret || db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY);
         if (!effectivePass && !effectiveResend && !effectiveBrevo && !effectiveSg && !effectiveMj) {
             return res.status(400).json({
                 success: false,
@@ -2060,9 +2060,9 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
 
         // Sanitize coupons
         if (Array.isArray(restored.coupons) && restored.coupons.length > 0) {
-            sanitizedDb.coupons = restored.coupons.filter(c => 
-                c && typeof c === 'object' && 
-                typeof c.code === 'string' && 
+            sanitizedDb.coupons = restored.coupons.filter(c =>
+                c && typeof c === 'object' &&
+                typeof c.code === 'string' &&
                 /^[A-Z0-9_\-]{2,32}$/i.test(c.code.trim()) &&
                 (typeof c.value === 'number' || typeof c.discountValue === 'number')
             ).map(c => {
@@ -2151,9 +2151,9 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
 
         // Sanitize orders (Must have valid orderId)
         if (Array.isArray(restored.orders)) {
-            sanitizedDb.orders = restored.orders.filter(o => 
-                o && typeof o === 'object' && 
-                typeof o.orderId === 'string' && 
+            sanitizedDb.orders = restored.orders.filter(o =>
+                o && typeof o === 'object' &&
+                typeof o.orderId === 'string' &&
                 /^[a-zA-Z0-9_\-]{3,64}$/.test(o.orderId)
             );
         }
@@ -2190,7 +2190,7 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
 
         const actualSlipOkKey = (process.env.SLIPOK_API_KEY || sanitizedDb.slipOkApiKey || '').trim();
         const hasSlipOkKey = actualSlipOkKey.length > 0;
-        const slipOkKeyHint = hasSlipOkKey 
+        const slipOkKeyHint = hasSlipOkKey
             ? (actualSlipOkKey.length > 8 ? actualSlipOkKey.slice(0, 4) + '••••••••' + actualSlipOkKey.slice(-4) : '••••••••')
             : '';
 
@@ -2259,8 +2259,8 @@ app.get('/api/admin/users', adminRateLimit, (req, res) => {
     const orders = db.orders || [];
 
     const enrichedUsers = users.map(u => {
-        const userOrders = orders.filter(o => 
-            (o.userId && o.userId === u.id) || 
+        const userOrders = orders.filter(o =>
+            (o.userId && o.userId === u.id) ||
             (o.email && o.email.toLowerCase() === (u.email || '').toLowerCase()) ||
             (o.recipientEmail && o.recipientEmail.toLowerCase() === (u.email || '').toLowerCase())
         );
@@ -2309,8 +2309,8 @@ app.get('/api/admin/users', adminRateLimit, (req, res) => {
     const onlineCount = enrichedUsers.filter(u => u.isOnline).length;
     const offlineCount = enrichedUsers.length - onlineCount;
 
-    res.json({ 
-        success: true, 
+    res.json({
+        success: true,
         users: enrichedUsers,
         summary: {
             total: enrichedUsers.length,
@@ -2603,8 +2603,8 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
             email: normalEmail,
             message: mailResult.delivered
                 ? "ระบบได้ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว (หากไม่พบในกล่องจดหมาย กรุณาตรวจสอบโฟลเดอร์สแปม/เมลขยะ)"
-                : (isDevLocal 
-                    ? (mailResult.deliveryError 
+                : (isDevLocal
+                    ? (mailResult.deliveryError
                         ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP สำหรับทดสอบคือ: ${otp}`
                         : `[โหมดทดสอบ] เซิร์ฟเวอร์ยังไม่ได้เชื่อมต่อ SMTP ร้านค้า รหัส OTP ทดสอบคือ: ${otp}`)
                     : "ระบบไม่สามารถจัดส่งอีเมล OTP ได้ในขณะนี้ กรุณาลองใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่ร้านค้า"),
@@ -2653,7 +2653,7 @@ app.post('/api/auth/verify-otp', otpRateLimit, (req, res) => {
 
         const enteredHash = crypto.createHash('sha256').update(normalEmail + ':' + cleanOtp).digest('hex');
         const isMatch = enteredHash.length === pending.otpHash.length &&
-                        crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(pending.otpHash));
+            crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(pending.otpHash));
 
         if (!isMatch) {
             pending.attempts = (pending.attempts || 0) + 1;
@@ -2913,7 +2913,7 @@ app.post('/api/auth/reset-password', otpRateLimit, (req, res) => {
 
         const enteredHash = crypto.createHash('sha256').update(normalEmail + ':reset:' + cleanOtp).digest('hex');
         const isMatch = enteredHash.length === resetRecord.otpHash.length &&
-                        crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(resetRecord.otpHash));
+            crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(resetRecord.otpHash));
 
         if (!isMatch) {
             resetRecord.attempts = (resetRecord.attempts || 0) + 1;
@@ -3122,7 +3122,7 @@ app.post('/api/telemetry/heartbeat', telemetryRateLimit, (req, res) => {
         activeSessions.set(sessionId, session);
 
         // Update database daily analytics
-        const db = getDb();
+
         const today = getTodayAnalytics(db);
         if (!today.visitors.includes(sessionId)) {
             today.visitors.push(sessionId);
@@ -3247,8 +3247,8 @@ app.get('/api/admin/analytics', adminRateLimit, (req, res) => {
     if (today.revenue > todayRevenue) todayRevenue = today.revenue;
 
     const uniqueVisitorsCount = Math.max(today.visitors.length, liveList.length);
-    const conversionRate = uniqueVisitorsCount > 0 
-        ? ((todayOrdersCount / uniqueVisitorsCount) * 100).toFixed(1) + '%' 
+    const conversionRate = uniqueVisitorsCount > 0
+        ? ((todayOrdersCount / uniqueVisitorsCount) * 100).toFixed(1) + '%'
         : '0.0%';
 
     // Top products by views and cart additions
@@ -3265,7 +3265,7 @@ app.get('/api/admin/analytics', adminRateLimit, (req, res) => {
             cartAdds
         };
     }).filter(p => p.views > 0 || p.cartAdds > 0)
-      .sort((a, b) => (b.views + b.cartAdds * 2) - (a.views + a.cartAdds * 2));
+        .sort((a, b) => (b.views + b.cartAdds * 2) - (a.views + a.cartAdds * 2));
 
     const productViewsTotal = Object.values(today.productViews || {}).reduce((s, v) => s + v, 0);
     const cartAddsTotal = Object.values(today.cartAdds || {}).reduce((s, v) => s + v, 0);
@@ -3316,11 +3316,11 @@ const orderLookupsPerSession = new Map();
 async function callGeminiAI(userMsg, sessionId, apiKey) {
     const history = chatHistoryPerSession.get(sessionId) || [];
     const db = getDb();
-    
+
     const activeCoupons = (db.coupons || []).filter(c => c.active !== false).map(c => `${c.code} (${c.title || c.description})`).join(', ');
-    
-    const systemInstruction = 
-`คุณคือ "น้องพิงกี้" (Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI)
+
+    const systemInstruction =
+        `คุณคือ "น้องพิงกี้" (Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI)
 ร้าน Supinkly.AI เป็นแพลตฟอร์มจำหน่ายบัญชี AI พรีเมียม, ลิขสิทธิ์ดิจิทัล, คลาวด์ไดรฟ์ และคีย์ซอฟต์แวร์แท้ 100%
 บุคลิกของคุณ: สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" และลงท้ายด้วย "ครับ/ผม" เสมอ
 
@@ -3339,7 +3339,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 - ห้ามให้ข้อมูลเท็จ หากไม่แน่ใจให้แนะนำให้ติดต่อแอดมินคนจริงในแชทนี้`;
 
     const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-    
+
     for (const model of modelsToTry) {
         try {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -3657,7 +3657,7 @@ const wsHeartbeat = setInterval(() => {
             continue;
         }
         client.ws.isAlive = false;
-        try { client.ws.ping(); } catch {}
+        try { client.ws.ping(); } catch { }
     }
 }, 35000);
 
@@ -3702,8 +3702,8 @@ wss.on('connection', (ws, req) => {
         if (data.type === 'auth') {
             if (data.role === 'admin') {
                 // [SECURITY] Token-only auth over WebSocket — supports stateless HMAC token & in-memory session
-                const isTokenValid = (data.token && verifyAdminToken(data.token)) || 
-                                     (data.token && adminSessions.has(data.token) && Date.now() < adminSessions.get(data.token));
+                const isTokenValid = (data.token && verifyAdminToken(data.token)) ||
+                    (data.token && adminSessions.has(data.token) && Date.now() < adminSessions.get(data.token));
 
                 if (isTokenValid) {
                     clientInfo.role = 'admin';
