@@ -652,6 +652,16 @@ function scrollToProducts() {
     }
 }
 
+function openLiveChat() {
+    if (typeof CHAT !== 'undefined' && typeof CHAT.openChatWindow === 'function') {
+        CHAT.openChatWindow();
+    } else {
+        const btn = document.getElementById('spk-chat-btn');
+        btn?.click();
+    }
+}
+window.openLiveChat = openLiveChat;
+
 // ==========================================
 // MOBILE SLIDE-OUT MENU DRAWER
 // ==========================================
@@ -700,6 +710,7 @@ function initHeader() {
     const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
     const user = isLoggedIn ? USER_AUTH.getUser() : null;
     const displayName = user?.displayName || user?.email?.split('@')[0] || '';
+    const isAdminActive = typeof ADMIN_AUTH !== 'undefined' && ADMIN_AUTH.checkSession();
 
     // Synchronize mobile bottom nav orders count
     const orderCount = state.orders ? state.orders.length : 0;
@@ -709,9 +720,23 @@ function initHeader() {
         mNavCnt.classList.toggle('hidden', orderCount <= 0);
     }
 
+    const adminHeaderBtn = isAdminActive ? `
+        <button onclick="openAdminModal()" class="h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500 via-rose-500 to-pink-500 text-white shadow-md shadow-pink-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ระบบจัดการหลังบ้าน (เซสชันแอดมินทำงานอยู่)">
+            <i class="fa-solid fa-gears text-sm"></i>
+            <span class="hidden md:inline">หลังบ้าน</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        </button>
+    ` : `
+        <button onclick="promptAdminLogin()" class="hidden lg:flex h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200/80 transition-all shadow-2xs items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="จัดการร้านค้า">
+            <i class="fa-solid fa-gears text-slate-500"></i>
+            <span class="hidden xl:inline">หลังบ้าน</span>
+        </button>
+    `;
+
     if (isLoggedIn && user) {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
+                ${adminHeaderBtn}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
@@ -722,15 +747,18 @@ function initHeader() {
                         <span class="hidden sm:inline max-w-[80px] truncate">${escapeHTML(displayName)}</span>
                         <i class="fa-solid fa-chevron-down text-[10px] text-emerald-500"></i>
                     </button>
-                    <div class="hidden group-hover:flex absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl shadow-xl border border-slate-100 flex-col overflow-hidden z-50 py-1">
+                    <div class="hidden group-hover:flex absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 flex-col overflow-hidden z-50 py-1">
                         <div class="px-4 py-2 border-b border-slate-100">
                             <div class="text-xs font-bold text-slate-800 truncate">${escapeHTML(displayName)}</div>
                             <div class="text-[10px] text-slate-400 font-medium truncate">${escapeHTML(user.email || '')}</div>
                         </div>
                         <button onclick="openOrdersModal()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <i class="fa-solid fa-vault text-purple-500 w-4"></i> คีย์ของฉัน
+                            <i class="fa-solid fa-box-open text-purple-500 w-4"></i> คีย์ของฉัน
                         </button>
-                        <button onclick="handleUserLogout()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                        <button onclick="promptAdminLogin()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-t border-slate-100">
+                            <i class="fa-solid fa-gears text-amber-500 w-4"></i> จัดการร้านค้า
+                        </button>
+                        <button onclick="handleUserLogout()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100">
                             <i class="fa-solid fa-right-from-bracket w-4"></i> ออกจากระบบ
                         </button>
                     </div>
@@ -740,6 +768,7 @@ function initHeader() {
     } else {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
+                ${adminHeaderBtn}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
@@ -1356,7 +1385,7 @@ function startCheckout() {
     const activeAuthUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null;
     if (!activeAuthUser || !activeAuthUser.email) {
         state.pendingCheckoutAfterAuth = true;
-        showToast("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อเก็บคีย์เข้าคลังของคุณ", "warning");
+        showToast("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกประวัติและรับรหัสของคุณ", "warning");
         openAuthModal('register');
         return;
     }
@@ -1687,7 +1716,7 @@ async function submitSlipVerification() {
             } else if (isPending) {
                 showToast("สลิปถูกต้องและยอดเงินตรง! ร้านค้ากำลังจัดเตรียมบัญชีให้คุณ (5-15 นาที)", "success");
             } else {
-                showToast("สลิปถูกต้องและยอดเงินตรง! ส่งมอบรหัสเข้าคลังเรียบร้อยแล้ว", "success");
+                showToast("ชำระเงินสำเร็จ! พร้อมรับรหัสเข้าใช้งานได้ทันที", "success");
             }
         }, 1200);
 
@@ -1741,7 +1770,7 @@ function openVaultModal(order) {
             statusIconEl.innerHTML = `<i class="fa-solid fa-shield-cat"></i>`;
         }
         if (statusTitleEl) {
-            statusTitleEl.textContent = "ตรวจสอบสลิปผ่าน & ส่งมอบรหัสเข้าคลังเรียบร้อย!";
+            statusTitleEl.textContent = "ชำระเงินสำเร็จ! ข้อมูลการเข้าใช้งานของคุณพร้อมแล้ว";
         }
         if (sectionTitleEl) {
             sectionTitleEl.innerHTML = `<i class="fa-solid fa-key text-pink-500"></i> <span>ข้อมูลบัญชี / คีย์ของคุณ (กดคัดลอกเพื่อใช้งาน):</span>`;
@@ -2283,8 +2312,8 @@ function renderOrdersHistory() {
                             <span>คัดลอกสรุปคำสั่งซื้อ</span>
                         </button>
                         <button onclick="viewPastOrderVault('${escapeHTML(order.orderId)}')" class="px-3 py-1.5 rounded-xl ${isOrderPending ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300' : 'gradient-btn-cyan text-white'} text-xs font-bold transition-all flex items-center gap-1 shadow-xs">
-                            <i class="fa-solid ${isOrderPending ? 'fa-clock' : 'fa-vault'}"></i>
-                            <span>${isOrderPending ? 'ติดตามใน Vault' : 'เปิดใน Vault'}</span>
+                            <i class="fa-solid ${isOrderPending ? 'fa-clock' : 'fa-key'}"></i>
+                            <span>${isOrderPending ? 'ติดตามสถานะจัดส่ง' : 'ดูรหัสเข้าใช้งาน'}</span>
                         </button>
                     </div>
                 </div>
@@ -2329,6 +2358,7 @@ function closeOrdersModal() {
 function handleAdminLogout() {
     ADMIN_AUTH.logout();
     closeAdminModal();
+    if (typeof initHeader === 'function') initHeader();
     showToast("ออกจากระบบผู้ดูแลเรียบร้อยแล้ว", "info");
 }
 
@@ -2367,8 +2397,9 @@ async function handleAdminPinSubmit(e) {
     try {
         await ADMIN_AUTH.verify(pin);
         closeAdminPinModal();
+        if (typeof initHeader === 'function') initHeader();
         openAdminModal();
-        showToast("เข้าสู่ระบบแอดมินสำเร็จ (เซสชันปลอดภัย 15 นาที)", "success");
+        showToast("เข้าสู่ระบบแอดมินสำเร็จ", "success");
     } catch (err) {
         showToast(err.message || "รหัส PIN แอดมินไม่ถูกต้อง", "warning");
         if (pinInput) {
@@ -2379,6 +2410,14 @@ async function handleAdminPinSubmit(e) {
         if (submitBtn) submitBtn.disabled = false;
     }
 }
+
+// Global shortcut Ctrl+Shift+A / Cmd+Shift+A for instant Admin Console access
+window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        promptAdminLogin();
+    }
+});
 
 // ==========================================
 // G2G MARKET LINK HELPER (ADMIN ONLY)
@@ -2519,12 +2558,12 @@ function switchAdminTab(tabName) {
         const panel = document.getElementById(`admin-tab-${t}`);
         if (t === tabName) {
             if (btn) {
-                btn.className = "px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-pink-500 to-rose-600 text-white flex items-center gap-2 shadow-md shadow-pink-500/25 transition-all shrink-0 cursor-pointer";
+                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-pink-500 to-rose-600 text-white flex items-center gap-2 shadow-md shadow-pink-500/25 transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.remove('hidden');
         } else {
             if (btn) {
-                btn.className = "px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0 cursor-pointer";
+                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-2 transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.add('hidden');
         }
@@ -2535,6 +2574,23 @@ function switchAdminTab(tabName) {
     if (tabName === 'coupons') renderAdminCouponsList();
     if (tabName === 'users') renderAdminUsersList();
     if (tabName === 'analytics') fetchAdminAnalytics(true);
+}
+
+function scrollToAdminSetting(sectionId) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("กรุณาเข้าสู่ระบบหลังร้านก่อนดำเนินการ", "warning");
+        promptAdminLogin();
+        return;
+    }
+    switchAdminTab('settings');
+    setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.classList.add('ring-2', 'ring-pink-500', 'transition-all');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-pink-500'), 1500);
+        }
+    }, 60);
 }
 
 function quickAdminNavigate(tabName, filter) {
@@ -2714,6 +2770,13 @@ function renderAdminOrdersList() {
             badge.className = "px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-black";
         }
     }
+
+    const filterAllBtn = document.getElementById('admin-order-filter-all');
+    if (filterAllBtn) filterAllBtn.textContent = `ทั้งหมด (${allAdminOrders.length})`;
+    const filterPendingBtn = document.getElementById('admin-order-filter-pending');
+    if (filterPendingBtn) filterPendingBtn.textContent = `🟡 รอจัดส่ง (${pendingCount})`;
+    const filterDeliveredBtn = document.getElementById('admin-order-filter-delivered');
+    if (filterDeliveredBtn) filterDeliveredBtn.textContent = `🟢 จัดส่งสำเร็จ (${deliveredCount})`;
 
     // Filter by tab
     let filteredOrders = allAdminOrders;
@@ -4171,7 +4234,7 @@ function openAddNewProductModal() {
     document.getElementById('edit-product-duration-input').value = "1 เดือน (30 วัน)";
     document.getElementById('edit-product-devices-input').value = "iOS • Android • Windows • Mac";
     document.getElementById('edit-product-warranty-input').value = "30 วัน";
-    document.getElementById('edit-product-desc-input').value = "• บัญชีส่วนตัว 1 ผู้ใช้ ใช้งานได้เต็มสิทธิ์\n• รับประกันการใช้งานตลอดอายุแพ็คเกจ\n• จัดส่งข้อมูลบัญชีทันทีผ่านระบบ AI Vault";
+    document.getElementById('edit-product-desc-input').value = "• บัญชีส่วนตัว 1 ผู้ใช้ ใช้งานได้เต็มสิทธิ์\n• รับประกันการใช้งานตลอดอายุแพ็คเกจ\n• จัดส่งข้อมูลบัญชีทันทีหลังชำระเงิน";
 
     document.getElementById('edit-price-sale').value = 99;
     document.getElementById('edit-price-original').value = 159;

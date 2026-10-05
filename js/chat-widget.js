@@ -58,11 +58,15 @@ const CHAT = (() => {
         el.innerHTML = `
         <!-- Bubble Button -->
         <button id="spk-chat-btn"
-            class="fixed bottom-20 right-3.5 sm:bottom-6 sm:right-6 z-40 w-12 h-12 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active"
-            title="แชทกับเราได้เลย" aria-label="เปิดแชท">
+            class="fixed bottom-20 right-3.5 sm:bottom-6 sm:right-6 z-40 w-12 h-12 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active group"
+            title="แชท Live สด กับเราได้ตลอด 24 ชม." aria-label="เปิดแชท">
             <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-xl sm:text-2xl text-white"></i>
             <span id="spk-chat-badge"
                 class="hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center">
+            </span>
+            <span class="hidden sm:group-hover:flex absolute right-full mr-3 whitespace-nowrap px-3 py-1.5 rounded-xl bg-slate-900/90 text-white text-xs font-bold shadow-lg items-center gap-1.5 pointer-events-none">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>แชท Live สด (24 ชม.)</span>
             </span>
         </button>
 
@@ -370,8 +374,27 @@ const CHAT = (() => {
         });
     }
 
-    return { init };
+    function openChatWindow() {
+        const win = document.getElementById('spk-chat-window');
+        const btn = document.getElementById('spk-chat-btn');
+        if (win && win.classList.contains('hidden')) {
+            btn?.click();
+        } else if (win) {
+            (document.getElementById('spk-msg-input') || document.getElementById('spk-name-input'))?.focus();
+        }
+    }
+
+    return { init, openChatWindow };
 })();
+
+window.openLiveChat = function() {
+    if (typeof CHAT !== 'undefined' && typeof CHAT.openChatWindow === 'function') {
+        CHAT.openChatWindow();
+    } else {
+        const btn = document.getElementById('spk-chat-btn');
+        btn?.click();
+    }
+};
 
 // Boot when DOM ready
 if (document.readyState === 'loading') {

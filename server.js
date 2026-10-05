@@ -115,6 +115,7 @@ app.use((req, res, next) => {
     try { cleanPath = decodeURIComponent(req.path); } catch {}
     const forbidden = [
         /(^|\/)secure_database/i,
+        /(^|\/)database\.json/i,
         /(^|\/)backups(\/|$)/i,
         /snapshot_.*\.json$/i,
         /backup.*\.json$/i,
@@ -695,6 +696,30 @@ const MASTER_CATALOG = {
     "ms-03": { title: "Microsoft Copilot Pro 1M", price: 590.00, warranty: "30 วัน" }
 };
 
+// Catalog product resolution helper (Unifies built-in catalog & custom admin products)
+function getCatalogProduct(productId, db) {
+    if (!productId || typeof productId !== 'string') return null;
+    const currentDb = db || getDb();
+    if (currentDb.customProducts && currentDb.customProducts[productId]) {
+        const cp = currentDb.customProducts[productId];
+        if (cp.deleted) return null;
+        return cp;
+    }
+    if (MASTER_CATALOG[productId]) {
+        return MASTER_CATALOG[productId];
+    }
+    return null;
+}
+
+// Effective unit price calculator (considers admin dynamic customPrices)
+function getEffectiveUnitPrice(productId, product, db) {
+    const currentDb = db || getDb();
+    if (currentDb.customPrices && currentDb.customPrices[productId] && typeof currentDb.customPrices[productId].price === 'number') {
+        return currentDb.customPrices[productId].price;
+    }
+    return (product && typeof product.price === 'number') ? product.price : 0;
+}
+
 // ─── [SECURITY FIX] Strict Discord Webhook URL Validator (Anti-SSRF) ─────────
 function isValidDiscordWebhookUrl(url) {
     if (!url || typeof url !== 'string') return false;
@@ -779,8 +804,12 @@ async function sendDiscordNotification(webhookUrl, order, isFulfillmentUpdate = 
     }
 }
 
+// In-flight slip mutex set to eliminate concurrent double-spend race conditions
+const inFlightSlips = new Set();
+
 // 1. API: Verify Slip & Dispense Product (Server-Side Verified)
 app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), async (req, res) => {
+    let activeSlipHash = null;
     try {
         // [AUTHENTICATION GATE] ผู้เล่นต้องเข้าสู่ระบบหรือสมัครสมาชิกก่อนชำระเงิน
         const userSession = authenticateUser(req);
@@ -812,9 +841,17 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
 
         // SHA-256 fingerprint จากไฟล์จริง
         const slipHash = computeSlipSHA256(req.file.buffer);
+        activeSlipHash = slipHash;
+
         if (db.usedSlips && db.usedSlips.includes(slipHash)) {
             return res.status(400).json({ success: false, message: "สลิปนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้" });
         }
+
+        // Concurrency Guard: ป้องกันการส่งสลิปซ้ำพร้อมกันในเสี้ยววินาที (Double-Spend / Anti-Replay)
+        if (inFlightSlips.has(slipHash)) {
+            return res.status(409).json({ success: false, message: "สลิปนี้กำลังอยู่ระหว่างการตรวจสอบ กรุณารอสักครู่" });
+        }
+        inFlightSlips.add(slipHash);
 
         // Validate cart items and calculate expected total price
         const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
@@ -829,13 +866,11 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             }
             item.quantity = qty;
 
-            const catalogItem = MASTER_CATALOG[item.productId];
+            const catalogItem = getCatalogProduct(item.productId, db);
             if (!catalogItem) {
                 return res.status(400).json({ success: false, message: `ไม่พบข้อมูลสินค้ารหัส: ${item.productId}` });
             }
-            const unitPrice = (db.customPrices && db.customPrices[item.productId] && typeof db.customPrices[item.productId].price === 'number')
-                ? db.customPrices[item.productId].price
-                : catalogItem.price;
+            const unitPrice = getEffectiveUnitPrice(item.productId, catalogItem, db);
             expectedTotal += unitPrice * qty;
         }
 
@@ -1031,21 +1066,21 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         let hasPending = !isAutoVerified;
 
         for (const item of parsedCart) {
-            const master = MASTER_CATALOG[item.productId];
+            const master = getCatalogProduct(item.productId, currentDb);
             if (!currentDb.inventory[item.productId]) currentDb.inventory[item.productId] = [];
             const pool = currentDb.inventory[item.productId];
-            const effectivePrice = (currentDb.customPrices && currentDb.customPrices[item.productId] && typeof currentDb.customPrices[item.productId].price === 'number')
-                ? currentDb.customPrices[item.productId].price
-                : master.price;
+            const effectivePrice = getEffectiveUnitPrice(item.productId, master, currentDb);
+            const productTitle = master ? master.title : item.productId;
+            const productWarranty = master ? master.warranty : "30 วัน";
 
             for (let i = 0; i < item.quantity; i++) {
                 if (isAutoVerified && pool.length > 0) {
                     const cred = pool.shift();
                     deliveredItems.push({
                         productId: item.productId,
-                        productTitle: master.title,
+                        productTitle: productTitle,
                         price: effectivePrice,
-                        warranty: master.warranty,
+                        warranty: productWarranty,
                         status: "delivered",
                         credentials: cred
                     });
@@ -1053,9 +1088,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                     hasPending = true;
                     deliveredItems.push({
                         productId: item.productId,
-                        productTitle: master.title,
+                        productTitle: productTitle,
                         price: effectivePrice,
-                        warranty: master.warranty,
+                        warranty: productWarranty,
                         status: "pending_fulfillment",
                         credentials: null
                     });
@@ -1127,6 +1162,10 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
     } catch (err) {
         console.error('checkout error:', err.message);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในระบบ" });
+    } finally {
+        if (activeSlipHash) {
+            inFlightSlips.delete(activeSlipHash);
+        }
     }
 });
 
@@ -1356,65 +1395,6 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
     res.json({ success: true, stockCount: db.inventory[productId].length });
 });
 
-// 2.1 API: Get Public Catalog & Dynamic Prices
-app.get('/api/catalog', (req, res) => {
-    const db = getDb();
-    res.json({
-        success: true,
-        catalog: MASTER_CATALOG,
-        customPrices: db.customPrices || {}
-    });
-});
-
-// 2.2 API: Admin Update or Reset Custom Price & Promotional Badge
-app.post('/api/admin/price', adminRateLimit, (req, res) => {
-    if (!authenticateAdmin(req)) {
-        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
-    }
-    const { productId, price, originalPrice, badge, action } = req.body;
-    const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
-    if (!productId || !VALID_ID_REGEX.test(productId) || !MASTER_CATALOG[productId]) {
-        return res.status(400).json({ success: false, message: "productId ไม่ถูกต้อง หรือไม่พบสินค้าในระบบ" });
-    }
-
-    const db = getDb();
-    if (!db.customPrices) db.customPrices = {};
-
-    if (action === 'reset') {
-        const numPrice = parseFloat(price);
-        if (!isNaN(numPrice) && numPrice > 0) {
-            db.customPrices[productId] = {
-                price: Math.round(numPrice * 100) / 100,
-                originalPrice: (!isNaN(numOrig) && numOrig >= numPrice) ? Math.round(numOrig * 100) / 100 : Math.round(numPrice * 1.85),
-                badge: '',
-                manualOverride: false,
-                updatedAt: new Date().toISOString()
-            };
-        } else {
-            delete db.customPrices[productId];
-        }
-        saveDb(db);
-        return res.json({ success: true, message: "คืนค่าราคาสินค้าเป็นระบบ Auto-Sync ตลาดเรียบร้อยแล้ว", customPrices: db.customPrices });
-    }
-
-    const numPrice = parseFloat(price);
-    if (isNaN(numPrice) || numPrice < 0) {
-        return res.status(400).json({ success: false, message: "ราคาขายไม่ถูกต้อง" });
-    }
-    const numOrig = parseFloat(originalPrice);
-
-    db.customPrices[productId] = {
-        price: Math.round(numPrice * 100) / 100,
-        originalPrice: (!isNaN(numOrig) && numOrig >= numPrice) ? Math.round(numOrig * 100) / 100 : Math.round(numPrice * 100) / 100,
-        badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : '',
-        manualOverride: true,
-        updatedAt: new Date().toISOString()
-    };
-
-    saveDb(db);
-    res.json({ success: true, message: "อัปเดตราคาและป้ายสินค้าสำเร็จ", customPrices: db.customPrices });
-});
-
 // 3. API: Admin Login & Session Verification
 app.post('/api/admin/login', adminLoginRateLimit, (req, res) => {
     const { pin } = req.body;
@@ -1484,6 +1464,7 @@ app.get('/api/catalog', (req, res) => {
     const customProducts = db.customProducts || {};
     res.json({
         success: true,
+        catalog: MASTER_CATALOG,
         customPrices,
         customProducts
     });
@@ -1506,11 +1487,14 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
         if (db.customPrices[productId]) {
             delete db.customPrices[productId].manualOverride;
             if (price !== undefined) {
-                db.customPrices[productId].price = parseFloat(price);
+                const parsedPrice = parseFloat(price);
+                if (!isNaN(parsedPrice)) {
+                    db.customPrices[productId].price = parsedPrice;
+                }
             }
         }
         saveDb(db);
-        return res.json({ success: true, message: "คืนค่าราคาตลาดสำเร็จ" });
+        return res.json({ success: true, message: "คืนค่าราคาตลาดสำเร็จ", customPrices: db.customPrices });
     }
 
     const numPrice = parseFloat(price);
@@ -2953,6 +2937,7 @@ app.post('/api/auth/reset-password', otpRateLimit, (req, res) => {
         }
 
         // Invalidate all existing sessions across all devices
+        user.passwordHash = hashPassword(pw, user.id);
         user.tokenVersion = (user.tokenVersion || 1) + 1;
         user.passwordUpdatedAt = new Date().toISOString();
         delete db.passwordResets[normalEmail];
@@ -3096,15 +3081,17 @@ app.post('/api/telemetry/heartbeat', telemetryRateLimit, (req, res) => {
 
         const cleanAction = (typeof action === 'string' && ALLOWED_TELEMETRY_ACTIONS.has(action)) ? action : 'heartbeat';
 
-        const safeProductId = (typeof productId === 'string' && /^[a-z0-9\-]{1,32}$/.test(productId) && !FORBIDDEN_PRODUCT_KEYS.has(productId) && MASTER_CATALOG[productId])
-            ? productId
+        const db = getDb();
+        const catalogProd = (typeof productId === 'string' && /^[a-z0-9\-]{1,32}$/.test(productId) && !FORBIDDEN_PRODUCT_KEYS.has(productId))
+            ? getCatalogProduct(productId, db)
             : null;
+        const safeProductId = catalogProd ? productId : null;
 
         const now = Date.now();
         let session = activeSessions.get(sessionId);
 
         const currentProduct = sanitizeTelemetryText(
-            productTitle || (safeProductId ? MASTER_CATALOG[safeProductId].title : (session?.currentProduct || '')),
+            productTitle || (catalogProd ? catalogProd.title : (session?.currentProduct || '')),
             80
         );
         const currentPage = sanitizeTelemetryText(page || session?.page || 'หน้าแรก', 60);
@@ -3341,7 +3328,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 - สินค้าหลัก: CapCut Pro (Private ฿129 / Shared ฿79), Claude Pro (Private ฿850 / Shared ฿290), Google AI Pro (฿150), Google Drive 5TB (฿229), Grok (฿290-฿950), Windows 11 Pro OEM Key แท้ตลอดชีพ (฿290), Microsoft 365 (฿259), Adobe CC All Apps (฿790)
 - รับประกัน: สินค้าทุกชิ้นรับประกัน 30 วันเต็ม (Windows OEM รับประกันตลอดชีพ) มีปัญหาเปลี่ยนชุดใหม่ให้ทันที
 - ประเภทสินค้า: Private (ส่วนตัว 100% ไม่แชร์ใคร), Shared (หารโปรไฟล์แยก ประหยัด), Link (Invite เข้าเมลตัวเอง), Key (คีย์เปิดสิทธิ์)
-- ระบบส่งมอบ: Zero-Stock On-Demand ส่งคีย์เข้าเมนู "คีย์ของฉัน" (Vault) และอีเมลภายใน 5-15 นาทีหลังชำระเงิน
+- ระบบส่งมอบ: จัดเตรียมและส่งมอบรหัสเข้าเมนู "คีย์ของฉัน" และอีเมลภายใน 5-15 นาทีหลังชำระเงิน
 - การชำระเงิน: สแกน PromptPay QR Code ตรวจสลิปด้วย AI อัตโนมัติ ปลอดภัย 100%
 - โค้ดส่วนลดปัจจุบัน: ${activeCoupons || 'SUPINKLY10 (ลด 10%), PINKLOVE50 (ลด ฿50)'}
 - เพจ Facebook: https://www.facebook.com/profile.php?id=61594837747580
@@ -3453,7 +3440,7 @@ async function getBotResponse(userMsg, sessionId) {
                     `📊 **สถานะปัจจุบัน:** ${order.status || (isDelivered ? '🟢 จัดส่งสำเร็จ' : '🟡 รอจัดส่งสินค้า')}\n\n` +
                     `🛍️ **รายการสินค้า:**\n${itemsList || '• ไม่มีรายการ'}\n\n` +
                     (isDelivered
-                        ? `✨ **สินค้าจัดส่งเรียบร้อยแล้วครับ!**\nคุณลูกค้าสามารถเปิดดูรหัสและวิธีใช้งานได้ทันทีที่เมนู **"คีย์ของฉัน" (Vault)** ด้านบน หรือเช็คในอีเมลของคุณได้เลยครับ 🔑`
+                        ? `✨ **สินค้าจัดส่งเรียบร้อยแล้วครับ!**\nคุณลูกค้าสามารถเปิดดูรหัสและวิธีใช้งานได้ทันทีที่เมนู **"คีย์ของฉัน"** ด้านบน หรือเช็คในอีเมลของคุณได้เลยครับ 🔑`
                         : `⏳ **อยู่ในคิวจัดส่ง On-Demand:**\nระบบตรวจสลิปถูกต้องเรียบร้อยแล้วครับ แอดมินกำลังจัดเตรียมและนำส่งคีย์เข้าคลังของคุณภายใน 5–15 นาที ขอบพระคุณที่ไว้วางใจร้านเรานะครับ 💖`);
             } else {
                 return `🔍 **ไม่พบข้อมูลคำสั่งซื้อ "${searchedId}" ในระบบครับ**\n\nรบกวนคุณลูกค้าตรวจสอบความถูกต้องของรหัสคำสั่งซื้ออีกครั้ง (รูปแบบเลขออเดอร์จะขึ้นต้นด้วย **SPK-** เช่น \`SPK-12345678\`)\n\n💡 คุณลูกค้าสามารถดูเลขออเดอร์ที่ถูกต้องได้จากเมนู **"คีย์ของฉัน"** ด้านบน หรือในอีเมลใบเสร็จครับ หรือพิมพ์แจ้งเลขอ้างอิงสลิปให้แอดมินช่วยตรวจได้เลยครับ!`;
@@ -3565,7 +3552,7 @@ async function getBotResponse(userMsg, sessionId) {
             `2️⃣ **เข้าสู่ระบบ / สมัครสมาชิก:** เพื่อให้ระบบบันทึกคีย์เข้าบัญชีส่วนตัวของคุณ\n` +
             `3️⃣ **สแกนชำระเงิน:** ผ่าน **Thai QR PromptPay** ได้ทุกแอปธนาคารและ TrueMoney (ฟรีค่าธรรมเนียม)\n` +
             `4️⃣ **แนบสลิป:** ระบบใช้ AI ตรวจสอบสลิปอัตโนมัติภายในไม่กี่วินาที\n` +
-            `5️⃣ **รับสินค้าทันที:** รหัสจะถูกส่งเข้าเมนู **"คีย์ของฉัน" (Vault)** ด้านบน และส่งสำเนาเข้าอีเมลของคุณทันทีใน 5–15 นาทีครับ! 📦`;
+            `5️⃣ **รับสินค้าทันที:** รหัสจะถูกส่งเข้าเมนู **"คีย์ของฉัน"** ด้านบน และส่งสำเนาเข้าอีเมลของคุณทันทีใน 5–15 นาทีครับ! 📦`;
     }
 
     // ── 5. WARRANTY & TROUBLESHOOTING (รับประกัน & แก้ไขปัญหา) ──
