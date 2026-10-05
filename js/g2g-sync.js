@@ -7,25 +7,25 @@
 const G2G_MARKET_FEED = {
     // 19 Master Products mapped to G2G Market Category & Benchmark Cost (USD)
     benchmarks: {
-        "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro 1 Month Private Account", baseCostUSD: 1.25, g2gStock: 142 },
-        "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro 1 Month Shared Profile",  baseCostUSD: 0.85, g2gStock: 89 },
-        "cpc-03": { serviceId: "G2G-CPC-TEAM",     title: "CapCut Team Workspace 1 Month",       baseCostUSD: 1.95, g2gStock: 64 },
-        "cpc-04": { serviceId: "G2G-CPC-VIP",      title: "CapCut VIP / SVIP 1 Month",          baseCostUSD: 3.10, g2gStock: 35 },
-        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google AI Pro (Gemini Advanced 1 Month) Activation Link", baseCostUSD: 1.35, g2gStock: 210 },
-        "goo-ai-02": { serviceId: "G2G-GOO-AI-ULT", title: "Google AI Ultra (Gemini Ultra 1 Month) Private Account",   baseCostUSD: 49.50, g2gStock: 12 },
-        "goo-ai-03": { serviceId: "G2G-GOO-AI-SHR", title: "Google AI Pro (Gemini Advanced 1 Month) Shared Account",   baseCostUSD: 1.10, g2gStock: 78 },
-        "goo-01":    { serviceId: "G2G-GOO-5TB-PV", title: "Google Drive 5TB Storage + Gemini Advanced 1 Month",        baseCostUSD: 2.15, g2gStock: 95 },
-        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google One Subscription Pro 5TB (18 Months) Activation Link", baseCostUSD: 1.85, g2gStock: 180 },
-        "grk-01":    { serviceId: "G2G-GRK-7D-PV",  title: "xAI Grok / SuperGrok 7 Days Private Account",              baseCostUSD: 3.80, g2gStock: 45 },
-        "grk-02":    { serviceId: "G2G-GRK-30D-PV", title: "xAI Grok / SuperGrok 1 Month Private Account",             baseCostUSD: 14.20, g2gStock: 52 },
-        "grk-03":    { serviceId: "G2G-GRK-HEAVY",  title: "xAI SuperGrok Heavy 1 Month High Capacity",                 baseCostUSD: 95.00, g2gStock: 8 },
-        "cld-01":    { serviceId: "G2G-CLD-PRO-PV", title: "Anthropic Claude Pro 1 Month Private Account",             baseCostUSD: 13.80, g2gStock: 67 },
-        "cld-02":    { serviceId: "G2G-CLD-PRO-SH", title: "Anthropic Claude Pro 1 Month Shared Account",              baseCostUSD: 3.60, g2gStock: 120 },
-        "adb-01":    { serviceId: "G2G-ADB-ACRO",   title: "Adobe Acrobat Pro DC 1 Month Global",                       baseCostUSD: 6.50, g2gStock: 41 },
-        "adb-02":    { serviceId: "G2G-ADB-CC-ALL", title: "Adobe Creative Cloud All Apps 1 Month 100GB Cloud",         baseCostUSD: 10.80, g2gStock: 83 },
-        "ms-01":     { serviceId: "G2G-MS-W11-OEM", title: "Windows 11 Pro OEM Key Lifetime Global",                    baseCostUSD: 2.20, g2gStock: 350 },
-        "ms-02":     { serviceId: "G2G-MS-365-FAM", title: "Microsoft 365 Personal 1 Month 1TB OneDrive",              baseCostUSD: 2.80, g2gStock: 115 },
-        "ms-03":     { serviceId: "G2G-MS-COPILOT", title: "Microsoft Copilot Pro 1 Month Global Account",              baseCostUSD: 7.90, g2gStock: 58 }
+        "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro Subscription 1 Month - Account (Global)", baseCostUSD: 1.25, g2gStock: 142 },
+        "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 0.85, g2gStock: 89 },
+        "cpc-03": { serviceId: "G2G-CPC-TEAM",     title: "CapCut Team Subscription 1 Month - Workspace (Global)", baseCostUSD: 1.95, g2gStock: 64 },
+        "cpc-04": { serviceId: "G2G-CPC-VIP",      title: "CapCut VIP / SVIP Subscription 1 Month (Global)", baseCostUSD: 3.10, g2gStock: 35 },
+        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google AI Pro Subscription 1 Month - Activation Link (Global)", baseCostUSD: 0.94, g2gStock: 73 },
+        "goo-ai-02": { serviceId: "G2G-GOO-AI-ULT", title: "Google AI Ultra Subscription 1 Month - Account (Global)", baseCostUSD: 49.50, g2gStock: 12 },
+        "goo-ai-03": { serviceId: "G2G-GOO-AI-SHR", title: "Google AI Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 0.85, g2gStock: 78 },
+        "goo-01":    { serviceId: "G2G-GOO-5TB-PV", title: "Google Drive 5TB Storage + Google AI Pro 1 Month (Global)", baseCostUSD: 2.15, g2gStock: 95 },
+        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google AI Pro Subscription 1 Month - Activation Link (Global)", baseCostUSD: 0.94, g2gStock: 73 },
+        "grk-01":    { serviceId: "G2G-GRK-7D-PV",  title: "xAI Grok Subscription 7 Days - Account (Global)", baseCostUSD: 3.80, g2gStock: 45 },
+        "grk-02":    { serviceId: "G2G-GRK-30D-PV", title: "xAI Grok Subscription 1 Month - Account (Global)", baseCostUSD: 14.20, g2gStock: 52 },
+        "grk-03":    { serviceId: "G2G-GRK-HEAVY",  title: "xAI SuperGrok Heavy Subscription 1 Month - Account (Global)", baseCostUSD: 95.00, g2gStock: 8 },
+        "cld-01":    { serviceId: "G2G-CLD-PRO-PV", title: "Claude Pro Subscription 1 Month - Account (Global)", baseCostUSD: 13.80, g2gStock: 67 },
+        "cld-02":    { serviceId: "G2G-CLD-PRO-SH", title: "Claude Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 3.60, g2gStock: 120 },
+        "adb-01":    { serviceId: "G2G-ADB-ACRO",   title: "Adobe Acrobat Pro DC Subscription 1 Month (Global)", baseCostUSD: 6.50, g2gStock: 41 },
+        "adb-02":    { serviceId: "G2G-ADB-CC-ALL", title: "Adobe Creative Cloud All Apps Subscription 1 Month (Global)", baseCostUSD: 10.80, g2gStock: 83 },
+        "ms-01":     { serviceId: "G2G-MS-W11-OEM", title: "Windows 11 Professional OEM Key (Global)", baseCostUSD: 2.20, g2gStock: 350 },
+        "ms-02":     { serviceId: "G2G-MS-365-FAM", title: "Microsoft 365 Personal Subscription 1 Month 1TB OneDrive (Global)", baseCostUSD: 2.80, g2gStock: 115 },
+        "ms-03":     { serviceId: "G2G-MS-COPILOT", title: "Microsoft Copilot Pro Subscription 1 Month - Account (Global)", baseCostUSD: 7.90, g2gStock: 58 }
     }
 };
 

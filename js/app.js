@@ -2295,10 +2295,22 @@ const G2G_PRODUCT_LINKS = {
 };
 
 function getG2GMarketLink(productId) {
-    if (productId && G2G_PRODUCT_LINKS[productId]) {
+    if (!productId) return "https://www.g2g.com";
+
+    // 1. Check custom admin overridden G2G direct link if saved
+    try {
+        const customPrices = JSON.parse(localStorage.getItem('supinkly_custom_prices') || '{}');
+        if (customPrices && customPrices[productId] && customPrices[productId].g2gUrl) {
+            return customPrices[productId].g2gUrl;
+        }
+    } catch (e) {}
+
+    // 2. Check predefined catalog link mapping
+    if (G2G_PRODUCT_LINKS[productId]) {
         return G2G_PRODUCT_LINKS[productId];
     }
     const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    if (master?.g2gUrl) return master.g2gUrl;
     if (!master) return "https://www.g2g.com";
 
     const brand = (master.brand || '').toLowerCase();
@@ -2321,6 +2333,24 @@ function openG2GMarketLink(productId) {
     window.open(link, '_blank', 'noopener,noreferrer');
 }
 
+// Get the exact, working search term that G2G search box recognizes and autocompletes
+function getG2GSearchKeyword(productId) {
+    if (!productId) return 'AI Tools';
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    const brand = (master?.brand || '').toLowerCase();
+    const title = (master?.title || '').toLowerCase();
+
+    if (productId.startsWith('cpc') || brand.includes('capcut')) return 'CapCut Accounts';
+    if (productId.startsWith('goo') || brand.includes('google')) return 'Google AI Activation Links';
+    if (productId.startsWith('grk') || brand.includes('grok')) return 'Grok Accounts';
+    if (productId.startsWith('cld') || brand.includes('claude')) return 'Claude Accounts';
+    if (productId.startsWith('adb') || brand.includes('adobe')) return 'Adobe Accounts';
+    if (productId === 'ms-01' || title.includes('windows')) return 'Windows 11';
+    if (productId.startsWith('ms') || brand.includes('microsoft')) return 'Microsoft Accounts';
+
+    return master?.brand || 'AI Tools';
+}
+
 function getG2GRawTitle(productId) {
     if (!productId) return '';
     if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[productId]) {
@@ -2330,11 +2360,18 @@ function getG2GRawTitle(productId) {
     return master?.g2gRawTitle || master?.title || productId;
 }
 
+function copyG2GSearchKeyword(productId) {
+    const kw = getG2GSearchKeyword(productId);
+    navigator.clipboard.writeText(kw);
+    showToast(`คัดลอกคำค้นหา "${kw}" แล้ว นำไปวางในช่องค้นหาบน G2G ได้ทันที`, "info");
+}
+
 function copyFulfillG2GTitle() {
     const el = document.getElementById('fulfill-g2g-raw-title-label');
-    if (!el || !el.textContent) return;
-    navigator.clipboard.writeText(el.textContent);
-    showToast(`คัดลอกชื่อสินค้าบน G2G แล้ว: ${el.textContent}`, "info");
+    const kw = el?.dataset?.keyword || el?.textContent;
+    if (!kw) return;
+    navigator.clipboard.writeText(kw);
+    showToast(`คัดลอกคำค้นหา G2G แล้ว: ${kw}`, "info");
 }
 
 // ==========================================
@@ -2646,13 +2683,16 @@ function renderAdminOrdersList() {
                                     </div>
                                     <div class="mt-1 flex flex-wrap items-center gap-1.5">
                                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-100/90 text-amber-950 border border-amber-300 font-mono text-[11px] font-bold shadow-2xs">
-                                            <i class="fa-solid fa-cart-shopping text-amber-600"></i> ชื่อบน G2G: <span class="text-pink-700">${escapeHTML(g2gRawName)}</span>
+                                            <i class="fa-solid fa-magnifying-glass text-amber-600"></i> หมวดค้นหา G2G: <span class="text-pink-700">${escapeHTML(getG2GSearchKeyword(item.productId))}</span>
                                         </span>
-                                        <button type="button" onclick="navigator.clipboard.writeText('${escapeHTML(g2gRawName)}'); showToast('คัดลอกชื่อสินค้า G2G แล้ว', 'info');"
+                                        <button type="button" onclick="copyG2GSearchKeyword('${escapeHTML(item.productId)}')"
                                                 class="px-2 py-0.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-2xs active:scale-95"
-                                                title="คลิกเพื่อคัดลอกชื่อไปค้นหาใน G2G">
-                                            <i class="fa-regular fa-copy text-pink-600"></i> คัดลอกชื่อ
+                                                title="คลิกเพื่อคัดลอกคำค้นหาไปวางในช่องค้นหาบน G2G">
+                                            <i class="fa-regular fa-copy text-pink-600"></i> คัดลอกคำค้น
                                         </button>
+                                        <span class="text-[10px] text-slate-500 font-sans truncate max-w-xs" title="${escapeHTML(g2gRawName)}">
+                                            (${escapeHTML(g2gRawName)})
+                                        </span>
                                     </div>
                                     ${!isItemPending ? `
                                         <div class="mt-1 text-xs font-mono text-slate-600 flex flex-wrap items-center gap-2">
@@ -3796,13 +3836,20 @@ function renderAdminStockList() {
                             ${isManual ? '🟡 ราคาตั้งเอง' : '🟢 ตลาด Auto-Sync'}
                         </span>
                     </div>
-                    <div class="flex items-center gap-1.5 mt-1 text-[11px] font-mono text-amber-950 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 inline-flex">
-                        <i class="fa-solid fa-cart-shopping text-amber-600 text-[10px]"></i>
-                        <span>G2G: <b>${escapeHTML(getG2GRawTitle(p.id))}</b></span>
-                        <button type="button" onclick="navigator.clipboard.writeText('${escapeHTML(getG2GRawTitle(p.id))}'); showToast('คัดลอกชื่อ G2G แล้ว', 'info');"
-                                class="text-slate-400 hover:text-pink-600 cursor-pointer ml-1" title="คัดลอกชื่อไปค้นหาใน G2G">
-                            <i class="fa-regular fa-copy text-[10px]"></i>
-                        </button>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] font-mono">
+                        <span class="text-amber-950 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 inline-flex items-center gap-1">
+                            <i class="fa-solid fa-magnifying-glass text-amber-600 text-[10px]"></i>
+                            <span>ค้นหา: <b>${escapeHTML(getG2GSearchKeyword(p.id))}</b></span>
+                            <button type="button" onclick="copyG2GSearchKeyword('${escapeHTML(p.id)}')"
+                                    class="text-slate-400 hover:text-pink-600 cursor-pointer ml-1" title="คัดลอกคำค้นหาไปวางในช่องค้นหาบน G2G">
+                                <i class="fa-regular fa-copy text-[10px]"></i>
+                            </button>
+                        </span>
+                        <a href="${escapeHTML(getG2GMarketLink(p.id))}" target="_blank" rel="noopener noreferrer"
+                           class="px-2 py-0.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 text-[10px] font-bold inline-flex items-center gap-1 no-underline transition-all"
+                           title="เปิดหน้าตลาด G2G ทันที">
+                            <i class="fa-solid fa-cart-shopping text-orange-600 text-[10px]"></i> ไปซื้อ G2G ↗
+                        </a>
                     </div>
                 </td>
                 <td class="py-3 px-3.5 text-center font-mono">
@@ -3864,6 +3911,11 @@ function openEditPriceModal(productId) {
     document.getElementById('edit-price-original').value = master.originalPrice;
     const badgeInp = document.getElementById('edit-price-badge');
     if (badgeInp) badgeInp.value = master.badge || '';
+    const g2gUrlInp = document.getElementById('edit-price-g2g-url');
+    const customPrices = getCustomPrices();
+    if (g2gUrlInp) {
+        g2gUrlInp.value = customPrices[productId]?.g2gUrl || master.g2gUrl || '';
+    }
 
     updateEditPricePreview();
     modal.classList.remove('hidden');
@@ -4016,6 +4068,7 @@ async function handleSaveEditedPrice() {
     const saleVal = parseFloat(document.getElementById('edit-price-sale').value);
     const origVal = parseFloat(document.getElementById('edit-price-original').value);
     const badgeVal = (document.getElementById('edit-price-badge')?.value || '').trim();
+    const g2gUrlVal = (document.getElementById('edit-price-g2g-url')?.value || '').trim();
 
     if (isNaN(saleVal) || saleVal < 0) {
         showToast("กรุณากรอกราคาขายที่ถูกต้อง", "warning");
@@ -4032,6 +4085,7 @@ async function handleSaveEditedPrice() {
         price: cleanPrice,
         originalPrice: cleanOrig,
         badge: badgeVal,
+        g2gUrl: g2gUrlVal || existing.g2gUrl || '',
         manualOverride: true,
         lastManualUpdate: new Date().toISOString()
     };
