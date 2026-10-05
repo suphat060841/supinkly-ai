@@ -198,7 +198,7 @@ const G2G_SYNC = {
         const badgeEl = document.getElementById('g2g-sync-status-badge');
 
         if (timeEl) {
-            timeEl.textContent = "สินค้าแท้ 100% พร้อมส่งมอบตลอด 24 ชม.";
+            timeEl.textContent = "สินค้าแท้ 100%";
         }
 
         if (badgeEl) {

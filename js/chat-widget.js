@@ -326,16 +326,22 @@ const CHAT = (() => {
                 msgInp?.focus();
             }
         });
-        close.addEventListener('click', () => {
+        function closeChatWindow() {
             opened = false;
             win.classList.add('hidden');
-        });
+        }
 
-        // Close on ESC key
+        close.addEventListener('click', closeChatWindow);
+
+        // Close on ESC key (only if no higher modal or drawer overlay is active)
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && opened) {
-                opened = false;
-                win.classList.add('hidden');
+            if ((e.key === 'Escape' || e.key === 'Esc') && opened) {
+                const hasHigherModal = document.querySelector(
+                    '#logo-popup-modal:not(.hidden), #auth-modal:not(.hidden), #checkout-modal:not(.hidden), #vault-modal:not(.hidden), #product-detail-modal:not(.hidden), #orders-modal:not(.hidden), #warranty-modal:not(.hidden), #admin-modal:not(.hidden), #admin-pin-modal:not(.hidden), #admin-chat-panel:not(.hidden), #admin-fulfill-modal:not(.hidden), #edit-price-modal:not(.hidden), #add-stock-modal:not(.hidden), #admin-reset-pw-modal:not(.hidden), #admin-slip-view-modal:not(.hidden), #mobile-menu-overlay:not(.hidden), #drawer-overlay:not(.hidden)'
+                );
+                if (hasHigherModal) return;
+
+                closeChatWindow();
             }
         });
 
@@ -384,7 +390,7 @@ const CHAT = (() => {
         }
     }
 
-    return { init, openChatWindow };
+    return { init, openChatWindow, closeChatWindow };
 })();
 
 window.openLiveChat = function() {
@@ -392,6 +398,15 @@ window.openLiveChat = function() {
         CHAT.openChatWindow();
     } else {
         const btn = document.getElementById('spk-chat-btn');
+        btn?.click();
+    }
+};
+
+window.closeLiveChat = function() {
+    if (typeof CHAT !== 'undefined' && typeof CHAT.closeChatWindow === 'function') {
+        CHAT.closeChatWindow();
+    } else {
+        const btn = document.getElementById('spk-chat-close');
         btn?.click();
     }
 };

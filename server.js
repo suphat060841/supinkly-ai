@@ -238,6 +238,73 @@ app.get(['/favicon.ico', '/favicon.png'], (req, res, next) => {
     next();
 });
 
+// ── Maintenance Mode Middleware (ปิดเว็บชั่วคราว) ──
+app.use((req, res, next) => {
+    let db = null;
+    try { db = getDb(); } catch (e) { }
+    const isMaintenance = process.env.MAINTENANCE_MODE === 'true' || (db && db.maintenanceMode === true);
+    if (!isMaintenance) return next();
+
+    const url = req.originalUrl || req.url;
+    // Allow admin access, API admin, assets, and health checks
+    if (
+        url.startsWith('/api/admin') || 
+        url.startsWith('/images') || 
+        url.startsWith('/css') || 
+        url.startsWith('/js') || 
+        url.startsWith('/favicon') || 
+        url.startsWith('/healthz') ||
+        req.query.admin === '1' ||
+        req.headers['x-admin-token']
+    ) {
+        return next();
+    }
+
+    res.status(503).send(`<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ปิดปรับปรุงชั่วคราว - Supinkly.AI</title>
+    <link rel="icon" type="image/png" href="images/pop_new.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;800;900&family=Prompt:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>body { font-family: 'Prompt', sans-serif; }</style>
+</head>
+<body class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-white rounded-3xl p-8 border-2 border-pink-200 shadow-2xl text-center relative overflow-hidden">
+        <div class="w-36 h-36 mx-auto mb-4 filter drop-shadow-xl">
+            <img src="images/pop_new.png" alt="Supinkly Mascot" class="w-full h-full object-contain" onerror="this.src='images/logo.jpg'">
+        </div>
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold mb-3">
+            <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+            <span>🚧 ปิดปรับปรุงชั่วคราว</span>
+        </div>
+        <h1 class="text-2xl font-black text-slate-900 mb-2">
+            Supinkly<span class="text-pink-500">.AI</span> กำลังอัปเกรดระบบ
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed mb-6">
+            เรากำลังปรับปรุงระบบเพื่อเพิ่มประสิทธิภาพและความรวดเร็วในการส่งมอบสินค้า คาดว่าจะกลับมาเปิดให้บริการเร็วๆ นี้ ขออภัยในความไม่สะดวกครับ
+        </p>
+        <div class="p-4 rounded-2xl bg-pink-50/70 border border-pink-200 mb-6 text-xs text-slate-700 text-center">
+            <div class="font-bold mb-1">ต้องการความช่วยเหลือด่วนหรือสอบถามออเดอร์?</div>
+            <a href="https://www.facebook.com/profile.php?id=61594837747580" target="_blank" rel="noopener noreferrer" 
+               class="inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-xl bg-[#1877F2] text-white font-bold hover:bg-[#166fe5] transition-transform active:scale-95 shadow-sm">
+                <i class="fa-brands fa-facebook"></i>
+                <span>ติดต่อแอดมินผ่าน Facebook</span>
+            </a>
+        </div>
+        <div class="text-[11px] text-slate-400">
+            เจ้าของร้าน: เข้าสู่ระบบจัดการได้ที่ <a href="/?admin=1" class="text-pink-500 font-bold underline">/?admin=1</a>
+        </div>
+    </div>
+</body>
+</html>`);
+});
+
 app.use(express.static(path.join(__dirname)));
 
 // ─── [FIX #2] Rate Limiting ─────────────────────────────────────────────────
@@ -1651,6 +1718,7 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
 
     res.json({
         success: true,
+        maintenanceMode: db.maintenanceMode === true || process.env.MAINTENANCE_MODE === 'true',
         promptPayNumber: db.promptPayNumber || "0982949371",
         promptPayAccountName: db.promptPayAccountName || "สุพัฒน์ มีสมบัติ",
         slipOkBranchId: db.slipOkBranchId || "77491",
@@ -1682,8 +1750,12 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
-    const { promptPayNumber, promptPayAccountName, slipOkBranchId, slipOkApiKey, newPin, smtpConfig, discordWebhookUrl, geminiApiKey } = req.body;
+    const { promptPayNumber, promptPayAccountName, slipOkBranchId, slipOkApiKey, newPin, smtpConfig, discordWebhookUrl, geminiApiKey, maintenanceMode } = req.body;
     const db = getDb();
+
+    if (maintenanceMode !== undefined) {
+        db.maintenanceMode = !!maintenanceMode;
+    }
 
     if (geminiApiKey !== undefined && geminiApiKey !== '******') {
         const trimmedG = String(geminiApiKey).trim();

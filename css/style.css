@@ -280,4 +280,64 @@ input[type="search"]::-webkit-search-results-decoration {
     animation: mascotFloat 3.6s ease-in-out infinite;
 }
 
+/* ==========================================================
+   Voucher Hub & Promo Ticket Aesthetics
+   ========================================================== */
+.voucher-ticket {
+    position: relative;
+    background: #FFFFFF;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 2px solid rgba(244, 114, 182, 0.35);
+}
+
+.voucher-ticket:hover {
+    transform: translateY(-5px);
+    border-color: rgba(255, 46, 126, 0.7);
+    box-shadow: 0 16px 36px -6px rgba(255, 46, 126, 0.22), 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+.ticket-notch-l,
+.ticket-notch-r {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background-color: var(--bg-main, #F8FAFC);
+    border-radius: 50%;
+    z-index: 10;
+}
+
+.ticket-notch-l {
+    left: -10px;
+    box-shadow: inset -2px 0 3px rgba(244, 114, 182, 0.25);
+    border-right: 2px solid rgba(244, 114, 182, 0.4);
+}
+
+.ticket-notch-r {
+    right: -10px;
+    box-shadow: inset 2px 0 3px rgba(244, 114, 182, 0.25);
+    border-left: 2px solid rgba(244, 114, 182, 0.4);
+}
+
+@keyframes promoShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+}
+
+.promo-shimmer {
+    position: relative;
+    overflow: hidden;
+}
+
+.promo-shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: promoShimmer 3.5s infinite;
+}
+
+
 

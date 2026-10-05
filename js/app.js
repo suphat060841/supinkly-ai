@@ -454,7 +454,7 @@ function calculateVerifiedTotal() {
     }, 0);
 }
 
-// Function to ensure search inputs start completely empty and immune to browser autofill & memory
+// Function to ensure search inputs & coupon input start completely empty and immune to browser autofill & memory
 function purgeSearchInputs() {
     state.searchQuery = '';
     const dSearchInit = document.getElementById('search-input');
@@ -468,6 +468,14 @@ function purgeSearchInputs() {
         mSearchInit.value = '';
         mSearchInit.defaultValue = '';
         mSearchInit.setAttribute('autocomplete', 'off');
+    }
+    const couponInit = document.getElementById('cart-coupon-input');
+    if (couponInit && (!state.appliedCoupon)) {
+        couponInit.value = '';
+        couponInit.defaultValue = '';
+        couponInit.setAttribute('autocomplete', 'off');
+        couponInit.setAttribute('autocorrect', 'off');
+        couponInit.setAttribute('spellcheck', 'false');
     }
     const dClear = document.getElementById('desktop-search-clear');
     if (dClear) dClear.classList.add('hidden');
@@ -553,10 +561,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await syncCustomPricesFromServer();
     syncStockCount();
     initHeader();
+    checkAdminMaintenanceStatus();
     initFilters();
     renderProducts();
     updateCartUI();
     renderBrandTabs();
+    if (typeof renderVoucherHubSection === 'function') renderVoucherHubSection();
     initEvents();
 
     // Launch G2G Market Real-Time Auto-Sync Engine (Zero button clicks required)
@@ -723,25 +733,36 @@ function initHeader() {
     if (isLoggedIn && user) {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
+                ${isAdminActive ? `
+                    <button type="button" onclick="openAdminModal()" class="h-10 sm:h-11 px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
+                        <i class="fa-solid fa-gears"></i>
+                        <span class="hidden md:inline">หลังบ้าน</span>
+                    </button>
+                ` : ''}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
                 </button>
-                <div class="relative group">
-                    <button class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active">
+                <div class="relative group" id="user-profile-dropdown-container">
+                    <button type="button" onclick="toggleUserDropdown(event)" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
                         <i class="fa-solid fa-circle-user text-emerald-500 text-base"></i>
                         <span class="hidden sm:inline max-w-[80px] truncate">${escapeHTML(displayName)}</span>
                         <i class="fa-solid fa-chevron-down text-[10px] text-emerald-500"></i>
                     </button>
-                    <div class="hidden group-hover:flex absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 flex-col overflow-hidden z-50 py-1">
+                    <div id="user-profile-dropdown-menu" class="hidden sm:group-hover:flex absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 flex-col overflow-hidden z-50 py-1">
                         <div class="px-4 py-2 border-b border-slate-100">
                             <div class="text-xs font-bold text-slate-800 truncate">${escapeHTML(displayName)}</div>
                             <div class="text-[10px] text-slate-400 font-medium truncate">${escapeHTML(user.email || '')}</div>
                         </div>
-                        <button onclick="openOrdersModal()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                        ${isAdminActive ? `
+                            <button onclick="closeUserDropdown(); openAdminModal()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 flex items-center gap-2 border-b border-slate-100 cursor-pointer">
+                                <i class="fa-solid fa-gears text-amber-600 w-4"></i> จัดการหลังบ้าน (Admin)
+                            </button>
+                        ` : ''}
+                        <button onclick="closeUserDropdown(); openOrdersModal()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer">
                             <i class="fa-solid fa-box-open text-purple-500 w-4"></i> คีย์ของฉัน
                         </button>
-                        <button onclick="handleUserLogout()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100">
+                        <button onclick="closeUserDropdown(); handleUserLogout()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100 cursor-pointer">
                             <i class="fa-solid fa-right-from-bracket w-4"></i> ออกจากระบบ
                         </button>
                     </div>
@@ -751,11 +772,17 @@ function initHeader() {
     } else {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
+                ${isAdminActive ? `
+                    <button type="button" onclick="openAdminModal()" class="h-10 sm:h-11 px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
+                        <i class="fa-solid fa-gears"></i>
+                        <span class="hidden md:inline">หลังบ้าน</span>
+                    </button>
+                ` : ''}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
                 </button>
-                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active">
+                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
                     <i class="fa-solid fa-right-to-bracket text-sm"></i>
                     <span class="hidden sm:inline">เข้าสู่ระบบ</span>
                 </button>
@@ -763,6 +790,34 @@ function initHeader() {
         `;
     }
 }
+
+// User Profile Header Dropdown Menu Controls
+function toggleUserDropdown(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const menu = document.getElementById('user-profile-dropdown-menu');
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
+}
+
+function closeUserDropdown() {
+    const menu = document.getElementById('user-profile-dropdown-menu');
+    if (menu && !menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+        return true;
+    }
+    return false;
+}
+
+window.addEventListener('click', (e) => {
+    const container = document.getElementById('user-profile-dropdown-container');
+    if (container && !container.contains(e.target)) {
+        closeUserDropdown();
+    }
+});
 
 // Brand Tabs
 function renderBrandTabs() {
@@ -1280,6 +1335,10 @@ function updateCartUI() {
         }
     }
 
+    if (typeof renderVoucherHubSection === 'function') {
+        renderVoucherHubSection();
+    }
+
     if (drawerItems) {
         if (state.cart.length === 0) {
             drawerItems.innerHTML = `
@@ -1333,6 +1392,10 @@ function openCartDrawer() {
         drawer.classList.remove('translate-x-full');
         overlay.classList.remove('hidden');
     }
+    const cInput = document.getElementById('cart-coupon-input');
+    if (cInput && !state.appliedCoupon) {
+        cInput.value = '';
+    }
 }
 
 function closeCartDrawer() {
@@ -1341,6 +1404,10 @@ function closeCartDrawer() {
     if (drawer && overlay) {
         drawer.classList.add('translate-x-full');
         overlay.classList.add('hidden');
+    }
+    const cInput = document.getElementById('cart-coupon-input');
+    if (cInput && !state.appliedCoupon) {
+        cInput.value = '';
     }
 }
 
@@ -3209,6 +3276,7 @@ async function openAdminModal() {
                     const testTargetEl = document.getElementById('admin-test-email-target');
                     if (testTargetEl && !testTargetEl.value && s.user) testTargetEl.value = s.user;
                 }
+                updateMaintenanceUI(!!setData.maintenanceMode);
             }
         } catch (e) {}
     }
@@ -3223,6 +3291,133 @@ async function openAdminModal() {
     startAdminAnalyticsPolling();
     switchAdminTab('orders');
     modal.classList.remove('hidden');
+}
+
+// Global Maintenance State Tracker
+window._currentMaintenanceMode = false;
+
+// Centralized Maintenance Mode UI Synchronizer
+function updateMaintenanceUI(isMaint) {
+    window._currentMaintenanceMode = !!isMaint;
+
+    // 1. Badge in Settings section 0
+    updateMaintenanceBadgePreview(isMaint);
+
+    // 2. Checkbox in Settings section 0
+    const maintEl = document.getElementById('admin-maintenance-mode');
+    if (maintEl) maintEl.checked = !!isMaint;
+
+    // 3. Quick Action Button in Admin Top Header Bar
+    const quickBtn = document.getElementById('admin-quick-toggle-maint-btn');
+    const quickText = document.getElementById('admin-quick-toggle-maint-text');
+    if (quickBtn) {
+        if (isMaint) {
+            quickBtn.className = "px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/25 cursor-pointer active:scale-95 animate-pulse";
+            quickBtn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <span id="admin-quick-toggle-maint-text">เว็บปิดอยู่ (คลิกเปิดเว็บ)</span>';
+            quickBtn.title = "ขณะนี้เว็บไซต์ปิดปรับปรุงอยู่ คลิกเพื่อเปิดให้บริการตามปกติทันที";
+        } else {
+            quickBtn.className = "px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border-2 border-amber-300 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95";
+            quickBtn.innerHTML = '<i class="fa-solid fa-power-off text-amber-600"></i> <span id="admin-quick-toggle-maint-text">ปิดเว็บชั่วคราว</span>';
+            quickBtn.title = "คลิกเพื่อปิดเว็บชั่วคราว (เข้าสู่โหมดปรับปรุง)";
+        }
+    }
+
+    // 4. Direct Action Button in Settings section 0
+    const directBtn = document.getElementById('admin-maint-direct-btn');
+    if (directBtn) {
+        if (isMaint) {
+            directBtn.className = "px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-600/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
+            directBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>คลิกเปิดให้บริการทันที (ยกเลิกปิดเว็บ)</span>';
+        } else {
+            directBtn.className = "px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
+            directBtn.innerHTML = '<i class="fa-solid fa-power-off"></i> <span>คลิกปิดเว็บชั่วคราวทันที</span>';
+        }
+    }
+
+    // 5. Warning banner inside Admin Modal
+    const warnBanner = document.getElementById('admin-maint-warning-banner');
+    if (warnBanner) {
+        warnBanner.classList.toggle('hidden', !isMaint);
+    }
+
+    // 6. Global floating banner on storefront for Admin
+    const globalBar = document.getElementById('global-admin-maintenance-bar');
+    if (globalBar) {
+        const isAdminSession = typeof ADMIN_AUTH !== 'undefined' && ADMIN_AUTH.checkSession();
+        globalBar.classList.toggle('hidden', !(isMaint && isAdminSession));
+    }
+}
+
+function updateMaintenanceBadgePreview(isMaint) {
+    const badge = document.getElementById('admin-maintenance-badge');
+    if (!badge) return;
+    if (isMaint) {
+        badge.className = "text-[11px] text-amber-800 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1";
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span> 🚧 ปิดปรับปรุงชั่วคราว';
+    } else {
+        badge.className = "text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1";
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 🟢 เปิดให้บริการปกติ';
+    }
+}
+
+// 1-Click Instant Maintenance Mode Toggle
+async function toggleMaintenanceModeDirectly(forceState) {
+    if (typeof ADMIN_AUTH === 'undefined' || !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    const currentMaint = !!window._currentMaintenanceMode;
+    const targetState = (typeof forceState === 'boolean') ? forceState : !currentMaint;
+
+    const confirmText = targetState
+        ? "⚠️ ยืนยันการ 'ปิดเว็บชั่วคราว' หรือไม่?\n\n• ลูกค้าทั่วไปจะเห็นหน้าแจ้งปิดปรับปรุงพร้อมปุ่มติดต่อเพจ Facebook\n• ลูกค้าจะไม่สามารถสั่งซื้อสินค้าได้ชั่วคราว\n• แอดมินยังคงเข้าจัดการหลังบ้านได้ตามปกติ"
+        : "🟢 ยืนยันการ 'เปิดให้บริการเว็บไซต์' ตามปกติหรือไม่?\n\n• ลูกค้าจะสามารถเข้าชมและสั่งซื้อสินค้าได้ทันทีตามปกติ";
+
+    if (!confirm(confirmText)) {
+        // Revert checkbox if canceled
+        const maintEl = document.getElementById('admin-maintenance-mode');
+        if (maintEl) maintEl.checked = currentMaint;
+        return;
+    }
+
+    try {
+        showToast("กำลังอัปเดตสถานะเว็บไซต์...", "info");
+        const res = await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: ADMIN_AUTH.getHeaders(),
+            body: JSON.stringify({
+                maintenanceMode: targetState
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            updateMaintenanceUI(targetState);
+            showToast(targetState ? "🚧 ปิดเว็บไซต์ชั่วคราวเรียบร้อยแล้ว" : "🟢 เปิดให้บริการเว็บไซต์ตามปกติแล้ว", "success");
+        } else {
+            showToast(data.message || "เกิดข้อผิดพลาดในการบันทึกสถานะ", "error");
+            updateMaintenanceUI(currentMaint);
+        }
+    } catch (err) {
+        console.error("Maintenance mode toggle error:", err);
+        showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์", "error");
+        updateMaintenanceUI(currentMaint);
+    }
+}
+
+// Check maintenance status on storefront init
+async function checkAdminMaintenanceStatus() {
+    if (typeof ADMIN_AUTH === 'undefined' || !ADMIN_AUTH.checkSession()) return;
+    if (!window.location.protocol.startsWith('http')) return;
+    try {
+        const res = await fetch('/api/admin/settings', { headers: ADMIN_AUTH.getHeaders() });
+        if (res.ok) {
+            const json = await res.json();
+            if (json && json.success && json.data) {
+                updateMaintenanceUI(!!json.data.maintenanceMode);
+            }
+        }
+    } catch (e) {}
 }
 
 function closeAdminModal() {
@@ -4750,6 +4945,7 @@ async function saveAdminSettings() {
     const discordWebhookUrl = (document.getElementById('admin-discord-webhook')?.value || '').trim();
     const geminiApiKey = (document.getElementById('admin-gemini-api-key')?.value || '').trim();
     const slipOkApiKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
+    const maintenanceMode = !!document.getElementById('admin-maintenance-mode')?.checked;
 
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
@@ -4800,6 +4996,7 @@ async function saveAdminSettings() {
                     slipOkBranchId: STORE_CONFIG.slipOkBranchId,
                     slipOkApiKey: slipOkApiKey !== '******' ? slipOkApiKey : undefined,
                     newPin: newPin || undefined,
+                    maintenanceMode: maintenanceMode,
                     discordWebhookUrl: discordWebhookUrl !== '******' ? discordWebhookUrl : undefined,
                     geminiApiKey: geminiApiKey !== '******' ? geminiApiKey : undefined,
                     smtpConfig: {
@@ -4861,6 +5058,7 @@ async function saveAdminSettings() {
     if (geminiEl2 && geminiEl2.value && geminiEl2.value !== '******') geminiEl2.value = '******';
     if (slipOkKeyEl2 && slipOkKeyEl2.value && slipOkKeyEl2.value !== '******') slipOkKeyEl2.value = '******';
 
+    updateMaintenanceUI(maintenanceMode);
     showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว ⚠️ หากใช้ Render ให้ตั้ง Environment Variables เพื่อให้ค่าถาวร", "success");
     closeAdminModal();
 }
@@ -5634,10 +5832,17 @@ function initEvents() {
         }
     });
 
-    // Global ESC Key Handler: Intelligently close modals/drawers in priority order (Topmost / Nested first)
+    // Global ESC Key Handler: Intelligently close menus/modals/drawers in priority order (Topmost / Nested first)
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' || e.key === 'Esc') {
             // 1. Highest Priority: Nested / Child Admin Modals
+            const adminSlipViewModal = document.getElementById('admin-slip-view-modal');
+            if (adminSlipViewModal && !adminSlipViewModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeSlipViewModal();
+                return;
+            }
+
             const adminChatPanel = document.getElementById('admin-chat-panel');
             if (adminChatPanel && !adminChatPanel.classList.contains('hidden')) {
                 e.preventDefault();
@@ -5680,7 +5885,15 @@ function initEvents() {
                 return;
             }
 
-            // 2. Medium Priority: Main Storefront & Admin Modals
+            // 2. High Priority: Welcome Mascot & Promo Popup Modal
+            const logoPopupModal = document.getElementById('logo-popup-modal');
+            if (logoPopupModal && !logoPopupModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeLogoPopup();
+                return;
+            }
+
+            // 3. Medium Priority: Main Storefront & Admin Modals
             const adminPinModal = document.getElementById('admin-pin-modal');
             if (adminPinModal && !adminPinModal.classList.contains('hidden')) {
                 e.preventDefault();
@@ -5744,16 +5957,13 @@ function initEvents() {
                 return;
             }
 
-            // 3. Lower Priority: Floating Panels & Drawers
-            const chatWin = document.getElementById('spk-chat-window');
-            if (chatWin && !chatWin.classList.contains('hidden')) {
+            // 4. Drawers & Slide-out Menus (Mobile Slide Menu & Cart Drawer)
+            const mobileMenuDrawer = document.getElementById('mobile-menu-drawer');
+            const mobileMenuOverlay = document.getElementById('mobile-menu-overlay');
+            if ((mobileMenuDrawer && !mobileMenuDrawer.classList.contains('-translate-x-full')) ||
+                (mobileMenuOverlay && !mobileMenuOverlay.classList.contains('hidden'))) {
                 e.preventDefault();
-                const chatCloseBtn = document.getElementById('spk-chat-close');
-                if (chatCloseBtn) {
-                    chatCloseBtn.click();
-                } else {
-                    chatWin.classList.add('hidden');
-                }
+                closeMobileMenu();
                 return;
             }
 
@@ -5766,11 +5976,88 @@ function initEvents() {
                 return;
             }
 
-            // 4. Input & Search defocus fallback on ESC
-            if (document.activeElement && typeof document.activeElement.blur === 'function') {
-                const tag = (document.activeElement.tagName || '').toLowerCase();
-                if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+            // 5. User Profile Header Dropdown Menu
+            if (typeof closeUserDropdown === 'function' && closeUserDropdown()) {
+                e.preventDefault();
+                return;
+            }
+
+            // 6. Floating Customer Live Chat Window
+            const chatWin = document.getElementById('spk-chat-window');
+            if (chatWin && !chatWin.classList.contains('hidden')) {
+                e.preventDefault();
+                if (typeof window.closeLiveChat === 'function') {
+                    window.closeLiveChat();
+                } else {
+                    const chatCloseBtn = document.getElementById('spk-chat-close');
+                    if (chatCloseBtn) {
+                        chatCloseBtn.click();
+                    } else {
+                        chatWin.classList.add('hidden');
+                    }
+                }
+                return;
+            }
+
+            // 7. Generic Fallback: Any other visible fixed overlay/modal dialog
+            const anyVisibleModal = document.querySelector('.fixed.inset-0:not(.hidden):not(#drawer-overlay):not(#mobile-menu-overlay)');
+            if (anyVisibleModal) {
+                const closeBtn = anyVisibleModal.querySelector('button[onclick*="close"], button[aria-label*="close"], button[aria-label*="ปิด"], button[title*="ปิด"]');
+                if (closeBtn) {
+                    e.preventDefault();
+                    closeBtn.click();
+                    return;
+                }
+            }
+
+            // 8. Search Input Clear & Input Defocus fallback on ESC
+            if (document.activeElement) {
+                const activeId = document.activeElement.id;
+                // If it's a search input with text, clear it and trigger refresh
+                if ((activeId === 'search-input' || activeId === 'mobile-search-input') && document.activeElement.value) {
+                    e.preventDefault();
+                    purgeSearchInputs();
+                    if (typeof applyFilters === 'function') applyFilters();
                     document.activeElement.blur();
+                    return;
+                }
+                if (activeId === 'customer-keys-search' && document.activeElement.value) {
+                    e.preventDefault();
+                    if (typeof clearCustomerKeysSearch === 'function') clearCustomerKeysSearch();
+                    document.activeElement.blur();
+                    return;
+                }
+                if (activeId === 'admin-order-search' && document.activeElement.value) {
+                    e.preventDefault();
+                    if (typeof clearAdminOrderSearch === 'function') clearAdminOrderSearch();
+                    document.activeElement.blur();
+                    return;
+                }
+                if (activeId === 'admin-stock-search' && document.activeElement.value) {
+                    e.preventDefault();
+                    document.activeElement.value = '';
+                    if (typeof handleAdminStockSearch === 'function') handleAdminStockSearch('');
+                    document.activeElement.blur();
+                    return;
+                }
+                if (activeId === 'admin-user-search' && document.activeElement.value) {
+                    e.preventDefault();
+                    if (typeof clearAdminUserSearch === 'function') clearAdminUserSearch();
+                    document.activeElement.blur();
+                    return;
+                }
+                if (activeId === 'admin-coupon-search' && document.activeElement.value) {
+                    e.preventDefault();
+                    if (typeof clearAdminCouponSearch === 'function') clearAdminCouponSearch();
+                    document.activeElement.blur();
+                    return;
+                }
+
+                if (typeof document.activeElement.blur === 'function') {
+                    const tag = (document.activeElement.tagName || '').toLowerCase();
+                    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+                        document.activeElement.blur();
+                    }
                 }
             }
         }
@@ -5782,6 +6069,7 @@ function initEvents() {
         { id: 'edit-price-modal', close: closeEditPriceModal },
         { id: 'add-stock-modal', close: closeAddStockModal },
         { id: 'admin-reset-pw-modal', close: closeAdminResetPwModal },
+        { id: 'admin-slip-view-modal', close: closeSlipViewModal },
         { id: 'admin-pin-modal', close: closeAdminPinModal },
         { id: 'admin-modal', close: closeAdminModal },
         { id: 'checkout-modal', close: closeCheckoutModal },
@@ -5789,7 +6077,9 @@ function initEvents() {
         { id: 'product-detail-modal', close: closeProductDetailModal },
         { id: 'coupons-modal', close: closeCouponsModal },
         { id: 'orders-modal', close: closeOrdersModal },
-        { id: 'warranty-modal', close: closeWarrantyModal }
+        { id: 'warranty-modal', close: closeWarrantyModal },
+        { id: 'logo-popup-modal', close: closeLogoPopup },
+        { id: 'auth-modal', close: closeAuthModal }
     ];
 
     backdropModalBindings.forEach(({ id, close }) => {
@@ -7005,6 +7295,132 @@ function copyAndApplyPromo(code) {
     }
 }
 
+function claimVoucher(code, btnEl) {
+    code = (code || '').trim().toUpperCase();
+    if (!code) return;
+    
+    if (btnEl) {
+        const origHTML = btnEl.innerHTML;
+        btnEl.innerHTML = `<i class="fa-solid fa-circle-check text-yellow-300 animate-bounce"></i> <span>เก็บโค้ดแล้ว!</span>`;
+        btnEl.classList.add('ring-2', 'ring-white/80');
+        setTimeout(() => {
+            btnEl.innerHTML = origHTML;
+            btnEl.classList.remove('ring-2', 'ring-white/80');
+        }, 2200);
+    }
+    
+    copyAndApplyPromo(code);
+}
+window.claimVoucher = claimVoucher;
+window.copyAndApplyPromo = copyAndApplyPromo;
+window.copyAndApplyPromoCode = copyAndApplyPromo;
+
+function renderVoucherHubSection() {
+    const grid = document.getElementById('voucher-cards-grid');
+    if (!grid) return;
+    
+    const promos = typeof getStorePromotions === 'function' ? getStorePromotions() : [];
+    const activePromos = promos.filter(p => p && p.active !== false);
+    if (activePromos.length === 0) return;
+
+    grid.innerHTML = activePromos.map((promo, idx) => {
+        const isApplied = state.appliedCoupon && state.appliedCoupon.code === promo.code;
+        const isPercent = (promo.discountType === 'percent' || promo.type === 'percentage' || promo.type === 'percent');
+        const val = typeof promo.discountValue === 'number' ? promo.discountValue : (typeof promo.value === 'number' ? promo.value : 0);
+        const discNumber = isPercent ? `${val}%` : `฿${val}`;
+        const minSpendText = promo.minSpend ? `ขั้นต่ำ ฿${promo.minSpend}` : 'ไม่มีขั้นต่ำ';
+        const maxDiscText = (isPercent && promo.maxDiscount) ? ` (สูงสุด ฿${promo.maxDiscount})` : '';
+        const badge = promo.badge || (idx === 0 ? '🔥 โค้ดยอดฮิต' : '⚡ สิทธิพิเศษ');
+        
+        let gradClass = 'from-pink-500 via-rose-500 to-red-500';
+        let borderClass = 'border-pink-200';
+        let textGradClass = 'text-pink-600';
+        let bgCodeClass = 'bg-pink-50/70 border-pink-300';
+        let btnGradClass = 'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 shadow-pink-500/25';
+        let iconWatermark = 'fa-ticket';
+
+        if (idx === 1 || promo.code.includes('50') || promo.code.includes('LOVE')) {
+            gradClass = 'from-purple-600 via-indigo-600 to-violet-600';
+            borderClass = 'border-purple-200';
+            textGradClass = 'text-purple-600';
+            bgCodeClass = 'bg-purple-50/70 border-purple-300';
+            btnGradClass = 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-purple-500/25';
+            iconWatermark = 'fa-gift';
+        } else if (idx === 2 || promo.code.includes('AI') || promo.code.includes('20')) {
+            gradClass = 'from-cyan-600 via-teal-600 to-emerald-600';
+            borderClass = 'border-teal-200';
+            textGradClass = 'text-teal-700';
+            bgCodeClass = 'bg-teal-50/70 border-teal-300';
+            btnGradClass = 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-teal-500/25';
+            iconWatermark = 'fa-bolt-lightning';
+        } else if (idx === 3 || promo.code.includes('VIP') || promo.code.includes('100')) {
+            gradClass = 'from-amber-500 via-orange-500 to-rose-600';
+            borderClass = 'border-amber-200';
+            textGradClass = 'text-amber-700';
+            bgCodeClass = 'bg-amber-50/70 border-amber-300';
+            btnGradClass = 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 shadow-orange-500/25';
+            iconWatermark = 'fa-crown';
+        }
+
+        return `
+            <div class="voucher-ticket rounded-2xl overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-xl transition-all group ${isApplied ? 'ring-2 ring-emerald-500' : ''}">
+                <div class="bg-gradient-to-r ${gradClass} p-4 text-white relative promo-shimmer">
+                    <div class="flex items-center justify-between gap-1 mb-1.5">
+                        <span class="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-[10px] font-black tracking-wider uppercase">
+                            ${escapeHTML(badge)}
+                        </span>
+                        <span class="text-[10px] font-medium opacity-90">${minSpendText}</span>
+                    </div>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-3xl font-black font-['Outfit'] tracking-tight">${discNumber}</span>
+                        <span class="text-xs font-black uppercase opacity-90">OFF</span>
+                    </div>
+                    <p class="text-[11px] opacity-95 font-medium mt-0.5 truncate">${escapeHTML(promo.description || promo.title || `ลด ${discNumber}${maxDiscText}`)}</p>
+                    <i class="fa-solid ${iconWatermark} absolute -right-2 -bottom-3 text-white/10 text-5xl pointer-events-none"></i>
+                </div>
+
+                <!-- Perforation Notch Line -->
+                <div class="relative py-1 flex items-center bg-white">
+                    <div class="ticket-notch-l top-1/2 -translate-y-1/2"></div>
+                    <div class="w-full border-b-2 border-dashed ${borderClass} mx-3"></div>
+                    <div class="ticket-notch-r top-1/2 -translate-y-1/2"></div>
+                </div>
+
+                <!-- Ticket Bottom Content -->
+                <div class="p-3.5 pt-1.5 bg-white flex-1 flex flex-col justify-between space-y-3">
+                    <div>
+                        <div class="text-[11px] text-slate-500 font-semibold mb-1.5 flex items-center gap-1">
+                            <i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>
+                            <span>${escapeHTML(promo.title || 'โค้ดส่วนลดพิเศษ')}</span>
+                        </div>
+                        <div onclick="copyAndApplyPromo('${escapeHTML(promo.code)}')" class="${bgCodeClass} hover:opacity-90 border border-dashed rounded-xl px-2.5 py-1.5 flex items-center justify-between cursor-pointer transition-colors group/code" title="คลิกเพื่อคัดลอกโค้ด">
+                            <span class="font-mono font-black ${textGradClass} text-xs sm:text-sm tracking-wider">${escapeHTML(promo.code)}</span>
+                            <span class="text-[10px] ${textGradClass} font-bold flex items-center gap-1">
+                                <i class="fa-regular fa-copy"></i>
+                                <span>คลิกคัดลอก</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    ${isApplied ? `
+                        <div class="w-full py-2.5 px-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-700 font-black text-xs flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-circle-check text-emerald-600"></i>
+                            <span>กำลังใช้งานในตะกร้า</span>
+                        </div>
+                    ` : `
+                        <button type="button" onclick="claimVoucher('${escapeHTML(promo.code)}', this)" class="w-full py-2.5 px-3 rounded-xl ${btnGradClass} text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer">
+                            <i class="fa-solid fa-bolt text-yellow-300"></i>
+                            <span>เก็บโค้ด & ใช้เลย</span>
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+window.renderVoucherHubSection = renderVoucherHubSection;
+
+
 function openCouponsModal() {
     renderCouponsModal();
     const modal = document.getElementById('coupons-modal');
@@ -7459,6 +7875,7 @@ async function handleAdminCouponFormSubmit(e) {
         showToast(`บันทึกโค้ดส่วนลด "${code}" เรียบร้อยแล้ว`, "success");
         toggleAdminCouponForm(false);
         renderAdminCouponsList();
+        if (typeof renderVoucherHubSection === 'function') renderVoucherHubSection();
 
     } catch (err) {
         showToast(err.message || "เกิดข้อผิดพลาดในการบันทึกโค้ดส่วนลด", "warning");
@@ -7497,6 +7914,7 @@ async function handleToggleAdminCoupon(code) {
 
         showToast(`อัปเดตสถานะโค้ด "${code}" แล้ว`, "success");
         renderAdminCouponsList();
+        if (typeof renderVoucherHubSection === 'function') renderVoucherHubSection();
     } catch (err) {
         showToast(err.message || "เกิดข้อผิดพลาดในการสลับสถานะ", "warning");
     }
@@ -7537,6 +7955,7 @@ async function handleDeleteAdminCoupon(code) {
 
         showToast(`ลบโค้ดส่วนลด "${code}" เรียบร้อยแล้ว`, "info");
         renderAdminCouponsList();
+        if (typeof renderVoucherHubSection === 'function') renderVoucherHubSection();
     } catch (err) {
         showToast(err.message || "เกิดข้อผิดพลาดในการลบโค้ดส่วนลด", "warning");
     }
