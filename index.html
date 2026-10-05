@@ -2128,7 +2128,13 @@
                             placeholder="ค้นหาชื่อสินค้าในระบบ..."
                             class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
                     </div>
-                    <div class="flex items-center gap-1 overflow-x-auto py-1">
+                    <div class="flex items-center gap-1.5 overflow-x-auto py-1">
+                        <button onclick="triggerManualAutoSync()" title="ซิงค์ราคาและสต็อกล่าสุดจากตลาด G2G ทันที"
+                            class="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-bolt text-yellow-300"></i>
+                            <span>Auto-Sync ทันที</span>
+                        </button>
+                        <span class="text-slate-300 select-none">|</span>
                         <button onclick="filterAdminStockBrand('all')" id="admin-stock-chip-all"
                             class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0">ทั้งหมด</button>
                         <button onclick="filterAdminStockBrand('CapCut')" id="admin-stock-chip-CapCut"
@@ -2973,6 +2979,17 @@
                     <span class="text-slate-500 font-bold">สินค้าที่สั่ง:</span>
                     <span id="fulfill-product-title-label" class="font-bold text-slate-900"></span>
                 </div>
+                <div class="flex items-center justify-between bg-amber-100/70 p-2 rounded-xl border border-amber-300 text-xs">
+                    <div class="flex items-center gap-1.5 text-amber-950 font-bold overflow-hidden">
+                        <i class="fa-solid fa-cart-shopping text-amber-600 shrink-0"></i>
+                        <span class="shrink-0 text-slate-600 font-bold">ชื่อบน G2G:</span>
+                        <span id="fulfill-g2g-raw-title-label" class="font-mono text-pink-700 truncate"></span>
+                    </div>
+                    <button type="button" onclick="copyFulfillG2GTitle()"
+                        class="ml-2 px-2.5 py-1 rounded-lg bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-bold shrink-0 cursor-pointer transition-all active:scale-95 flex items-center gap-1 shadow-2xs">
+                        <i class="fa-regular fa-copy text-pink-600"></i> คัดลอกชื่อ
+                    </button>
+                </div>
                 <div class="pt-1 flex items-center justify-end">
                     <a id="fulfill-g2g-btn" href="#" target="_blank" rel="noopener noreferrer"
                         class="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 cursor-pointer">
@@ -3074,21 +3091,41 @@
                 <i class="fa-solid fa-tag text-amber-500"></i>
                 <span>แก้ไขราคา & ป้ายสินค้า (Badge)</span>
             </h3>
-            <p id="edit-price-product-title" class="text-xs font-semibold text-pink-600 mb-3"></p>
+            <p id="edit-price-product-title" class="text-xs font-semibold text-pink-600 mb-2"></p>
+            <div class="text-[11px] font-mono text-amber-900 bg-amber-50/90 px-2.5 py-1.5 rounded-xl border border-amber-200 mb-3 flex items-center justify-between">
+                <span class="truncate">📦 ชื่อบน G2G: <b id="edit-price-g2g-raw-title" class="text-pink-700"></b></span>
+                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('edit-price-g2g-raw-title').textContent); showToast('คัดลอกชื่อ G2G แล้ว', 'info');"
+                    class="ml-2 text-pink-600 hover:text-pink-700 font-bold shrink-0 cursor-pointer flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-amber-300 shadow-2xs active:scale-95">
+                    <i class="fa-regular fa-copy"></i> คัดลอก
+                </button>
+            </div>
             <input type="hidden" id="edit-price-product-id">
 
             <!-- Live Profit & Cost Preview -->
-            <div class="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 mb-4 text-xs space-y-1.5">
+            <div class="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 mb-4 text-xs space-y-2">
                 <div class="flex items-center justify-between text-slate-600">
                     <span class="font-medium">ต้นทุนตลาด G2G โดยประมาณ:</span>
                     <span id="edit-price-cost-preview" class="font-bold text-slate-900">฿0.00</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-700 bg-white/70 px-2.5 py-1.5 rounded-xl border border-amber-200/50">
+                    <span class="font-semibold flex items-center gap-1 text-slate-700">
+                        <i class="fa-solid fa-wand-magic-sparkles text-pink-500"></i>
+                        <span>ราคา Auto-Sync ตลาดแนะนำ:</span>
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <span id="edit-price-auto-calc-preview" class="font-black text-pink-600 font-mono text-sm">฿0.00</span>
+                        <button type="button" onclick="applyRecommendedAutoPriceToInput()" title="คัดลอกราคานี้มาใส่ในช่องราคาขายทันที"
+                            class="px-2 py-0.5 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-[11px] font-bold cursor-pointer transition-all shadow-2xs active:scale-95">
+                            ใช้ราคานี้
+                        </button>
+                    </div>
                 </div>
                 <div class="flex items-center justify-between text-slate-600">
                     <span class="font-medium">กำไรสุทธิโดยประมาณ:</span>
                     <span id="edit-price-margin-preview" class="font-bold text-emerald-600">฿0.00 (+0%)</span>
                 </div>
                 <div
-                    class="flex items-center justify-between text-slate-500 text-[11px] pt-1 border-t border-amber-200/60">
+                    class="flex items-center justify-between text-slate-500 text-[11px] pt-1.5 border-t border-amber-200/60">
                     <span>สถานะราคานี้:</span>
                     <span id="edit-price-status-badge" class="font-semibold text-pink-600"></span>
                 </div>
@@ -3096,7 +3133,7 @@
 
             <!-- Reset to Auto-Sync Button -->
             <button type="button" id="edit-price-reset-btn" onclick="handleResetToAutoPrice()"
-                class="w-full mb-3.5 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs">
+                class="w-full mb-3.5 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98">
                 <i class="fa-solid fa-arrows-rotate text-pink-600"></i>
                 <span>คืนค่าราคาตลาด Auto-Sync อัจฉริยะ (ยกเลิกราคาตั้งเอง)</span>
             </button>
@@ -4051,9 +4088,9 @@ W11PR-XXXX-XXXX-XXXX"
     <!-- ==========================================
          APPLICATION SCRIPTS
          ========================================== -->
+    <script src="js/g2g-sync.js"></script>
     <script src="js/data.js"></script>
     <script src="js/promptpay.js"></script>
-    <script src="js/g2g-sync.js"></script>
     <script src="js/user-auth.js"></script>
     <script src="js/app.js"></script>
     <!-- Live Chat Widget (Customer) — only loads when server is available -->

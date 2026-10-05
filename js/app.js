@@ -385,27 +385,13 @@ function getCustomPrices() {
 
 function applyCustomPricesToProducts() {
     const customPrices = getCustomPrices();
-    let modified = false;
-
-    // Remove any stale cached prices that were not manually overridden by admin
-    Object.keys(customPrices).forEach(id => {
-        if (!customPrices[id].manualOverride) {
-            delete customPrices[id];
-            modified = true;
-        }
-    });
-
-    if (modified) {
-        try {
-            localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
-        } catch (e) {}
-    }
 
     state.products.forEach(p => {
-        if (customPrices[p.id] && customPrices[p.id].manualOverride) {
-            if (typeof customPrices[p.id].price === 'number') p.price = customPrices[p.id].price;
-            if (typeof customPrices[p.id].originalPrice === 'number') p.originalPrice = customPrices[p.id].originalPrice;
-            if (typeof customPrices[p.id].badge === 'string') p.badge = customPrices[p.id].badge;
+        const cp = customPrices[p.id];
+        if (cp) {
+            if (typeof cp.price === 'number') p.price = cp.price;
+            if (typeof cp.originalPrice === 'number') p.originalPrice = cp.originalPrice;
+            if (typeof cp.badge === 'string' && cp.badge !== '') p.badge = cp.badge;
         }
     });
 }
@@ -2280,14 +2266,14 @@ const G2G_PRODUCT_LINKS = {
     "cpc-03": "https://www.g2g.com/categories/capcut-accounts",
     "cpc-04": "https://www.g2g.com/categories/capcut-accounts",
 
-    // 2. Google AI / Gemini (Targeted direct query for Gemini Advanced & Ultra)
-    "goo-ai-01": "https://www.g2g.com/search?q=Gemini+Advanced",
-    "goo-ai-02": "https://www.g2g.com/search?q=Gemini+Ultra",
-    "goo-ai-03": "https://www.g2g.com/search?q=Gemini+Advanced",
+    // 2. Google AI / Gemini (Verified G2G Activation Links Category)
+    "goo-ai-01": "https://www.g2g.com/categories/google-ai-activation-links",
+    "goo-ai-02": "https://www.g2g.com/categories/google-ai-activation-links",
+    "goo-ai-03": "https://www.g2g.com/categories/google-ai-activation-links",
 
-    // 3. Google Drive & Google One (Targeted direct query for Google One & Drive 5TB)
-    "goo-01": "https://www.g2g.com/search?q=Google+Drive+5TB",
-    "goo-02": "https://www.g2g.com/search?q=Google+One",
+    // 3. Google Drive & Google One (Verified Direct G2G Category Group Offer Link)
+    "goo-01": "https://www.g2g.com/categories/google-ai-activation-links/offer/group?fa=d5d17109%3A457c09d7&region_id=0f76ac42-3267-4d77-9fba-f9d9d719dac9",
+    "goo-02": "https://www.g2g.com/categories/google-ai-activation-links/offer/group?fa=d5d17109%3A457c09d7&region_id=0f76ac42-3267-4d77-9fba-f9d9d719dac9",
 
     // 4. xAI Grok (Verified G2G Category)
     "grk-01": "https://www.g2g.com/categories/grok-accounts",
@@ -2298,14 +2284,14 @@ const G2G_PRODUCT_LINKS = {
     "cld-01": "https://www.g2g.com/categories/claude-accounts",
     "cld-02": "https://www.g2g.com/categories/claude-accounts",
 
-    // 6. Adobe (Targeted search for Creative Cloud & Acrobat Pro)
-    "adb-01": "https://www.g2g.com/search?q=Adobe+Acrobat+Pro",
-    "adb-02": "https://www.g2g.com/search?q=Adobe+Creative+Cloud",
+    // 6. Adobe Creative Cloud & Acrobat (Verified G2G Category)
+    "adb-01": "https://www.g2g.com/categories/adobe-accounts",
+    "adb-02": "https://www.g2g.com/categories/adobe-accounts",
 
-    // 7. Microsoft / Windows (Targeted direct search for keys & licenses)
-    "ms-01": "https://www.g2g.com/search?q=Windows+11+Pro",
-    "ms-02": "https://www.g2g.com/search?q=Microsoft+365",
-    "ms-03": "https://www.g2g.com/search?q=Copilot+Pro"
+    // 7. Microsoft / Windows & Office 365 (Verified G2G Category)
+    "ms-01": "https://www.g2g.com/categories/microsoft-accounts",
+    "ms-02": "https://www.g2g.com/categories/microsoft-accounts",
+    "ms-03": "https://www.g2g.com/categories/microsoft-accounts"
 };
 
 function getG2GMarketLink(productId) {
@@ -2321,32 +2307,34 @@ function getG2GMarketLink(productId) {
     if (brand.includes("capcut")) return "https://www.g2g.com/categories/capcut-accounts";
     if (brand.includes("grok") || brand.includes("xai")) return "https://www.g2g.com/categories/grok-accounts";
     if (brand.includes("claude") || brand.includes("anthropic")) return "https://www.g2g.com/categories/claude-accounts";
-    if (title.includes("google one")) return "https://www.g2g.com/search?q=Google+One";
-    if (title.includes("gemini") || brand.includes("google")) return "https://www.g2g.com/search?q=Gemini+Advanced";
-    if (brand.includes("adobe")) return "https://www.g2g.com/search?q=Adobe+Creative+Cloud";
-    if (title.includes("windows")) return "https://www.g2g.com/search?q=Windows+11+Pro";
-    if (brand.includes("microsoft")) return "https://www.g2g.com/categories/microsoft-accounts";
+    if (title.includes("google one") || title.includes("5tb")) return "https://www.g2g.com/categories/google-ai-activation-links/offer/group?fa=d5d17109%3A457c09d7&region_id=0f76ac42-3267-4d77-9fba-f9d9d719dac9";
+    if (title.includes("gemini") || brand.includes("google")) return "https://www.g2g.com/categories/google-ai-activation-links";
+    if (brand.includes("adobe")) return "https://www.g2g.com/categories/adobe-accounts";
+    if (title.includes("windows") || brand.includes("microsoft")) return "https://www.g2g.com/categories/microsoft-accounts";
 
-    const searchKeyword = (master.brand ? master.brand : '') + ' ' + (master.title ? master.title.split(' ')[0] : '');
-    return `https://www.g2g.com/search?q=${encodeURIComponent(searchKeyword.trim())}`;
+    return "https://www.g2g.com";
 }
 
 function openG2GMarketLink(productId) {
     const link = getG2GMarketLink(productId);
     if (!link) return;
-    try {
-        const a = document.createElement('a');
-        a.href = link;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-            try { document.body.removeChild(a); } catch (e) {}
-        }, 150);
-    } catch (err) {
-        window.open(link, '_blank', 'noopener,noreferrer');
+    window.open(link, '_blank', 'noopener,noreferrer');
+}
+
+function getG2GRawTitle(productId) {
+    if (!productId) return '';
+    if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[productId]) {
+        return G2G_MARKET_FEED.benchmarks[productId].title;
     }
+    const master = typeof getMasterProduct === 'function' ? getMasterProduct(productId) : null;
+    return master?.g2gRawTitle || master?.title || productId;
+}
+
+function copyFulfillG2GTitle() {
+    const el = document.getElementById('fulfill-g2g-raw-title-label');
+    if (!el || !el.textContent) return;
+    navigator.clipboard.writeText(el.textContent);
+    showToast(`คัดลอกชื่อสินค้าบน G2G แล้ว: ${el.textContent}`, "info");
 }
 
 // ==========================================
@@ -2645,6 +2633,8 @@ function renderAdminOrdersList() {
                         const isItemPending = !item.credentials || item.status === 'pending_fulfillment';
                         const cred = item.credentials || {};
 
+                        const g2gRawName = getG2GRawTitle(item.productId);
+
                         return `
                             <div class="p-3 rounded-xl ${isItemPending ? 'bg-amber-50/70 border border-amber-200' : 'bg-slate-50 border border-slate-200'} flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div class="min-w-0 flex-1">
@@ -2653,6 +2643,16 @@ function renderAdminOrdersList() {
                                         <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${isItemPending ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}">
                                             ${isItemPending ? 'รอจัดส่ง' : 'จัดส่งแล้ว'}
                                         </span>
+                                    </div>
+                                    <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-100/90 text-amber-950 border border-amber-300 font-mono text-[11px] font-bold shadow-2xs">
+                                            <i class="fa-solid fa-cart-shopping text-amber-600"></i> ชื่อบน G2G: <span class="text-pink-700">${escapeHTML(g2gRawName)}</span>
+                                        </span>
+                                        <button type="button" onclick="navigator.clipboard.writeText('${escapeHTML(g2gRawName)}'); showToast('คัดลอกชื่อสินค้า G2G แล้ว', 'info');"
+                                                class="px-2 py-0.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-2xs active:scale-95"
+                                                title="คลิกเพื่อคัดลอกชื่อไปค้นหาใน G2G">
+                                            <i class="fa-regular fa-copy text-pink-600"></i> คัดลอกชื่อ
+                                        </button>
                                     </div>
                                     ${!isItemPending ? `
                                         <div class="mt-1 text-xs font-mono text-slate-600 flex flex-wrap items-center gap-2">
@@ -2753,15 +2753,16 @@ function openFulfillModal(orderId, itemIndex) {
     document.getElementById('fulfill-order-id-label').textContent = orderId;
     document.getElementById('fulfill-customer-email-label').textContent = order.recipientEmail || 'ลูกค้าหน้าร้าน';
     document.getElementById('fulfill-product-title-label').textContent = item.productTitle;
+    const g2gRawTitleEl = document.getElementById('fulfill-g2g-raw-title-label');
+    if (g2gRawTitleEl) g2gRawTitleEl.textContent = getG2GRawTitle(item.productId);
 
     const g2gBtn = document.getElementById('fulfill-g2g-btn');
     if (g2gBtn) {
         const g2gUrl = getG2GMarketLink(item.productId);
         g2gBtn.href = g2gUrl;
-        g2gBtn.onclick = (e) => {
-            e.stopPropagation();
-            openG2GMarketLink(item.productId);
-        };
+        g2gBtn.target = '_blank';
+        g2gBtn.rel = 'noopener noreferrer';
+        g2gBtn.onclick = null;
     }
 
     const cred = item.credentials || {};
@@ -3795,6 +3796,14 @@ function renderAdminStockList() {
                             ${isManual ? '🟡 ราคาตั้งเอง' : '🟢 ตลาด Auto-Sync'}
                         </span>
                     </div>
+                    <div class="flex items-center gap-1.5 mt-1 text-[11px] font-mono text-amber-950 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 inline-flex">
+                        <i class="fa-solid fa-cart-shopping text-amber-600 text-[10px]"></i>
+                        <span>G2G: <b>${escapeHTML(getG2GRawTitle(p.id))}</b></span>
+                        <button type="button" onclick="navigator.clipboard.writeText('${escapeHTML(getG2GRawTitle(p.id))}'); showToast('คัดลอกชื่อ G2G แล้ว', 'info');"
+                                class="text-slate-400 hover:text-pink-600 cursor-pointer ml-1" title="คัดลอกชื่อไปค้นหาใน G2G">
+                            <i class="fa-regular fa-copy text-[10px]"></i>
+                        </button>
+                    </div>
                 </td>
                 <td class="py-3 px-3.5 text-center font-mono">
                     <span class="text-slate-500 font-bold text-xs">฿${costTHB.toFixed(2)}</span>
@@ -3849,6 +3858,8 @@ function openEditPriceModal(productId) {
 
     document.getElementById('edit-price-product-id').value = productId;
     document.getElementById('edit-price-product-title').textContent = master.title;
+    const g2gRawEl = document.getElementById('edit-price-g2g-raw-title');
+    if (g2gRawEl) g2gRawEl.textContent = getG2GRawTitle(productId);
     document.getElementById('edit-price-sale').value = master.price;
     document.getElementById('edit-price-original').value = master.originalPrice;
     const badgeInp = document.getElementById('edit-price-badge');
@@ -3878,6 +3889,15 @@ function updateEditPricePreview() {
     const costEl = document.getElementById('edit-price-cost-preview');
     if (costEl) costEl.textContent = `฿${costTHB.toFixed(2)}`;
 
+    // Live Auto-Sync Recommended Price preview
+    const autoCalcPrice = (typeof G2G_SYNC !== 'undefined' && typeof G2G_SYNC.getAutoCalculatedPrice === 'function')
+        ? G2G_SYNC.getAutoCalculatedPrice(productId)
+        : (costTHB > 0 ? Math.round(costTHB * 1.45) : 0);
+    const autoCalcEl = document.getElementById('edit-price-auto-calc-preview');
+    if (autoCalcEl) {
+        autoCalcEl.textContent = autoCalcPrice > 0 ? `฿${autoCalcPrice.toFixed(2)}` : '฿0.00';
+    }
+
     const margin = saleVal - costTHB;
     const marginPct = saleVal > 0 ? ((margin / saleVal) * 100).toFixed(1) : 0;
     const marginEl = document.getElementById('edit-price-margin-preview');
@@ -3899,6 +3919,18 @@ function updateEditPricePreview() {
     }
 }
 
+// Quick apply recommended auto-sync price to sale input
+function applyRecommendedAutoPriceToInput() {
+    const productId = document.getElementById('edit-price-product-id').value;
+    if (!productId || typeof G2G_SYNC === 'undefined') return;
+    const autoPrice = G2G_SYNC.getAutoCalculatedPrice(productId);
+    if (autoPrice > 0) {
+        document.getElementById('edit-price-sale').value = autoPrice;
+        updateEditPricePreview();
+        showToast(`ใส่ราคาตลาด Auto-Sync ฿${autoPrice.toFixed(2)} ในช่องแล้ว กด "บันทึก" หรือ "คืนค่าราคาตลาด" ได้เลย`, "info");
+    }
+}
+
 async function handleResetToAutoPrice() {
     const productId = document.getElementById('edit-price-product-id').value;
     if (!productId) return;
@@ -3908,8 +3940,18 @@ async function handleResetToAutoPrice() {
         delete customPrices[productId].manualOverride;
         delete customPrices[productId].lastManualUpdate;
         delete customPrices[productId].badge;
-        localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
     }
+
+    let calculatedAutoPrice = 0;
+    if (typeof G2G_SYNC !== 'undefined') {
+        calculatedAutoPrice = G2G_SYNC.getAutoCalculatedPrice(productId);
+        if (calculatedAutoPrice > 0) {
+            if (!customPrices[productId]) customPrices[productId] = {};
+            customPrices[productId].price = calculatedAutoPrice;
+            customPrices[productId].manualOverride = false;
+        }
+    }
+    localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
 
     if (window.location.protocol.startsWith('http')) {
         try {
@@ -3918,7 +3960,8 @@ async function handleResetToAutoPrice() {
                 headers: ADMIN_AUTH.getHeaders(),
                 body: JSON.stringify({
                     productId,
-                    action: 'reset'
+                    action: 'reset',
+                    price: calculatedAutoPrice || undefined
                 })
             });
             const data = await res.json();
@@ -3945,7 +3988,15 @@ async function handleResetToAutoPrice() {
     }
     updateEditPricePreview();
     renderAdminStockList();
-    showToast("คืนค่าราคาสินค้าเป็นระบบ Auto-Sync ตลาดอัตโนมัติแล้ว", "success");
+    showToast(`ปรับราคาสินค้าเป็นระบบ Auto-Sync ตลาดอัตโนมัติแล้ว (${updatedMaster ? '฿' + updatedMaster.price.toFixed(2) : ''})`, "success");
+}
+
+function triggerManualAutoSync() {
+    if (typeof G2G_SYNC !== 'undefined') {
+        G2G_SYNC.performAutoSync();
+        renderAdminStockList();
+        showToast("⚡ ซิงค์ราคาและสต็อกตลาด G2G อัตโนมัติเรียบร้อยแล้ว", "success");
+    }
 }
 
 function closeEditPriceModal() {

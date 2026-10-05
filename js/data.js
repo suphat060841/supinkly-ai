@@ -216,7 +216,7 @@ const PRODUCTS = [
         duration: "18 เดือน (18 Months)",
         region: "Global (ใช้งานได้ทั่วโลก)",
         devices: "ทุกอุปกรณ์ (PC, Mac, Mobile)",
-        price: 150.00,
+        price: 99.00,
         originalPrice: 690.00,
         soldCount: 410,
         rating: 5.0,
@@ -436,10 +436,14 @@ const PRODUCTS = [
     }
 ];
 
-// Ensure every master product has banner image and guaranteed default stock (50 pcs minimum)
+// Ensure every master product has banner image, raw G2G title, direct link, and guaranteed default stock (50 pcs minimum)
 PRODUCTS.forEach(p => {
     if (!p.image) {
         p.image = `images/products/${p.id}.jpg`;
+    }
+    if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[p.id]) {
+        p.g2gRawTitle = G2G_MARKET_FEED.benchmarks[p.id].title || '';
+        p.g2gUrl = G2G_MARKET_FEED.benchmarks[p.id].g2gUrl || '';
     }
     if (typeof p.stock !== 'number') {
         const benchmarkStock = (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock);
@@ -455,10 +459,14 @@ function getMasterProduct(productId) {
     let originalPrice = product.originalPrice;
     let stock = product.stock || 50;
     let marketCostTHB = product.marketCostTHB || 0;
+    let g2gRawTitle = product.g2gRawTitle || '';
+    let g2gUrl = product.g2gUrl || '';
 
     // Check G2G market benchmark default if available
     if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[productId]) {
         const benchmark = G2G_MARKET_FEED.benchmarks[productId];
+        if (benchmark.title) g2gRawTitle = benchmark.title;
+        if (benchmark.g2gUrl) g2gUrl = benchmark.g2gUrl;
         if (typeof benchmark.g2gStock === 'number') {
             stock = benchmark.g2gStock;
         }
@@ -490,7 +498,9 @@ function getMasterProduct(productId) {
         price,
         originalPrice,
         stock: stock || 50,
-        marketCostTHB
+        marketCostTHB,
+        g2gRawTitle,
+        g2gUrl
     };
 }
 

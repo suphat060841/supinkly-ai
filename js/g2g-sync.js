@@ -7,25 +7,25 @@
 const G2G_MARKET_FEED = {
     // 19 Master Products mapped to G2G Market Category & Benchmark Cost (USD)
     benchmarks: {
-        "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro 1M Private", baseCostUSD: 1.25, g2gStock: 142 },
-        "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro 1M Shared",  baseCostUSD: 0.85, g2gStock: 89 },
-        "cpc-03": { serviceId: "G2G-CPC-TEAM",     title: "CapCut Team 1M Private",baseCostUSD: 1.95, g2gStock: 64 },
-        "cpc-04": { serviceId: "G2G-CPC-VIP",      title: "CapCut VIP / SVIP 1M",  baseCostUSD: 3.10, g2gStock: 35 },
-        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google AI Pro Link",    baseCostUSD: 1.35, g2gStock: 210 },
-        "goo-ai-02": { serviceId: "G2G-GOO-AI-ULT", title: "Google AI Ultra Priv",  baseCostUSD: 49.50, g2gStock: 12 },
-        "goo-ai-03": { serviceId: "G2G-GOO-AI-SHR", title: "Google AI Pro Shared",  baseCostUSD: 1.10, g2gStock: 78 },
-        "goo-01":    { serviceId: "G2G-GOO-5TB-PV", title: "Google Drive 5TB Priv", baseCostUSD: 2.15, g2gStock: 95 },
-        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google Drive 5TB Link", baseCostUSD: 1.85, g2gStock: 180 },
-        "grk-01":    { serviceId: "G2G-GRK-7D-PV",  title: "Grok 7 Days Private",   baseCostUSD: 3.80, g2gStock: 45 },
-        "grk-02":    { serviceId: "G2G-GRK-30D-PV", title: "Grok 30 Days Private",  baseCostUSD: 14.20, g2gStock: 52 },
-        "grk-03":    { serviceId: "G2G-GRK-HEAVY",  title: "Grok Heavy 30 Days",    baseCostUSD: 95.00, g2gStock: 8 },
-        "cld-01":    { serviceId: "G2G-CLD-PRO-PV", title: "Claude Pro 1M Private", baseCostUSD: 13.80, g2gStock: 67 },
-        "cld-02":    { serviceId: "G2G-CLD-PRO-SH", title: "Claude Pro 1M Shared",  baseCostUSD: 3.60, g2gStock: 120 },
-        "adb-01":    { serviceId: "G2G-ADB-ACRO",   title: "Adobe Acrobat Pro",     baseCostUSD: 6.50, g2gStock: 41 },
-        "adb-02":    { serviceId: "G2G-ADB-CC-ALL", title: "Adobe CC All Apps",     baseCostUSD: 10.80, g2gStock: 83 },
-        "ms-01":     { serviceId: "G2G-MS-W11-OEM", title: "Windows 11 OEM Key",    baseCostUSD: 2.20, g2gStock: 350 },
-        "ms-02":     { serviceId: "G2G-MS-365-FAM", title: "Microsoft 365 1M",      baseCostUSD: 2.80, g2gStock: 115 },
-        "ms-03":     { serviceId: "G2G-MS-COPILOT", title: "Copilot Pro 1M",        baseCostUSD: 7.90, g2gStock: 58 }
+        "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro 1 Month Private Account", baseCostUSD: 1.25, g2gStock: 142 },
+        "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro 1 Month Shared Profile",  baseCostUSD: 0.85, g2gStock: 89 },
+        "cpc-03": { serviceId: "G2G-CPC-TEAM",     title: "CapCut Team Workspace 1 Month",       baseCostUSD: 1.95, g2gStock: 64 },
+        "cpc-04": { serviceId: "G2G-CPC-VIP",      title: "CapCut VIP / SVIP 1 Month",          baseCostUSD: 3.10, g2gStock: 35 },
+        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google AI Pro (Gemini Advanced 1 Month) Activation Link", baseCostUSD: 1.35, g2gStock: 210 },
+        "goo-ai-02": { serviceId: "G2G-GOO-AI-ULT", title: "Google AI Ultra (Gemini Ultra 1 Month) Private Account",   baseCostUSD: 49.50, g2gStock: 12 },
+        "goo-ai-03": { serviceId: "G2G-GOO-AI-SHR", title: "Google AI Pro (Gemini Advanced 1 Month) Shared Account",   baseCostUSD: 1.10, g2gStock: 78 },
+        "goo-01":    { serviceId: "G2G-GOO-5TB-PV", title: "Google Drive 5TB Storage + Gemini Advanced 1 Month",        baseCostUSD: 2.15, g2gStock: 95 },
+        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google One Subscription Pro 5TB (18 Months) Activation Link", baseCostUSD: 1.85, g2gStock: 180 },
+        "grk-01":    { serviceId: "G2G-GRK-7D-PV",  title: "xAI Grok / SuperGrok 7 Days Private Account",              baseCostUSD: 3.80, g2gStock: 45 },
+        "grk-02":    { serviceId: "G2G-GRK-30D-PV", title: "xAI Grok / SuperGrok 1 Month Private Account",             baseCostUSD: 14.20, g2gStock: 52 },
+        "grk-03":    { serviceId: "G2G-GRK-HEAVY",  title: "xAI SuperGrok Heavy 1 Month High Capacity",                 baseCostUSD: 95.00, g2gStock: 8 },
+        "cld-01":    { serviceId: "G2G-CLD-PRO-PV", title: "Anthropic Claude Pro 1 Month Private Account",             baseCostUSD: 13.80, g2gStock: 67 },
+        "cld-02":    { serviceId: "G2G-CLD-PRO-SH", title: "Anthropic Claude Pro 1 Month Shared Account",              baseCostUSD: 3.60, g2gStock: 120 },
+        "adb-01":    { serviceId: "G2G-ADB-ACRO",   title: "Adobe Acrobat Pro DC 1 Month Global",                       baseCostUSD: 6.50, g2gStock: 41 },
+        "adb-02":    { serviceId: "G2G-ADB-CC-ALL", title: "Adobe Creative Cloud All Apps 1 Month 100GB Cloud",         baseCostUSD: 10.80, g2gStock: 83 },
+        "ms-01":     { serviceId: "G2G-MS-W11-OEM", title: "Windows 11 Pro OEM Key Lifetime Global",                    baseCostUSD: 2.20, g2gStock: 350 },
+        "ms-02":     { serviceId: "G2G-MS-365-FAM", title: "Microsoft 365 Personal 1 Month 1TB OneDrive",              baseCostUSD: 2.80, g2gStock: 115 },
+        "ms-03":     { serviceId: "G2G-MS-COPILOT", title: "Microsoft Copilot Pro 1 Month Global Account",              baseCostUSD: 7.90, g2gStock: 58 }
     }
 };
 
@@ -71,6 +71,21 @@ const G2G_SYNC = {
         }
     },
 
+    // Helper to get raw benchmark cost in THB
+    getBenchmarkCostTHB(prodId) {
+        const item = G2G_MARKET_FEED.benchmarks[prodId];
+        if (!item) return 0;
+        return Math.round(item.baseCostUSD * this.DEFAULT_USD_THB_RATE * 100) / 100;
+    },
+
+    // Helper to calculate recommended dynamic Auto-Sync price
+    getAutoCalculatedPrice(prodId) {
+        const costTHB = this.getBenchmarkCostTHB(prodId);
+        if (!costTHB) return 0;
+        const config = this.getConfig();
+        return this.calculateProfitableThaiPrice(costTHB, config.profitMultiplier, config.minProfitBaht);
+    },
+
     // Automatic Synchronization Worker
     async performAutoSync() {
         const config = this.getConfig();
@@ -80,15 +95,19 @@ const G2G_SYNC = {
         const customPrices = JSON.parse(localStorage.getItem('supinkly_custom_prices') || '{}');
         let updatedCount = 0;
 
-        // Iterate through all 17 catalog products
+        // Iterate through all catalog products
         for (const [prodId, g2gItem] of Object.entries(G2G_MARKET_FEED.benchmarks)) {
             const costTHB = g2gItem.baseCostUSD * exchangeRate;
             // Clean up any legacy 1.00 Baht test price on cpc-01
             if (prodId === 'cpc-01' && customPrices[prodId] && customPrices[prodId].price === 1.00 && !customPrices[prodId].manualOverride) {
                 delete customPrices[prodId];
             }
+            // Clean up legacy locked demo price on goo-02 if set to 150 so it can dynamically sync down
+            if (prodId === 'goo-02' && customPrices[prodId] && customPrices[prodId].price === 150.00 && customPrices[prodId].manualOverride) {
+                delete customPrices[prodId].manualOverride;
+            }
 
-            // Check if admin has set manual price override
+            // Check if admin has set manual price override (ผู้ใช้ตั้งราคาเจาะจงเอง)
             if (customPrices[prodId] && customPrices[prodId].manualOverride === true) {
                 // Keep the admin's manual price, but update live stock count and market benchmark cost
                 const stockShift = Math.floor(Math.sin((Date.now() / 1800000) + prodId.charCodeAt(0)) * 5);
@@ -101,8 +120,11 @@ const G2G_SYNC = {
             }
 
             const masterProd = typeof PRODUCTS !== 'undefined' ? PRODUCTS.find(p => p.id === prodId) : null;
-            const targetRetailPrice = masterProd ? masterProd.price : this.calculateProfitableThaiPrice(costTHB, config.profitMultiplier, config.minProfitBaht);
-            const targetOrigPrice = masterProd ? masterProd.originalPrice : Math.round(targetRetailPrice * 1.85 / 10) * 10 - 1;
+            // คำนวณราคาขายตามตลาดจริง Auto-Sync (ลดลงหรือปรับตามต้นทุน + กำไร)
+            const targetRetailPrice = this.calculateProfitableThaiPrice(costTHB, config.profitMultiplier, config.minProfitBaht);
+            const targetOrigPrice = (masterProd && masterProd.originalPrice > targetRetailPrice)
+                ? masterProd.originalPrice
+                : Math.round(targetRetailPrice * 1.85 / 10) * 10 - 1;
 
             // Live market stock fluctuation (±5 items based on continuous market transactions)
             const stockShift = Math.floor(Math.sin((Date.now() / 1800000) + prodId.charCodeAt(0)) * 5);
@@ -113,6 +135,7 @@ const G2G_SYNC = {
                 originalPrice: targetOrigPrice,
                 marketCostTHB: Math.round(costTHB * 100) / 100,
                 g2gStockAvailable: liveG2GStock,
+                manualOverride: false,
                 lastMarketSync: new Date().toISOString()
             };
             updatedCount++;

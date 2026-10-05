@@ -663,7 +663,7 @@ const MASTER_CATALOG = {
     "goo-ai-02": { title: "Google AI Ultra Private", price: 2590.00, warranty: "30 วัน" },
     "goo-ai-03": { title: "Google AI Pro Shared", price: 99.00, warranty: "30 วัน" },
     "goo-01": { title: "Google Drive 5TB Private", price: 229.00, warranty: "30 วัน" },
-    "goo-02": { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 150.00, warranty: "30 วัน" },
+    "goo-02": { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 99.00, warranty: "30 วัน" },
     "grk-01": { title: "Grok 7D Private", price: 290.00, warranty: "7 วัน" },
     "grk-02": { title: "Grok 1M Private", price: 950.00, warranty: "30 วัน" },
     "grk-03": { title: "SuperGrok Heavy 1M", price: 4990.00, warranty: "30 วัน" },
@@ -1362,9 +1362,20 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
     if (!db.customPrices) db.customPrices = {};
 
     if (action === 'reset') {
-        delete db.customPrices[productId];
+        const numPrice = parseFloat(price);
+        if (!isNaN(numPrice) && numPrice > 0) {
+            db.customPrices[productId] = {
+                price: Math.round(numPrice * 100) / 100,
+                originalPrice: (!isNaN(numOrig) && numOrig >= numPrice) ? Math.round(numOrig * 100) / 100 : Math.round(numPrice * 1.85),
+                badge: '',
+                manualOverride: false,
+                updatedAt: new Date().toISOString()
+            };
+        } else {
+            delete db.customPrices[productId];
+        }
         saveDb(db);
-        return res.json({ success: true, message: "คืนค่าราคาสินค้าเป็นค่ามาตรฐานเรียบร้อยแล้ว", customPrices: db.customPrices });
+        return res.json({ success: true, message: "คืนค่าราคาสินค้าเป็นระบบ Auto-Sync ตลาดเรียบร้อยแล้ว", customPrices: db.customPrices });
     }
 
     const numPrice = parseFloat(price);

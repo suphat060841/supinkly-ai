@@ -13,10 +13,10 @@
   ],
   "customPrices": {
     "goo-02": {
-      "price": 150,
+      "price": 99,
       "originalPrice": 690,
       "badge": "🔥 ดีลพิเศษ 18 เดือน",
-      "manualOverride": true,
+      "manualOverride": false,
       "updatedAt": "2026-10-05T09:00:00.000Z"
     }
   },
