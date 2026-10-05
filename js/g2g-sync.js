@@ -35,40 +35,65 @@ const G2G_SYNC = {
     timerId: null,
 
     getConfig() {
-        try {
-            const raw = localStorage.getItem('supinkly_g2g_sync_config');
-            if (raw) return JSON.parse(raw);
-        } catch (e) {}
-        return {
+        let cfg = {
             autoSyncEnabled: true,
-            minProfitBaht: 30, // Minimum profit margin in THB
-            profitMultiplier: 1.45, // 45% markup over market cost
+            minProfitBaht: 35, // Minimum profit margin in THB
+            profitMultiplier: 2.10, // Multiplier >= 2.08x guarantees >= 50% net profit margin!
+            targetMarginPct: 52, // Target net margin >= 50%
             lastSyncTimestamp: null,
             lastSyncCount: 0
         };
+        try {
+            const raw = localStorage.getItem('supinkly_g2g_sync_config');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                cfg = { ...cfg, ...parsed };
+                // Automatically ensure profitMultiplier guarantees >= 50% net profit margin
+                if (!cfg.profitMultiplier || cfg.profitMultiplier < 2.08) {
+                    cfg.profitMultiplier = 2.10;
+                }
+            }
+        } catch (e) {}
+        return cfg;
     },
 
     saveConfig(cfg) {
         localStorage.setItem('supinkly_g2g_sync_config', JSON.stringify(cfg));
     },
 
-    // Calculate smart retail psychological Thai pricing (ending in 9 or 0)
+    // Calculate smart retail psychological Thai pricing with guaranteed >= 50% Net Margin
     calculateProfitableThaiPrice(costTHB, multiplier, minProfit) {
-        let target = costTHB * multiplier;
-        if (target - costTHB < minProfit) {
-            target = costTHB + minProfit;
+        if (!costTHB || costTHB <= 0) return 0;
+
+        // Guaranteed >= 50% Net Margin formula: Price >= Cost / (1 - 0.50) = Cost * 2.0
+        // We use at least 2.10x to comfortably cover retail psychological rounding
+        const effectiveMultiplier = Math.max(2.10, multiplier || 2.10);
+        let target = costTHB * effectiveMultiplier;
+
+        const effectiveMinProfit = Math.max(costTHB, minProfit || 35);
+        if (target - costTHB < effectiveMinProfit) {
+            target = costTHB + effectiveMinProfit;
         }
 
         // Psychological rounding for Thai retail market
+        let finalPrice = target;
         if (target < 100) {
-            return Math.round(target / 10) * 10 - 1; // 59, 89, 99
+            finalPrice = Math.ceil(target / 10) * 10 - 1; // e.g. 71.4 -> 79
         } else if (target < 500) {
-            return Math.round(target / 10) * 10;     // 120, 150, 250
+            finalPrice = Math.ceil(target / 10) * 10;     // e.g. 120, 150, 250
         } else if (target < 1500) {
-            return Math.round(target / 50) * 50 - 10; // 690, 790, 890
+            finalPrice = Math.ceil(target / 50) * 50 - 10; // e.g. 690, 790, 890
         } else {
-            return Math.round(target / 100) * 100 - 10; // 2490, 4990
+            finalPrice = Math.ceil(target / 100) * 100 - 10; // e.g. 2490, 4990
         }
+
+        // Absolute safeguard: Net margin MUST be >= 50.0%
+        // Net Margin = (Price - Cost) / Price
+        if (finalPrice > 0 && ((finalPrice - costTHB) / finalPrice) < 0.50) {
+            finalPrice = Math.ceil((costTHB / 0.48) / 10) * 10 - 1;
+        }
+
+        return finalPrice;
     },
 
     // Helper to get raw benchmark cost in THB

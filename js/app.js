@@ -3944,7 +3944,7 @@ function updateEditPricePreview() {
     // Live Auto-Sync Recommended Price preview
     const autoCalcPrice = (typeof G2G_SYNC !== 'undefined' && typeof G2G_SYNC.getAutoCalculatedPrice === 'function')
         ? G2G_SYNC.getAutoCalculatedPrice(productId)
-        : (costTHB > 0 ? Math.round(costTHB * 1.45) : 0);
+        : (costTHB > 0 ? Math.round(costTHB * 2.10) : 0);
     const autoCalcEl = document.getElementById('edit-price-auto-calc-preview');
     if (autoCalcEl) {
         autoCalcEl.textContent = autoCalcPrice > 0 ? `฿${autoCalcPrice.toFixed(2)}` : '฿0.00';
