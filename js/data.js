@@ -451,16 +451,66 @@ PRODUCTS.forEach(p => {
     }
 });
 
-// Look up guaranteed price & live stock from Master Catalog (with custom price/stock override)
+function getCustomProducts() {
+    try {
+        return JSON.parse(localStorage.getItem('supinkly_custom_products') || '{}');
+    } catch (e) {
+        return {};
+    }
+}
+
+// Look up guaranteed product details & live stock from Master Catalog (with custom title, description, price, delete flags)
 function getMasterProduct(productId) {
-    const product = PRODUCTS.find(p => p.id === productId);
+    if (!productId) return null;
+    let product = PRODUCTS.find(p => p.id === productId);
+
+    const customProducts = getCustomProducts();
+    const customProd = customProducts[productId];
+
+    // Support newly created custom products
+    if (!product && customProd) {
+        product = {
+            id: productId,
+            brand: customProd.brand || "AI Tools",
+            brandCode: (customProd.brand || "AI").slice(0, 3).toUpperCase(),
+            brandBadgeColor: "from-pink-500 to-purple-600",
+            title: customProd.title || productId,
+            subtitle: customProd.subtitle || "",
+            badge: customProd.badge || "",
+            type: customProd.type || "บัญชีส่วนตัว (Private)",
+            typeKey: "private",
+            duration: customProd.duration || "1 เดือน (30 วัน)",
+            region: "Global (ใช้งานได้ทั่วโลก)",
+            devices: customProd.devices || "iOS • Android • PC",
+            price: typeof customProd.price === 'number' ? customProd.price : 99,
+            originalPrice: typeof customProd.originalPrice === 'number' ? customProd.originalPrice : 159,
+            soldCount: 0,
+            rating: 5.0,
+            deliveryType: "instant",
+            warranty: customProd.warranty || "30 วัน",
+            description: customProd.description || "",
+            image: customProd.image || `images/products/${productId}.jpg`
+        };
+    }
+
     if (!product) return null;
+
+    let title = product.title;
+    let subtitle = product.subtitle || '';
+    let description = product.description || '';
+    let brand = product.brand || 'AI Tools';
+    let type = product.type || 'บัญชีส่วนตัว (Private)';
+    let duration = product.duration || '1 เดือน (30 วัน)';
+    let devices = product.devices || 'iOS • Android • PC';
+    let warranty = product.warranty || '30 วัน';
+    let badge = product.badge || '';
     let price = product.price;
     let originalPrice = product.originalPrice;
     let stock = product.stock || 50;
     let marketCostTHB = product.marketCostTHB || 0;
-    let g2gRawTitle = product.g2gRawTitle || '';
+    let g2gRawTitle = product.g2gRawTitle || product.title;
     let g2gUrl = product.g2gUrl || '';
+    let deleted = false;
 
     // Check G2G market benchmark default if available
     if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[productId]) {
@@ -475,8 +525,24 @@ function getMasterProduct(productId) {
         }
     }
 
-    let badge = product.badge;
+    // Apply customProducts overrides (Title, Subtitle, Description, Brand, Type, Duration, Warranty, Devices, Delete)
+    if (customProd) {
+        if (customProd.title) title = customProd.title;
+        if (customProd.subtitle !== undefined) subtitle = customProd.subtitle;
+        if (customProd.description !== undefined) description = customProd.description;
+        if (customProd.brand) brand = customProd.brand;
+        if (customProd.type) type = customProd.type;
+        if (customProd.duration) duration = customProd.duration;
+        if (customProd.devices) devices = customProd.devices;
+        if (customProd.warranty) warranty = customProd.warranty;
+        if (typeof customProd.price === 'number') price = customProd.price;
+        if (typeof customProd.originalPrice === 'number') originalPrice = customProd.originalPrice;
+        if (typeof customProd.badge === 'string') badge = customProd.badge;
+        if (customProd.g2gUrl) g2gUrl = customProd.g2gUrl;
+        if (customProd.deleted === true) deleted = true;
+    }
 
+    // Apply customPrices overrides
     try {
         const customPrices = JSON.parse(localStorage.getItem('supinkly_custom_prices') || '{}');
         const custom = customPrices && customPrices[productId];
@@ -488,21 +554,60 @@ function getMasterProduct(productId) {
             if (typeof custom.marketCostTHB === 'number') marketCostTHB = custom.marketCostTHB;
             if (typeof custom.g2gUrl === 'string' && custom.g2gUrl) g2gUrl = custom.g2gUrl;
         }
-    } catch (e) {
-        // fallback
-    }
+    } catch (e) {}
 
     return {
         ...product,
-        image: product.image || `images/products/${product.id}.jpg`,
+        id: productId,
+        title,
+        subtitle,
+        description,
+        brand,
+        type,
+        duration,
+        devices,
+        warranty,
+        image: product.image || `images/products/${productId}.jpg`,
         badge,
         price,
         originalPrice,
         stock: stock || 50,
         marketCostTHB,
         g2gRawTitle,
-        g2gUrl
+        g2gUrl,
+        deleted
     };
+}
+
+function getAllMasterProducts(includeDeleted = false) {
+    const customProducts = getCustomProducts();
+    const result = [];
+    const seenIds = new Set();
+
+    // 1. Base catalog PRODUCTS
+    PRODUCTS.forEach(p => {
+        seenIds.add(p.id);
+        const master = getMasterProduct(p.id);
+        if (master) {
+            if (includeDeleted || !master.deleted) {
+                result.push(master);
+            }
+        }
+    });
+
+    // 2. Newly added custom products
+    Object.keys(customProducts).forEach(id => {
+        if (!seenIds.has(id)) {
+            const master = getMasterProduct(id);
+            if (master) {
+                if (includeDeleted || !master.deleted) {
+                    result.push(master);
+                }
+            }
+        }
+    });
+
+    return result;
 }
 
 // ==========================================

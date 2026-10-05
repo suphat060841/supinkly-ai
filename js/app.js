@@ -242,7 +242,7 @@ function loadAndSanitizeCart() {
 
 // Application State
 const state = {
-    products: PRODUCTS.map(p => ({ ...p, stock: p.stock || 50 })),
+    products: (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 })),
     inventory: getSecureInventory(),
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
@@ -387,18 +387,33 @@ function applyCustomPricesToProducts() {
     const customPrices = getCustomPrices();
 
     state.products.forEach(p => {
-        const cp = customPrices[p.id];
-        if (cp) {
-            if (typeof cp.price === 'number') p.price = cp.price;
-            if (typeof cp.originalPrice === 'number') p.originalPrice = cp.originalPrice;
-            if (typeof cp.badge === 'string' && cp.badge !== '') p.badge = cp.badge;
+        const master = (typeof getMasterProduct === 'function') ? getMasterProduct(p.id) : null;
+        if (master) {
+            p.title = master.title;
+            p.subtitle = master.subtitle;
+            p.description = master.description;
+            p.brand = master.brand;
+            p.type = master.type;
+            p.duration = master.duration;
+            p.devices = master.devices;
+            p.warranty = master.warranty;
+            p.badge = master.badge;
+            p.price = master.price;
+            p.originalPrice = master.originalPrice;
+        } else {
+            const cp = customPrices[p.id];
+            if (cp) {
+                if (typeof cp.price === 'number') p.price = cp.price;
+                if (typeof cp.originalPrice === 'number') p.originalPrice = cp.originalPrice;
+                if (typeof cp.badge === 'string' && cp.badge !== '') p.badge = cp.badge;
+            }
         }
     });
 }
 
 // Sync live stock count & custom prices (Referenced from G2G Market Auto-Sync)
 function syncStockCount() {
-    // [FIX] Snapshot g2gStockAvailable BEFORE applyCustomPricesToProducts() clears non-manualOverride entries
+    // Snapshot g2gStockAvailable BEFORE applyCustomPricesToProducts()
     const rawCustomPrices = getCustomPrices();
     const g2gStockSnapshot = {};
     Object.keys(rawCustomPrices).forEach(id => {
@@ -406,6 +421,10 @@ function syncStockCount() {
             g2gStockSnapshot[id] = rawCustomPrices[id].g2gStockAvailable;
         }
     });
+
+    if (typeof getAllMasterProducts === 'function') {
+        state.products = getAllMasterProducts(false).map(p => ({ ...p, stock: p.stock || 50 }));
+    }
 
     applyCustomPricesToProducts();
 
@@ -463,27 +482,53 @@ async function syncCustomPricesFromServer() {
         const res = await fetch('/api/catalog');
         if (!res.ok) return;
         const data = await res.json();
-        if (data.success && data.customPrices && typeof data.customPrices === 'object') {
-            const localCustom = getCustomPrices();
+        if (data.success) {
             let changed = false;
-            for (const [pid, srv] of Object.entries(data.customPrices)) {
-                if (srv && typeof srv.price === 'number') {
-                    localCustom[pid] = {
-                        ...(localCustom[pid] || {}),
-                        price: srv.price,
-                        originalPrice: srv.originalPrice || srv.price,
-                        badge: srv.badge !== undefined ? srv.badge : (localCustom[pid]?.badge || ''),
-                        manualOverride: true,
-                        lastManualUpdate: srv.updatedAt || new Date().toISOString()
-                    };
-                    changed = true;
+
+            // Synchronize customProducts (custom titles, descriptions, added products, deleted products)
+            if (data.customProducts && typeof data.customProducts === 'object') {
+                const localCustomProds = (typeof getCustomProducts === 'function') ? getCustomProducts() : {};
+                for (const [pid, srvProd] of Object.entries(data.customProducts)) {
+                    if (srvProd && typeof srvProd === 'object') {
+                        localCustomProds[pid] = {
+                            ...(localCustomProds[pid] || {}),
+                            ...srvProd
+                        };
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    localStorage.setItem('supinkly_custom_products', JSON.stringify(localCustomProds));
                 }
             }
+
+            // Synchronize customPrices (custom price overrides and badges)
+            if (data.customPrices && typeof data.customPrices === 'object') {
+                const localCustomPrices = getCustomPrices();
+                for (const [pid, srv] of Object.entries(data.customPrices)) {
+                    if (srv && typeof srv.price === 'number') {
+                        localCustomPrices[pid] = {
+                            ...(localCustomPrices[pid] || {}),
+                            price: srv.price,
+                            originalPrice: srv.originalPrice || srv.price,
+                            badge: srv.badge !== undefined ? srv.badge : (localCustomPrices[pid]?.badge || ''),
+                            manualOverride: true,
+                            lastManualUpdate: srv.updatedAt || new Date().toISOString()
+                        };
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    localStorage.setItem('supinkly_custom_prices', JSON.stringify(localCustomPrices));
+                }
+            }
+
             if (changed) {
-                localStorage.setItem('supinkly_custom_prices', JSON.stringify(localCustom));
+                state.products = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 }));
                 applyCustomPricesToProducts();
                 applyFilters();
                 renderProducts();
+                if (typeof renderAdminStockList === 'function') renderAdminStockList();
             }
         }
     } catch (e) {
@@ -3755,7 +3800,7 @@ function handleAdminStockSearch(val) {
 function filterAdminStockBrand(brand) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
     adminStockBrandFilter = brand;
-    const chips = ['all', 'CapCut', 'Google-AI', 'Google', 'Grok', 'Claude', 'Adobe', 'Microsoft'];
+    const chips = ['all', 'CapCut', 'Google-AI', 'Google', 'Grok', 'Claude', 'Adobe', 'Microsoft', 'deleted'];
     chips.forEach(c => {
         const btn = document.getElementById(`admin-stock-chip-${c}`);
         if (btn) {
@@ -3763,9 +3808,17 @@ function filterAdminStockBrand(brand) {
                             (c === 'Google-AI' && brand === 'Google AI') || 
                             (c === brand);
             if (matches) {
-                btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0";
+                if (c === 'deleted') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-rose-100 text-rose-700 transition-all shrink-0 flex items-center gap-1";
+                } else {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0";
+                }
             } else {
-                btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0";
+                if (c === 'deleted') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 transition-all shrink-0 flex items-center gap-1";
+                } else {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0";
+                }
             }
         }
     });
@@ -3787,10 +3840,21 @@ function renderAdminStockList() {
         return;
     }
 
-    let prods = state.products;
+    const allProdsWithDeleted = (typeof getAllMasterProducts === 'function') ? getAllMasterProducts(true) : PRODUCTS;
+    const deletedCount = allProdsWithDeleted.filter(p => p.deleted === true).length;
+    const delCountBadge = document.getElementById('admin-deleted-count');
+    if (delCountBadge) delCountBadge.textContent = deletedCount;
 
-    if (adminStockBrandFilter !== 'all') {
-        prods = prods.filter(p => p.brand.toLowerCase() === adminStockBrandFilter.toLowerCase() || (adminStockBrandFilter === 'Google' && p.brand === 'Google'));
+    let prods;
+    const isShowingDeleted = adminStockBrandFilter === 'deleted';
+
+    if (isShowingDeleted) {
+        prods = allProdsWithDeleted.filter(p => p.deleted === true);
+    } else {
+        prods = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 }));
+        if (adminStockBrandFilter !== 'all') {
+            prods = prods.filter(p => p.brand.toLowerCase() === adminStockBrandFilter.toLowerCase() || (adminStockBrandFilter === 'Google' && p.brand === 'Google'));
+        }
     }
 
     if (adminStockSearchQuery) {
@@ -3802,7 +3866,7 @@ function renderAdminStockList() {
             <tr>
                 <td colspan="6" class="py-8 text-center text-slate-400 text-xs font-medium">
                     <i class="fa-solid fa-magnifying-glass mb-1 text-slate-300 text-base block"></i>
-                    ไม่พบรายการสินค้าที่ตรงกับคำค้นหา
+                    ${isShowingDeleted ? 'ไม่มีสินค้าที่ถูกลบอยู่ในถังขยะ' : 'ไม่พบรายการสินค้าที่ตรงกับคำค้นหา'}
                 </td>
             </tr>
         `;
@@ -3826,9 +3890,12 @@ function renderAdminStockList() {
         const isManual = customPrices[p.id]?.manualOverride === true;
 
         return `
-            <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs font-medium transition-colors">
+            <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs font-medium transition-colors ${master.deleted ? 'bg-rose-50/40' : ''}">
                 <td class="py-3 px-3.5">
-                    <div class="font-bold text-slate-900 text-xs sm:text-sm">${escapeHTML(master.title)}</div>
+                    <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                        <span>${escapeHTML(master.title)}</span>
+                        ${master.deleted ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-200 shrink-0">ลบแล้ว</span>' : ''}
+                    </div>
                     <div class="flex items-center gap-1.5 mt-0.5">
                         <span class="text-[11px] font-bold text-pink-600">${escapeHTML(master.brand)} (${escapeHTML(master.type)})</span>
                         <span class="text-slate-300">•</span>
@@ -3875,22 +3942,36 @@ function renderAdminStockList() {
                     </div>
                 </td>
                 <td class="py-3 px-3.5 text-right">
-                    <div class="flex items-center justify-end gap-1.5">
-                        <button onclick="openEditPriceModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
-                            <i class="fa-solid fa-tag"></i> แก้ไขราคา
-                        </button>
-                        <button onclick="openAddStockModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
-                            <i class="fa-solid fa-plus"></i> เติมสต็อก
-                        </button>
-                    </div>
+                    ${master.deleted ? `
+                        <div class="flex items-center justify-end gap-1.5">
+                            <button onclick="handleRestoreProduct('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 hover:bg-emerald-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
+                                <i class="fa-solid fa-trash-arrow-up text-emerald-600"></i> กู้คืน
+                            </button>
+                            <button onclick="openEditProductModal('${p.id}')" class="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs" title="ดู/แก้ไขข้อมูล">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                        </div>
+                    ` : `
+                        <div class="flex items-center justify-end gap-1.5">
+                            <button onclick="openEditProductModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1" title="แก้ไขชื่อ รายละเอียด และราคา">
+                                <i class="fa-solid fa-pen-to-square"></i> แก้ไข
+                            </button>
+                            <button onclick="openAddStockModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
+                                <i class="fa-solid fa-plus"></i> เติมสต็อก
+                            </button>
+                            <button onclick="handleDeleteProduct('${p.id}')" class="px-2 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold transition-all shadow-2xs flex items-center gap-1" title="ลบสินค้านี้">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    `}
                 </td>
             </tr>
         `;
     }).join('');
 }
 
-// Edit Price Modal Handlers
-function openEditPriceModal(productId) {
+// Edit & Add Product Modal Handlers
+function openEditProductModal(productId) {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("กรุณาเข้าสู่ระบบแอดมินก่อนดำเนินการ", "warning");
         promptAdminLogin();
@@ -3903,22 +3984,132 @@ function openEditPriceModal(productId) {
     const modal = document.getElementById('edit-price-modal');
     if (!modal) return;
 
+    document.getElementById('edit-product-is-new').value = "0";
     document.getElementById('edit-price-product-id').value = productId;
-    document.getElementById('edit-price-product-title').textContent = master.title;
+
+    const modalTitle = document.getElementById('edit-product-modal-title');
+    if (modalTitle) modalTitle.textContent = "จัดการข้อมูลสินค้า & ราคา";
+
+    const iconEl = document.getElementById('edit-modal-icon');
+    if (iconEl) iconEl.className = "fa-solid fa-pen-to-square";
+
+    const idDisplay = document.getElementById('edit-product-id-display');
+    if (idDisplay) idDisplay.textContent = `ID: ${productId}`;
+
+    const titleEl = document.getElementById('edit-price-product-title');
+    if (titleEl) titleEl.textContent = master.title;
+
+    // Populate all fields
+    const titleInp = document.getElementById('edit-product-title-input');
+    if (titleInp) titleInp.value = master.title || '';
+
+    const subInp = document.getElementById('edit-product-subtitle-input');
+    if (subInp) subInp.value = master.subtitle || '';
+
+    const brandInp = document.getElementById('edit-product-brand-input');
+    if (brandInp) brandInp.value = master.brand || '';
+
+    const typeInp = document.getElementById('edit-product-type-input');
+    if (typeInp) typeInp.value = master.type || '';
+
+    const durInp = document.getElementById('edit-product-duration-input');
+    if (durInp) durInp.value = master.duration || '';
+
+    const devInp = document.getElementById('edit-product-devices-input');
+    if (devInp) devInp.value = master.devices || '';
+
+    const warInp = document.getElementById('edit-product-warranty-input');
+    if (warInp) warInp.value = master.warranty || '';
+
+    const descInp = document.getElementById('edit-product-desc-input');
+    if (descInp) descInp.value = master.description || '';
+
     const g2gRawEl = document.getElementById('edit-price-g2g-raw-title');
     if (g2gRawEl) g2gRawEl.textContent = getG2GRawTitle(productId);
+
     document.getElementById('edit-price-sale').value = master.price;
     document.getElementById('edit-price-original').value = master.originalPrice;
+
     const badgeInp = document.getElementById('edit-price-badge');
     if (badgeInp) badgeInp.value = master.badge || '';
+
     const g2gUrlInp = document.getElementById('edit-price-g2g-url');
     const customPrices = getCustomPrices();
     if (g2gUrlInp) {
         g2gUrlInp.value = customPrices[productId]?.g2gUrl || master.g2gUrl || '';
     }
 
+    const delBtn = document.getElementById('btn-delete-product');
+    if (delBtn) {
+        delBtn.classList.remove('hidden');
+        if (master.deleted) {
+            delBtn.innerHTML = '<i class="fa-solid fa-trash-arrow-up text-emerald-500"></i> <span>กู้คืนสินค้านี้</span>';
+            delBtn.className = "px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95";
+        } else {
+            delBtn.innerHTML = '<i class="fa-solid fa-trash-can text-rose-500"></i> <span>ลบสินค้านี้</span>';
+            delBtn.className = "px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95";
+        }
+    }
+
     updateEditPricePreview();
     modal.classList.remove('hidden');
+}
+
+// Backwards-compatible alias
+const openEditPriceModal = openEditProductModal;
+
+function openAddNewProductModal() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("กรุณาเข้าสู่ระบบแอดมินก่อนดำเนินการ", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const modal = document.getElementById('edit-price-modal');
+    if (!modal) return;
+
+    const newId = 'prod-' + Date.now().toString(36);
+    document.getElementById('edit-product-is-new').value = "1";
+    document.getElementById('edit-price-product-id').value = newId;
+
+    const modalTitle = document.getElementById('edit-product-modal-title');
+    if (modalTitle) modalTitle.textContent = "เพิ่มสินค้าใหม่เข้าสู่ระบบ";
+
+    const iconEl = document.getElementById('edit-modal-icon');
+    if (iconEl) iconEl.className = "fa-solid fa-plus";
+
+    const idDisplay = document.getElementById('edit-product-id-display');
+    if (idDisplay) idDisplay.textContent = `รหัสสินค้าใหม่: ${newId}`;
+
+    const titleEl = document.getElementById('edit-price-product-title');
+    if (titleEl) titleEl.textContent = "กรอกรายละเอียดสินค้าใหม่ด้านล่าง";
+
+    // Defaults for new product
+    document.getElementById('edit-product-title-input').value = "";
+    document.getElementById('edit-product-subtitle-input').value = "";
+    document.getElementById('edit-product-brand-input').value = "AI Tools";
+    document.getElementById('edit-product-type-input').value = "บัญชีส่วนตัว (Private)";
+    document.getElementById('edit-product-duration-input').value = "1 เดือน (30 วัน)";
+    document.getElementById('edit-product-devices-input').value = "iOS • Android • Windows • Mac";
+    document.getElementById('edit-product-warranty-input').value = "30 วัน";
+    document.getElementById('edit-product-desc-input').value = "• บัญชีส่วนตัว 1 ผู้ใช้ ใช้งานได้เต็มสิทธิ์\n• รับประกันการใช้งานตลอดอายุแพ็คเกจ\n• จัดส่งข้อมูลบัญชีทันทีผ่านระบบ AI Vault";
+
+    document.getElementById('edit-price-sale').value = 99;
+    document.getElementById('edit-price-original').value = 159;
+    document.getElementById('edit-price-badge').value = "⭐ มาใหม่แนะนำ";
+    document.getElementById('edit-price-g2g-url').value = "";
+
+    const g2gRawEl = document.getElementById('edit-price-g2g-raw-title');
+    if (g2gRawEl) g2gRawEl.textContent = "-";
+
+    const delBtn = document.getElementById('btn-delete-product');
+    if (delBtn) delBtn.classList.add('hidden');
+
+    updateEditPricePreview();
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        document.getElementById('edit-product-title-input')?.focus();
+    }, 50);
 }
 
 function setEditBadgePreset(val) {
@@ -4056,7 +4247,7 @@ function closeEditPriceModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-async function handleSaveEditedPrice() {
+async function handleSaveEditedProduct() {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
         closeEditPriceModal();
@@ -4065,10 +4256,27 @@ async function handleSaveEditedPrice() {
     }
 
     const productId = document.getElementById('edit-price-product-id').value;
+    const isNew = document.getElementById('edit-product-is-new').value === "1";
+
+    const title = (document.getElementById('edit-product-title-input')?.value || '').trim();
+    const subtitle = (document.getElementById('edit-product-subtitle-input')?.value || '').trim();
+    const brand = (document.getElementById('edit-product-brand-input')?.value || '').trim() || 'AI Tools';
+    const type = (document.getElementById('edit-product-type-input')?.value || '').trim() || 'บัญชีส่วนตัว (Private)';
+    const duration = (document.getElementById('edit-product-duration-input')?.value || '').trim() || '1 เดือน (30 วัน)';
+    const devices = (document.getElementById('edit-product-devices-input')?.value || '').trim() || 'iOS • Android • PC';
+    const warranty = (document.getElementById('edit-product-warranty-input')?.value || '').trim() || '30 วัน';
+    const description = (document.getElementById('edit-product-desc-input')?.value || '').trim();
+
     const saleVal = parseFloat(document.getElementById('edit-price-sale').value);
     const origVal = parseFloat(document.getElementById('edit-price-original').value);
     const badgeVal = (document.getElementById('edit-price-badge')?.value || '').trim();
     const g2gUrlVal = (document.getElementById('edit-price-g2g-url')?.value || '').trim();
+
+    if (!title) {
+        showToast("กรุณากรอกชื่อสินค้า", "warning");
+        document.getElementById('edit-product-title-input')?.focus();
+        return;
+    }
 
     if (isNaN(saleVal) || saleVal < 0) {
         showToast("กรุณากรอกราคาขายที่ถูกต้อง", "warning");
@@ -4078,28 +4286,59 @@ async function handleSaveEditedPrice() {
     const cleanPrice = Math.round(saleVal * 100) / 100;
     const cleanOrig = isNaN(origVal) || origVal < saleVal ? cleanPrice : Math.round(origVal * 100) / 100;
 
-    const customPrices = getCustomPrices();
-    const existing = customPrices[productId] || {};
-    customPrices[productId] = {
-        ...existing,
+    // 1. Update localStorage supinkly_custom_products
+    const customProds = (typeof getCustomProducts === 'function') ? getCustomProducts() : {};
+    const existingProd = customProds[productId] || {};
+    customProds[productId] = {
+        ...existingProd,
+        id: productId,
+        title,
+        subtitle,
+        brand,
+        type,
+        duration,
+        devices,
+        warranty,
+        description,
         price: cleanPrice,
         originalPrice: cleanOrig,
         badge: badgeVal,
-        g2gUrl: g2gUrlVal || existing.g2gUrl || '',
+        g2gUrl: g2gUrlVal || existingProd.g2gUrl || '',
+        deleted: false,
+        updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem('supinkly_custom_products', JSON.stringify(customProds));
+
+    // 2. Update localStorage supinkly_custom_prices
+    const customPrices = getCustomPrices();
+    const existingPrice = customPrices[productId] || {};
+    customPrices[productId] = {
+        ...existingPrice,
+        price: cleanPrice,
+        originalPrice: cleanOrig,
+        badge: badgeVal,
+        g2gUrl: g2gUrlVal || existingPrice.g2gUrl || '',
         manualOverride: true,
         lastManualUpdate: new Date().toISOString()
     };
-
     localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
 
-    // Sync to Server Database so server slip verification and all visitor browsers stay 100% in sync
+    // 3. Sync to Server Database via POST /api/admin/product
     if (window.location.protocol.startsWith('http')) {
         try {
-            const res = await fetch('/api/admin/price', {
+            const res = await fetch('/api/admin/product', {
                 method: 'POST',
                 headers: ADMIN_AUTH.getHeaders(),
                 body: JSON.stringify({
-                    productId,
+                    id: productId,
+                    title,
+                    subtitle,
+                    brand,
+                    type,
+                    duration,
+                    devices,
+                    warranty,
+                    description,
                     price: cleanPrice,
                     originalPrice: cleanOrig,
                     badge: badgeVal,
@@ -4115,34 +4354,137 @@ async function handleSaveEditedPrice() {
                     promptAdminLogin();
                     return;
                 }
-                console.warn("Server price sync notice:", resData.message);
+                console.warn("Server product sync notice:", resData.message);
             }
         } catch (err) {
-            console.warn("Failed to sync custom price to server:", err.message);
+            console.warn("Failed to sync custom product to server:", err.message);
         }
     }
 
-    // Refresh application state & UI everywhere
-    if (typeof syncStockCount === 'function') {
-        syncStockCount();
-    } else {
-        applyCustomPricesToProducts();
-    }
-    if (typeof applyFilters === 'function') {
-        applyFilters();
-    }
-    if (typeof renderProducts === 'function') {
-        renderProducts();
-    }
-    if (typeof updateCartUI === 'function') {
-        updateCartUI();
-    }
-    if (typeof renderAdminStockList === 'function') {
-        renderAdminStockList();
-    }
-    closeEditPriceModal();
+    // 4. Refresh global state
+    state.products = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 }));
+    if (typeof syncStockCount === 'function') syncStockCount();
+    if (typeof applyFilters === 'function') applyFilters();
+    if (typeof renderProducts === 'function') renderProducts();
+    if (typeof updateCartUI === 'function') updateCartUI();
+    if (typeof renderAdminStockList === 'function') renderAdminStockList();
+    if (typeof renderBrandTabs === 'function') renderBrandTabs();
 
-    showToast(`บันทึกราคาใหม่ ฿${cleanPrice.toFixed(2)} บนระบบและหน้าเว็บเรียบร้อยแล้ว`, "success");
+    closeEditPriceModal();
+    showToast(isNew ? `เพิ่มสินค้า "${title}" เข้าสู่ระบบเรียบร้อยแล้ว` : `บันทึกข้อมูลสินค้า "${title}" เรียบร้อยแล้ว`, "success");
+}
+
+// Keep handleSaveEditedPrice as backwards-compatible alias
+const handleSaveEditedPrice = handleSaveEditedProduct;
+
+// Delete and Restore Product Handlers
+async function handleDeleteProduct(productId) {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("กรุณาเข้าสู่ระบบแอดมินก่อนดำเนินการ", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const master = getMasterProduct(productId);
+    const prodName = master?.title || productId;
+
+    if (!confirm(`คุณต้องการลบสินค้า "${prodName}" ออกจากหน้าร้านใช่หรือไม่?\n\n(สินค้าจะถูกย้ายไปที่ "ที่ลบแล้ว" และสามารถกู้คืนได้ตลอดเวลา)`)) {
+        return;
+    }
+
+    // 1. Update localStorage
+    const customProds = (typeof getCustomProducts === 'function') ? getCustomProducts() : {};
+    customProds[productId] = {
+        ...(customProds[productId] || {}),
+        id: productId,
+        deleted: true,
+        deletedAt: new Date().toISOString()
+    };
+    localStorage.setItem('supinkly_custom_products', JSON.stringify(customProds));
+
+    // Remove from cart if customer had this item in cart
+    if (state.cart && Array.isArray(state.cart)) {
+        state.cart = state.cart.filter(item => item.productId !== productId);
+        localStorage.setItem('supinkly_cart', JSON.stringify(state.cart));
+    }
+
+    // 2. Sync to Server
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/product/delete', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({ productId, deleted: true })
+            });
+        } catch (e) {
+            console.warn("Failed to sync delete to server:", e);
+        }
+    }
+
+    // 3. Refresh UI
+    state.products = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 }));
+    if (typeof applyFilters === 'function') applyFilters();
+    if (typeof renderProducts === 'function') renderProducts();
+    if (typeof updateCartUI === 'function') updateCartUI();
+    if (typeof renderAdminStockList === 'function') renderAdminStockList();
+    if (typeof renderBrandTabs === 'function') renderBrandTabs();
+
+    closeEditPriceModal();
+    showToast(`ลบสินค้า "${prodName}" ออกจากหน้าร้านแล้ว (กู้คืนได้ในแถบ "ที่ลบแล้ว")`, "info");
+}
+
+async function handleRestoreProduct(productId) {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("กรุณาเข้าสู่ระบบแอดมินก่อนดำเนินการ", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const master = getMasterProduct(productId);
+    const prodName = master?.title || productId;
+
+    // 1. Update localStorage
+    const customProds = (typeof getCustomProducts === 'function') ? getCustomProducts() : {};
+    if (customProds[productId]) {
+        customProds[productId].deleted = false;
+        delete customProds[productId].deletedAt;
+    }
+    localStorage.setItem('supinkly_custom_products', JSON.stringify(customProds));
+
+    // 2. Sync to Server
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/product/delete', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({ productId, deleted: false })
+            });
+        } catch (e) {
+            console.warn("Failed to sync restore to server:", e);
+        }
+    }
+
+    // 3. Refresh UI
+    state.products = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 }));
+    if (typeof applyFilters === 'function') applyFilters();
+    if (typeof renderProducts === 'function') renderProducts();
+    if (typeof updateCartUI === 'function') updateCartUI();
+    if (typeof renderAdminStockList === 'function') renderAdminStockList();
+    if (typeof renderBrandTabs === 'function') renderBrandTabs();
+
+    closeEditPriceModal();
+    showToast(`กู้คืนสินค้า "${prodName}" กลับสู่หน้าร้านสำเร็จแล้ว`, "success");
+}
+
+function handleDeleteCurrentProduct() {
+    const productId = document.getElementById('edit-price-product-id').value;
+    if (!productId) return;
+    const master = getMasterProduct(productId);
+    if (master && master.deleted) {
+        handleRestoreProduct(productId);
+    } else {
+        handleDeleteProduct(productId);
+    }
 }
 
 function openAddStockModal(productId) {

@@ -443,6 +443,7 @@ if (!fs.existsSync(DB_FILE)) {
         usedSlips: [],
         usedTransRefs: [],
         customPrices: {},
+        customProducts: {},
         inventory: {},
         orders: [],
         users: [],  // { id, email, passwordHash, displayName, createdAt, emailVerified }
@@ -464,6 +465,7 @@ function getDb() {
             if (!data.users) data.users = [];
             if (!data.smtpConfig) data.smtpConfig = {};
             if (!data.customPrices) data.customPrices = {};
+            if (!data.customProducts) data.customProducts = {};
             if (!data.analytics) data.analytics = {};
             if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
                 data.coupons = DEFAULT_SERVER_COUPONS;
@@ -483,6 +485,7 @@ function getDb() {
                 if (!data.users) data.users = [];
                 if (!data.smtpConfig) data.smtpConfig = {};
                 if (!data.customPrices) data.customPrices = {};
+                if (!data.customProducts) data.customProducts = {};
                 if (!data.analytics) data.analytics = {};
                 if (!data.coupons || !Array.isArray(data.coupons)) {
                     data.coupons = DEFAULT_SERVER_COUPONS;
@@ -504,6 +507,7 @@ function getDb() {
         usedSlips: [],
         usedTransRefs: [],
         customPrices: {},
+        customProducts: {},
         inventory: {},
         orders: [],
         users: [],
@@ -1464,13 +1468,15 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
     res.json({ success: true, order });
 });
 
-// 6.0.1 API: Public Catalog & Synced Custom Prices
+// 6.0.1 API: Public Catalog & Synced Custom Prices & Products
 app.get('/api/catalog', (req, res) => {
     const db = getDb();
     const customPrices = db.customPrices || {};
+    const customProducts = db.customProducts || {};
     res.json({
         success: true,
-        customPrices
+        customPrices,
+        customProducts
     });
 });
 
@@ -1520,6 +1526,106 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
 
     saveDb(db);
     res.json({ success: true, message: "บันทึกราคาลงเซิร์ฟเวอร์สำเร็จ", customPrices: db.customPrices });
+});
+
+// 6.0.3 API: Admin Manage Product (Create / Edit Details: Title, Subtitle, Description, Brand, Type, Duration, Warranty, Devices, Price, Badge, G2G URL)
+app.post('/api/admin/product', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { id, title, subtitle, description, brand, type, duration, devices, warranty, price, originalPrice, badge, g2gUrl } = req.body;
+    if (!title || typeof title !== 'string' || !title.trim()) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุชื่อสินค้า" });
+    }
+
+    const db = getDb();
+    if (!db.customProducts) db.customProducts = {};
+    if (!db.customPrices) db.customPrices = {};
+
+    const prodId = (id && typeof id === 'string' && id.trim()) 
+        ? id.trim().toLowerCase().replace(/[^a-z0-9\-]/g, '-')
+        : 'prod-' + Date.now().toString(36);
+
+    const numPrice = !isNaN(parseFloat(price)) ? Math.max(0, parseFloat(price)) : 0;
+    const numOrig = (!isNaN(parseFloat(originalPrice)) && parseFloat(originalPrice) >= numPrice)
+        ? parseFloat(originalPrice)
+        : numPrice;
+
+    const existing = db.customProducts[prodId] || {};
+    const updatedProduct = {
+        ...existing,
+        id: prodId,
+        title: title.trim().slice(0, 150),
+        subtitle: typeof subtitle === 'string' ? subtitle.trim().slice(0, 200) : (existing.subtitle || ''),
+        description: typeof description === 'string' ? description.trim().slice(0, 3000) : (existing.description || ''),
+        brand: typeof brand === 'string' && brand.trim() ? brand.trim().slice(0, 50) : (existing.brand || 'AI Tools'),
+        type: typeof type === 'string' && type.trim() ? type.trim().slice(0, 50) : (existing.type || 'บัญชีส่วนตัว (Private)'),
+        duration: typeof duration === 'string' ? duration.trim().slice(0, 50) : (existing.duration || '1 เดือน (30 วัน)'),
+        devices: typeof devices === 'string' ? devices.trim().slice(0, 100) : (existing.devices || 'iOS • Android • PC'),
+        warranty: typeof warranty === 'string' ? warranty.trim().slice(0, 50) : (existing.warranty || '30 วัน'),
+        price: Math.round(numPrice * 100) / 100,
+        originalPrice: Math.round(numOrig * 100) / 100,
+        badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : (existing.badge || ''),
+        g2gUrl: typeof g2gUrl === 'string' ? g2gUrl.trim() : (existing.g2gUrl || ''),
+        deleted: false,
+        updatedAt: new Date().toISOString()
+    };
+
+    db.customProducts[prodId] = updatedProduct;
+
+    // Synchronize price overrides
+    db.customPrices[prodId] = {
+        ...(db.customPrices[prodId] || {}),
+        price: updatedProduct.price,
+        originalPrice: updatedProduct.originalPrice,
+        badge: updatedProduct.badge,
+        g2gUrl: updatedProduct.g2gUrl,
+        manualOverride: true,
+        updatedAt: updatedProduct.updatedAt
+    };
+
+    saveDb(db);
+    res.json({
+        success: true,
+        message: "บันทึกข้อมูลสินค้าเรียบร้อยแล้ว",
+        product: updatedProduct,
+        customProducts: db.customProducts,
+        customPrices: db.customPrices
+    });
+});
+
+// 6.0.4 API: Admin Delete / Restore Product
+app.post('/api/admin/product/delete', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { productId, restore } = req.body;
+    if (!productId || typeof productId !== 'string') {
+        return res.status(400).json({ success: false, message: "กรุณาระบุ productId" });
+    }
+
+    const db = getDb();
+    if (!db.customProducts) db.customProducts = {};
+
+    if (restore) {
+        if (db.customProducts[productId]) {
+            db.customProducts[productId].deleted = false;
+            db.customProducts[productId].updatedAt = new Date().toISOString();
+        }
+        saveDb(db);
+        return res.json({ success: true, message: "กู้คืนสินค้าเรียบร้อยแล้ว", productId, customProducts: db.customProducts });
+    }
+
+    const existing = db.customProducts[productId] || {};
+    db.customProducts[productId] = {
+        ...existing,
+        id: productId,
+        deleted: true,
+        deletedAt: new Date().toISOString()
+    };
+
+    saveDb(db);
+    res.json({ success: true, message: "ลบสินค้าออกจากหน้าร้านเรียบร้อยแล้ว (สามารถกู้คืนได้)", productId, customProducts: db.customProducts });
 });
 
 // 6.1 API: Admin Fetch Store & SMTP Settings
@@ -1948,6 +2054,7 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
                 ? restored.usedTransRefs.filter(r => typeof r === 'string' && /^[a-zA-Z0-9_\-]{3,128}$/.test(r.trim())).map(r => r.trim()).slice(0, 20000)
                 : (currentDb.usedTransRefs || []),
             customPrices: {},
+            customProducts: {},
             inventory: {},
             orders: [],
             users: [],
@@ -2009,6 +2116,32 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
                             updatedAt: typeof val.updatedAt === 'string' ? val.updatedAt : new Date().toISOString()
                         };
                     }
+                }
+            }
+        }
+
+        // Sanitize customProducts
+        if (restored.customProducts && typeof restored.customProducts === 'object' && !Array.isArray(restored.customProducts)) {
+            for (const [prodId, val] of Object.entries(restored.customProducts)) {
+                if (prodId === '__proto__' || prodId === 'constructor' || prodId === 'prototype') continue;
+                if (/^[a-z0-9\-]{1,64}$/i.test(prodId) && val && typeof val === 'object') {
+                    sanitizedDb.customProducts[prodId] = {
+                        id: prodId,
+                        title: typeof val.title === 'string' ? val.title.slice(0, 150).trim() : prodId,
+                        subtitle: typeof val.subtitle === 'string' ? val.subtitle.slice(0, 200).trim() : '',
+                        description: typeof val.description === 'string' ? val.description.slice(0, 3000).trim() : '',
+                        brand: typeof val.brand === 'string' ? val.brand.slice(0, 50).trim() : 'AI Tools',
+                        type: typeof val.type === 'string' ? val.type.slice(0, 50).trim() : 'บัญชีส่วนตัว (Private)',
+                        duration: typeof val.duration === 'string' ? val.duration.slice(0, 50).trim() : '1 เดือน (30 วัน)',
+                        devices: typeof val.devices === 'string' ? val.devices.slice(0, 100).trim() : 'iOS • Android • PC',
+                        warranty: typeof val.warranty === 'string' ? val.warranty.slice(0, 50).trim() : '30 วัน',
+                        price: !isNaN(parseFloat(val.price)) ? Math.round(parseFloat(val.price) * 100) / 100 : 0,
+                        originalPrice: !isNaN(parseFloat(val.originalPrice)) ? Math.round(parseFloat(val.originalPrice) * 100) / 100 : 0,
+                        badge: typeof val.badge === 'string' ? val.badge.slice(0, 50).trim() : '',
+                        g2gUrl: typeof val.g2gUrl === 'string' ? val.g2gUrl.trim() : '',
+                        deleted: val.deleted === true,
+                        updatedAt: typeof val.updatedAt === 'string' ? val.updatedAt : new Date().toISOString()
+                    };
                 }
             }
         }
