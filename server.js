@@ -102,7 +102,7 @@ app.use(cors({
             callback(new Error('CORS: origin not allowed'));
         }
     },
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-order-email', 'x-user-token']
 }));
 
@@ -114,7 +114,11 @@ app.use((req, res, next) => {
     let cleanPath = req.path;
     try { cleanPath = decodeURIComponent(req.path); } catch {}
     const forbidden = [
-        /secure_database\.json$/i,
+        /(^|\/)secure_database/i,
+        /(^|\/)backups(\/|$)/i,
+        /snapshot_.*\.json$/i,
+        /backup.*\.json$/i,
+        /\.(bak|backup|old|orig|tmp|swp)$/i,
         /\.env(\..+)?$/i,
         /server\.js$/i,
         /package(-lock)?\.json$/i,
@@ -212,11 +216,20 @@ app.get(['/images/pop_new.png', '/images/pop_new.jpg', '/images/pop_new'], (req,
 app.use(express.static(path.join(__dirname)));
 
 // ─── [FIX #2] Rate Limiting ─────────────────────────────────────────────────
-// ❌ Before: ไม่มี rate limit → brute force PIN ได้หลายพันครั้ง/วินาที
+// Login PIN brute force protection
+const adminLoginRateLimit = rateLimit({
+    windowMs: 5 * 60 * 1000,  // 5 นาที
+    max: 20,                   // สูงสุด 20 attempts / 5 นาที
+    message: { success: false, message: "ลองรหัส PIN ผิดบ่อยเกินไป กรุณารอ 5 นาทีแล้วลองใหม่" },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// General admin operations (authenticated admin actions like saving settings, testing, fetching orders)
 const adminRateLimit = rateLimit({
     windowMs: 5 * 60 * 1000,  // 5 นาที
-    max: 10,                   // สูงสุด 10 requests / 5 นาที
-    message: { success: false, message: "Too many requests. Please try again in 5 minutes." },
+    max: 300,                  // สูงสุด 300 requests / 5 นาที สำหรับการทำงานของแอดมิน
+    message: { success: false, message: "คำขอจากแอดมินบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่" },
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -332,6 +345,40 @@ function authenticateAdmin(req) {
 const DB_FILE = path.join(__dirname, 'secure_database.json');
 const DB_TMP = path.join(__dirname, 'secure_database.json.tmp');
 const DB_BAK = path.join(__dirname, 'secure_database.json.bak');
+const BACKUPS_DIR = path.join(__dirname, 'backups');
+
+if (!fs.existsSync(BACKUPS_DIR)) {
+    try { fs.mkdirSync(BACKUPS_DIR, { recursive: true }); } catch (e) {}
+}
+
+function createAutoDatabaseSnapshot() {
+    try {
+        if (!fs.existsSync(DB_FILE)) return;
+        if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+        
+        const now = new Date();
+        const dateKey = now.toISOString().split('T')[0];
+        const snapshotFile = path.join(BACKUPS_DIR, `snapshot_${dateKey}.json`);
+        
+        fs.copyFileSync(DB_FILE, snapshotFile);
+
+        // Keep last 14 snapshots, prune older ones
+        const files = fs.readdirSync(BACKUPS_DIR)
+            .filter(f => f.startsWith('snapshot_') && f.endsWith('.json'))
+            .sort();
+        if (files.length > 14) {
+            const toDelete = files.slice(0, files.length - 14);
+            toDelete.forEach(f => {
+                try { fs.unlinkSync(path.join(BACKUPS_DIR, f)); } catch {}
+            });
+        }
+    } catch (e) {
+        console.warn('[BACKUP] Auto-snapshot error:', e.message);
+    }
+}
+// Initial snapshot and periodic 6-hour snapshot
+setTimeout(createAutoDatabaseSnapshot, 2000);
+setInterval(createAutoDatabaseSnapshot, 6 * 60 * 60 * 1000);
 
 // Default Store Promotions & Discount Coupons
 const DEFAULT_SERVER_COUPONS = [
@@ -1339,7 +1386,7 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
 });
 
 // 3. API: Admin Login & Session Verification
-app.post('/api/admin/login', adminRateLimit, (req, res) => {
+app.post('/api/admin/login', adminLoginRateLimit, (req, res) => {
     const { pin } = req.body;
     const db = getDb();
     const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
@@ -1407,12 +1454,20 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
     }
     const db = getDb();
     const smtp = db.smtpConfig || {};
+    const actualSlipOkKey = (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
+    const hasSlipOkKey = actualSlipOkKey.length > 0;
+    const slipOkKeyHint = hasSlipOkKey 
+        ? (actualSlipOkKey.length > 8 ? actualSlipOkKey.slice(0, 4) + '••••••••' + actualSlipOkKey.slice(-4) : '••••••••')
+        : '';
+
     res.json({
         success: true,
         promptPayNumber: db.promptPayNumber || "0982949371",
         promptPayAccountName: db.promptPayAccountName || "สุพัฒน์ มีสมบัติ",
         slipOkBranchId: db.slipOkBranchId || "77491",
-        slipOkApiKey: (process.env.SLIPOK_API_KEY || db.slipOkApiKey) ? '******' : '',
+        slipOkApiKey: hasSlipOkKey ? '******' : '',
+        hasSlipOkKey,
+        slipOkKeyHint,
         geminiApiKey: (process.env.GEMINI_API_KEY || db.geminiApiKey) ? '******' : '',
         discordWebhookUrl: (process.env.DISCORD_WEBHOOK_URL || db.discordWebhookUrl) 
             ? (process.env.DISCORD_WEBHOOK_URL ? '******' : (db.discordWebhookUrl || '')) 
@@ -1558,10 +1613,20 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
         const data = await response.json();
         if (response.ok && data.success) {
             const quota = data.data ? data.data.quota : (data.quota !== undefined ? data.quota : 'N/A');
+            let autoSaved = false;
+            // Auto-persist valid key immediately so user doesn't lose it
+            if (apiKey && apiKey !== '******' && apiKey.trim()) {
+                db.slipOkApiKey = apiKey.trim();
+                if (branchId && branchId.trim()) db.slipOkBranchId = branchId.trim();
+                saveDb(db);
+                autoSaved = true;
+            }
             return res.json({ 
                 success: true, 
-                message: `เชื่อมต่อ SlipOK สำเร็จ! โควต้าคงเหลือ: ${quota} ครั้ง (Branch: ${targetBranchId})`,
-                quota
+                message: `เชื่อมต่อ SlipOK สำเร็จ! โควต้าคงเหลือ: ${quota} ครั้ง${autoSaved ? ' (บันทึกลงระบบอัตโนมัติแล้ว)' : ''}`,
+                quota,
+                saved: autoSaved,
+                branchId: targetBranchId
             });
         } else {
             return res.status(400).json({ 
@@ -1723,7 +1788,8 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
         // 2. Deep Sanitization & Structural Normalization (Anti-Prototype Pollution & Crash-Resilience)
         const sanitizedDb = {
             // Strictly retain current verified admin credentials to prevent lockout/backdoor hijacking
-            adminPinHash: currentDb.adminPinHash || hashPin(process.env.ADMIN_PIN || '8899'),
+            adminPinHash: currentDb.adminPinHash || (currentDb.adminPin ? hashPin(currentDb.adminPin) : hashPin(process.env.ADMIN_PIN || '8899')),
+            adminPin: currentDb.adminPin || '8899',
             promptPayNumber: (typeof restored.promptPayNumber === 'string' && /^[0-9]{10,15}$/.test(restored.promptPayNumber))
                 ? restored.promptPayNumber
                 : (currentDb.promptPayNumber || "0982949371"),
@@ -1743,17 +1809,17 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
                 ? restored.geminiApiKey.trim()
                 : (currentDb.geminiApiKey || ""),
             usedSlips: Array.isArray(restored.usedSlips)
-                ? restored.usedSlips.filter(s => typeof s === 'string' && /^[a-f0-9]{64}$/i.test(s)).slice(0, 20000)
+                ? restored.usedSlips.filter(s => typeof s === 'string' && /^[a-zA-Z0-9_\-]{3,128}$/.test(s.trim())).map(s => s.trim()).slice(0, 20000)
                 : (currentDb.usedSlips || []),
             usedTransRefs: Array.isArray(restored.usedTransRefs)
-                ? restored.usedTransRefs.filter(r => typeof r === 'string' && r.length <= 64).slice(0, 20000)
+                ? restored.usedTransRefs.filter(r => typeof r === 'string' && /^[a-zA-Z0-9_\-]{3,128}$/.test(r.trim())).map(r => r.trim()).slice(0, 20000)
                 : (currentDb.usedTransRefs || []),
             customPrices: {},
             inventory: {},
             orders: [],
             users: [],
-            pendingRegistrations: {},
-            passwordResets: {},
+            pendingRegistrations: (restored.pendingRegistrations && typeof restored.pendingRegistrations === 'object') ? restored.pendingRegistrations : {},
+            passwordResets: (restored.passwordResets && typeof restored.passwordResets === 'object') ? restored.passwordResets : {},
             smtpConfig: {},
             coupons: [],
             analytics: (restored.analytics && typeof restored.analytics === 'object') ? restored.analytics : (currentDb.analytics || {})
@@ -1863,6 +1929,12 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
 
         saveDb(sanitizedDb);
 
+        const actualSlipOkKey = (process.env.SLIPOK_API_KEY || sanitizedDb.slipOkApiKey || '').trim();
+        const hasSlipOkKey = actualSlipOkKey.length > 0;
+        const slipOkKeyHint = hasSlipOkKey 
+            ? (actualSlipOkKey.length > 8 ? actualSlipOkKey.slice(0, 4) + '••••••••' + actualSlipOkKey.slice(-4) : '••••••••')
+            : '';
+
         res.json({
             success: true,
             message: "กู้คืนฐานข้อมูลสำเร็จและทำความสะอาดโครงสร้างเรียบร้อยแล้ว",
@@ -1871,10 +1943,48 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
                 users: sanitizedDb.users.length,
                 inventoryProducts: Object.keys(sanitizedDb.inventory).length,
                 coupons: sanitizedDb.coupons.length
+            },
+            inventory: sanitizedDb.inventory,
+            customPrices: sanitizedDb.customPrices,
+            coupons: sanitizedDb.coupons,
+            storeConfig: {
+                promptPayNumber: sanitizedDb.promptPayNumber,
+                promptPayAccountName: sanitizedDb.promptPayAccountName,
+                slipOkBranchId: sanitizedDb.slipOkBranchId,
+                hasSlipOkKey,
+                slipOkKeyHint,
+                discordWebhookUrl: sanitizedDb.discordWebhookUrl,
+                geminiApiKey: sanitizedDb.geminiApiKey
             }
         });
     } catch (err) {
         res.status(500).json({ success: false, message: `เกิดข้อผิดพลาดในการกู้คืนฐานข้อมูล: ${err.message}` });
+    }
+});
+
+// 6.2.4 API: Admin List Automated Snapshots
+app.get('/api/admin/backups', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    try {
+        let snapshots = [];
+        if (fs.existsSync(BACKUPS_DIR)) {
+            snapshots = fs.readdirSync(BACKUPS_DIR)
+                .filter(f => f.startsWith('snapshot_') && f.endsWith('.json'))
+                .map(f => {
+                    const stats = fs.statSync(path.join(BACKUPS_DIR, f));
+                    return {
+                        filename: f,
+                        size: stats.size,
+                        createdAt: stats.mtime
+                    };
+                })
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+        res.json({ success: true, count: snapshots.length, snapshots });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
     }
 });
 
@@ -2018,14 +2128,27 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
     const userSession = authenticateUser(req);
     const queryEmail = (req.query.email || req.headers['x-order-email'] || '').trim().toLowerCase();
 
-    // [SECURITY FIX] IDOR & Account Isolation:
-    // หากออเดอร์ผูกกับบัญชีสมาชิก (มี userId) จะต้องยืนยันตัวตนด้วย User Session หรือสิทธิ์ Admin เท่านั้น
-    // ไม่อนุญาตให้ใช้เพียง queryEmail ในการดูรหัสผ่าน เพื่อป้องกันผู้ไม่ประสงค์ดีที่รู้อีเมลแอบดูคีย์
+    // Helper to safely test email match against order.email and order.recipientEmail
+    const matchesOrderEmail = (targetEmail) => {
+        if (!targetEmail) return false;
+        const normTarget = targetEmail.trim().toLowerCase();
+        const normEmail = (order.email || '').trim().toLowerCase();
+        const normRecip = (order.recipientEmail || '').trim().toLowerCase();
+        return normEmail === normTarget || normRecip === normTarget || normRecip.startsWith(normTarget + ' ') || normRecip.startsWith(normTarget + '(');
+    };
+
     let isOwner = false;
-    if (userSession && order.userId && order.userId === userSession.userId) {
-        isOwner = true;
-    } else if (!order.userId && queryEmail && order.recipientEmail && queryEmail === order.recipientEmail.toLowerCase()) {
-        // Fallback สำหรับออเดอร์เก่าที่สร้างไว้ก่อนระบบสมาชิก
+    if (userSession) {
+        if (order.userId && order.userId === userSession.userId) {
+            isOwner = true;
+        } else if (!order.userId && matchesOrderEmail(userSession.email)) {
+            // Auto-link verified logged-in account to past guest order
+            order.userId = userSession.userId;
+            saveDb(db);
+            isOwner = true;
+        }
+    } else if (!order.userId && queryEmail && matchesOrderEmail(queryEmail)) {
+        // Fallback for unauthenticated customer looking up past unlinked guest orders
         isOwner = true;
     }
 
@@ -2214,19 +2337,21 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
         saveDb(db);
 
         const mailResult = await mailService.sendOtpEmail(normalEmail, otp, cleanDisplayName, db);
-
+        const isDevLocal = isLocalRequest(req) && process.env.NODE_ENV !== 'production';
         res.json({
             success: true,
             requireOtp: true,
             email: normalEmail,
             message: mailResult.delivered
                 ? "ระบบได้ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว (หากไม่พบในกล่องจดหมาย กรุณาตรวจสอบโฟลเดอร์สแปม/เมลขยะ)"
-                : (mailResult.deliveryError 
-                    ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP สำหรับทดสอบคือ: ${otp}`
-                    : `[โหมดทดสอบ] เซิร์ฟเวอร์ยังไม่ได้เชื่อมต่อ SMTP ร้านค้า รหัส OTP ทดสอบคือ: ${otp}`),
+                : (isDevLocal 
+                    ? (mailResult.deliveryError 
+                        ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP สำหรับทดสอบคือ: ${otp}`
+                        : `[โหมดทดสอบ] เซิร์ฟเวอร์ยังไม่ได้เชื่อมต่อ SMTP ร้านค้า รหัส OTP ทดสอบคือ: ${otp}`)
+                    : "ระบบไม่สามารถจัดส่งอีเมล OTP ได้ในขณะนี้ กรุณาลองใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่ร้านค้า"),
             delivered: !!mailResult.delivered,
-            devOtp: !mailResult.delivered ? otp : undefined,
-            deliveryError: mailResult.deliveryError
+            devOtp: (!mailResult.delivered && isDevLocal) ? otp : undefined,
+            deliveryError: isDevLocal ? mailResult.deliveryError : undefined
         });
     } catch (err) {
         console.error('Registration OTP error:', err);
@@ -2296,6 +2421,18 @@ app.post('/api/auth/verify-otp', otpRateLimit, (req, res) => {
         };
         db.users.push(user);
         delete db.pendingRegistrations[normalEmail];
+
+        // Auto-link past guest orders belonging to this email
+        (db.orders || []).forEach(o => {
+            if (!o.userId) {
+                const oEmail = (o.email || '').toLowerCase().trim();
+                const rEmail = (o.recipientEmail || '').toLowerCase().trim();
+                if (oEmail === normalEmail || rEmail === normalEmail || rEmail.startsWith(normalEmail + ' ') || rEmail.startsWith(normalEmail + '(')) {
+                    o.userId = user.id;
+                }
+            }
+        });
+
         saveDb(db);
 
         const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
@@ -2341,17 +2478,20 @@ app.post('/api/auth/resend-otp', otpRateLimit, async (req, res) => {
         saveDb(db);
 
         const mailResult = await mailService.sendOtpEmail(normalEmail, otp, pending.displayName, db);
+        const isDevLocal = isLocalRequest(req) && process.env.NODE_ENV !== 'production';
 
         res.json({
             success: true,
             message: mailResult.delivered
                 ? "ระบบได้ส่งรหัส OTP ชุดใหม่ไปยังอีเมลของคุณแล้ว (หากไม่พบให้ตรวจในกล่องสแปม)"
-                : (mailResult.deliveryError
-                    ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP ชุดใหม่คือ: ${otp}`
-                    : `[โหมดทดสอบ] รหัส OTP ชุดใหม่คือ: ${otp}`),
+                : (isDevLocal
+                    ? (mailResult.deliveryError
+                        ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP ชุดใหม่คือ: ${otp}`
+                        : `[โหมดทดสอบ] รหัส OTP ชุดใหม่คือ: ${otp}`)
+                    : "ระบบได้ส่งรหัส OTP ชุดใหม่ไปยังอีเมลของคุณแล้ว (หากไม่พบให้ตรวจในกล่องสแปม)"),
             delivered: !!mailResult.delivered,
-            devOtp: !mailResult.delivered ? otp : undefined,
-            deliveryError: mailResult.deliveryError
+            devOtp: (isDevLocal && !mailResult.delivered) ? otp : undefined,
+            deliveryError: isDevLocal ? mailResult.deliveryError : undefined
         });
     } catch (err) {
         console.error('Resend OTP error:', err);
@@ -2380,6 +2520,20 @@ app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
     if (!user || !isValid) {
         return res.status(401).json({ success: false, message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
     }
+
+    // Auto-link unlinked past guest orders belonging to this email
+    let linked = false;
+    (db.orders || []).forEach(o => {
+        if (!o.userId) {
+            const oEmail = (o.email || '').toLowerCase().trim();
+            const rEmail = (o.recipientEmail || '').toLowerCase().trim();
+            if (oEmail === normalEmail || rEmail === normalEmail || rEmail.startsWith(normalEmail + ' ') || rEmail.startsWith(normalEmail + '(')) {
+                o.userId = user.id;
+                linked = true;
+            }
+        }
+    });
+    if (linked) saveDb(db);
 
     const { token, expiresAt } = generateUserToken(user.id, normalEmail, user.tokenVersion || 1);
     res.json({ success: true, token, expiresAt, user: { id: user.id, email: normalEmail, displayName: user.displayName } });
@@ -2439,18 +2593,19 @@ app.post('/api/auth/forgot-password', userAuthRateLimit, async (req, res) => {
         saveDb(db);
 
         const mailResult = await mailService.sendResetPasswordEmail(normalEmail, otp, user.displayName, db);
+        const isDevLocal = isLocalRequest(req) && process.env.NODE_ENV !== 'production';
 
         res.json({
             success: true,
-            message: mailResult.delivered
+            message: (mailResult.delivered || !isDevLocal)
                 ? "หากอีเมลนี้มีอยู่ในระบบ เราได้ส่งรหัส OTP 6 หลักสำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว (หากไม่พบให้ตรวจในกล่องสแปม)"
                 : (mailResult.deliveryError
                     ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP กู้คืนรหัสผ่านคือ: ${otp}`
                     : `[โหมดทดสอบ] รหัส OTP กู้คืนรหัสผ่านคือ: ${otp}`),
             email: normalEmail,
             delivered: !!mailResult.delivered,
-            devOtp: !mailResult.delivered ? otp : undefined,
-            deliveryError: mailResult.deliveryError
+            devOtp: (isDevLocal && !mailResult.delivered) ? otp : undefined,
+            deliveryError: isDevLocal ? mailResult.deliveryError : undefined
         });
     } catch (err) {
         console.error('Forgot password error:', err);
@@ -2524,9 +2679,18 @@ app.post('/api/auth/reset-password', otpRateLimit, (req, res) => {
 
         // Invalidate all existing sessions across all devices
         user.tokenVersion = (user.tokenVersion || 1) + 1;
-        user.passwordHash = hashPassword(pw, user.id);
         user.passwordUpdatedAt = new Date().toISOString();
         delete db.passwordResets[normalEmail];
+        // Auto-link past guest orders belonging to this email
+        (db.orders || []).forEach(o => {
+            if (!o.userId) {
+                const oEmail = (o.email || '').toLowerCase().trim();
+                const rEmail = (o.recipientEmail || '').toLowerCase().trim();
+                if (oEmail === normalEmail || rEmail === normalEmail || rEmail.startsWith(normalEmail + ' ') || rEmail.startsWith(normalEmail + '(')) {
+                    o.userId = user.id;
+                }
+            }
+        });
         saveDb(db);
 
         // Auto-login the user with new token bound to updated tokenVersion
@@ -2605,7 +2769,20 @@ app.get('/api/auth/my-orders', sessionCheckRateLimit, (req, res) => {
         return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
     }
     const db = getDb();
-    // [SECURITY FIX] Return orders belonging to this userId. Unauthenticated registrations cannot hijack past guest orders.
+    let linked = false;
+    const sessionEmail = (session.email || '').toLowerCase().trim();
+    (db.orders || []).forEach(o => {
+        if (!o.userId) {
+            const oEmail = (o.email || '').toLowerCase().trim();
+            const rEmail = (o.recipientEmail || '').toLowerCase().trim();
+            if (oEmail === sessionEmail || rEmail === sessionEmail || rEmail.startsWith(sessionEmail + ' ') || rEmail.startsWith(sessionEmail + '(')) {
+                o.userId = session.userId;
+                linked = true;
+            }
+        }
+    });
+    if (linked) saveDb(db);
+
     const myOrders = (db.orders || []).filter(o => o.userId && o.userId === session.userId);
     res.json({ success: true, orders: myOrders });
 });
@@ -2899,7 +3076,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 - หากลูกค้าถามเรื่องสถานะคำสั่งซื้อ ให้แนะนำให้แจ้งเลขออเดอร์ SPK-xxxxxx
 - ห้ามให้ข้อมูลเท็จ หากไม่แน่ใจให้แนะนำให้ติดต่อแอดมินคนจริงในแชทนี้`;
 
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     
     for (const model of modelsToTry) {
         try {

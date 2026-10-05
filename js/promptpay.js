@@ -119,8 +119,8 @@ const SlipVerifier = {
             return;
         }
 
-        // File size check: Slips should normally be between 10KB and 15MB
-        if (file.size < 12000) {
+        // File size check: Slips should normally be between 2KB and 15MB
+        if (file.size < 2048) {
             showToast("ไฟล์รูปภาพมีขนาดเล็กผิดปกติ กรุณาแนบสลิปจริงจากแอปธนาคาร", "warning");
             return;
         }
@@ -134,18 +134,18 @@ const SlipVerifier = {
         this.selectedFile = file;
         this.fileFingerprint = sha256;
 
-        // Verify Image Dimensions (Must be vertical mobile slip aspect ratio)
+        // Verify Image Dimensions (Supports mobile vertical, tablet, and desktop web banking receipts)
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                if (img.width < 250 || img.height < 320) {
+                if (img.width < 150 || img.height < 150) {
                     showToast("ความละเอียดรูปภาพต่ำเกินไป ไม่ใช่สลิปจากแอปธนาคาร", "warning");
                     this.clearSlip();
                     return;
                 }
-                if (img.height < img.width * 0.95) {
-                    showToast("สลิปโอนเงินต้องเป็นภาพแนวตั้งจากแอปธนาคาร กรุณาตรวจสอบรูปภาพ", "warning");
+                if (img.height < img.width * 0.35) {
+                    showToast("สัดส่วนรูปภาพไม่ถูกต้อง กรุณาแนบภาพสลิปการโอนเงินที่ชัดเจน", "warning");
                     this.clearSlip();
                     return;
                 }

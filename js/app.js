@@ -2890,6 +2890,7 @@ async function openAdminModal() {
             if (setData.success) {
                 const slipOkKeyEl = document.getElementById('admin-slipok-apikey');
                 if (slipOkKeyEl) slipOkKeyEl.value = setData.slipOkApiKey || '';
+                updateSlipOkStatusBadge(setData.hasSlipOkKey, setData.slipOkKeyHint);
                 const geminiEl = document.getElementById('admin-gemini-api-key');
                 if (geminiEl) geminiEl.value = setData.geminiApiKey || '';
                 const discordEl = document.getElementById('admin-discord-webhook');
@@ -2931,6 +2932,7 @@ async function openAdminModal() {
     renderAdminStockList();
     renderAdminCouponsList();
     renderAdminUsersList();
+    syncAdminBackupsInfo();
     startAdminAnalyticsPolling();
     switchAdminTab('orders');
     modal.classList.remove('hidden');
@@ -4161,9 +4163,21 @@ async function saveAdminSettings() {
                 promptAdminLogin();
                 return;
             }
+            const setData = await setRes.json().catch(() => ({}));
+            if (!setRes.ok || !setData.success) {
+                showToast(`❌ เซิร์ฟเวอร์ไม่สามารถบันทึกได้: ${setData.message || 'เกิดข้อผิดพลาดในการบันทึก'}`, "warning");
+                return;
+            }
         } catch (e) {
             console.warn("Failed to sync settings to server:", e);
+            showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง", "warning");
+            return;
         }
+    }
+
+    if (slipOkApiKey && slipOkApiKey !== '******') {
+        const hint = slipOkApiKey.length > 8 ? slipOkApiKey.slice(0, 4) + '••••••••' + slipOkApiKey.slice(-4) : '••••••••';
+        updateSlipOkStatusBadge(true, hint);
     }
 
     // Mask sensitive fields that were just saved (so UI shows ****** for saved values)
@@ -4452,6 +4466,88 @@ function toggleSlipOkKeyVisibility() {
     }
 }
 
+function updateSlipOkStatusBadge(hasKey, hint) {
+    const badge = document.getElementById('admin-slipok-status-badge');
+    if (!badge) return;
+    if (hasKey) {
+        badge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1 transition-all";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 🟢 บันทึกแล้ว (${escapeHTML(hint || 'พร้อมใช้งาน')})`;
+    } else {
+        badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 transition-all";
+        badge.innerHTML = `⚠️ ยังไม่ได้บันทึก Key`;
+    }
+}
+
+async function savePromptPayAndSlipOkSettings() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const newPhone = (document.getElementById('admin-promptpay-input')?.value || '').trim();
+    const newAccountName = (document.getElementById('admin-account-name')?.value || '').trim();
+    const newBranchId = (document.getElementById('admin-slipok-branch')?.value || '').trim();
+    const slipOkApiKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
+
+    if (newPhone) {
+        const cleanPhone = newPhone.replace(/[-\s]/g, '');
+        if (!/^[0-9]{10,15}$/.test(cleanPhone)) {
+            showToast("รูปแบบหมายเลขพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10-15 หลัก)", "warning");
+            return;
+        }
+        STORE_CONFIG.promptPayNumber = cleanPhone;
+    }
+    if (newAccountName) {
+        STORE_CONFIG.promptPayAccountName = newAccountName;
+        const checkoutAccName = document.getElementById('checkout-account-name');
+        if (checkoutAccName) checkoutAccName.textContent = newAccountName;
+    }
+    if (newBranchId) {
+        STORE_CONFIG.slipOkBranchId = newBranchId;
+    }
+
+    try {
+        localStorage.setItem('supinkly_store_config', JSON.stringify({
+            promptPayNumber: STORE_CONFIG.promptPayNumber,
+            promptPayAccountName: STORE_CONFIG.promptPayAccountName,
+            slipOkBranchId: STORE_CONFIG.slipOkBranchId
+        }));
+    } catch {}
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            const res = await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({
+                    promptPayNumber: STORE_CONFIG.promptPayNumber,
+                    promptPayAccountName: STORE_CONFIG.promptPayAccountName,
+                    slipOkBranchId: STORE_CONFIG.slipOkBranchId,
+                    slipOkApiKey: slipOkApiKey !== '******' ? slipOkApiKey : undefined
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                showToast(`❌ เซิร์ฟเวอร์ไม่สามารถบันทึกได้: ${data.message || 'เกิดข้อผิดพลาด'}`, "warning");
+                return;
+            }
+        } catch (e) {
+            showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์", "warning");
+            return;
+        }
+    }
+
+    if (slipOkApiKey && slipOkApiKey !== '******') {
+        const input = document.getElementById('admin-slipok-apikey');
+        if (input) input.value = '******';
+        const hint = slipOkApiKey.length > 8 ? slipOkApiKey.slice(0, 4) + '••••••••' + slipOkApiKey.slice(-4) : '••••••••';
+        updateSlipOkStatusBadge(true, hint);
+    }
+
+    showToast("✅ บันทึกข้อมูลพร้อมเพย์และ SlipOK เรียบร้อยแล้ว!", "success");
+}
+
 async function handleAdminTestSlipOK() {
     if (!ADMIN_AUTH.checkSession()) {
         showToast('กรุณาเข้าสู่ระบบแอดมินก่อนทดสอบ', 'warning');
@@ -4460,15 +4556,23 @@ async function handleAdminTestSlipOK() {
     const btn = document.getElementById('admin-test-slipok-btn');
     const branchId = (document.getElementById('admin-slipok-branch')?.value || '').trim();
     const apiKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
+    const resultBox = document.getElementById('admin-slipok-test-result');
 
     if (!apiKey) {
         showToast("กรุณากรอก SlipOK API Key ก่อนทดสอบ", "warning");
+        const keyInp = document.getElementById('admin-slipok-apikey');
+        if (keyInp) keyInp.focus();
         return;
     }
     const origHTML = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> <span>กำลังทดสอบ...</span>';
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> <span>กำลังทดสอบ & บันทึก...</span>';
+    }
+    if (resultBox) {
+        resultBox.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-300', 'text-emerald-900', 'bg-rose-50', 'border-rose-300', 'text-rose-900');
+        resultBox.classList.add('bg-slate-100', 'border', 'border-slate-200', 'text-slate-600');
+        resultBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-pink-600 mr-1.5"></i> กำลังตรวจสอบการเชื่อมต่อกับ SlipOK...';
     }
     try {
         const res = await fetch('/api/admin/test-slipok', {
@@ -4479,11 +4583,50 @@ async function handleAdminTestSlipOK() {
         const data = await res.json();
         if (data.success) {
             showToast(data.message, "success");
+            if (resultBox) {
+                resultBox.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-600');
+                resultBox.classList.add('bg-emerald-50', 'border', 'border-emerald-300', 'text-emerald-900');
+                resultBox.innerHTML = `
+                    <div class="font-bold flex items-center gap-1.5 text-emerald-800 mb-1">
+                        <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+                        <span>เชื่อมต่อ SlipOK สำเร็จ และบันทึกเข้าสู่ระบบเรียบร้อยแล้ว!</span>
+                    </div>
+                    <div class="text-[11px] text-emerald-950">
+                        • โควต้าคงเหลือ: <strong>${data.quota}</strong> ครั้ง<br>
+                        • Branch ID: <strong>${escapeHTML(branchId || '77491')}</strong><br>
+                        • สถานะ: ระบบจะตรวจสลิปอัตโนมัติทันทีที่ลูกค้าสั่งซื้อ
+                    </div>
+                `;
+            }
+            if (apiKey !== '******') {
+                const hint = apiKey.length > 8 ? apiKey.slice(0, 4) + '••••••••' + apiKey.slice(-4) : '••••••••';
+                updateSlipOkStatusBadge(true, hint);
+                const input = document.getElementById('admin-slipok-apikey');
+                if (input) input.value = '******';
+            }
         } else {
             showToast(data.message || "ไม่สามารถทดสอบ SlipOK ได้", "error");
+            if (resultBox) {
+                resultBox.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-600');
+                resultBox.classList.add('bg-rose-50', 'border', 'border-rose-300', 'text-rose-900');
+                resultBox.innerHTML = `
+                    <div class="font-bold flex items-center gap-1.5 text-rose-800 mb-1">
+                        <i class="fa-solid fa-triangle-exclamation text-rose-600 text-sm"></i>
+                        <span>เชื่อมต่อ SlipOK ไม่สำเร็จ</span>
+                    </div>
+                    <div class="text-[11px] text-rose-950">
+                        ${escapeHTML(data.message || 'รหัส API Key หรือ Branch ID ไม่ถูกต้อง')}
+                    </div>
+                `;
+            }
         }
     } catch (err) {
         showToast("เกิดข้อผิดพลาดในการเชื่อมต่อ SlipOK: " + err.message, "error");
+        if (resultBox) {
+            resultBox.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-600');
+            resultBox.classList.add('bg-rose-50', 'border', 'border-rose-300', 'text-rose-900');
+            resultBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-600 mr-1.5"></i> การเชื่อมต่อขัดข้อง: ${escapeHTML(err.message)}`;
+        }
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -4592,10 +4735,49 @@ async function handleDatabaseRestore(input) {
                 const data = await res.json();
                 if (data.success) {
                     showToast(`✅ ${data.message} (${data.stats?.orders || 0} ออเดอร์, ${data.stats?.users || 0} สมาชิก)`, 'success');
+
+                    // Synchronize client inventory with restored database
+                    if (data.inventory && typeof data.inventory === 'object') {
+                        state.inventory = data.inventory;
+                        saveSecureInventory(data.inventory);
+                    }
+
+                    // Synchronize client custom prices
+                    if (data.customPrices && typeof data.customPrices === 'object') {
+                        localStorage.setItem('supinkly_custom_prices', JSON.stringify(data.customPrices));
+                        applyCustomPricesToProducts();
+                    }
+
+                    // Synchronize store settings
+                    if (data.storeConfig && typeof data.storeConfig === 'object') {
+                        if (data.storeConfig.promptPayNumber) STORE_CONFIG.promptPayNumber = data.storeConfig.promptPayNumber;
+                        if (data.storeConfig.promptPayAccountName) {
+                            STORE_CONFIG.promptPayAccountName = data.storeConfig.promptPayAccountName;
+                            const coAccName = document.getElementById('checkout-account-name');
+                            if (coAccName) coAccName.textContent = data.storeConfig.promptPayAccountName;
+                        }
+                        if (data.storeConfig.slipOkBranchId) STORE_CONFIG.slipOkBranchId = data.storeConfig.slipOkBranchId;
+
+                        const ppInp = document.getElementById('admin-promptpay-input');
+                        if (ppInp && data.storeConfig.promptPayNumber) ppInp.value = data.storeConfig.promptPayNumber;
+                        const accInp = document.getElementById('admin-account-name');
+                        if (accInp && data.storeConfig.promptPayAccountName) accInp.value = data.storeConfig.promptPayAccountName;
+                        const brInp = document.getElementById('admin-slipok-branch');
+                        if (brInp && data.storeConfig.slipOkBranchId) brInp.value = data.storeConfig.slipOkBranchId;
+                        if (typeof updateSlipOkStatusBadge === 'function') {
+                            updateSlipOkStatusBadge(data.storeConfig.hasSlipOkKey, data.storeConfig.slipOkKeyHint);
+                        }
+                    }
+
                     await syncAdminOrdersFromServer();
+                    await syncCustomPricesFromServer();
+                    syncStockCount();
+                    renderProducts();
                     renderAdminOrdersList();
                     renderAdminStockList();
+                    renderAdminCouponsList();
                     renderAdminUsersList();
+                    syncAdminBackupsInfo();
                 } else {
                     showToast(`❌ ${data.message || 'กู้คืนฐานข้อมูลไม่สำเร็จ'}`, 'warning');
                 }
@@ -4610,6 +4792,20 @@ async function handleDatabaseRestore(input) {
         showToast('ไม่สามารถอ่านไฟล์สำรองได้', 'warning');
         input.value = '';
     }
+}
+
+async function syncAdminBackupsInfo() {
+    if (!window.location.protocol.startsWith('http') || !ADMIN_AUTH.checkSession()) return;
+    try {
+        const res = await fetch('/api/admin/backups', { headers: ADMIN_AUTH.getHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        const badge = document.getElementById('admin-snapshot-status-badge');
+        if (badge && data.success) {
+            badge.textContent = `พร้อมใช้งาน (${data.count} ไฟล์ล่าสุด)`;
+            badge.className = "font-bold text-emerald-700 text-[10px] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs";
+        }
+    } catch (e) {}
 }
 
 function openWarrantyModal() {
@@ -4932,9 +5128,9 @@ function initEvents() {
 const ADMIN_CHAT = (() => {
     const WS_URL = (() => {
         const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-        const host  = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        const host  = (location.port && location.port !== '3000' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1'))
             ? `${location.hostname}:3000`
-            : location.host;
+            : (location.host || 'localhost:3000');
         return `${proto}://${host}/ws/chat`;
     })();
 

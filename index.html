@@ -2202,7 +2202,10 @@
                                 class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK API Key:</label>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-bold text-slate-700">SlipOK API Key:</label>
+                                <span id="admin-slipok-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 transition-all">⚪ กำลังตรวจสอบ...</span>
+                            </div>
                             <div class="relative">
                                 <input type="password" id="admin-slipok-apikey" placeholder="กรอก SlipOK Secret API Key"
                                     class="w-full px-3 py-2 pr-10 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
@@ -2211,17 +2214,26 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="sm:col-span-2 lg:col-span-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div class="sm:col-span-2 lg:col-span-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                             <div class="flex items-center gap-2 text-xs text-slate-700 font-medium">
                                 <i class="fa-solid fa-shield-halved text-emerald-600 text-sm"></i>
-                                <span>ตรวจสอบสลิปอัตโนมัติ Real-time ฝั่ง Server ผ่าน SlipOK (หากไม่มีคีย์หรือโควต้าหมด ระบบจะส่งเข้าคิวรอส่งมอบอัตโนมัติ)</span>
+                                <span>ตรวจสอบสลิปอัตโนมัติ Real-time ฝั่ง Server ผ่าน SlipOK (ตรวจยอดเงิน, สลิปซ้ำ, บัญชีผู้โอน)</span>
                             </div>
-                            <button type="button" id="admin-test-slipok-btn" onclick="handleAdminTestSlipOK()"
-                                class="px-3.5 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 shrink-0">
-                                <i class="fa-solid fa-bolt"></i>
-                                <span>ทดสอบเชื่อมต่อ & เช็คโควต้า SlipOK</span>
-                            </button>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <button type="button" id="admin-test-slipok-btn" onclick="handleAdminTestSlipOK()"
+                                    class="px-3.5 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                                    <i class="fa-solid fa-bolt"></i>
+                                    <span>ทดสอบเชื่อมต่อ & บันทึกทันที</span>
+                                </button>
+                                <button type="button" onclick="savePromptPayAndSlipOkSettings()"
+                                    class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                                    title="บันทึกเฉพาะข้อมูลพร้อมเพย์และ SlipOK โดยไม่ต้องเลื่อนลงด้านล่าง">
+                                    <i class="fa-solid fa-floppy-disk"></i>
+                                    <span>บันทึกส่วนนี้</span>
+                                </button>
+                            </div>
                         </div>
+                        <div id="admin-slipok-test-result" class="hidden sm:col-span-2 lg:col-span-3 p-3 rounded-xl text-xs font-medium transition-all"></div>
                     </div>
                 </div>
 
@@ -2414,11 +2426,25 @@
                                 </span>
                                 <span>สำรอง & กู้คืนฐานข้อมูล (Backup & Restore)</span>
                             </h4>
-                            <span class="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-bold">JSON</span>
+                            <span class="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ครบถ้วน 100%
+                            </span>
                         </div>
                         <p class="text-[11px] text-slate-500 leading-relaxed font-medium">
-                            ดาวน์โหลดไฟล์สำรองข้อมูลคำสั่งซื้อ สต็อก และสมาชิก หรือนำเข้าไฟล์ JSON เพื่อกู้คืนข้อมูล
+                            ไฟล์สำรอง JSON รวบรวมข้อมูลครบทุกมิติ: คำสั่งซื้อ, คลังสต็อก, สมาชิก, ราคาที่ปรับแต่ง, คูปองส่วนลด, การตั้งค่าร้านค้า & SMTP, บันทึกสลิป และสถิติ
                         </p>
+                        
+                        <!-- Auto Snapshot Info Pill -->
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-shield-halved text-cyan-600 text-xs"></i>
+                                <span class="font-medium">ระบบสำรองอัตโนมัติ (Auto-Snapshot):</span>
+                            </div>
+                            <span id="admin-snapshot-status-badge" class="font-bold text-slate-800 text-[10px] bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                                ทุก 6 ชม. (เก็บ 14 วัน)
+                            </span>
+                        </div>
+
                         <div class="flex flex-wrap items-center gap-2 pt-1">
                             <button type="button" onclick="downloadDatabaseBackup()"
                                 class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">

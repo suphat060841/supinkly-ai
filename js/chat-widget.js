@@ -6,9 +6,9 @@
 const CHAT = (() => {
     const WS_URL = (() => {
         const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-        const host  = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        const host  = (location.port && location.port !== '3000' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1'))
             ? `${location.hostname}:3000`
-            : location.host;
+            : (location.host || 'localhost:3000');
         return `${proto}://${host}/ws/chat`;
     })();
 
