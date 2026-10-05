@@ -249,6 +249,7 @@ const state = {
     appliedCoupon: JSON.parse(localStorage.getItem('supinkly_applied_coupon') || 'null'),
     user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
     orders: JSON.parse(localStorage.getItem('supinkly_orders') || '[]'),
+    adminOrders: [],
     filterBrand: 'all',
     filterType: 'all',
     searchQuery: '',
@@ -2272,22 +2273,80 @@ async function handleAdminPinSubmit(e) {
 // ==========================================
 // G2G MARKET LINK HELPER (ADMIN ONLY)
 // ==========================================
+const G2G_PRODUCT_LINKS = {
+    // 1. CapCut Pro & VIP (Verified G2G Category)
+    "cpc-01": "https://www.g2g.com/categories/capcut-accounts",
+    "cpc-02": "https://www.g2g.com/categories/capcut-accounts",
+    "cpc-03": "https://www.g2g.com/categories/capcut-accounts",
+    "cpc-04": "https://www.g2g.com/categories/capcut-accounts",
+
+    // 2. Google AI / Gemini (Targeted direct query for Gemini Advanced & Ultra)
+    "goo-ai-01": "https://www.g2g.com/search?q=Gemini+Advanced",
+    "goo-ai-02": "https://www.g2g.com/search?q=Gemini+Ultra",
+    "goo-ai-03": "https://www.g2g.com/search?q=Gemini+Advanced",
+
+    // 3. Google Drive & Google One (Targeted direct query for Google One & Drive 5TB)
+    "goo-01": "https://www.g2g.com/search?q=Google+Drive+5TB",
+    "goo-02": "https://www.g2g.com/search?q=Google+One",
+
+    // 4. xAI Grok (Verified G2G Category)
+    "grk-01": "https://www.g2g.com/categories/grok-accounts",
+    "grk-02": "https://www.g2g.com/categories/grok-accounts",
+    "grk-03": "https://www.g2g.com/categories/grok-accounts",
+
+    // 5. Anthropic Claude Pro (Verified G2G Category)
+    "cld-01": "https://www.g2g.com/categories/claude-accounts",
+    "cld-02": "https://www.g2g.com/categories/claude-accounts",
+
+    // 6. Adobe (Targeted search for Creative Cloud & Acrobat Pro)
+    "adb-01": "https://www.g2g.com/search?q=Adobe+Acrobat+Pro",
+    "adb-02": "https://www.g2g.com/search?q=Adobe+Creative+Cloud",
+
+    // 7. Microsoft / Windows (Targeted direct search for keys & licenses)
+    "ms-01": "https://www.g2g.com/search?q=Windows+11+Pro",
+    "ms-02": "https://www.g2g.com/search?q=Microsoft+365",
+    "ms-03": "https://www.g2g.com/search?q=Copilot+Pro"
+};
+
 function getG2GMarketLink(productId) {
-    const master = getMasterProduct(productId);
+    if (productId && G2G_PRODUCT_LINKS[productId]) {
+        return G2G_PRODUCT_LINKS[productId];
+    }
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
     if (!master) return "https://www.g2g.com";
+
     const brand = (master.brand || '').toLowerCase();
+    const title = (master.title || '').toLowerCase();
+
     if (brand.includes("capcut")) return "https://www.g2g.com/categories/capcut-accounts";
-    if (brand.includes("google")) return "https://www.g2g.com/categories/gemini-accounts";
-    if (brand.includes("grok")) return "https://www.g2g.com/categories/xai-accounts";
-    if (brand.includes("claude")) return "https://www.g2g.com/categories/claude-accounts";
-    if (brand.includes("adobe")) return "https://www.g2g.com/categories/adobe-accounts";
-    if (brand.includes("microsoft") || brand.includes("windows")) return "https://www.g2g.com/categories/microsoft-accounts";
-    return `https://www.g2g.com/search?q=${encodeURIComponent(master.brand + " " + master.type)}`;
+    if (brand.includes("grok") || brand.includes("xai")) return "https://www.g2g.com/categories/grok-accounts";
+    if (brand.includes("claude") || brand.includes("anthropic")) return "https://www.g2g.com/categories/claude-accounts";
+    if (title.includes("google one")) return "https://www.g2g.com/search?q=Google+One";
+    if (title.includes("gemini") || brand.includes("google")) return "https://www.g2g.com/search?q=Gemini+Advanced";
+    if (brand.includes("adobe")) return "https://www.g2g.com/search?q=Adobe+Creative+Cloud";
+    if (title.includes("windows")) return "https://www.g2g.com/search?q=Windows+11+Pro";
+    if (brand.includes("microsoft")) return "https://www.g2g.com/categories/microsoft-accounts";
+
+    const searchKeyword = (master.brand ? master.brand : '') + ' ' + (master.title ? master.title.split(' ')[0] : '');
+    return `https://www.g2g.com/search?q=${encodeURIComponent(searchKeyword.trim())}`;
 }
 
 function openG2GMarketLink(productId) {
     const link = getG2GMarketLink(productId);
-    window.open(link, '_blank');
+    if (!link) return;
+    try {
+        const a = document.createElement('a');
+        a.href = link;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            try { document.body.removeChild(a); } catch (e) {}
+        }, 150);
+    } catch (err) {
+        window.open(link, '_blank', 'noopener,noreferrer');
+    }
 }
 
 // ==========================================
@@ -2385,13 +2444,14 @@ function exportOrdersToCSV() {
         return;
     }
 
-    if (!state.orders || state.orders.length === 0) {
+    const adminOrders = (state.adminOrders && state.adminOrders.length > 0) ? state.adminOrders : [];
+    if (adminOrders.length === 0) {
         showToast("ยังไม่มีข้อมูลคำสั่งซื้อสำหรับส่งออก", "info");
         return;
     }
 
     const headers = ["Order ID", "Date", "Customer Email", "Total Amount (THB)", "Payment Method", "TransRef", "Status", "Items"];
-    const rows = state.orders.map(o => {
+    const rows = adminOrders.map(o => {
         const itemNames = (o.items || []).map(i => `${i.productTitle} (x1)`).join(' | ');
         const cleanStatus = (o.status || '').replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
         return [
@@ -2420,7 +2480,7 @@ function exportOrdersToCSV() {
 }
 
 function copyOrderCustomerReceipt(orderId) {
-    const order = state.orders.find(o => o.orderId === orderId);
+    const order = (state.adminOrders || []).find(o => o.orderId === orderId) || (state.orders || []).find(o => o.orderId === orderId);
     if (!order) return;
 
     let text = `📦 ข้อมูลคำสั่งซื้อ Supinkly.AI\n`;
@@ -2469,7 +2529,9 @@ function renderAdminOrdersList() {
     let pendingCount = 0;
     let deliveredCount = 0;
 
-    state.orders.forEach(order => {
+    const allAdminOrders = state.adminOrders || [];
+
+    allAdminOrders.forEach(order => {
         totalSales += (order.totalAmount || 0);
         const hasPending = order.items.some(it => !it.credentials || it.status === 'pending_fulfillment');
         if (hasPending) {
@@ -2493,7 +2555,7 @@ function renderAdminOrdersList() {
     const deliveredEl = document.getElementById('admin-stat-delivered');
     if (deliveredEl) deliveredEl.textContent = `${deliveredCount} รายการ`;
     const totalOrdersEl = document.getElementById('admin-stat-total-orders');
-    if (totalOrdersEl) totalOrdersEl.textContent = `${state.orders.length} รายการ`;
+    if (totalOrdersEl) totalOrdersEl.textContent = `${allAdminOrders.length} รายการ`;
 
     if (badge) {
         badge.textContent = pendingCount;
@@ -2505,7 +2567,7 @@ function renderAdminOrdersList() {
     }
 
     // Filter by tab
-    let filteredOrders = state.orders;
+    let filteredOrders = allAdminOrders;
     if (currentAdminOrderFilter === 'pending') {
         filteredOrders = filteredOrders.filter(o => o.items.some(it => !it.credentials || it.status === 'pending_fulfillment'));
     } else if (currentAdminOrderFilter === 'delivered') {
@@ -2524,7 +2586,7 @@ function renderAdminOrdersList() {
     }
 
     if (countLabel) {
-        countLabel.textContent = `แสดง ${filteredOrders.length} จากทั้งหมด ${state.orders.length} รายการ`;
+        countLabel.textContent = `แสดง ${filteredOrders.length} จากทั้งหมด ${allAdminOrders.length} รายการ`;
     }
 
     if (filteredOrders.length === 0) {
@@ -2607,11 +2669,11 @@ function renderAdminOrdersList() {
                                 </div>
 
                                 <div class="flex items-center gap-2 shrink-0">
-                                    <button onclick="openG2GMarketLink('${escapeHTML(item.productId)}')" 
-                                            class="px-3 py-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-900 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                                    <a href="${escapeHTML(getG2GMarketLink(item.productId))}" target="_blank" rel="noopener noreferrer"
+                                       class="px-3 py-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-900 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm no-underline inline-flex">
                                         <i class="fa-solid fa-cart-shopping"></i>
                                         <span>ไปซื้อใน G2G</span>
-                                    </button>
+                                    </a>
                                     <button onclick="openFulfillModal('${escapeHTML(order.orderId)}', ${itemIdx})" 
                                             class="px-3.5 py-1.5 rounded-xl ${isItemPending ? 'gradient-btn text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'} text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
                                         <i class="fa-solid ${isItemPending ? 'fa-paper-plane' : 'fa-pen-to-square'}"></i>
@@ -2676,7 +2738,7 @@ function openFulfillModal(orderId, itemIndex) {
         return;
     }
 
-    const order = state.orders.find(o => o.orderId === orderId);
+    const order = (state.adminOrders || []).find(o => o.orderId === orderId) || (state.orders || []).find(o => o.orderId === orderId);
     if (!order || !order.items[itemIndex]) {
         showToast("ไม่พบข้อมูลคำสั่งซื้อ", "warning");
         return;
@@ -2694,7 +2756,12 @@ function openFulfillModal(orderId, itemIndex) {
 
     const g2gBtn = document.getElementById('fulfill-g2g-btn');
     if (g2gBtn) {
-        g2gBtn.onclick = () => openG2GMarketLink(item.productId);
+        const g2gUrl = getG2GMarketLink(item.productId);
+        g2gBtn.href = g2gUrl;
+        g2gBtn.onclick = (e) => {
+            e.stopPropagation();
+            openG2GMarketLink(item.productId);
+        };
     }
 
     const cred = item.credentials || {};
@@ -2783,7 +2850,9 @@ function handleFulfillSubmit(e) {
         return;
     }
 
-    const order = state.orders.find(o => o.orderId === orderId);
+    const adminOrder = (state.adminOrders || []).find(o => o.orderId === orderId);
+    const clientOrder = (state.orders || []).find(o => o.orderId === orderId);
+    const order = adminOrder || clientOrder;
     if (!order || !order.items[itemIndex]) {
         showToast("ไม่พบคำสั่งซื้อ", "warning");
         return;
@@ -2811,7 +2880,15 @@ function handleFulfillSubmit(e) {
         order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
     }
 
-    saveOrders();
+    // Keep customer's local order in sync only if it belongs to current customer
+    if (clientOrder && clientOrder !== adminOrder && clientOrder.items && clientOrder.items[itemIndex]) {
+        clientOrder.items[itemIndex].credentials = cred;
+        clientOrder.items[itemIndex].status = 'delivered';
+        if (clientOrder.items.every(it => it.credentials && it.status !== 'pending_fulfillment')) {
+            clientOrder.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+        }
+        saveOrders();
+    }
     closeFulfillModal();
     renderAdminOrdersList();
 
@@ -2847,12 +2924,7 @@ async function syncAdminOrdersFromServer() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.success && Array.isArray(data.orders)) {
-                    const serverOrders = data.orders;
-                    const map = new Map();
-                    (state.orders || []).forEach(o => { if (o && o.orderId) map.set(o.orderId, o); });
-                    serverOrders.forEach(o => { if (o && o.orderId) map.set(o.orderId, o); });
-                    state.orders = Array.from(map.values()).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-                    saveOrders();
+                    state.adminOrders = data.orders.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
                 }
             }
         } catch (e) {
@@ -2942,6 +3014,7 @@ function closeAdminModal() {
     stopAdminAnalyticsPolling();
     const modal = document.getElementById('admin-modal');
     if (modal) modal.classList.add('hidden');
+    initHeader();
 }
 
 // ==========================================
@@ -3001,8 +3074,8 @@ async function fetchAdminAnalytics(showToastFeedback = false) {
                 productViewsTotal: 58,
                 cartAddsTotal: 16,
                 checkoutStarts: 9,
-                ordersCount: (state.orders || []).length || 5,
-                revenue: (state.orders || []).reduce((acc, o) => acc + (o.totalAmount || 0), 0) || 1450,
+                ordersCount: (state.adminOrders || []).length || (state.orders || []).length || 5,
+                revenue: (state.adminOrders || []).reduce((acc, o) => acc + (o.totalAmount || 0), 0) || (state.orders || []).reduce((acc, o) => acc + (o.totalAmount || 0), 0) || 1450,
                 conversionRate: '11.9%',
                 topProducts: [
                     { productId: 'cpc-01', title: 'CapCut Pro 1M Private', price: 129, views: 24, cartAdds: 7 },
