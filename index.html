@@ -2201,13 +2201,26 @@
                             <input type="text" id="admin-slipok-branch" value="77491" placeholder="เช่น 77491"
                                 class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
                         </div>
-                        <div class="sm:col-span-2 lg:col-span-3">
-                            <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK Gateway Status:</label>
-                            <div
-                                class="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 font-bold flex items-center gap-1.5">
-                                <i class="fa-solid fa-shield-halved text-emerald-600"></i>
-                                <span>ปลอดภัย: ตรวจสลิปฝั่ง Server ป้องกันข้อมูลรั่วไหล (พร้อมใช้งาน SlipOK Real-time API)</span>
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 block mb-1">SlipOK API Key:</label>
+                            <div class="relative">
+                                <input type="password" id="admin-slipok-apikey" placeholder="กรอก SlipOK Secret API Key"
+                                    class="w-full px-3 py-2 pr-10 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
+                                <button type="button" onclick="toggleSlipOkKeyVisibility()" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1" title="แสดง/ซ่อนรหัส">
+                                    <i id="slipok-eye-icon" class="fa-solid fa-eye"></i>
+                                </button>
                             </div>
+                        </div>
+                        <div class="sm:col-span-2 lg:col-span-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <div class="flex items-center gap-2 text-xs text-slate-700 font-medium">
+                                <i class="fa-solid fa-shield-halved text-emerald-600 text-sm"></i>
+                                <span>ตรวจสอบสลิปอัตโนมัติ Real-time ฝั่ง Server ผ่าน SlipOK (หากไม่มีคีย์หรือโควต้าหมด ระบบจะส่งเข้าคิวรอส่งมอบอัตโนมัติ)</span>
+                            </div>
+                            <button type="button" id="admin-test-slipok-btn" onclick="handleAdminTestSlipOK()"
+                                class="px-3.5 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 shrink-0">
+                                <i class="fa-solid fa-bolt"></i>
+                                <span>ทดสอบเชื่อมต่อ & เช็คโควต้า SlipOK</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -3301,6 +3314,44 @@ W11PR-XXXX-XXXX-XXXX"
                 <button onclick="closeAdminResetPwModal()"
                     class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-xs font-medium">
                     ยกเลิก
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         ADMIN SLIP VIEW MODAL
+         ========================================== -->
+    <div id="admin-slip-view-modal" class="hidden fixed inset-0 z-[210] flex items-center justify-center p-4">
+        <div onclick="closeSlipViewModal()" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-slate-200 z-10 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-receipt"></i>
+                    </span>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800" id="admin-slip-modal-title">สลิปการโอนเงิน</h4>
+                        <div class="text-[11px] text-slate-500" id="admin-slip-modal-subtitle">ตรวจสอบข้อมูลการโอนเงินของลูกค้า</div>
+                    </div>
+                </div>
+                <button onclick="closeSlipViewModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="overflow-y-auto flex-1 flex flex-col items-center justify-center bg-slate-50 p-2 rounded-xl border border-slate-200 min-h-[300px]">
+                <img id="admin-slip-modal-img" src="" alt="สลิปโอนเงิน" class="max-h-[60vh] object-contain rounded-lg shadow-sm">
+                <p id="admin-slip-modal-empty" class="hidden text-xs text-slate-400 py-10 font-medium">ไม่มีรูปภาพสลิปที่แนบมา</p>
+            </div>
+            <div class="flex items-center justify-between gap-2 pt-1">
+                <a id="admin-slip-download-btn" href="" download="slip.jpg" target="_blank"
+                    class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-arrow-down"></i>
+                    <span>ดาวน์โหลดรูปภาพ</span>
+                </a>
+                <button onclick="closeSlipViewModal()"
+                    class="px-5 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-md cursor-pointer">
+                    ปิดหน้าต่าง
                 </button>
             </div>
         </div>

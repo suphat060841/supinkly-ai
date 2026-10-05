@@ -1571,7 +1571,9 @@ async function submitSlipVerification() {
 
             openVaultModal(finalOrder);
             const isPending = (finalOrder.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment');
-            if (isPending) {
+            if (finalOrder.isAutoVerified === false) {
+                showToast("แนบสลิปเรียบร้อยแล้ว! แอดมินกำลังตรวจสอบและจัดเตรียมรหัสให้คุณ (5-15 นาที)", "success");
+            } else if (isPending) {
                 showToast("สลิปถูกต้องและยอดเงินตรง! ร้านค้ากำลังจัดเตรียมบัญชีให้คุณ (5-15 นาที)", "success");
             } else {
                 showToast("สลิปถูกต้องและยอดเงินตรง! ส่งมอบรหัสเข้าคลังเรียบร้อยแล้ว", "success");
@@ -2556,6 +2558,13 @@ function renderAdminOrdersList() {
                         </button>
                     </div>
                     <div class="flex items-center gap-2">
+                        ${order.slipUrl ? `
+                            <button onclick="openSlipViewModal('${escapeHTML(order.slipUrl)}', '${escapeHTML(order.orderId)}', '${escapeHTML(order.recipientEmail || order.email || '')}')" 
+                                    class="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all flex items-center gap-1 border border-indigo-200 shadow-2xs cursor-pointer">
+                                <i class="fa-solid fa-receipt text-[11px]"></i>
+                                <span>ดูรูปสลิป</span>
+                            </button>
+                        ` : ''}
                         <button onclick="copyOrderCustomerReceipt('${escapeHTML(order.orderId)}')" 
                                 class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold transition-all flex items-center gap-1 border border-pink-200 shadow-2xs">
                             <i class="fa-regular fa-message text-[11px]"></i>
@@ -2879,6 +2888,8 @@ async function openAdminModal() {
             }
             const setData = await setRes.json();
             if (setData.success) {
+                const slipOkKeyEl = document.getElementById('admin-slipok-apikey');
+                if (slipOkKeyEl) slipOkKeyEl.value = setData.slipOkApiKey || '';
                 const geminiEl = document.getElementById('admin-gemini-api-key');
                 if (geminiEl) geminiEl.value = setData.geminiApiKey || '';
                 const discordEl = document.getElementById('admin-discord-webhook');
@@ -2915,6 +2926,7 @@ async function openAdminModal() {
     }
 
     await syncAdminOrdersFromServer();
+    await syncCustomPricesFromServer();
     renderAdminOrdersList();
     renderAdminStockList();
     renderAdminCouponsList();
@@ -3826,7 +3838,7 @@ async function handleResetToAutoPrice() {
 
     if (window.location.protocol.startsWith('http')) {
         try {
-            await fetch('/api/admin/price', {
+            const res = await fetch('/api/admin/price', {
                 method: 'POST',
                 headers: ADMIN_AUTH.getHeaders(),
                 body: JSON.stringify({
@@ -3834,6 +3846,10 @@ async function handleResetToAutoPrice() {
                     action: 'reset'
                 })
             });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                console.warn("Server reset price warning:", data.message);
+            }
         } catch (err) {
             console.warn("Failed to sync price reset to server:", err);
         }
@@ -3899,7 +3915,7 @@ async function handleSaveEditedPrice() {
     // Sync to Server Database so server slip verification and all visitor browsers stay 100% in sync
     if (window.location.protocol.startsWith('http')) {
         try {
-            await fetch('/api/admin/price', {
+            const res = await fetch('/api/admin/price', {
                 method: 'POST',
                 headers: ADMIN_AUTH.getHeaders(),
                 body: JSON.stringify({
@@ -3909,8 +3925,21 @@ async function handleSaveEditedPrice() {
                     badge: badgeVal
                 })
             });
+            const resData = await res.json();
+            if (!res.ok || !resData.success) {
+                if (res.status === 401 || res.status === 403) {
+                    ADMIN_AUTH.logout();
+                    showToast("เซสชันแอดมินหมดอายุ กรุณากรอก PIN เข้าสู่ระบบใหม่เพื่อบันทึกราคาลงเซิร์ฟเวอร์", "warning");
+                    closeEditPriceModal();
+                    promptAdminLogin();
+                    return;
+                }
+                showToast(resData.message || "เซิร์ฟเวอร์ปฏิเสธการบันทึกราคา", "error");
+                return;
+            }
         } catch (err) {
-            console.warn("Failed to sync custom price to server:", err);
+            console.error("Failed to sync custom price to server:", err);
+            showToast("ไม่สามารถส่งข้อมูลไปเซิร์ฟเวอร์ได้: " + err.message, "warning");
         }
     }
 
@@ -3921,7 +3950,7 @@ async function handleSaveEditedPrice() {
     renderAdminStockList();
     closeEditPriceModal();
 
-    showToast(`อัปเดตราคาใหม่เป็น ฿${customPrices[productId].price.toFixed(2)} เรียบร้อยแล้ว`, "success");
+    showToast(`อัปเดตราคาใหม่เป็น ฿${customPrices[productId].price.toFixed(2)} บนระบบและเซิร์ฟเวอร์เรียบร้อยแล้ว`, "success");
 }
 
 function openAddStockModal(productId) {
@@ -4057,6 +4086,7 @@ async function saveAdminSettings() {
     const smtpMailjetSecret = (document.getElementById('admin-smtp-mailjet-secret')?.value || '').trim();
     const discordWebhookUrl = (document.getElementById('admin-discord-webhook')?.value || '').trim();
     const geminiApiKey = (document.getElementById('admin-gemini-api-key')?.value || '').trim();
+    const slipOkApiKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
 
     if (newPhone) {
         const cleanPhone = newPhone.replace(/[-\s]/g, '');
@@ -4105,6 +4135,7 @@ async function saveAdminSettings() {
                     promptPayNumber: STORE_CONFIG.promptPayNumber,
                     promptPayAccountName: STORE_CONFIG.promptPayAccountName,
                     slipOkBranchId: STORE_CONFIG.slipOkBranchId,
+                    slipOkApiKey: slipOkApiKey !== '******' ? slipOkApiKey : undefined,
                     newPin: newPin || undefined,
                     discordWebhookUrl: discordWebhookUrl !== '******' ? discordWebhookUrl : undefined,
                     geminiApiKey: geminiApiKey !== '******' ? geminiApiKey : undefined,
@@ -4144,6 +4175,7 @@ async function saveAdminSettings() {
     const mailjetSecEl2 = document.getElementById('admin-smtp-mailjet-secret');
     const discordEl2 = document.getElementById('admin-discord-webhook');
     const geminiEl2 = document.getElementById('admin-gemini-api-key');
+    const slipOkKeyEl2 = document.getElementById('admin-slipok-apikey');
     if (passEl2 && passEl2.value && passEl2.value !== '******') passEl2.value = '******';
     if (resendEl2 && resendEl2.value && resendEl2.value !== '******') resendEl2.value = '******';
     if (brevoEl2 && brevoEl2.value && brevoEl2.value !== '******') brevoEl2.value = '******';
@@ -4152,6 +4184,7 @@ async function saveAdminSettings() {
     if (mailjetSecEl2 && mailjetSecEl2.value && mailjetSecEl2.value !== '******') mailjetSecEl2.value = '******';
     if (discordEl2 && discordEl2.value && discordEl2.value !== '******') discordEl2.value = '******';
     if (geminiEl2 && geminiEl2.value && geminiEl2.value !== '******') geminiEl2.value = '******';
+    if (slipOkKeyEl2 && slipOkKeyEl2.value && slipOkKeyEl2.value !== '******') slipOkKeyEl2.value = '******';
 
     showToast("บันทึกการตั้งค่าร้านค้าและระบบอีเมลเรียบร้อยแล้ว ⚠️ หากใช้ Render ให้ตั้ง Environment Variables เพื่อให้ค่าถาวร", "success");
     closeAdminModal();
@@ -4404,6 +4437,96 @@ async function handleAdminTestDiscord() {
             btn.innerHTML = `<i class="fa-solid fa-bell"></i> <span>ทดสอบส่งเข้า Discord</span>`;
         }
     }
+}
+
+function toggleSlipOkKeyVisibility() {
+    const input = document.getElementById('admin-slipok-apikey');
+    const icon = document.getElementById('slipok-eye-icon');
+    if (!input || !icon) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-solid fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fa-solid fa-eye';
+    }
+}
+
+async function handleAdminTestSlipOK() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast('กรุณาเข้าสู่ระบบแอดมินก่อนทดสอบ', 'warning');
+        return;
+    }
+    const btn = document.getElementById('admin-test-slipok-btn');
+    const branchId = (document.getElementById('admin-slipok-branch')?.value || '').trim();
+    const apiKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
+
+    if (!apiKey) {
+        showToast("กรุณากรอก SlipOK API Key ก่อนทดสอบ", "warning");
+        return;
+    }
+    const origHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> <span>กำลังทดสอบ...</span>';
+    }
+    try {
+        const res = await fetch('/api/admin/test-slipok', {
+            method: 'POST',
+            headers: ADMIN_AUTH.getHeaders(),
+            body: JSON.stringify({ branchId, apiKey })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, "success");
+        } else {
+            showToast(data.message || "ไม่สามารถทดสอบ SlipOK ได้", "error");
+        }
+    } catch (err) {
+        showToast("เกิดข้อผิดพลาดในการเชื่อมต่อ SlipOK: " + err.message, "error");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+        }
+    }
+}
+
+function openSlipViewModal(slipUrl, orderId, email) {
+    const modal = document.getElementById('admin-slip-view-modal');
+    const img = document.getElementById('admin-slip-modal-img');
+    const emptyMsg = document.getElementById('admin-slip-modal-empty');
+    const title = document.getElementById('admin-slip-modal-title');
+    const subtitle = document.getElementById('admin-slip-modal-subtitle');
+    const dlBtn = document.getElementById('admin-slip-download-btn');
+    if (!modal) return;
+
+    if (title) title.textContent = `สลิปคำสั่งซื้อ: ${orderId || 'ไม่ระบุ'}`;
+    if (subtitle) subtitle.textContent = `ลูกค้า: ${email || 'ไม่ระบุ'}`;
+
+    if (slipUrl) {
+        if (img) {
+            img.src = slipUrl;
+            img.classList.remove('hidden');
+        }
+        if (emptyMsg) emptyMsg.classList.add('hidden');
+        if (dlBtn) {
+            dlBtn.href = slipUrl;
+            dlBtn.download = `slip_${orderId || 'download'}.jpg`;
+            dlBtn.classList.remove('hidden');
+        }
+    } else {
+        if (img) img.classList.add('hidden');
+        if (emptyMsg) emptyMsg.classList.remove('hidden');
+        if (dlBtn) dlBtn.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function closeSlipViewModal() {
+    const modal = document.getElementById('admin-slip-view-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 async function downloadDatabaseBackup() {

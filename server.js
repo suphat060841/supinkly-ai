@@ -179,9 +179,19 @@ try {
 
     for (const [destName, srcPath] of Object.entries(productImagesMap)) {
         const destPath = path.join(productsImgDir, destName);
-        if (!fs.existsSync(destPath) && fs.existsSync(srcPath)) {
+        if (fs.existsSync(srcPath)) {
             try { fs.copyFileSync(srcPath, destPath); } catch {}
         }
+    }
+
+    // Ensure images/slips directory exists for storing uploaded payment slips
+    const slipsDir = path.join(imagesDir, 'slips');
+    if (!fs.existsSync(slipsDir)) fs.mkdirSync(slipsDir, { recursive: true });
+
+    const customerSlipBrain = path.join(brainDir, '.user_uploaded', 'media_1791164474838.jpg');
+    const customerSlipLocal = path.join(slipsDir, 'slip_piyawat_224_10.jpg');
+    if (fs.existsSync(customerSlipBrain) && !fs.existsSync(customerSlipLocal)) {
+        try { fs.copyFileSync(customerSlipBrain, customerSlipLocal); } catch {}
     }
 } catch (e) {
     // Non-blocking
@@ -606,7 +616,7 @@ const MASTER_CATALOG = {
     "goo-ai-02": { title: "Google AI Ultra Private", price: 2590.00, warranty: "30 วัน" },
     "goo-ai-03": { title: "Google AI Pro Shared", price: 99.00, warranty: "30 วัน" },
     "goo-01": { title: "Google Drive 5TB Private", price: 229.00, warranty: "30 วัน" },
-    "goo-02": { title: "Google Storage 5TB Link", price: 179.00, warranty: "30 วัน" },
+    "goo-02": { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 150.00, warranty: "30 วัน" },
     "grk-01": { title: "Grok 7D Private", price: 290.00, warranty: "7 วัน" },
     "grk-02": { title: "Grok 1M Private", price: 950.00, warranty: "30 วัน" },
     "grk-03": { title: "SuperGrok Heavy 1M", price: 4990.00, warranty: "30 วัน" },
@@ -816,7 +826,21 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         let transRef = null;
         let isAutoVerified = false;
 
-        // ── Verify with SlipOK Server-Side ──
+        // ── Save slip image to disk for admin audit & fulfillment ──
+        const slipsDir = path.join(__dirname, 'images', 'slips');
+        if (!fs.existsSync(slipsDir)) {
+            try { fs.mkdirSync(slipsDir, { recursive: true }); } catch {}
+        }
+        const slipFilename = `${slipHash.slice(0, 20)}.jpg`;
+        const slipFilePath = path.join(slipsDir, slipFilename);
+        try {
+            fs.writeFileSync(slipFilePath, req.file.buffer);
+        } catch (e) {
+            console.warn("[SLIP] Could not write slip image to disk:", e.message);
+        }
+        const slipUrl = `/images/slips/${slipFilename}`;
+
+        // ── Verify with SlipOK Server-Side (if API key is configured) ──
         const apiKey = (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
         const branchId = (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
 
@@ -836,81 +860,80 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                 const slipJson = await slipRes.json();
 
                 if (!slipJson.success || !slipJson.data) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: slipJson.message || "สลิปไม่ถูกต้อง หรือไม่ผ่านการตรวจสอบจากระบบธนาคาร" 
-                    });
-                }
-
-                const slipData = slipJson.data;
-                if (slipData.success === false) {
-                    return res.status(400).json({ success: false, message: "สลิปนี้ไม่ผ่านการตรวจสอบความถูกต้อง" });
-                }
-
-                // Check transferred amount
-                const transferred = parseFloat(slipData.amount);
-                if (isNaN(transferred) || transferred < expectedTotal) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: `ยอดเงินในสลิป (฿${transferred || 0}) ไม่ตรงกับยอดชำระที่ต้องโอน (฿${expectedTotal})` 
-                    });
-                }
-
-                // ── [SECURITY FIX] Receiver Verification (Wrong Recipient Attack Prevention) ──
-                const expectedPhone = (db.promptPayNumber || process.env.PROMPTPAY_NUMBER || "0982949371").replace(/[^0-9]/g, '');
-                const expectedName = (db.promptPayAccountName || process.env.PROMPTPAY_NAME || "สุพัฒน์ มีสมบัติ").trim();
-                const receiver = slipData.receiver || {};
-                const receiverProxy = (receiver.proxy?.value || '').replace(/[^0-9]/g, '');
-                const receiverAcc = (receiver.account?.value || '').replace(/[^0-9]/g, '');
-                const receiverName = (receiver.name || receiver.displayName || '').toLowerCase();
-
-                let isReceiverMatched = false;
-                if (receiverProxy && expectedPhone) {
-                    if (receiverProxy === expectedPhone || receiverProxy.endsWith(expectedPhone.slice(-8)) || expectedPhone.endsWith(receiverProxy.slice(-8))) {
-                        isReceiverMatched = true;
+                    console.warn("[SLIPOK] Non-success response:", slipJson);
+                    // If SlipOK explicitly says the slip has duplicate usage or bank rejection
+                    if (slipJson.code === 1001 || (slipJson.message && (slipJson.message.includes('สลิปซ้ำ') || slipJson.message.includes('ไม่พบข้อมูล')))) {
+                        return res.status(400).json({ 
+                            success: false, 
+                            message: slipJson.message || "สลิปไม่ถูกต้อง หรือไม่ผ่านการตรวจสอบจากระบบธนาคาร" 
+                        });
                     }
-                }
-                if (!isReceiverMatched && receiverAcc && expectedPhone) {
-                    const last4 = expectedPhone.slice(-4);
-                    if (receiverAcc.endsWith(last4)) {
-                        isReceiverMatched = true;
+                    // Quota exhausted, branch inactive, or temporary service issue: fall back to manual review queue
+                    console.warn("[SLIPOK] Upstream service degraded/quota exhausted. Falling back to manual review queue.");
+                    isAutoVerified = false;
+                } else {
+                    const slipData = slipJson.data;
+                    if (slipData.success === false) {
+                        return res.status(400).json({ success: false, message: "สลิปนี้ไม่ผ่านการตรวจสอบความถูกต้องจากธนาคาร" });
                     }
-                }
-                if (!isReceiverMatched && receiverName && expectedName) {
-                    const nameParts = expectedName.toLowerCase().split(/\s+/).filter(k => k.length >= 3);
-                    if (nameParts.some(part => receiverName.includes(part))) {
-                        isReceiverMatched = true;
+
+                    // Check transferred amount
+                    const transferred = parseFloat(slipData.amount);
+                    if (isNaN(transferred) || transferred < expectedTotal) {
+                        return res.status(400).json({ 
+                            success: false, 
+                            message: `ยอดเงินในสลิป (฿${(transferred || 0).toFixed(2)}) ไม่ตรงกับยอดชำระที่ต้องโอน (฿${expectedTotal.toFixed(2)})` 
+                        });
                     }
-                }
 
-                if (!isReceiverMatched) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "บัญชีผู้รับเงินในสลิปไม่ตรงกับบัญชีของร้านค้า Supinkly.AI กรุณาตรวจสอบสลิปการโอนเงิน"
-                    });
-                }
+                    // ── [SECURITY FIX] Receiver Verification (Wrong Recipient Attack Prevention) ──
+                    const expectedPhone = (db.promptPayNumber || process.env.PROMPTPAY_NUMBER || "0982949371").replace(/[^0-9]/g, '');
+                    const expectedName = (db.promptPayAccountName || process.env.PROMPTPAY_NAME || "สุพัฒน์ มีสมบัติ").trim();
+                    const receiver = slipData.receiver || {};
+                    const receiverProxy = (receiver.proxy?.value || '').replace(/[^0-9]/g, '');
+                    const receiverAcc = (receiver.account?.value || '').replace(/[^0-9]/g, '');
+                    const receiverName = (receiver.name || receiver.displayName || '').toLowerCase();
 
-                // Anti-Replay on transRef
-                if (slipData.transRef) {
-                    transRef = slipData.transRef;
+                    let isReceiverMatched = false;
+                    if (receiverProxy && expectedPhone) {
+                        if (receiverProxy === expectedPhone || receiverProxy.endsWith(expectedPhone.slice(-8)) || expectedPhone.endsWith(receiverProxy.slice(-8))) {
+                            isReceiverMatched = true;
+                        }
+                    }
+                    if (!isReceiverMatched && receiverAcc && expectedPhone) {
+                        const last4 = expectedPhone.slice(-4);
+                        if (receiverAcc.endsWith(last4)) {
+                            isReceiverMatched = true;
+                        }
+                    }
+                    if (!isReceiverMatched && receiverName && expectedName) {
+                        const nameParts = expectedName.toLowerCase().split(/\s+/).filter(k => k.length >= 3);
+                        if (nameParts.some(part => receiverName.includes(part))) {
+                            isReceiverMatched = true;
+                        }
+                    }
+
+                    if (!isReceiverMatched) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "บัญชีผู้รับเงินในสลิปไม่ตรงกับบัญชีของร้านค้า Supinkly.AI กรุณาตรวจสอบสลิปการโอนเงิน"
+                        });
+                    }
+
+                    // Anti-Replay on transRef
+                    if (slipData.transRef) {
+                        transRef = slipData.transRef;
+                    }
+                    isAutoVerified = true;
                 }
-                isAutoVerified = true;
             } catch (err) {
-                console.error("SlipOK verification error:", err.message);
-                return res.status(502).json({ 
-                    success: false, 
-                    message: "ไม่สามารถเชื่อมต่อระบบตรวจสลิปธนาคารได้ กรุณาลองใหม่ในภายหลัง" 
-                });
+                console.error("[SLIPOK] Verification error, falling back to manual queue:", err.message);
+                // Graceful fallback to manual queue
+                isAutoVerified = false;
             }
         } else {
-            // [SECURITY FIX] In production, if SlipOK API key is unconfigured, reject with friendly message rather than silently creating unverified pending orders
-            const isProduction = process.env.NODE_ENV === 'production' || (!process.env.DEV_MODE && !process.env.ALLOW_DEV_SLIP_BYPASS);
-            if (isProduction) {
-                return res.status(503).json({
-                    success: false,
-                    message: "ระบบตรวจสลิปอัตโนมัติอยู่ระหว่างการปรับปรุงระบบ กรุณาติดต่อแอดมินทาง Live Chat เพื่อทำรายการ"
-                });
-            }
+            // SlipOK is unconfigured: gracefully accept genuine slip into admin manual verification & fulfillment queue
+            isAutoVerified = false;
         }
 
         // ── [SECURITY FIX] Re-read db to avoid TOCTOU race conditions during async SlipOK fetch ──
@@ -990,8 +1013,10 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             paymentMethod: "Thai QR PromptPay",
             transRef: transRef || "REF-" + Date.now().toString(36).toUpperCase(),
             items: deliveredItems,
-            status: hasPending ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" : "🟢 จัดส่งสำเร็จทันที",
-            slipHash
+            status: hasPending ? "🟡 รอส่งมอบ (On-Demand)" : "🟢 จัดส่งสำเร็จทันที",
+            slipHash,
+            slipUrl,
+            isAutoVerified
         };
         if (!currentDb.orders) currentDb.orders = [];
         currentDb.orders.unshift(order);
@@ -1032,7 +1057,7 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         }
         mailService.sendOrderReceiptEmail(order, false, currentDb).catch(e => console.warn('[MAIL] Order receipt email error:', e.message));
 
-        res.json({ success: true, order });
+        res.json({ success: true, order, isAutoVerified, pendingReview: !isAutoVerified });
     } catch (err) {
         console.error('checkout error:', err.message);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในระบบ" });
@@ -1387,6 +1412,7 @@ app.get('/api/admin/settings', adminRateLimit, (req, res) => {
         promptPayNumber: db.promptPayNumber || "0982949371",
         promptPayAccountName: db.promptPayAccountName || "สุพัฒน์ มีสมบัติ",
         slipOkBranchId: db.slipOkBranchId || "77491",
+        slipOkApiKey: (process.env.SLIPOK_API_KEY || db.slipOkApiKey) ? '******' : '',
         geminiApiKey: (process.env.GEMINI_API_KEY || db.geminiApiKey) ? '******' : '',
         discordWebhookUrl: (process.env.DISCORD_WEBHOOK_URL || db.discordWebhookUrl) 
             ? (process.env.DISCORD_WEBHOOK_URL ? '******' : (db.discordWebhookUrl || '')) 
@@ -1412,7 +1438,7 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
-    const { promptPayNumber, promptPayAccountName, slipOkBranchId, newPin, smtpConfig, discordWebhookUrl, geminiApiKey } = req.body;
+    const { promptPayNumber, promptPayAccountName, slipOkBranchId, slipOkApiKey, newPin, smtpConfig, discordWebhookUrl, geminiApiKey } = req.body;
     const db = getDb();
 
     if (geminiApiKey !== undefined && geminiApiKey !== '******') {
@@ -1430,6 +1456,9 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
     }
     if (slipOkBranchId && typeof slipOkBranchId === 'string') {
         db.slipOkBranchId = slipOkBranchId.slice(0, 32).trim();
+    }
+    if (slipOkApiKey !== undefined && slipOkApiKey !== '******') {
+        db.slipOkApiKey = String(slipOkApiKey).trim();
     }
     if (newPin && typeof newPin === 'string') {
         const pinClean = newPin.trim();
@@ -1504,6 +1533,47 @@ app.post('/api/admin/test-discord', adminRateLimit, async (req, res) => {
         res.json({ success: true, message: "ส่งข้อความทดสอบไปยัง Discord สำเร็จแล้ว! กรุณาตรวจสอบห้องแชทใน Discord ของคุณ" });
     } catch (err) {
         res.status(500).json({ success: false, message: `เกิดข้อผิดพลาดในการส่งเข้า Discord: ${err.message}` });
+    }
+});
+
+// 6.2.0.1 API: Admin Test SlipOK Connection & Quota
+app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { branchId, apiKey } = req.body;
+    const db = getDb();
+    const targetBranchId = (branchId && branchId.trim()) ? branchId.trim() : (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
+    const targetApiKey = (apiKey && apiKey !== '******') ? apiKey.trim() : (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
+
+    if (!targetApiKey) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุ SlipOK API Key เพื่อทดสอบการเชื่อมต่อ" });
+    }
+
+    try {
+        const response = await fetch(`https://api.slipok.com/api/line/apikey/${targetBranchId}/quota`, {
+            method: 'GET',
+            headers: { 'x-authorization': targetApiKey }
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+            const quota = data.data ? data.data.quota : (data.quota !== undefined ? data.quota : 'N/A');
+            return res.json({ 
+                success: true, 
+                message: `เชื่อมต่อ SlipOK สำเร็จ! โควต้าคงเหลือ: ${quota} ครั้ง (Branch: ${targetBranchId})`,
+                quota
+            });
+        } else {
+            return res.status(400).json({ 
+                success: false, 
+                message: `SlipOK แจ้งเตือน: ${data.message || 'รหัส API Key หรือ Branch ID ไม่ถูกต้อง'}` 
+            });
+        }
+    } catch (err) {
+        return res.status(500).json({ 
+            success: false, 
+            message: `ไม่สามารถเชื่อมต่อไปยัง SlipOK ได้: ${err.message}` 
+        });
     }
 });
 
