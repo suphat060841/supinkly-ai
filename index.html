@@ -73,8 +73,8 @@
             
             <!-- Brand Logo with Mascot & Mobile Menu Button -->
             <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-                <button type="button" onclick="openMobileMenu()" title="เปิดเมนูหลัก" aria-label="เปิดเมนูหลัก" class="md:hidden w-10 h-10 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 flex items-center justify-center transition-all shadow-sm cursor-pointer">
-                    <i class="fa-solid fa-bars text-base"></i>
+                <button type="button" onclick="openMobileMenu()" title="เปิดเมนูหลัก" aria-label="เปิดเมนูหลัก" class="w-10 h-10 rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 flex items-center justify-center transition-all shadow-sm cursor-pointer shrink-0 active:scale-95 group">
+                    <i class="fa-solid fa-bars text-base group-hover:scale-110 transition-transform"></i>
                 </button>
                 <div class="relative shrink-0">
                     <button type="button" onclick="openLogoPopup()" title="คลิกเพื่อดูข้อมูลร้านและรับโค้ดส่วนลดพิเศษ!" class="cursor-pointer relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md shadow-pink-500/20 hover:scale-105 transition-transform bg-white flex items-center justify-center p-0.5 group">
@@ -103,11 +103,35 @@
                 </a>
             </div>
 
+            <!-- Desktop Navigation Menu -->
+            <nav class="hidden lg:flex items-center gap-1 xl:gap-2">
+                <a href="index.html" class="px-3 py-2 rounded-xl text-xs xl:text-sm font-bold text-pink-600 bg-pink-50 hover:bg-pink-100 transition-colors flex items-center gap-1.5 shrink-0">
+                    <i class="fa-solid fa-house text-pink-500"></i>
+                    <span>หน้าแรก</span>
+                </a>
+                <a href="#products-section" class="px-3 py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-1.5 shrink-0">
+                    <i class="fa-solid fa-shapes text-pink-500"></i>
+                    <span>สินค้าทั้งหมด</span>
+                </a>
+                <button type="button" onclick="openCouponsModal()" class="px-3 py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer">
+                    <i class="fa-solid fa-ticket-simple text-rose-500"></i>
+                    <span>โค้ดส่วนลด</span>
+                </button>
+                <a href="#warranty-section" class="px-3 py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-1.5 shrink-0">
+                    <i class="fa-solid fa-shield-halved text-emerald-500"></i>
+                    <span>รับประกัน</span>
+                </a>
+                <a href="#faq-section" class="px-3 py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-1.5 shrink-0">
+                    <i class="fa-solid fa-circle-question text-sky-500"></i>
+                    <span>คำถามพบบ่อย</span>
+                </a>
+            </nav>
+
             <!-- Search Bar (Desktop) -->
-            <div class="hidden md:flex flex-1 max-w-lg xl:max-w-xl mx-4">
+            <div class="hidden md:flex flex-1 max-w-xs xl:max-w-sm mx-2">
                 <div class="relative w-full">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
-                    <input type="text" id="search-input" placeholder="ค้นหาบัญชี เช่น CapCut, Claude, Grok..." 
+                    <input type="text" id="search-input" placeholder="ค้นหา เช่น CapCut, Grok..." 
                            class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs sm:text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
                 </div>
             </div>
@@ -3747,6 +3771,10 @@ W11PR-XXXX-XXXX-XXXX"
                 <i class="fa-solid fa-shapes w-5 text-center text-pink-500"></i>
                 <span>สินค้าทั้งหมด</span>
             </a>
+            <button type="button" onclick="openCouponsModal(); closeMobileMenu();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors text-left cursor-pointer">
+                <i class="fa-solid fa-ticket-simple w-5 text-center text-rose-500"></i>
+                <span>โค้ดส่วนลด (Coupons)</span>
+            </button>
             <a href="#warranty-section" onclick="closeMobileMenu()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:text-pink-600 hover:bg-pink-50 transition-colors">
                 <i class="fa-solid fa-shield-halved w-5 text-center text-emerald-500"></i>
                 <span>นโยบายรับประกัน</span>
@@ -3771,9 +3799,9 @@ W11PR-XXXX-XXXX-XXXX"
 
         <!-- Drawer Bottom Actions -->
         <div class="p-4 border-t border-slate-100 bg-slate-50 space-y-2">
-            <button onclick="openLogoPopup(); closeMobileMenu();" class="w-full py-2.5 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm cursor-pointer">
-                <i class="fa-solid fa-gift"></i>
-                <span>ดูโปรโมชั่น & โค้ดลด 10%</span>
+            <button onclick="openCouponsModal(); closeMobileMenu();" class="w-full py-2.5 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm cursor-pointer">
+                <i class="fa-solid fa-ticket"></i>
+                <span>ดูคูปอง & โค้ดส่วนลดทั้งหมด</span>
             </button>
         </div>
     </div>

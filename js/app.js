@@ -688,6 +688,7 @@ function openMobileMenu() {
         document.body.classList.add('overflow-hidden');
     }
 }
+window.openMobileMenu = openMobileMenu;
 
 function closeMobileMenu() {
     const overlay = document.getElementById('mobile-menu-overlay');
@@ -698,6 +699,7 @@ function closeMobileMenu() {
         document.body.classList.remove('overflow-hidden');
     }
 }
+window.closeMobileMenu = closeMobileMenu;
 
 function saveCart() {
     localStorage.setItem('supinkly_cart', JSON.stringify(state.cart));
