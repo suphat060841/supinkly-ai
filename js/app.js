@@ -4867,6 +4867,25 @@ async function downloadDatabaseBackup() {
         showToast('กรุณาเข้าสู่ระบบแอดมินก่อนดาวน์โหลด', 'warning');
         return;
     }
+
+    // หากมีการกรอก SlipOK API Key ใหม่ไว้ในช่องบนหน้าจอ ให้ auto-save ไปที่เซิร์ฟเวอร์ก่อนดาวน์โหลดทันที
+    const currentSlipOkKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
+    const currentBranchId = (document.getElementById('admin-slipok-branch')?.value || '').trim();
+    if (currentSlipOkKey && currentSlipOkKey !== '******') {
+        try {
+            await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders(),
+                body: JSON.stringify({
+                    slipOkApiKey: currentSlipOkKey,
+                    slipOkBranchId: currentBranchId || undefined
+                })
+            });
+        } catch (e) {
+            console.warn("Pre-backup save warning:", e);
+        }
+    }
+
     showToast('กำลังดาวน์โหลดไฟล์สำรองฐานข้อมูล...', 'info');
     try {
         const res = await fetch('/api/admin/backup-db', {
@@ -4957,6 +4976,8 @@ async function handleDatabaseRestore(input) {
                         if (typeof updateSlipOkStatusBadge === 'function') {
                             updateSlipOkStatusBadge(data.storeConfig.hasSlipOkKey, data.storeConfig.slipOkKeyHint);
                         }
+                        const keyInp = document.getElementById('admin-slipok-apikey');
+                        if (keyInp && data.storeConfig.hasSlipOkKey) keyInp.value = '******';
                     }
 
                     await syncAdminOrdersFromServer();

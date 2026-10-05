@@ -468,6 +468,9 @@ function getDb() {
             if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
                 data.coupons = DEFAULT_SERVER_COUPONS;
             }
+            if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
+                data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
+            }
             return data;
         }
     } catch (err) {
@@ -483,6 +486,9 @@ function getDb() {
                 if (!data.analytics) data.analytics = {};
                 if (!data.coupons || !Array.isArray(data.coupons)) {
                     data.coupons = DEFAULT_SERVER_COUPONS;
+                }
+                if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
+                    data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
                 }
                 return data;
             } catch (e) {}
@@ -1566,7 +1572,12 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
     const db = getDb();
 
     if (geminiApiKey !== undefined && geminiApiKey !== '******') {
-        db.geminiApiKey = String(geminiApiKey).trim();
+        const trimmedG = String(geminiApiKey).trim();
+        if (trimmedG.length > 0) {
+            db.geminiApiKey = trimmedG;
+        } else if (req.body.clearGeminiKey === true) {
+            db.geminiApiKey = "";
+        }
     }
 
     if (promptPayNumber) {
@@ -1582,7 +1593,12 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         db.slipOkBranchId = slipOkBranchId.slice(0, 32).trim();
     }
     if (slipOkApiKey !== undefined && slipOkApiKey !== '******') {
-        db.slipOkApiKey = String(slipOkApiKey).trim();
+        const trimmedKey = String(slipOkApiKey).trim();
+        if (trimmedKey.length > 0) {
+            db.slipOkApiKey = trimmedKey;
+        } else if (req.body.clearSlipOkKey === true) {
+            db.slipOkApiKey = "";
+        }
     }
     if (newPin && typeof newPin === 'string') {
         const pinClean = newPin.trim();
@@ -1807,11 +1823,59 @@ app.get('/api/admin/backup-db', adminRateLimit, (req, res) => {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const db = getDb();
+
+    // ดึงค่า SlipOK API Key และการตั้งค่าที่ใช้งานจริง (จาก DB หรือ Environment) รวมเข้าในไฟล์สำรองเสมอ 100%
+    const effectiveSlipOkKey = (db.slipOkApiKey || process.env.SLIPOK_API_KEY || "").trim();
+    const effectiveBranchId = (db.slipOkBranchId || process.env.SLIPOK_BRANCH_ID || "77491").trim();
+    const effectiveGeminiKey = (db.geminiApiKey || process.env.GEMINI_API_KEY || "").trim();
+    const effectiveDiscordUrl = (db.discordWebhookUrl || process.env.DISCORD_WEBHOOK_URL || "").trim();
+
+    let dbUpdated = false;
+    if (effectiveSlipOkKey && db.slipOkApiKey !== effectiveSlipOkKey) {
+        db.slipOkApiKey = effectiveSlipOkKey;
+        dbUpdated = true;
+    }
+    if (effectiveBranchId && db.slipOkBranchId !== effectiveBranchId) {
+        db.slipOkBranchId = effectiveBranchId;
+        dbUpdated = true;
+    }
+    if (effectiveGeminiKey && db.geminiApiKey !== effectiveGeminiKey) {
+        db.geminiApiKey = effectiveGeminiKey;
+        dbUpdated = true;
+    }
+    if (effectiveDiscordUrl && db.discordWebhookUrl !== effectiveDiscordUrl) {
+        db.discordWebhookUrl = effectiveDiscordUrl;
+        dbUpdated = true;
+    }
+    if (dbUpdated) {
+        saveDb(db);
+    }
+
+    const exportDb = {
+        ...db,
+        slipOkApiKey: effectiveSlipOkKey,
+        slipOkBranchId: effectiveBranchId,
+        geminiApiKey: effectiveGeminiKey,
+        discordWebhookUrl: effectiveDiscordUrl
+    };
+
+    if (exportDb.smtpConfig) {
+        exportDb.smtpConfig = {
+            ...exportDb.smtpConfig,
+            pass: exportDb.smtpConfig.pass || process.env.SMTP_PASS || "",
+            resendKey: exportDb.smtpConfig.resendKey || process.env.RESEND_API_KEY || "",
+            brevoKey: exportDb.smtpConfig.brevoKey || process.env.BREVO_API_KEY || "",
+            sendgridKey: exportDb.smtpConfig.sendgridKey || process.env.SENDGRID_API_KEY || "",
+            mailjetKey: exportDb.smtpConfig.mailjetKey || process.env.MAILJET_API_KEY || "",
+            mailjetSecret: exportDb.smtpConfig.mailjetSecret || process.env.MAILJET_SECRET_KEY || ""
+        };
+    }
+
     const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const filename = `supinkly_db_backup_${dateStr}.json`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(db, null, 2));
+    res.send(JSON.stringify(exportDb, null, 2));
 });
 
 // 6.2.3 API: Admin Restore Database from JSON Backup (Deep Sanitization & Pre-Restore Backup)
@@ -1865,18 +1929,18 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
             promptPayAccountName: typeof restored.promptPayAccountName === 'string'
                 ? restored.promptPayAccountName.slice(0, 100).trim()
                 : (currentDb.promptPayAccountName || "สุพัฒน์ มีสมบัติ"),
-            slipOkApiKey: typeof restored.slipOkApiKey === 'string'
+            slipOkApiKey: (typeof restored.slipOkApiKey === 'string' && restored.slipOkApiKey.trim().length > 0)
                 ? restored.slipOkApiKey.trim()
-                : (currentDb.slipOkApiKey || ""),
-            slipOkBranchId: typeof restored.slipOkBranchId === 'string'
+                : (currentDb.slipOkApiKey || process.env.SLIPOK_API_KEY || ""),
+            slipOkBranchId: (typeof restored.slipOkBranchId === 'string' && restored.slipOkBranchId.trim().length > 0)
                 ? restored.slipOkBranchId.slice(0, 32).trim()
-                : (currentDb.slipOkBranchId || "77491"),
+                : (currentDb.slipOkBranchId || process.env.SLIPOK_BRANCH_ID || "77491"),
             discordWebhookUrl: (typeof restored.discordWebhookUrl === 'string' && isValidDiscordWebhookUrl(restored.discordWebhookUrl))
                 ? restored.discordWebhookUrl.trim()
-                : (currentDb.discordWebhookUrl || ""),
-            geminiApiKey: (typeof restored.geminiApiKey === 'string' && restored.geminiApiKey.trim().length <= 256)
+                : (currentDb.discordWebhookUrl || process.env.DISCORD_WEBHOOK_URL || ""),
+            geminiApiKey: (typeof restored.geminiApiKey === 'string' && restored.geminiApiKey.trim().length > 0 && restored.geminiApiKey.trim().length <= 256)
                 ? restored.geminiApiKey.trim()
-                : (currentDb.geminiApiKey || ""),
+                : (currentDb.geminiApiKey || process.env.GEMINI_API_KEY || ""),
             usedSlips: Array.isArray(restored.usedSlips)
                 ? restored.usedSlips.filter(s => typeof s === 'string' && /^[a-zA-Z0-9_\-]{3,128}$/.test(s.trim())).map(s => s.trim()).slice(0, 20000)
                 : (currentDb.usedSlips || []),
