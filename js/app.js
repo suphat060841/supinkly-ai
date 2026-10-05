@@ -240,15 +240,44 @@ function loadAndSanitizeCart() {
     }
 }
 
+// [SAFE STORAGE HELPERS] Prevents uncaught SyntaxError from corrupting state or halting script execution
+function safeGetStorageJSON(key, fallback) {
+    try {
+        const item = localStorage.getItem(key);
+        if (!item || item === 'undefined' || item === 'null' || item === '[object Object]') return fallback;
+        const parsed = JSON.parse(item);
+        return (parsed !== null && parsed !== undefined) ? parsed : fallback;
+    } catch (e) {
+        console.warn(`[SafeStorage] Corrupted localStorage key "${key}", purging:`, e);
+        try { localStorage.removeItem(key); } catch {}
+        return fallback;
+    }
+}
+
+function safeGetSessionJSON(key, fallback) {
+    try {
+        const item = sessionStorage.getItem(key);
+        if (!item || item === 'undefined' || item === 'null' || item === '[object Object]') return fallback;
+        const parsed = JSON.parse(item);
+        return (parsed !== null && parsed !== undefined) ? parsed : fallback;
+    } catch (e) {
+        console.warn(`[SafeStorage] Corrupted sessionStorage key "${key}", purging:`, e);
+        try { sessionStorage.removeItem(key); } catch {}
+        return fallback;
+    }
+}
+
 // Application State
+const initialMasterProducts = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : (typeof PRODUCTS !== 'undefined' ? PRODUCTS : [])).map(p => ({ ...p, stock: p.stock || 50 }));
+
 const state = {
-    products: (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 })),
+    products: initialMasterProducts,
     inventory: getSecureInventory(),
-    filteredProducts: [],
+    filteredProducts: [...initialMasterProducts],
     cart: loadAndSanitizeCart(),
-    appliedCoupon: JSON.parse(localStorage.getItem('supinkly_applied_coupon') || 'null'),
+    appliedCoupon: safeGetStorageJSON('supinkly_applied_coupon', null),
     user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
-    orders: JSON.parse(localStorage.getItem('supinkly_orders') || '[]'),
+    orders: safeGetStorageJSON('supinkly_orders', []),
     adminOrders: [],
     filterBrand: 'all',
     filterType: 'all',
@@ -551,70 +580,102 @@ window.addEventListener('pageshow', () => {
     if (typeof applyFilters === 'function') applyFilters();
 });
 
-// Initialize Application
-document.addEventListener('DOMContentLoaded', async () => {
+// Application Bootstrapper
+let isAppBooted = false;
+
+function bootApp() {
+    if (isAppBooted) return;
+    isAppBooted = true;
+
+    // 1. Immediate Synchronous UI Construction (Instant First Paint, Never Blocked by Network)
+    try {
+        applyCustomPricesToProducts();
+        syncStockCount();
+        applyFilters();
+        initHeader();
+        checkAdminMaintenanceStatus();
+        initFilters();
+        renderProducts();
+        updateCartUI();
+        renderBrandTabs();
+        if (typeof renderVoucherHubSection === 'function') {
+            renderVoucherHubSection();
+        }
+        initEvents();
+    } catch (err) {
+        console.error("UI Boot sequence error:", err);
+    }
+
     purgeSearchInputs();
     setTimeout(purgeSearchInputs, 80);
     setTimeout(purgeSearchInputs, 350);
     setTimeout(purgeSearchInputs, 800);
 
-    await syncCustomPricesFromServer();
-    syncStockCount();
-    initHeader();
-    checkAdminMaintenanceStatus();
-    initFilters();
-    renderProducts();
-    updateCartUI();
-    renderBrandTabs();
-    if (typeof renderVoucherHubSection === 'function') renderVoucherHubSection();
-    initEvents();
+    // 2. Non-blocking Asynchronous Background Synchronization
+    (async () => {
+        // Sync server catalog & price overrides in the background
+        try {
+            await syncCustomPricesFromServer();
+        } catch (e) {
+            console.warn("Catalog dynamic price sync skipped:", e);
+        }
 
-    // Launch G2G Market Real-Time Auto-Sync Engine (Zero button clicks required)
-    if (typeof G2G_SYNC !== 'undefined') {
-        G2G_SYNC.init();
-    }
+        // Launch G2G Market Real-Time Auto-Sync Engine
+        if (typeof G2G_SYNC !== 'undefined' && typeof G2G_SYNC.init === 'function') {
+            try { G2G_SYNC.init(); } catch (e) {}
+        }
 
-    // Initialize Real-Time Store Telemetry & Online Traffic Tracking
-    if (typeof TELEMETRY !== 'undefined') {
-        TELEMETRY.init();
-    }
+        // Initialize Real-Time Store Telemetry & Online Traffic Tracking
+        if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.init === 'function') {
+            try { TELEMETRY.init(); } catch (e) {}
+        }
 
-    // Restore user session & sync server orders if logged in
-    if (window.location.protocol.startsWith('http') && typeof USER_AUTH !== 'undefined') {
-        if (USER_AUTH.isLoggedIn()) {
+        // Restore user session & sync server orders if logged in
+        if (window.location.protocol.startsWith('http') && typeof USER_AUTH !== 'undefined') {
             try {
-                const ok = await USER_AUTH.verifySession();
-                if (ok) {
-                    await syncUserOrdersFromServer();
-                    initHeader(); // re-render header with user info
+                if (USER_AUTH.isLoggedIn()) {
+                    const ok = await USER_AUTH.verifySession();
+                    if (ok) {
+                        await syncUserOrdersFromServer();
+                        initHeader(); // re-render header with user info
+                    } else {
+                        state.user = null;
+                        state.orders = [];
+                        try { localStorage.removeItem('supinkly_orders'); } catch {}
+                        saveOrders();
+                        initHeader(); // session expired — show login button
+                    }
                 } else {
+                    // Not logged in: clear any leftover local orders to ensure privacy
                     state.user = null;
                     state.orders = [];
                     try { localStorage.removeItem('supinkly_orders'); } catch {}
                     saveOrders();
-                    initHeader(); // session expired — show login button
+                    initHeader();
                 }
-            } catch {}
-        } else {
-            // Not logged in: clear any leftover local orders to ensure privacy
-            state.user = null;
-            state.orders = [];
-            try { localStorage.removeItem('supinkly_orders'); } catch {}
-            saveOrders();
-            initHeader();
+            } catch (e) {
+                console.warn("Auth session verification error:", e);
+            }
         }
-    }
 
-    // Automatic Welcome & Mascot Logo Popup Check (Shows once per day unless manually reopened)
-    try {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        if (localStorage.getItem('supinkly_logo_pop_today') !== todayStr) {
-            setTimeout(() => {
-                if (typeof openLogoPopup === 'function') openLogoPopup();
-            }, 1200);
-        }
-    } catch {}
-});
+        // Automatic Welcome & Mascot Logo Popup Check (Shows once per day unless manually reopened)
+        try {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            if (localStorage.getItem('supinkly_logo_pop_today') !== todayStr) {
+                setTimeout(() => {
+                    if (typeof openLogoPopup === 'function') openLogoPopup();
+                }, 1200);
+            }
+        } catch {}
+    })();
+}
+
+// Guarantee App Boots Regardless of DOM Ready State or Timing Race Conditions
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootApp);
+} else {
+    bootApp();
+}
 
 // ==========================================
 // WELCOME MASCOT & LOGO POPUP MODAL (pop_new.png)
@@ -788,9 +849,9 @@ function initHeader() {
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
                 </button>
-                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
+                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3.5 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
                     <i class="fa-solid fa-right-to-bracket text-sm"></i>
-                    <span class="hidden sm:inline">เข้าสู่ระบบ</span>
+                    <span class="inline font-bold">เข้าสู่ระบบ</span>
                 </button>
             </div>
         `;
@@ -5964,12 +6025,6 @@ function initEvents() {
                 return;
             }
 
-            const couponsModal = document.getElementById('coupons-modal');
-            if (couponsModal && !couponsModal.classList.contains('hidden')) {
-                e.preventDefault();
-                closeCouponsModal();
-                return;
-            }
 
             const ordersModal = document.getElementById('orders-modal');
             if (ordersModal && !ordersModal.classList.contains('hidden')) {
@@ -6408,25 +6463,33 @@ function closeAdminChatPanel() {
 
 /* ── Inject floating admin chat shortcut button ──────────────── */
 (function injectAdminChatButton() {
-    // เพิ่มปุ่ม Live Chat ลอยด้านซ้ายล่าง (สำหรับแอดมิน — ปิดได้)
-    const btn = document.createElement('button');
-    btn.id = 'admin-floating-chat-btn';
-    btn.title = 'Live Chat แอดมิน (Ctrl+Shift+C)';
-    btn.className = 'hidden fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-xl hover:scale-110 transition-all flex items-center justify-center';
-    btn.innerHTML = `
-        <i class="fa-solid fa-headset text-xl"></i>
-        <span class="chat-badge hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-black flex items-center justify-center"></span>`;
-    btn.addEventListener('click', openAdminChatPanel);
-    document.body.appendChild(btn);
+    function inject() {
+        if (!document.body || document.getElementById('admin-floating-chat-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'admin-floating-chat-btn';
+        btn.title = 'Live Chat แอดมิน (Ctrl+Shift+C)';
+        btn.className = 'hidden fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-xl hover:scale-110 transition-all flex items-center justify-center';
+        btn.innerHTML = `
+            <i class="fa-solid fa-headset text-xl"></i>
+            <span class="chat-badge hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-black flex items-center justify-center"></span>`;
+        btn.addEventListener('click', openAdminChatPanel);
+        document.body.appendChild(btn);
 
-    // แสดงปุ่มนี้เฉพาะเมื่อแอดมิน login อยู่
-    setInterval(() => {
-        if (typeof ADMIN_AUTH !== 'undefined' && ADMIN_AUTH.checkSession()) {
-            btn.classList.remove('hidden');
-        } else {
-            btn.classList.add('hidden');
-        }
-    }, 2000);
+        // แสดงปุ่มนี้เฉพาะเมื่อแอดมิน login อยู่
+        setInterval(() => {
+            if (typeof ADMIN_AUTH !== 'undefined' && ADMIN_AUTH.checkSession()) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }, 2000);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', inject);
+    } else {
+        inject();
+    }
 })();
 
 
@@ -7988,3 +8051,45 @@ async function handleDeleteAdminCoupon(code) {
         showToast(err.message || "เกิดข้อผิดพลาดในการลบโค้ดส่วนลด", "warning");
     }
 }
+
+// ==========================================
+// 🌐 GLOBAL WINDOW EXPORTS (Safe Event Handlers)
+// ==========================================
+Object.assign(window, {
+    openMobileMenu,
+    closeMobileMenu,
+    openLogoPopup,
+    closeLogoPopup,
+    openCouponsModal,
+    closeCouponsModal,
+    openCartDrawer,
+    closeCartDrawer,
+    openOrdersModal,
+    closeOrdersModal,
+    openAuthModal,
+    closeAuthModal,
+    switchAuthTab,
+    promptAdminLogin,
+    openAdminModal,
+    closeAdminModal,
+    toggleMaintenanceModeDirectly,
+    selectBrand,
+    selectType,
+    claimVoucher,
+    copyAndApplyPromo,
+    copyAndApplyPromoCode,
+    startCheckout,
+    closeCheckoutModal,
+    submitSlipVerification,
+    toggleUserDropdown,
+    closeUserDropdown,
+    handleUserLogout,
+    openProductDetailModal,
+    closeProductDetailModal,
+    addToCart,
+    quickApplyCoupon,
+    applyCouponFromCart,
+    removeAppliedCoupon,
+    clearAllCart,
+    closeVaultModal
+});
