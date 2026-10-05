@@ -102,10 +102,6 @@ const G2G_SYNC = {
             if (prodId === 'cpc-01' && customPrices[prodId] && customPrices[prodId].price === 1.00 && !customPrices[prodId].manualOverride) {
                 delete customPrices[prodId];
             }
-            // Clean up legacy locked demo price on goo-02 if set to 150 so it can dynamically sync down
-            if (prodId === 'goo-02' && customPrices[prodId] && customPrices[prodId].price === 150.00 && customPrices[prodId].manualOverride) {
-                delete customPrices[prodId].manualOverride;
-            }
 
             // Check if admin has set manual price override (ผู้ใช้ตั้งราคาเจาะจงเอง)
             if (customPrices[prodId] && customPrices[prodId].manualOverride === true) {
@@ -158,6 +154,8 @@ const G2G_SYNC = {
 
         if (typeof applyFilters === 'function') {
             applyFilters();
+        } else if (typeof renderProducts === 'function') {
+            renderProducts();
         }
         if (typeof updateCartUI === 'function') {
             updateCartUI();

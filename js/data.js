@@ -486,6 +486,7 @@ function getMasterProduct(productId) {
             if (typeof custom.badge === 'string') badge = custom.badge;
             if (typeof custom.g2gStockAvailable === 'number' && custom.g2gStockAvailable > 0) stock = custom.g2gStockAvailable;
             if (typeof custom.marketCostTHB === 'number') marketCostTHB = custom.marketCostTHB;
+            if (typeof custom.g2gUrl === 'string' && custom.g2gUrl) g2gUrl = custom.g2gUrl;
         }
     } catch (e) {
         // fallback

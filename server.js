@@ -1458,6 +1458,64 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
     res.json({ success: true, order });
 });
 
+// 6.0.1 API: Public Catalog & Synced Custom Prices
+app.get('/api/catalog', (req, res) => {
+    const db = getDb();
+    const customPrices = db.customPrices || {};
+    res.json({
+        success: true,
+        customPrices
+    });
+});
+
+// 6.0.2 API: Admin Update Product Price, Badge, and G2G URL
+app.post('/api/admin/price', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { productId, price, originalPrice, badge, g2gUrl, action } = req.body;
+    if (!productId || typeof productId !== 'string') {
+        return res.status(400).json({ success: false, message: "กรุณาระบุ productId" });
+    }
+
+    const db = getDb();
+    if (!db.customPrices) db.customPrices = {};
+
+    if (action === 'reset') {
+        if (db.customPrices[productId]) {
+            delete db.customPrices[productId].manualOverride;
+            if (price !== undefined) {
+                db.customPrices[productId].price = parseFloat(price);
+            }
+        }
+        saveDb(db);
+        return res.json({ success: true, message: "คืนค่าราคาตลาดสำเร็จ" });
+    }
+
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice) || numPrice < 0) {
+        return res.status(400).json({ success: false, message: "ราคาไม่ถูกต้อง" });
+    }
+
+    const numOrig = (originalPrice !== undefined && !isNaN(parseFloat(originalPrice)))
+        ? parseFloat(originalPrice)
+        : numPrice;
+
+    const existing = db.customPrices[productId] || {};
+    db.customPrices[productId] = {
+        ...existing,
+        price: Math.round(numPrice * 100) / 100,
+        originalPrice: Math.round(numOrig * 100) / 100,
+        badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : (existing.badge || ''),
+        g2gUrl: typeof g2gUrl === 'string' ? g2gUrl.trim() : (existing.g2gUrl || ''),
+        manualOverride: true,
+        updatedAt: new Date().toISOString()
+    };
+
+    saveDb(db);
+    res.json({ success: true, message: "บันทึกราคาลงเซิร์ฟเวอร์สำเร็จ", customPrices: db.customPrices });
+});
+
 // 6.1 API: Admin Fetch Store & SMTP Settings
 app.get('/api/admin/settings', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {

@@ -4102,35 +4102,47 @@ async function handleSaveEditedPrice() {
                     productId,
                     price: cleanPrice,
                     originalPrice: cleanOrig,
-                    badge: badgeVal
+                    badge: badgeVal,
+                    g2gUrl: g2gUrlVal
                 })
             });
             const resData = await res.json();
             if (!res.ok || !resData.success) {
                 if (res.status === 401 || res.status === 403) {
                     ADMIN_AUTH.logout();
-                    showToast("เซสชันแอดมินหมดอายุ กรุณากรอก PIN เข้าสู่ระบบใหม่เพื่อบันทึกราคาลงเซิร์ฟเวอร์", "warning");
+                    showToast("เซสชันแอดมินหมดอายุ กรุณากรอก PIN เข้าสู่ระบบใหม่", "warning");
                     closeEditPriceModal();
                     promptAdminLogin();
                     return;
                 }
-                showToast(resData.message || "เซิร์ฟเวอร์ปฏิเสธการบันทึกราคา", "error");
-                return;
+                console.warn("Server price sync notice:", resData.message);
             }
         } catch (err) {
-            console.error("Failed to sync custom price to server:", err);
-            showToast("ไม่สามารถส่งข้อมูลไปเซิร์ฟเวอร์ได้: " + err.message, "warning");
+            console.warn("Failed to sync custom price to server:", err.message);
         }
     }
 
-    // Refresh application state
-    applyCustomPricesToProducts();
-    applyFilters();
-    updateCartUI();
-    renderAdminStockList();
+    // Refresh application state & UI everywhere
+    if (typeof syncStockCount === 'function') {
+        syncStockCount();
+    } else {
+        applyCustomPricesToProducts();
+    }
+    if (typeof applyFilters === 'function') {
+        applyFilters();
+    }
+    if (typeof renderProducts === 'function') {
+        renderProducts();
+    }
+    if (typeof updateCartUI === 'function') {
+        updateCartUI();
+    }
+    if (typeof renderAdminStockList === 'function') {
+        renderAdminStockList();
+    }
     closeEditPriceModal();
 
-    showToast(`อัปเดตราคาใหม่เป็น ฿${customPrices[productId].price.toFixed(2)} บนระบบและเซิร์ฟเวอร์เรียบร้อยแล้ว`, "success");
+    showToast(`บันทึกราคาใหม่ ฿${cleanPrice.toFixed(2)} บนระบบและหน้าเว็บเรียบร้อยแล้ว`, "success");
 }
 
 function openAddStockModal(productId) {
