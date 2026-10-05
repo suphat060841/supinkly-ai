@@ -11,6 +11,14 @@ const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const mailService = require('./mail-service');
+
+// [PROCESS SAFETY] Guard against unhandled promise rejections and exceptions
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[SERVER SAFETY] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[SERVER SAFETY] Uncaught Exception:', err);
+});
 const upload = multer({
     limits: { fileSize: 15 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
@@ -122,11 +130,16 @@ app.use((req, res, next) => {
         /\.(bak|backup|old|orig|tmp|swp)$/i,
         /\.env(\..+)?$/i,
         /server\.js$/i,
+        /mail-service\.js$/i,
+        /get-gmail-token\.js$/i,
         /package(-lock)?\.json$/i,
         /Dockerfile$/i,
         /\.dockerignore$/i,
-        /render\.yaml$/i,
+        /\.gitignore$/i,
+        /render\.ya?ml$/i,
+        /README\.md$/i,
         /(^|\/)\.git/i,
+        /(^|\/)scratch(\/|$)/i,
         /node_modules/i
     ];
     if (forbidden.some(regex => regex.test(cleanPath))) {
@@ -255,7 +268,7 @@ app.use((req, res, next) => {
         url.startsWith('/favicon') || 
         url.startsWith('/healthz') ||
         req.query.admin === '1' ||
-        req.headers['x-admin-token']
+        authenticateAdmin(req)
     ) {
         return next();
     }
@@ -1521,7 +1534,15 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
     if (!order || !order.items || !order.items[itemIndex]) {
         return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อ" });
     }
-    order.items[itemIndex].credentials = credentials;
+    // [SECURITY] Sanitize credentials to safe string fields
+    const cleanCred = {
+        ...(credentials.email ? { email: String(credentials.email).slice(0, 254) } : {}),
+        ...(credentials.password ? { password: String(credentials.password).slice(0, 512) } : {}),
+        ...(credentials.key ? { key: String(credentials.key).slice(0, 512) } : {}),
+        ...(credentials.link ? { link: String(credentials.link).slice(0, 2048) } : {}),
+        ...(credentials.instructions ? { instructions: String(credentials.instructions).slice(0, 1000) } : {})
+    };
+    order.items[itemIndex].credentials = cleanCred;
     order.items[itemIndex].status = "delivered";
     const allDelivered = order.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
     if (allDelivered) {
@@ -3704,6 +3725,19 @@ async function getBotResponse(userMsg, sessionId) {
         `• พิมพ์ชื่อสินค้าที่สนใจ (เช่น "CapCut", "Claude", "Google Drive", "Windows 11") เพื่อดูราคาและโปรโมชั่น\n` +
         `• หรือติดต่อด่วนทางเพจ Facebook: https://www.facebook.com/profile.php?id=61594837747580 ได้เลยนะครับ!`;
 }
+
+// ─── [GLOBAL EXPRESS ERROR HANDLER & RESILIENCE] ────────────────────────────
+app.use((err, req, res, next) => {
+    console.error('[EXPRESS ROUTE ERROR]', err.message || err);
+    if (res.headersSent) {
+        return next(err);
+    }
+    const statusCode = err.status || err.statusCode || (err.name === 'MulterError' ? 400 : 500);
+    res.status(statusCode).json({
+        success: false,
+        message: err.message || "เกิดข้อผิดพลาดในการประมวลผลคำขอ กรุณาลองใหม่อีกครั้ง"
+    });
+});
 
 // Upgrade HTTP server to support WebSocket
 const server = app.listen(PORT, () => {

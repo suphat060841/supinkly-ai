@@ -643,16 +643,20 @@ function closeLogoPopup(forceDontShow = false) {
 }
 
 function copyAndApplyPromoCode(code = 'SUPINKLY10') {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(code).catch(() => {});
-    }
-    if (typeof quickApplyCoupon === 'function') {
-        quickApplyCoupon(code);
-    }
-    if (typeof showToast === 'function') {
-        showToast(`คัดลอกและใส่โค้ดส่วนลด "${code}" ในตะกร้าแล้ว! 🎉`, "success");
-    }
     closeLogoPopup();
+    if (typeof copyAndApplyPromo === 'function') {
+        copyAndApplyPromo(code);
+    } else {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).catch(() => {});
+        }
+        if (typeof openCartDrawer === 'function') openCartDrawer();
+        const input = document.getElementById('cart-coupon-input');
+        if (input) input.value = code;
+        if (typeof showToast === 'function') {
+            showToast(`📋 คัดลอกโค้ด "${code}" แล้ว!`, "success");
+        }
+    }
 }
 
 function scrollToProducts() {
@@ -1179,11 +1183,13 @@ function addToCart(productId) {
 
     const existingIndex = state.cart.findIndex(item => item.productId === productId);
     if (existingIndex > -1) {
-        if (state.cart[existingIndex].quantity < availableStock) {
-            state.cart[existingIndex].quantity += 1;
+        const currentQty = parseInt(state.cart[existingIndex].quantity, 10) || 1;
+        const maxStock = Math.min(50, Math.max(1, availableStock));
+        if (currentQty < maxStock) {
+            state.cart[existingIndex].quantity = currentQty + 1;
             showToast(`เพิ่ม "${master.title}" ในตะกร้าแล้ว (+1)`, "success");
         } else {
-            showToast(`มีสินค้าในสต็อกเพียง ${availableStock} ชิ้น`, "warning");
+            showToast(`มีสินค้าในสต็อกเพียง ${maxStock} ชิ้น`, "warning");
         }
     } else {
         state.cart.push({ productId: productId, quantity: 1 });
@@ -1203,17 +1209,26 @@ function updateCartQuantity(productId, delta) {
 
     const master = getMasterProduct(productId);
     const availableStock = master ? (master.stock || (state.inventory[productId] || []).length || 50) : 50;
-    item.quantity += delta;
+    const numDelta = parseInt(delta, 10);
+    if (isNaN(numDelta)) return;
 
-    if (item.quantity <= 0) {
+    let currentQty = parseInt(item.quantity, 10);
+    if (isNaN(currentQty) || currentQty < 1) currentQty = 1;
+
+    const newQty = currentQty + numDelta;
+    if (newQty <= 0) {
         removeFromCart(productId);
-    } else {
-        if (item.quantity > availableStock) {
-            item.quantity = availableStock;
-            showToast(`สินค้าในสต็อกมีเพียง ${availableStock} ชิ้น`, "warning");
-        }
-        saveCart();
+        return;
     }
+
+    const maxStock = Math.min(50, Math.max(1, availableStock));
+    if (newQty > maxStock) {
+        item.quantity = maxStock;
+        showToast(`สินค้าในสต็อกมีเพียง ${maxStock} ชิ้น`, "warning");
+    } else {
+        item.quantity = newQty;
+    }
+    saveCart();
 }
 
 function removeFromCart(productId) {
@@ -1549,6 +1564,9 @@ function closeCheckoutModal() {
     const modal = document.getElementById('checkout-modal');
     if (modal) modal.classList.add('hidden');
     if (state.qrTimer) clearInterval(state.qrTimer);
+    if (typeof SlipVerifier !== 'undefined' && typeof SlipVerifier.clearSlip === 'function') {
+        SlipVerifier.clearSlip();
+    }
 }
 
 function startQrCountdown() {
@@ -1795,7 +1813,8 @@ function openVaultModal(order) {
     if (totalEl) totalEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
 
     // Check if order has items pending fulfillment
-    const isPending = order.items.some(item => !item.credentials || item.status === 'pending_fulfillment');
+    const orderItems = Array.isArray(order?.items) ? order.items : [];
+    const isPending = orderItems.some(item => !item.credentials || item.status === 'pending_fulfillment');
     modal.setAttribute('data-is-pending', isPending ? 'true' : 'false');
 
     const statusIconEl = document.getElementById('vault-status-icon');
@@ -1828,7 +1847,7 @@ function openVaultModal(order) {
 
     const listContainer = document.getElementById('vault-items-list');
     if (listContainer) {
-        listContainer.innerHTML = order.items.map((item, idx) => {
+        listContainer.innerHTML = orderItems.map((item, idx) => {
             const isItemPending = !item.credentials || item.status === 'pending_fulfillment';
             const cred = item.credentials || {};
 
@@ -5885,7 +5904,14 @@ function initEvents() {
                 return;
             }
 
-            // 2. High Priority: Welcome Mascot & Promo Popup Modal
+            // 2. High Priority: Topmost Promotions & Welcome Modals
+            const couponsModal = document.getElementById('coupons-modal');
+            if (couponsModal && !couponsModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeCouponsModal();
+                return;
+            }
+
             const logoPopupModal = document.getElementById('logo-popup-modal');
             if (logoPopupModal && !logoPopupModal.classList.contains('hidden')) {
                 e.preventDefault();

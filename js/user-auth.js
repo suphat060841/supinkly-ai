@@ -36,70 +36,94 @@ const USER_AUTH = (() => {
 
     // ── Register ───────────────────────────────────────────────
     async function register(email, password, displayName) {
-        const res  = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, displayName })
-        });
-        const data = await res.json();
-        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
-        return data;
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, displayName })
+            });
+            const data = await res.json();
+            if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
+            return data;
+        } catch (e) {
+            return { success: false, message: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง" };
+        }
     }
 
     // ── Verify Registration OTP ────────────────────────────────
     async function verifyOtp(email, otp) {
-        const res  = await fetch('/api/auth/verify-otp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, otp })
-        });
-        const data = await res.json();
-        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
-        return data;
+        try {
+            const res = await fetch('/api/auth/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp })
+            });
+            const data = await res.json();
+            if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
+            return data;
+        } catch (e) {
+            return { success: false, message: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง" };
+        }
     }
 
     // ── Resend Registration OTP ────────────────────────────────
     async function resendOtp(email) {
-        const res  = await fetch('/api/auth/resend-otp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        });
-        return await res.json();
+        try {
+            const res = await fetch('/api/auth/resend-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            return await res.json();
+        } catch (e) {
+            return { success: false, message: "ไม่สามารถส่งรหัส OTP ได้ กรุณาลองใหม่อีกครั้ง" };
+        }
     }
 
     // ── Forgot Password (Request OTP) ──────────────────────────
     async function forgotPassword(email) {
-        const res  = await fetch('/api/auth/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        });
-        return await res.json();
+        try {
+            const res = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            return await res.json();
+        } catch (e) {
+            return { success: false, message: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง" };
+        }
     }
 
     // ── Reset Password (Verify OTP & Save New Password) ─────────
     async function resetPassword(email, otp, newPassword) {
-        const res  = await fetch('/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, otp, newPassword })
-        });
-        const data = await res.json();
-        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
-        return data;
+        try {
+            const res = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp, newPassword })
+            });
+            const data = await res.json();
+            if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
+            return data;
+        } catch (e) {
+            return { success: false, message: "ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาลองใหม่อีกครั้ง" };
+        }
     }
 
     // ── Login ──────────────────────────────────────────────────
     async function login(email, password) {
-        const res  = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
-        const data = await res.json();
-        if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
-        return data;
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+            if (data.success && data.token) saveSession(data.token, data.expiresAt, data.user);
+            return data;
+        } catch (e) {
+            return { success: false, message: "ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง" };
+        }
     }
 
     // ── Logout ─────────────────────────────────────────────────
