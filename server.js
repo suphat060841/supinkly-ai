@@ -290,7 +290,7 @@ app.use((req, res, next) => {
             <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
             <span>🚧 ปิดปรับปรุงชั่วคราว</span>
         </div>
-        <h1 class="text-2xl font-black text-slate-900 mb-2">
+        <h1 class="text-2xl font-bold text-slate-900 mb-2">
             Supinkly<span class="text-pink-500">.AI</span> กำลังอัปเกรดระบบ
         </h1>
         <p class="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed mb-6">

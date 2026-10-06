@@ -737,7 +737,21 @@ function openLiveChat() {
 }
 window.openLiveChat = openLiveChat;
 
-// ==========================================
+// Dynamic Header Offset for Sticky Brand Tabs
+function updateStickyHeaderOffset() {
+    const header = document.querySelector('header.glass-header');
+    if (header) {
+        const height = header.offsetHeight;
+        document.documentElement.style.setProperty('--header-height', `${height}px`);
+    }
+}
+window.addEventListener('resize', updateStickyHeaderOffset);
+window.addEventListener('orientationchange', updateStickyHeaderOffset);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateStickyHeaderOffset);
+} else {
+    updateStickyHeaderOffset();
+}
 // MOBILE SLIDE-OUT MENU DRAWER
 // ==========================================
 function openMobileMenu() {
@@ -801,17 +815,17 @@ function initHeader() {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
                 ${isAdminActive ? `
-                    <button type="button" onclick="openAdminModal()" class="h-10 sm:h-11 px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
+                    <button type="button" onclick="openAdminModal()" class="h-9 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
                         <i class="fa-solid fa-gears"></i>
                         <span class="hidden md:inline">หลังบ้าน</span>
                     </button>
                 ` : ''}
-                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                <button onclick="openOrdersModal()" class="hidden sm:flex h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
                 </button>
                 <div class="relative group" id="user-profile-dropdown-container">
-                    <button type="button" onclick="toggleUserDropdown(event)" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
+                    <button type="button" onclick="toggleUserDropdown(event)" class="h-9 sm:h-11 px-2.5 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
                         <i class="fa-solid fa-circle-user text-emerald-500 text-base"></i>
                         <span class="hidden sm:inline max-w-[80px] truncate">${escapeHTML(displayName)}</span>
                         <i class="fa-solid fa-chevron-down text-[10px] text-emerald-500"></i>
@@ -840,17 +854,17 @@ function initHeader() {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
                 ${isAdminActive ? `
-                    <button type="button" onclick="openAdminModal()" class="h-10 sm:h-11 px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
+                    <button type="button" onclick="openAdminModal()" class="h-9 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
                         <i class="fa-solid fa-gears"></i>
                         <span class="hidden md:inline">หลังบ้าน</span>
                     </button>
                 ` : ''}
-                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                <button onclick="openOrdersModal()" class="hidden sm:flex h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
                 </button>
-                <button onclick="openAuthModal('login')" class="h-10 sm:h-11 px-3.5 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
-                    <i class="fa-solid fa-right-to-bracket text-sm"></i>
+                <button onclick="openAuthModal('login')" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer">
+                    <i class="fa-solid fa-right-to-bracket text-xs sm:text-sm"></i>
                     <span class="inline font-bold">เข้าสู่ระบบ</span>
                 </button>
             </div>
@@ -907,7 +921,7 @@ function renderBrandTabs() {
             class="brand-tab flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold border transition-all whitespace-nowrap shrink-0 ${state.filterBrand === b.key ? 'active' : ''}">
             <i class="${b.icon} ${state.filterBrand === b.key ? 'text-white' : 'text-pink-500'} text-xs sm:text-sm"></i>
             <span>${escapeHTML(b.name)}</span>
-            <span class="ml-0.5 sm:ml-1 px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full text-[10px] sm:text-xs ${state.filterBrand === b.key ? 'bg-white/25 text-white font-black' : 'bg-slate-100 text-slate-600 font-bold'}">${b.count}</span>
+            <span class="ml-0.5 sm:ml-1 px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full text-[10px] sm:text-xs ${state.filterBrand === b.key ? 'bg-white/25 text-white font-bold' : 'bg-slate-100 text-slate-600 font-bold'}">${b.count}</span>
         </button>
     `).join('');
 }
@@ -1128,7 +1142,7 @@ function renderProducts() {
                         </div>
                         <span class="px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[11px] font-medium border ${typeBadgeClass} flex items-center gap-0.5 sm:gap-1 shrink-0">
                             <i class="${typeIcon} text-[8px] sm:text-[10px]"></i>
-                            <span>${escapeHTML(product.type)}</span>
+                            <span class="max-w-[70px] sm:max-w-none truncate">${escapeHTML(product.type)}</span>
                         </span>
                     </div>
 
@@ -1215,7 +1229,7 @@ function renderProducts() {
                             <span class="text-[10px] sm:text-xs text-slate-400 line-through font-normal">฿${product.originalPrice.toFixed(0)}</span>
                             ${discountPct > 0 ? `<span class="text-[8px] sm:text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1 rounded">-${discountPct}%</span>` : ''}
                         </div>
-                        <div class="text-sm sm:text-2xl font-black text-pink-600 flex items-baseline tracking-tight truncate">
+                        <div class="text-sm sm:text-2xl font-bold text-pink-600 flex items-baseline tracking-tight truncate">
                             <span class="text-[11px] sm:text-sm font-semibold mr-0.5">฿</span>${product.price.toFixed(0)}
                         </div>
                     </div>
@@ -2254,7 +2268,7 @@ function renderOrdersHistory() {
                 <div class="w-16 h-16 mx-auto mb-3 rounded-3xl bg-pink-100 border border-pink-200 flex items-center justify-center text-pink-600 text-2xl shadow-inner">
                     <i class="fa-solid fa-key"></i>
                 </div>
-                <p class="text-base font-black text-slate-800">ยังไม่มีประวัติคำสั่งซื้อและคีย์ในระบบ</p>
+                <p class="text-base font-bold text-slate-800">ยังไม่มีประวัติคำสั่งซื้อและคีย์ในระบบ</p>
                 <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto font-medium">เมื่อคุณเลือกซื้อบัญชีหรือคีย์สำเร็จ ข้อมูลรหัสผ่านจะถูกบันทึกและแสดงไว้ที่นี่ทันที เข้าใช้งานได้ตลอด 24 ชม.</p>
                 <button onclick="closeOrdersModal()" class="mt-4 px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm">
                     เลือกดูสินค้าในร้าน
@@ -2312,7 +2326,7 @@ function renderOrdersHistory() {
                 <!-- Order Header -->
                 <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <div class="flex items-center gap-2">
-                        <span class="font-mono font-black text-pink-600 text-xs sm:text-sm tracking-wide bg-pink-50 border border-pink-200 px-2.5 py-0.5 rounded-lg select-all">
+                        <span class="font-mono font-bold text-pink-600 text-xs sm:text-sm tracking-wide bg-pink-50 border border-pink-200 px-2.5 py-0.5 rounded-lg select-all">
                             ${escapeHTML(order.orderId)}
                         </span>
                         <button onclick="copyFromData(this)" data-copy="${escapeHTML(order.orderId)}" data-msg="คัดลอกเลขออเดอร์แล้ว" title="คัดลอกเลขออเดอร์" 
@@ -2734,7 +2748,7 @@ function switchAdminTab(tabName) {
         const panel = document.getElementById(`admin-tab-${t}`);
         if (t === tabName) {
             if (btn) {
-                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-pink-500 to-rose-600 text-white flex items-center gap-2 shadow-md shadow-pink-500/25 transition-all shrink-0 cursor-pointer";
+                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pink-500 to-rose-600 text-white flex items-center gap-2 shadow-md shadow-pink-500/25 transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.remove('hidden');
         } else {
@@ -2809,7 +2823,7 @@ function filterAdminOrders(filterType) {
         const btn = document.getElementById(`admin-order-filter-${f}`);
         if (btn) {
             if (f === filterType) {
-                btn.className = "px-3.5 py-2 rounded-xl bg-pink-500 text-white font-black shadow-xs transition-all cursor-pointer";
+                btn.className = "px-3.5 py-2 rounded-xl bg-pink-500 text-white font-semibold shadow-xs transition-all cursor-pointer";
             } else {
                 btn.className = "px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all cursor-pointer";
             }
@@ -2965,9 +2979,9 @@ function renderAdminOrdersList() {
     if (pendingEl) {
         pendingEl.textContent = `${pendingCount} ออเดอร์`;
         if (pendingCount > 0) {
-            pendingEl.className = "text-base sm:text-lg font-black text-amber-700 mt-1 animate-pulse";
+            pendingEl.className = "text-base sm:text-lg font-bold text-amber-700 mt-1 animate-pulse";
         } else {
-            pendingEl.className = "text-base sm:text-lg font-black text-slate-700 mt-1";
+            pendingEl.className = "text-base sm:text-lg font-bold text-slate-700 mt-1";
         }
     }
     const deliveredEl = document.getElementById('admin-stat-delivered');
@@ -2978,9 +2992,9 @@ function renderAdminOrdersList() {
     if (badge) {
         badge.textContent = pendingCount;
         if (pendingCount > 0) {
-            badge.className = "px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 text-xs font-black animate-bounce";
+            badge.className = "px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 text-xs font-bold animate-bounce";
         } else {
-            badge.className = "px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-black";
+            badge.className = "px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold";
         }
     }
 
@@ -3034,7 +3048,7 @@ function renderAdminOrdersList() {
             <div class="p-4 rounded-2xl bg-white border-2 ${hasPending ? 'border-amber-300 shadow-sm' : 'border-slate-200'} space-y-3">
                 <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100 text-xs">
                     <div class="flex flex-wrap items-center gap-2">
-                        <span class="font-mono font-black text-pink-600 text-sm">${escapeHTML(order.orderId)}</span>
+                        <span class="font-mono font-bold text-pink-600 text-sm">${escapeHTML(order.orderId)}</span>
                         <span class="text-slate-400">•</span>
                         <span class="text-slate-500 font-medium">${escapeHTML(order.date)}</span>
                         <span class="text-slate-400">•</span>
@@ -3066,7 +3080,7 @@ function renderAdminOrdersList() {
                         <span class="px-2.5 py-1 rounded-full text-xs font-bold ${hasPending ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}">
                             ${hasPending ? '🟡 รอส่งมอบ (On-Demand)' : '🟢 จัดส่งสำเร็จ'}
                         </span>
-                        <span class="font-black text-slate-900 text-sm">฿${(order.totalAmount || 0).toFixed(2)}</span>
+                        <span class="font-bold text-slate-900 text-sm">฿${(order.totalAmount || 0).toFixed(2)}</span>
                     </div>
                 </div>
 
@@ -3477,7 +3491,7 @@ function updateMaintenanceUI(isMaint) {
     const quickText = document.getElementById('admin-quick-toggle-maint-text');
     if (quickBtn) {
         if (isMaint) {
-            quickBtn.className = "px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/25 cursor-pointer active:scale-95 animate-pulse";
+            quickBtn.className = "px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/25 cursor-pointer active:scale-95 animate-pulse";
             quickBtn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <span id="admin-quick-toggle-maint-text">เว็บปิดอยู่ (คลิกเปิดเว็บ)</span>';
             quickBtn.title = "ขณะนี้เว็บไซต์ปิดปรับปรุงอยู่ คลิกเพื่อเปิดให้บริการตามปกติทันที";
         } else {
@@ -3491,10 +3505,10 @@ function updateMaintenanceUI(isMaint) {
     const directBtn = document.getElementById('admin-maint-direct-btn');
     if (directBtn) {
         if (isMaint) {
-            directBtn.className = "px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-600/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
+            directBtn.className = "px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-md shadow-emerald-600/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
             directBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>คลิกเปิดให้บริการทันที (ยกเลิกปิดเว็บ)</span>';
         } else {
-            directBtn.className = "px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
+            directBtn.className = "px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-md shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
             directBtn.innerHTML = '<i class="fa-solid fa-power-off"></i> <span>คลิกปิดเว็บชั่วคราวทันที</span>';
         }
     }
@@ -3825,7 +3839,7 @@ function renderActiveUsersList(users) {
             <div class="p-3.5 rounded-2xl ${isMember ? 'bg-gradient-to-r from-purple-50/60 to-pink-50/40 border border-purple-200' : 'bg-slate-50/80 border border-slate-200'} flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 hover:shadow-sm transition-all">
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="relative shrink-0">
-                        <div class="w-10 h-10 rounded-2xl ${isMember ? 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white' : 'bg-slate-200 text-slate-700'} flex items-center justify-center font-black text-sm shadow-xs">
+                        <div class="w-10 h-10 rounded-2xl ${isMember ? 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white' : 'bg-slate-200 text-slate-700'} flex items-center justify-center font-bold text-sm shadow-xs">
                             ${escapeHTML(initial)}
                         </div>
                         <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></span>
@@ -4121,7 +4135,7 @@ async function renderAdminUsersList() {
                 </td>
                 <td class="py-3 px-3.5 text-center whitespace-nowrap">
                     ${isOnline ? `
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
                             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                             <span>🟢 ออนไลน์</span>
                         </span>
@@ -4412,11 +4426,11 @@ function renderAdminStockList() {
                     <span class="text-slate-500 font-bold text-xs">฿${costTHB.toFixed(2)}</span>
                 </td>
                 <td class="py-3 px-3.5 text-center">
-                    <div class="font-black text-pink-600 text-sm font-mono">฿${master.price.toFixed(2)}</div>
+                    <div class="font-bold text-pink-600 text-sm font-mono">฿${master.price.toFixed(2)}</div>
                     <div class="text-[10px] text-slate-400 line-through font-mono">฿${master.originalPrice.toFixed(2)}</div>
                 </td>
                 <td class="py-3 px-3.5 text-center font-mono">
-                    <span class="font-black text-xs ${profit >= 0 ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
+                    <span class="font-bold text-xs ${profit >= 0 ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
                         ${profit >= 0 ? '+' : ''}฿${profit.toFixed(2)} (${profitPct}%)
                     </span>
                 </td>
@@ -4635,10 +4649,10 @@ function updateEditPricePreview() {
     const marginEl = document.getElementById('edit-price-margin-preview');
     if (marginEl) {
         if (margin >= 0) {
-            marginEl.className = "font-black text-emerald-600";
+            marginEl.className = "font-bold text-emerald-600";
             marginEl.textContent = `+฿${margin.toFixed(2)} (${marginPct}%)`;
         } else {
-            marginEl.className = "font-black text-rose-600";
+            marginEl.className = "font-bold text-rose-600";
             marginEl.textContent = `-฿${Math.abs(margin).toFixed(2)} (${marginPct}%) [ขาดทุน]`;
         }
     }
@@ -5494,7 +5508,7 @@ function updateSlipOkStatusBadge(hasKey, hint) {
     const badge = document.getElementById('admin-slipok-status-badge');
     if (!badge) return;
     if (hasKey) {
-        badge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1 transition-all";
+        badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1 transition-all";
         badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 🟢 บันทึกแล้ว (${escapeHTML(hint || 'พร้อมใช้งาน')})`;
     } else {
         badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 transition-all";
@@ -6365,11 +6379,11 @@ const ADMIN_CHAT = (() => {
             return `
                 <div onclick="ADMIN_CHAT.selectRoom('${escapeHTML(sid)}')"
                     class="px-3 py-2.5 cursor-pointer flex items-center gap-2 transition-colors ${isActive ? 'bg-pink-50 border-l-2 border-pink-500' : 'hover:bg-slate-100'}">
-                    <div class="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-[11px] font-black shrink-0">
+                    <div class="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-[11px] font-bold shrink-0">
                         ${escapeHTML(r.name.charAt(0).toUpperCase())}
                     </div>
                     <span class="text-xs font-bold text-slate-800 truncate flex-1">${escapeHTML(r.name)}</span>
-                    ${badge > 0 ? `<span class="w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shrink-0">${badge}</span>` : ''}
+                    ${badge > 0 ? `<span class="w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">${badge}</span>` : ''}
                 </div>`;
         }).join('');
     }
@@ -6610,7 +6624,7 @@ function closeAdminChatPanel() {
         btn.className = 'hidden fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-xl hover:scale-110 transition-all flex items-center justify-center';
         btn.innerHTML = `
             <i class="fa-solid fa-headset text-xl"></i>
-            <span class="chat-badge hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-black flex items-center justify-center"></span>`;
+            <span class="chat-badge hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center"></span>`;
         btn.addEventListener('click', openAdminChatPanel);
         document.body.appendChild(btn);
 
@@ -7596,14 +7610,14 @@ function renderVoucherHubSection() {
             <div class="voucher-ticket rounded-2xl overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-xl transition-all group min-w-[260px] max-w-[280px] sm:min-w-0 sm:max-w-none snap-start shrink-0 sm:shrink ${isApplied ? 'ring-2 ring-emerald-500' : ''}">
                 <div class="bg-gradient-to-r ${gradClass} p-4 text-white relative promo-shimmer">
                     <div class="flex items-center justify-between gap-1 mb-1.5">
-                        <span class="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-[10px] font-black tracking-wider uppercase">
+                        <span class="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-[10px] font-bold tracking-wider uppercase">
                             ${escapeHTML(badge)}
                         </span>
                         <span class="text-[10px] font-medium opacity-90">${minSpendText}</span>
                     </div>
                     <div class="flex items-baseline gap-1">
-                        <span class="text-3xl font-black font-['Outfit'] tracking-tight">${discNumber}</span>
-                        <span class="text-xs font-black uppercase opacity-90">OFF</span>
+                        <span class="text-3xl font-bold font-['Outfit'] tracking-tight">${discNumber}</span>
+                        <span class="text-xs font-bold uppercase opacity-90">OFF</span>
                     </div>
                     <p class="text-[11px] opacity-95 font-medium mt-0.5 truncate">${escapeHTML(promo.description || promo.title || `ลด ${discNumber}${maxDiscText}`)}</p>
                     <i class="fa-solid ${iconWatermark} absolute -right-2 -bottom-3 text-white/10 text-5xl pointer-events-none"></i>
@@ -7624,7 +7638,7 @@ function renderVoucherHubSection() {
                             <span>${escapeHTML(promo.title || 'โค้ดส่วนลดพิเศษ')}</span>
                         </div>
                         <div onclick="copyAndApplyPromo('${escapeHTML(promo.code)}')" class="${bgCodeClass} hover:opacity-90 border border-dashed rounded-xl px-2.5 py-1.5 flex items-center justify-between cursor-pointer transition-colors group/code" title="คลิกเพื่อคัดลอกโค้ด">
-                            <span class="font-mono font-black ${textGradClass} text-xs sm:text-sm tracking-wider">${escapeHTML(promo.code)}</span>
+                            <span class="font-mono font-bold ${textGradClass} text-xs sm:text-sm tracking-wider">${escapeHTML(promo.code)}</span>
                             <span class="text-[10px] ${textGradClass} font-bold flex items-center gap-1">
                                 <i class="fa-regular fa-copy"></i>
                                 <span>คลิกคัดลอก</span>
@@ -7633,12 +7647,12 @@ function renderVoucherHubSection() {
                     </div>
 
                     ${isApplied ? `
-                        <div class="w-full py-2.5 px-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-700 font-black text-xs flex items-center justify-center gap-1.5">
+                        <div class="w-full py-2.5 px-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-700 font-semibold text-xs flex items-center justify-center gap-1.5">
                             <i class="fa-solid fa-circle-check text-emerald-600"></i>
                             <span>กำลังใช้งานในตะกร้า</span>
                         </div>
                     ` : `
-                        <button type="button" onclick="claimVoucher('${escapeHTML(promo.code)}', this)" class="w-full py-2.5 px-3 rounded-xl ${btnGradClass} text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer">
+                        <button type="button" onclick="claimVoucher('${escapeHTML(promo.code)}', this)" class="w-full py-2.5 px-3 rounded-xl ${btnGradClass} text-white font-semibold text-xs shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer">
                             <i class="fa-solid fa-bolt text-yellow-300"></i>
                             <span>เก็บโค้ด & ใช้เลย</span>
                         </button>
@@ -7714,13 +7728,13 @@ async function renderCouponsModal() {
                 <div class="flex items-start gap-3 min-w-0 flex-1">
                     <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 text-white flex flex-col items-center justify-center p-1 text-center shrink-0 shadow-sm shadow-pink-500/20">
                         <span class="text-[10px] font-medium leading-none opacity-90">${isPercent ? 'ส่วนลด' : 'ลดทันที'}</span>
-                        <span class="text-base font-black leading-tight mt-0.5">${isPercent ? `${promo.discountValue}%` : `฿${promo.discountValue}`}</span>
+                        <span class="text-base font-bold leading-tight mt-0.5">${isPercent ? `${promo.discountValue}%` : `฿${promo.discountValue}`}</span>
                         <span class="text-[9px] font-bold opacity-80 leading-none">OFF</span>
                     </div>
 
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-mono font-black text-pink-600 text-sm tracking-wider bg-white border border-pink-300 px-2.5 py-0.5 rounded-lg select-all shadow-2xs">
+                            <span class="font-mono font-bold text-pink-600 text-sm tracking-wider bg-white border border-pink-300 px-2.5 py-0.5 rounded-lg select-all shadow-2xs">
                                 ${escapeHTML(promo.code)}
                             </span>
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isPercent ? 'bg-pink-100 text-pink-700' : 'bg-purple-100 text-purple-700'}">

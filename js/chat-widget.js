@@ -58,11 +58,11 @@ const CHAT = (() => {
         el.innerHTML = `
         <!-- Bubble Button -->
         <button id="spk-chat-btn"
-            class="fixed bottom-20 right-3.5 sm:bottom-6 sm:right-6 z-40 w-12 h-12 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active group"
+            class="fixed bottom-[72px] right-3 sm:bottom-6 sm:right-6 z-40 w-11 h-11 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active group"
             title="แชท Live สด กับเราได้ตลอด 24 ชม." aria-label="เปิดแชท">
-            <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-xl sm:text-2xl text-white"></i>
+            <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-lg sm:text-2xl text-white"></i>
             <span id="spk-chat-badge"
-                class="hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center">
+                class="hidden absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-red-500 border-2 border-white text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center">
             </span>
             <span class="hidden sm:group-hover:flex absolute right-full mr-3 whitespace-nowrap px-3 py-1.5 rounded-xl bg-slate-900/90 text-white text-xs font-bold shadow-lg items-center gap-1.5 pointer-events-none">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -72,8 +72,7 @@ const CHAT = (() => {
 
         <!-- Chat Window -->
         <div id="spk-chat-window"
-            class="hidden fixed inset-x-2 bottom-20 sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-96 z-50 flex flex-col rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-200 bg-white"
-            style="max-height: calc(100vh - 100px);">
+            class="hidden fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-96 z-50 flex flex-col rounded-none sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-200 bg-white sm:max-h-[calc(100vh-120px)]">
 
             <!-- Header -->
             <div class="gradient-btn px-4 py-3.5 flex items-center justify-between gap-3 shrink-0">
@@ -92,7 +91,7 @@ const CHAT = (() => {
                         </div>
                     </div>
                 </div>
-                <button id="spk-chat-close" class="text-white/80 hover:text-white text-xl leading-none p-1 transition-colors" aria-label="ปิด">
+                <button id="spk-chat-close" class="text-white/80 hover:text-white text-xl leading-none p-2 transition-colors cursor-pointer" aria-label="ปิด">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -113,8 +112,7 @@ const CHAT = (() => {
 
             <!-- Messages -->
             <div id="spk-messages"
-                class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/60"
-                style="min-height: 220px; max-height: 300px;">
+                class="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 bg-slate-50/60 min-h-[220px] sm:max-h-[360px]">
                 <div id="spk-welcome-msg" class="text-center">
                     <div class="inline-block px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
                         👋 สวัสดีครับ! สอบถามรายละเอียดหรือปัญหาได้เลยครับ
@@ -150,7 +148,7 @@ const CHAT = (() => {
             </div>
 
             <!-- Input -->
-            <div id="spk-input-area" class="hidden px-3 py-3 bg-white border-t border-slate-200 flex items-end gap-2 shrink-0">
+            <div id="spk-input-area" class="hidden px-3 py-3 pb-safe bg-white border-t border-slate-200 flex items-end gap-2 shrink-0">
                 <textarea id="spk-msg-input"
                     placeholder="พิมพ์ข้อความคุยกับแอดมินหรือบอท..."
                     rows="1"
