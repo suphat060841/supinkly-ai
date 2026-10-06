@@ -817,12 +817,6 @@ function initHeader() {
     if (isLoggedIn && user) {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                ${isAdminActive ? `
-                    <button type="button" onclick="openAdminModal()" class="h-9 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
-                        <i class="fa-solid fa-gears"></i>
-                        <span class="hidden md:inline">หลังบ้าน</span>
-                    </button>
-                ` : ''}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
@@ -856,12 +850,6 @@ function initHeader() {
     } else {
         userContainer.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                ${isAdminActive ? `
-                    <button type="button" onclick="openAdminModal()" class="h-9 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="เปิดระบบหลังบ้าน (Admin)">
-                        <i class="fa-solid fa-gears"></i>
-                        <span class="hidden md:inline">หลังบ้าน</span>
-                    </button>
-                ` : ''}
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${orderCount}</span>)</span>
