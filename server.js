@@ -348,9 +348,6 @@ app.use((req, res, next) => {
                 <span>ติดต่อแอดมินผ่าน Facebook</span>
             </a>
         </div>
-        <div class="text-[11px] text-slate-400">
-            เจ้าของร้าน: เข้าสู่ระบบจัดการได้ที่ <a href="/?admin=1" class="text-pink-500 font-bold underline">/?admin=1</a>
-        </div>
     </div>
 </body>
 </html>`);

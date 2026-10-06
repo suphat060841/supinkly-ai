@@ -269,7 +269,7 @@ function loadAndSanitizeCart() {
 
 // Application State
 const state = {
-    products: PRODUCTS.map(p => ({ ...p, stock: 0 })),
+    products: (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: 0 })),
     inventory: getSecureInventory(),
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
@@ -312,12 +312,29 @@ function applyCustomPricesToProducts() {
         if (customPrices[p.id]) {
             if (typeof customPrices[p.id].price === 'number') p.price = customPrices[p.id].price;
             if (typeof customPrices[p.id].originalPrice === 'number') p.originalPrice = customPrices[p.id].originalPrice;
+            if (typeof customPrices[p.id].badge === 'string') p.badge = customPrices[p.id].badge;
+            if (customPrices[p.id].isHighlight !== undefined) p.isHighlight = !!customPrices[p.id].isHighlight;
         }
     });
 }
 
 // Sync live stock count & custom prices (Referenced from G2G Market Auto-Sync)
 function syncStockCount() {
+    if (typeof getAllMasterProducts === 'function') {
+        const masters = getAllMasterProducts(false);
+        const masterMap = new Map(masters.map(m => [m.id, m]));
+        state.products.forEach(p => {
+            const m = masterMap.get(p.id);
+            if (m) {
+                p.isHighlight = !!m.isHighlight;
+                if (m.title) p.title = m.title;
+                if (m.badge) p.badge = m.badge;
+                if (typeof m.price === 'number') p.price = m.price;
+                if (typeof m.originalPrice === 'number') p.originalPrice = m.originalPrice;
+                if (m.deleted !== undefined) p.deleted = m.deleted;
+            }
+        });
+    }
     applyCustomPricesToProducts();
     const customPrices = getCustomPrices();
     state.products.forEach(p => {
@@ -352,6 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initHeader();
     initFilters();
     renderProducts();
+    renderHighlightProducts();
     updateCartUI();
     renderBrandTabs();
     initEvents();
@@ -757,20 +775,23 @@ function renderBrandTabs() {
     const container = document.getElementById('brand-tabs-container');
     if (!container) return;
 
+    const highlightCount = state.products.filter(p => !p.deleted && !!p.isHighlight).length;
+
     const brands = [
-        { key: "all", name: "สินค้าทั้งหมด", icon: "fa-solid fa-shapes", count: state.products.length },
-        { key: "CapCut", name: "CapCut", icon: "fa-solid fa-scissors", count: state.products.filter(p => p.brand === 'CapCut').length },
-        { key: "Google AI", name: "Google AI", icon: "fa-solid fa-wand-magic-sparkles", count: state.products.filter(p => p.brand === 'Google AI').length },
-        { key: "Google", name: "Google", icon: "fa-brands fa-google", count: state.products.filter(p => p.brand === 'Google').length },
-        { key: "Grok", name: "Grok", icon: "fa-solid fa-bolt", count: state.products.filter(p => p.brand === 'Grok').length },
-        { key: "Claude", name: "Claude", icon: "fa-solid fa-brain", count: state.products.filter(p => p.brand === 'Claude').length },
-        { key: "Adobe", name: "Adobe", icon: "fa-solid fa-bezier-curve", count: state.products.filter(p => p.brand === 'Adobe').length },
-        { key: "Microsoft", name: "Microsoft", icon: "fa-brands fa-microsoft", count: state.products.filter(p => p.brand === 'Microsoft').length },
+        { key: "all", name: "สินค้าทั้งหมด", icon: "fa-solid fa-shapes", count: state.products.filter(p => !p.deleted).length },
+        { key: "highlight", name: "⭐ ดีลไฮไลท์", icon: "fa-solid fa-star text-amber-500", count: highlightCount },
+        { key: "CapCut", name: "CapCut", icon: "fa-solid fa-scissors", count: state.products.filter(p => !p.deleted && p.brand === 'CapCut').length },
+        { key: "Google AI", name: "Google AI", icon: "fa-solid fa-wand-magic-sparkles", count: state.products.filter(p => !p.deleted && p.brand === 'Google AI').length },
+        { key: "Google", name: "Google", icon: "fa-brands fa-google", count: state.products.filter(p => !p.deleted && p.brand === 'Google').length },
+        { key: "Grok", name: "Grok", icon: "fa-solid fa-bolt", count: state.products.filter(p => !p.deleted && p.brand === 'Grok').length },
+        { key: "Claude", name: "Claude", icon: "fa-solid fa-brain", count: state.products.filter(p => !p.deleted && p.brand === 'Claude').length },
+        { key: "Adobe", name: "Adobe", icon: "fa-solid fa-bezier-curve", count: state.products.filter(p => !p.deleted && p.brand === 'Adobe').length },
+        { key: "Microsoft", name: "Microsoft", icon: "fa-brands fa-microsoft", count: state.products.filter(p => !p.deleted && p.brand === 'Microsoft').length },
     ];
 
     container.innerHTML = brands.map(b => `
         <button onclick="selectBrand('${b.key}')" 
-            class="brand-tab flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold border transition-all whitespace-nowrap ${state.filterBrand === b.key ? 'active' : ''}">
+            class="brand-tab flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold border transition-all whitespace-nowrap cursor-pointer ${state.filterBrand === b.key ? 'active' : ''}">
             <i class="${b.icon} ${state.filterBrand === b.key ? 'text-white' : 'text-pink-500'}"></i>
             <span>${escapeHTML(b.name)}</span>
             <span class="ml-1 px-2 py-0.5 rounded-full text-xs ${state.filterBrand === b.key ? 'bg-white/25 text-white font-black' : 'bg-slate-100 text-slate-600 font-bold'}">${b.count}</span>
@@ -782,6 +803,10 @@ function selectBrand(brand) {
     state.filterBrand = brand;
     renderBrandTabs();
     applyFilters();
+    if (brand === 'highlight') {
+        const prodSec = document.getElementById('products-section');
+        if (prodSec) prodSec.scrollIntoView({ behavior: 'smooth' });
+    }
 }
 
 function selectType(type) {
@@ -817,9 +842,11 @@ function initFilters() {
 }
 
 function applyFilters() {
-    let result = [...state.products];
+    let result = [...state.products].filter(p => !p.deleted);
 
-    if (state.filterBrand !== 'all') {
+    if (state.filterBrand === 'highlight') {
+        result = result.filter(p => !!p.isHighlight);
+    } else if (state.filterBrand !== 'all') {
         result = result.filter(p => p.brand === state.filterBrand);
     }
 
@@ -831,7 +858,7 @@ function applyFilters() {
         result = result.filter(p =>
             p.title.toLowerCase().includes(state.searchQuery) ||
             p.brand.toLowerCase().includes(state.searchQuery) ||
-            p.description.toLowerCase().includes(state.searchQuery)
+            (p.description && p.description.toLowerCase().includes(state.searchQuery))
         );
     }
 
@@ -849,8 +876,127 @@ function applyFilters() {
     renderProducts();
 }
 
+// Render Highlight Products Showcase Grid (⭐ ดีลเด็ดไฮไลท์คัดสรรพิเศษ)
+function renderHighlightProducts() {
+    const container = document.getElementById('highlight-products-grid');
+    if (!container) return;
+
+    // Filter active highlight products
+    let highlights = state.products.filter(p => !p.deleted && !!p.isHighlight);
+
+    // Fallback: If no products marked as highlight, show top 4 bestsellers
+    if (highlights.length === 0) {
+        highlights = [...state.products]
+            .filter(p => !p.deleted)
+            .sort((a, b) => (b.soldCount || 0) - (a.soldCount || 0))
+            .slice(0, 4);
+    }
+
+    container.innerHTML = highlights.map(product => {
+        let typeBadgeClass = "bg-purple-100 text-purple-700 border-purple-200";
+        if (product.typeKey === 'private') typeBadgeClass = "bg-pink-100 text-pink-700 border-pink-200";
+        if (product.typeKey === 'shared') typeBadgeClass = "bg-amber-100 text-amber-800 border-amber-200";
+        if (product.typeKey === 'link') typeBadgeClass = "bg-cyan-100 text-cyan-800 border-cyan-200";
+        if (product.typeKey === 'key') typeBadgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
+
+        const inStock = product.stock > 0;
+        const discountPercent = product.originalPrice > product.price 
+            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) 
+            : 0;
+
+        return `
+            <div class="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
+                 data-action="card" data-product-id="${escapeHTML(product.id)}">
+                
+                <!-- Glow accent -->
+                <div class="absolute -top-10 -right-10 w-24 h-24 bg-gradient-to-br from-amber-400/20 to-pink-400/20 rounded-full blur-xl pointer-events-none"></div>
+
+                <div>
+                    <!-- Header of Card -->
+                    <div class="flex items-center justify-between gap-1.5 mb-2.5 sm:mb-3">
+                        <div class="flex items-center gap-1.5 sm:gap-2">
+                            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[10px] sm:text-xs font-black text-pink-600 shadow-inner">
+                                ${escapeHTML(product.brandCode || 'AI')}
+                            </span>
+                            <span class="text-[11px] sm:text-xs font-bold text-slate-700">${escapeHTML(product.brand)}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border ${typeBadgeClass}">
+                            ${escapeHTML(product.type)}
+                        </span>
+                    </div>
+
+                    <!-- Highlight Ribbon/Badge -->
+                    <div class="mb-2">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[10px] shadow-2xs">
+                            <i class="fa-solid fa-crown text-[9px]"></i>
+                            <span>${escapeHTML(product.badge || '⭐ สินค้าไฮไลท์')}</span>
+                        </span>
+                    </div>
+
+                    <!-- Title -->
+                    <h3 class="text-xs sm:text-base font-extrabold text-slate-900 line-clamp-2 min-h-[36px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                        ${escapeHTML(product.title)}
+                    </h3>
+
+                    <!-- Specs -->
+                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3 text-[10px] sm:text-xs text-slate-600 font-medium">
+                        <span class="flex items-center gap-1 bg-amber-50/80 px-2 py-0.5 rounded-lg border border-amber-200/80 text-amber-900 font-bold">
+                            <i class="fa-solid fa-bolt text-amber-500"></i> ส่งทันที
+                        </span>
+                        <span class="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
+                            <i class="fa-solid fa-shield-halved text-cyan-600"></i> ประกัน ${escapeHTML(product.warranty || '30 วัน')}
+                        </span>
+                        <span class="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
+                            <i class="fa-solid fa-globe text-purple-600"></i> ${escapeHTML(product.region || 'Global')}
+                        </span>
+                    </div>
+
+                    <!-- Stock Counter -->
+                    <div class="flex items-center justify-between mt-3 text-[10px] sm:text-xs font-semibold border-t border-slate-100 pt-2">
+                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
+                            <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+                            ${inStock ? `สต็อก ${product.stock} ชิ้น` : 'สินค้าหมด'}
+                        </span>
+                        <span class="text-slate-400">ขายแล้ว ${(product.soldCount || 0).toLocaleString()} ชิ้น</span>
+                    </div>
+                </div>
+
+                <!-- Price and Buttons -->
+                <div class="mt-3 pt-2.5 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[10px] sm:text-xs text-slate-400 line-through font-medium">฿${(product.originalPrice || 0).toFixed(2)}</span>
+                            ${discountPercent > 0 ? `<span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-600">-${discountPercent}%</span>` : ''}
+                        </div>
+                        <div class="text-lg sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
+                            <span class="text-xs sm:text-sm font-bold">฿</span>${(product.price || 0).toFixed(2)}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 sm:gap-1.5">
+                        <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
+                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-xs cursor-pointer">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                        <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
+                            ${!inStock ? 'disabled' : ''}
+                            class="gradient-btn px-2.5 sm:px-4 h-8 sm:h-10 rounded-xl sm:rounded-2xl text-[11px] sm:text-sm font-extrabold flex items-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            <i class="fa-solid fa-cart-plus text-xs"></i>
+                            <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.removeEventListener('click', handleProductCardClick);
+    container.addEventListener('click', handleProductCardClick);
+}
+
 // Render Products Grid (Bright, High-Contrast Cards)
 function renderProducts() {
+    renderHighlightProducts();
+
     const container = document.getElementById('products-grid');
     const countEl = document.getElementById('product-count-display');
     if (!container) return;
@@ -2270,11 +2416,122 @@ function updateAdminNavBadges() {
 
 // Quick navigation from admin top stat cards
 function quickAdminNavigate(tab, subFilter = null) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    // Remove active ring from all KPI cards
+    const kpiCards = ['sales', 'pending', 'delivered', 'all', 'online'];
+    kpiCards.forEach(id => {
+        const el = document.getElementById(`admin-kpi-${id}`);
+        if (el) {
+            el.classList.remove('ring-2', 'ring-pink-500', 'ring-offset-2');
+        }
+    });
+
+    if (tab === 'analytics') {
+        const el = document.getElementById('admin-kpi-sales') || document.getElementById('admin-kpi-online');
+        if (el) el.classList.add('ring-2', 'ring-pink-500', 'ring-offset-2');
+        if (typeof switchAdminTab === 'function') switchAdminTab('analytics');
+        showToast("📊 เปิดหน้ารายงานยอดขายและสถิติสดแบบ Real-time", "info");
+        return;
+    }
+
     if (typeof switchAdminTab === 'function') {
         switchAdminTab(tab);
     }
-    if (tab === 'orders' && subFilter && typeof filterAdminOrders === 'function') {
-        filterAdminOrders(subFilter);
+
+    if (tab === 'orders') {
+        const filterKey = subFilter || 'all';
+        const cardId = filterKey === 'pending' ? 'pending' : (filterKey === 'delivered' ? 'delivered' : 'all');
+        const activeCard = document.getElementById(`admin-kpi-${cardId}`);
+        if (activeCard) {
+            activeCard.classList.add('ring-2', 'ring-pink-500', 'ring-offset-2');
+        }
+
+        if (typeof filterAdminOrders === 'function') {
+            filterAdminOrders(filterKey);
+        }
+
+        // Calculate count feedback
+        const total = (state.orders || []).length;
+        const pending = (state.orders || []).filter(o => o.items?.some(it => !it.credentials || it.status === 'pending_fulfillment')).length;
+        const delivered = (state.orders || []).filter(o => o.items?.every(it => it.credentials && it.status !== 'pending_fulfillment')).length;
+
+        let msg = "";
+        if (filterKey === 'pending') {
+            msg = pending > 0 
+                ? `⚡ กรองออเดอร์: รอส่งมอบรหัส (${pending} รายการ)` 
+                : `⚡ ขณะนี้ยังไม่มีออเดอร์ที่รอส่งมอบรหัส (0 รายการ)`;
+        } else if (filterKey === 'delivered') {
+            msg = delivered > 0 
+                ? `✅ กรองออเดอร์: ส่งมอบสำเร็จ (${delivered} รายการ)` 
+                : `✅ ขณะนี้ยังไม่มีออเดอร์ที่ส่งมอบสำเร็จ (0 รายการ)`;
+        } else {
+            msg = total > 0 
+                ? `📦 แสดงออเดอร์ทั้งหมด (${total} รายการ)` 
+                : `📦 ขณะนี้ยังไม่มีรายการคำสั่งซื้อในระบบ (0 รายการ)`;
+        }
+        showToast(msg, "info");
+
+        // Smooth scroll to the orders list so the admin immediately sees the table
+        const listEl = document.getElementById('admin-orders-list');
+        if (listEl) {
+            listEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+}
+
+// Create a realistic demo order for testing fulfillment and slip verification
+function createDemoOrder() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    const demoOrderId = "SPK-DEMO" + Math.floor(1000 + Math.random() * 9000);
+    const demoItems = [
+        {
+            productId: "capcut-pro",
+            productTitle: "CapCut Pro 1 ปี (บัญชีส่วนตัว)",
+            brand: "CapCut",
+            type: "App Premium",
+            price: 129,
+            warranty: "365 วัน",
+            status: "pending_fulfillment",
+            credentials: null
+        }
+    ];
+
+    const demoOrder = {
+        orderId: demoOrderId,
+        date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
+        totalAmount: 129.00,
+        paymentMethod: "Thai QR PromptPay (ทดสอบ)",
+        recipientEmail: "demo.customer@gmail.com",
+        transRef: "DEMO_" + Date.now().toString(36).toUpperCase(),
+        slipFingerprint: "demo_slip_" + Math.random().toString(36).substring(2, 8),
+        slipDataUrl: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="460" viewBox="0 0 360 460"><rect width="100%" height="100%" fill="%23f8fafc"/><rect x="16" y="16" width="328" height="428" rx="20" fill="white" stroke="%23e2e8f0" stroke-width="2"/><circle cx="180" cy="70" r="28" fill="%23ec4899"/><path d="M168 70 l8 8 l16 -16" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><text x="180" y="125" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="%230f172a">ชำระเงินสำเร็จ (สลิปจำลอง)</text><text x="180" y="145" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%2364748b">PromptPay QR Verification</text><line x1="40" y1="165" x2="320" y2="165" stroke="%23e2e8f0" stroke-dasharray="4 4"/><text x="40" y="200" font-family="sans-serif" font-size="12" fill="%2364748b">จำนวนเงิน</text><text x="320" y="200" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="20" fill="%23db2777">฿129.00</text><text x="40" y="240" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้โอน</text><text x="320" y="240" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">นายลูกค้า ทดสอบ (Demo)</text><text x="40" y="275" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้รับเงิน</text><text x="320" y="275" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">Supinkly.AI Store</text><text x="40" y="310" font-family="sans-serif" font-size="12" fill="%2364748b">รหัสอ้างอิง</text><text x="320" y="310" text-anchor="end" font-family="monospace" font-size="11" fill="%23475569">${demoOrderId}</text><rect x="40" y="340" width="280" height="70" rx="12" fill="%23fdf2f8" stroke="%23fbcfe8"/><text x="180" y="370" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="12" fill="%23be185d">ตรวจสอบสลิปอัตโนมัติผ่านแล้ว</text><text x="180" y="392" text-anchor="middle" font-family="sans-serif" font-size="11" fill="%23db2777">SlipOK / PromptPay Hash Verified</text></svg>`,
+        items: demoItems,
+        status: "🟡 รอจัดส่งสินค้า (5-15 นาที)",
+        isDemo: true
+    };
+
+    if (!Array.isArray(state.orders)) state.orders = [];
+    state.orders.unshift(demoOrder);
+    saveOrders();
+    renderAdminOrdersList();
+
+    if (typeof filterAdminOrders === 'function') {
+        filterAdminOrders('all');
+    }
+
+    showToast(`🎉 สร้างออเดอร์ทดสอบ ${demoOrderId} (+฿129.00) สำเร็จ!`, "success");
+
+    const listEl = document.getElementById('admin-orders-list');
+    if (listEl) {
+        listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 }
 
@@ -3841,13 +4098,31 @@ function renderAdminOrdersList() {
     }
 
     if (filteredOrders.length === 0) {
+        const isFilterActive = currentAdminOrderFilter !== 'all' || adminOrderSearchQuery;
         container.innerHTML = `
-            <div class="py-10 text-center bg-slate-50 rounded-2xl border border-slate-200">
-                <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-xl">
+            <div class="py-12 px-4 text-center bg-slate-50/90 rounded-2xl border-2 border-dashed border-slate-200">
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center text-2xl shadow-inner">
                     <i class="fa-solid fa-box-open"></i>
                 </div>
-                <p class="text-sm font-bold text-slate-700">ไม่มีรายการคำสั่งซื้อในหมวดนี้</p>
-                <p class="text-xs text-slate-400 mt-0.5">เมื่อมีลูกค้าชำระเงินเข้ามา ออเดอร์จะแสดงที่นี่โดยอัตโนมัติ</p>
+                <p class="text-sm font-bold text-slate-800">
+                    ${isFilterActive ? 'ไม่พบรายการคำสั่งซื้อตามตัวกรองที่เลือก' : 'ขณะนี้ยังไม่มีรายการคำสั่งซื้อในระบบ (0 รายการ)'}
+                </p>
+                <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    ${isFilterActive 
+                        ? 'ลองเปลี่ยนตัวกรองเป็น "ทั้งหมด" หรือล้างคำค้นหาเพื่อดูรายการอื่นๆ' 
+                        : 'เมื่อลูกค้าชำระเงินเข้ามา รายการจะแสดงที่นี่โดยอัตโนมัติ หรือกดปุ่มด้านล่างเพื่อทดลองสร้างออเดอร์จำลอง'}
+                </p>
+                <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button onclick="createDemoOrder()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>สร้างออเดอร์ทดสอบระบบ (Demo Order)</span>
+                    </button>
+                    ${state.orders.length > 0 ? `
+                        <button onclick="filterAdminOrders('all')" class="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all cursor-pointer">
+                            ดูออเดอร์ทั้งหมด (${state.orders.length} รายการ)
+                        </button>
+                    ` : ''}
+                </div>
             </div>
         `;
         return;
@@ -5771,6 +6046,7 @@ window.clearAdminOrderSearch = clearAdminOrderSearch;
 window.filterAdminOrders = filterAdminOrders;
 window.exportOrdersToCSV = exportOrdersToCSV;
 window.handleClearAllAdminOrders = handleClearAllAdminOrders;
+window.createDemoOrder = createDemoOrder;
 window.openFulfillModal = openFulfillModal;
 window.closeFulfillModal = closeFulfillModal;
 window.copyFulfillG2GTitle = copyFulfillG2GTitle;
@@ -5868,6 +6144,8 @@ window.closeLogoPopup = closeLogoPopup;
 window.openMobileMenu = openMobileMenu;
 window.closeMobileMenu = closeMobileMenu;
 window.scrollToProducts = scrollToProducts;
+window.renderHighlightProducts = renderHighlightProducts;
+window.renderProducts = renderProducts;
 window.openSlipViewModal = openSlipViewModal;
 window.closeSlipViewModal = closeSlipViewModal;
 window.openOrdersModal = openOrdersModal;
