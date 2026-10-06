@@ -947,7 +947,7 @@ function renderHighlightProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-xs sm:text-base font-extrabold text-slate-900 line-clamp-2 min-h-[36px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <h3 class="text-xs sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[36px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -1064,7 +1064,7 @@ function renderProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-base font-extrabold text-slate-900 line-clamp-2 min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <h3 class="text-base font-normal text-slate-900 line-clamp-2 min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -1350,7 +1350,7 @@ function updateCartUI() {
                             ${escapeHTML(master.brandCode)}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-xs font-bold text-slate-900 truncate">${escapeHTML(master.title)}</h4>
+                            <h4 class="text-xs font-normal text-slate-900 truncate">${escapeHTML(master.title)}</h4>
                             <div class="text-xs text-pink-600 font-extrabold mt-0.5">฿${master.price.toFixed(2)}</div>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200">
@@ -1468,8 +1468,8 @@ function startCheckout() {
             const master = getMasterProduct(i.productId);
             if (!master) return '';
             return `
-                <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-medium">
-                    <span class="truncate flex-1 pr-2">${escapeHTML(master.title)} (x${i.quantity})</span>
+                <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-normal">
+                    <span class="truncate flex-1 pr-2 font-normal">${escapeHTML(master.title)} (x${i.quantity})</span>
                     <span class="font-bold text-slate-800">฿${(master.price * i.quantity).toFixed(2)}</span>
                 </div>
             `;
@@ -1776,7 +1776,7 @@ function openVaultModal(order) {
                 return `
                     <div class="p-4 rounded-2xl bg-amber-50/70 border-2 border-amber-300 mb-3 shadow-sm">
                         <div class="flex items-center justify-between gap-2">
-                            <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                            <h4 class="text-sm font-normal text-slate-900 flex items-center gap-2">
                                 <span class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-black">${idx + 1}</span>
                                 ${escapeHTML(item.productTitle)}
                             </h4>
@@ -1879,7 +1879,7 @@ function openVaultModal(order) {
             return `
                 <div class="p-4 rounded-2xl bg-pink-50/40 border border-pink-200 mb-3 shadow-sm">
                     <div class="flex items-center justify-between gap-2">
-                        <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                        <h4 class="text-sm font-normal text-slate-900 flex items-center gap-2">
                             <span class="w-6 h-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-xs font-black">${idx + 1}</span>
                             ${escapeHTML(item.productTitle)}
                         </h4>
@@ -2256,7 +2256,7 @@ function renderOrdersHistory() {
                                         <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">
                                             ${itIdx + 1}
                                         </span>
-                                        <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">
+                                        <span class="font-normal text-slate-900 text-xs sm:text-sm truncate">
                                             ${escapeHTML(item.productTitle)}
                                         </span>
                                     </div>
@@ -3024,7 +3024,7 @@ function renderTopProductsList(products) {
                 <span class="w-5 h-5 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px] flex items-center justify-center shrink-0">
                     ${idx + 1}
                 </span>
-                <span class="font-bold text-slate-800 truncate">${escapeHTML(p.title)}</span>
+                <span class="font-normal text-slate-800 truncate">${escapeHTML(p.title)}</span>
             </div>
             <div class="flex items-center gap-3 shrink-0 ml-2">
                 <span class="text-[11px] text-slate-500 font-medium">ดู <b>${p.views}</b></span>
@@ -3499,12 +3499,50 @@ function filterAdminUsersStatus(status) {
     renderAdminUsersList();
 }
 
-async function handleAdminResetUserPassword(userId, email) {
-    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
-    const newPass = prompt(`กำหนดรหัสผ่านใหม่สำหรับ ${email} (ขั้นต่ำ 6 ตัวอักษร):`);
-    if (!newPass) return;
-    if (newPass.length < 6) {
-        showToast("รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "warning");
+function openAdminResetPwModal(userId, email) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    const modal = document.getElementById('admin-reset-pw-modal');
+    if (!modal) return;
+
+    const idInput = document.getElementById('admin-reset-pw-user-id');
+    const labelEl = document.getElementById('admin-reset-pw-user-label');
+    const passInput = document.getElementById('admin-reset-pw-input');
+
+    if (idInput) idInput.value = userId || '';
+    if (labelEl) labelEl.textContent = `บัญชี: ${email || userId || '-'}`;
+    if (passInput) passInput.value = '';
+
+    modal.classList.remove('hidden');
+    setTimeout(() => { if (passInput) passInput.focus(); }, 100);
+}
+
+function closeAdminResetPwModal() {
+    const modal = document.getElementById('admin-reset-pw-modal');
+    if (modal) modal.classList.add('hidden');
+    const passInput = document.getElementById('admin-reset-pw-input');
+    if (passInput) passInput.value = '';
+}
+
+async function submitAdminResetPassword() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    const idInput = document.getElementById('admin-reset-pw-user-id');
+    const passInput = document.getElementById('admin-reset-pw-input');
+    const userId = idInput ? idInput.value.trim() : '';
+    const newPass = passInput ? passInput.value.trim() : '';
+
+    if (!userId) {
+        showToast("ไม่พบรหัสผู้ใช้งาน", "error");
+        return;
+    }
+    if (!newPass || newPass.length < 6) {
+        showToast("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "warning");
+        if (passInput) passInput.focus();
         return;
     }
 
@@ -3516,13 +3554,19 @@ async function handleAdminResetUserPassword(userId, email) {
         });
         const data = await res.json();
         if (data && data.success) {
-            showToast(`รีเซ็ตรหัสผ่านของ ${email} สำเร็จแล้ว`, "success");
+            showToast(data.message || "รีเซ็ตรหัสผ่านสำเร็จเรียบร้อยแล้ว", "success");
+            closeAdminResetPwModal();
         } else {
             showToast(data.message || "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน", "error");
         }
     } catch (e) {
+        console.error("submitAdminResetPassword error:", e);
         showToast("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", "error");
     }
+}
+
+function handleAdminResetUserPassword(userId, email) {
+    openAdminResetPwModal(userId, email);
 }
 
 async function handleDeleteAdminUser(userId, email) {
@@ -4329,7 +4373,7 @@ function renderAdminOrdersList() {
                             <div class="p-3 rounded-xl ${isItemPending ? 'bg-amber-50/70 border border-amber-200' : 'bg-slate-50 border border-slate-200'} flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-2">
-                                        <span class="font-bold text-xs sm:text-sm text-slate-900 truncate">${escapeHTML(item.productTitle)}</span>
+                                        <span class="font-normal text-xs sm:text-sm text-slate-900 truncate">${escapeHTML(item.productTitle)}</span>
                                         <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${isItemPending ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}">
                                             ${isItemPending ? 'รอจัดส่ง' : 'จัดส่งแล้ว'}
                                         </span>
@@ -4783,14 +4827,8 @@ function renderAdminStockList() {
                     <div class="flex items-center gap-3">
                         <div onclick="openEditPriceModal('${p.id}', 'title')" 
                              title="คลิกเพื่อแก้ไขข้อมูลสินค้า"
-                             class="relative w-11 h-11 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 cursor-pointer group/img shadow-2xs hover:border-pink-400 transition-all">
-                            <img src="${escapeHTML(master.image || `images/products/${p.id}.jpg`)}" 
-                                 alt="${escapeHTML(master.title)}" 
-                                 class="w-full h-full object-cover group-hover/img:scale-105 transition-transform"
-                                 onerror="this.onerror=null;this.src='images/logo.png'">
-                            <div class="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px]">
-                                <i class="fa-solid fa-pen"></i>
-                            </div>
+                             class="relative w-11 h-11 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center font-black text-xs text-pink-600 shrink-0 cursor-pointer shadow-2xs hover:border-pink-400 hover:bg-pink-100 transition-all">
+                            ${escapeHTML(master.brandCode || 'AI')}
                         </div>
                         <div class="min-w-0 flex-1">
                             <div onclick="openEditPriceModal('${p.id}', 'title')"
@@ -5810,8 +5848,15 @@ function scrollToProducts() {
 // ==========================================
 // ADMIN SLIP VIEW MODAL
 // ==========================================
+let currentViewingSlipOrderId = null;
+
 function openSlipViewModal(orderId) {
-    const order = state.orders.find(o => o.orderId === orderId);
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    const order = (state.orders || []).find(o => o.orderId === orderId);
     if (!order) {
         showToast("ไม่พบข้อมูลคำสั่งซื้อ", "warning");
         return;
@@ -5820,56 +5865,81 @@ function openSlipViewModal(orderId) {
     const modal = document.getElementById('admin-slip-view-modal');
     if (!modal) return;
 
+    currentViewingSlipOrderId = orderId;
+
     const titleEl = document.getElementById('admin-slip-modal-title');
     if (titleEl) titleEl.textContent = `ตรวจสอบสลิปการโอนเงิน — ${order.orderId}`;
 
-    const imgEl = document.getElementById('admin-slip-view-img');
-    const phEl = document.getElementById('admin-slip-view-img-placeholder');
+    const subtitleEl = document.getElementById('admin-slip-modal-subtitle');
+    if (subtitleEl) subtitleEl.textContent = `คำสั่งซื้อ: ${order.orderId} | วันที่: ${order.date || '-'}`;
+
+    const imgEl = document.getElementById('admin-slip-modal-img');
+    const loadingEl = document.getElementById('admin-slip-modal-loading');
+    const errorEl = document.getElementById('admin-slip-modal-error');
     const emptyEl = document.getElementById('admin-slip-modal-empty');
     const directBtn = document.getElementById('admin-slip-direct-url-btn');
     const downloadBtn = document.getElementById('admin-slip-download-btn');
 
-    const slipUrl = order.slipUrl || order.slipImage || order.slipDataUrl || '';
+    // Slip audit details
+    const transEl = document.getElementById('admin-slip-audit-transref');
+    if (transEl) transEl.textContent = order.transRef || order.transactionId || '-';
+
+    const amtEl = document.getElementById('admin-slip-audit-amount');
+    if (amtEl) amtEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
+
+    const dateEl = document.getElementById('admin-slip-audit-date');
+    if (dateEl) dateEl.textContent = order.date || '-';
+
+    const hashEl = document.getElementById('admin-slip-audit-hash');
+    if (hashEl) hashEl.textContent = order.slipHash || order.hash || '-';
+
+    const statusEl = document.getElementById('admin-slip-audit-status');
+    if (statusEl) {
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ตรวจสอบผ่านแล้ว`;
+    }
+
+    const slipUrl = order.slipUrl || order.slipImage || order.slipDataUrl || order.slipData || '';
+
+    // Reset states
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (errorEl) errorEl.classList.add('hidden');
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (imgEl) {
+        imgEl.classList.add('hidden');
+        imgEl.src = '';
+    }
 
     if (slipUrl) {
-        if (imgEl) {
-            imgEl.src = slipUrl;
-            imgEl.classList.remove('hidden');
-        }
-        if (phEl) phEl.classList.add('hidden');
-        if (emptyEl) emptyEl.classList.add('hidden');
         if (directBtn) {
             directBtn.href = slipUrl;
             directBtn.classList.remove('hidden');
         }
         if (downloadBtn) {
             downloadBtn.href = slipUrl;
+            downloadBtn.download = `slip-${order.orderId}.jpg`;
             downloadBtn.classList.remove('hidden');
         }
+
+        if (loadingEl) loadingEl.classList.remove('hidden');
+
+        if (imgEl) {
+            imgEl.onload = () => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                imgEl.classList.remove('hidden');
+                if (errorEl) errorEl.classList.add('hidden');
+            };
+            imgEl.onerror = () => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                imgEl.classList.add('hidden');
+                if (errorEl) errorEl.classList.remove('hidden');
+            };
+            imgEl.src = slipUrl;
+        }
     } else {
-        if (imgEl) imgEl.classList.add('hidden');
-        if (phEl) phEl.classList.add('hidden');
         if (emptyEl) emptyEl.classList.remove('hidden');
+        if (errorEl) errorEl.classList.remove('hidden');
         if (directBtn) directBtn.classList.add('hidden');
         if (downloadBtn) downloadBtn.classList.add('hidden');
-    }
-
-    // Slip audit details
-    const transEl = document.getElementById('admin-slip-audit-trans-id');
-    if (transEl) transEl.textContent = order.transRef || order.transactionId || '-';
-
-    const amtEl = document.getElementById('admin-slip-audit-amount');
-    if (amtEl) amtEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
-
-    const timeEl = document.getElementById('admin-slip-audit-time');
-    if (timeEl) timeEl.textContent = order.date || '-';
-
-    const senderEl = document.getElementById('admin-slip-audit-sender');
-    if (senderEl) senderEl.textContent = order.senderName || order.recipientEmail || 'ลูกค้าทั่วไป';
-
-    const statusEl = document.getElementById('admin-slip-audit-status');
-    if (statusEl) {
-        statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ตรวจสอบผ่านแล้ว`;
     }
 
     modal.classList.remove('hidden');
@@ -5878,6 +5948,69 @@ function openSlipViewModal(orderId) {
 function closeSlipViewModal() {
     const modal = document.getElementById('admin-slip-view-modal');
     if (modal) modal.classList.add('hidden');
+    currentViewingSlipOrderId = null;
+}
+
+async function handleAdminSlipReupload(input) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    if (!input || !input.files || !input.files[0]) return;
+    if (!currentViewingSlipOrderId) {
+        showToast("ไม่พบรหัสคำสั่งซื้อที่ต้องการแนบสลิป", "error");
+        return;
+    }
+    const file = input.files[0];
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/i)) {
+        showToast("กรุณาเลือกไฟล์รูปภาพ JPG, PNG หรือ WebP เท่านั้น", "warning");
+        input.value = '';
+        return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+        showToast("ขนาดไฟล์รูปภาพต้องไม่เกิน 15MB", "warning");
+        input.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('slip', file);
+
+    const headers = {};
+    const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+    const pin = sessionStorage.getItem('supinkly_admin_pin') || '';
+    if (pin) headers['x-admin-pin'] = pin;
+    if (token) {
+        headers['x-admin-token'] = token;
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    showToast("กำลังอัปโหลดรูปภาพสลิป...", "info");
+    try {
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(currentViewingSlipOrderId)}/attach-slip`, {
+            method: 'POST',
+            headers,
+            body: formData
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(data.message || "แนบรูปสลิปให้คำสั่งซื้อเรียบร้อยแล้ว", "success");
+            const order = (state.orders || []).find(o => o.orderId === currentViewingSlipOrderId);
+            if (order) {
+                order.slipUrl = data.slipUrl;
+                if (data.slipData) order.slipData = data.slipData;
+                saveOrders();
+            }
+            openSlipViewModal(currentViewingSlipOrderId);
+        } else {
+            showToast(data.message || "เกิดข้อผิดพลาดในการอัปโหลดสลิป", "error");
+        }
+    } catch (e) {
+        console.error("handleAdminSlipReupload error:", e);
+        showToast("ไม่สามารถอัปโหลดรูปภาพสลิปได้ กรุณาลองใหม่อีกครั้ง", "error");
+    } finally {
+        input.value = '';
+    }
 }
 
 // Toast System (Bright, Clear Alerts)
@@ -6007,7 +6140,7 @@ function closeTopmostModal() {
     // 13. Admin Reset Password Confirmation Modal (z-50)
     const resetPwModal = document.getElementById('admin-reset-pw-modal');
     if (resetPwModal && !resetPwModal.classList.contains('hidden')) {
-        resetPwModal.classList.add('hidden');
+        closeAdminResetPwModal();
         return true;
     }
 
@@ -6042,9 +6175,11 @@ function closeTopmostModal() {
     }
 
     // 18. Customer Live Chat Window
-    const chatWindow = document.getElementById('chat-window');
+    const chatWindow = document.getElementById('spk-chat-window') || document.getElementById('chat-window');
     if (chatWindow && !chatWindow.classList.contains('hidden')) {
-        if (typeof window.SupinklyChat !== 'undefined' && typeof window.SupinklyChat.close === 'function') {
+        if (typeof window.closeLiveChat === 'function') {
+            window.closeLiveChat();
+        } else if (typeof window.SupinklyChat !== 'undefined' && typeof window.SupinklyChat.close === 'function') {
             window.SupinklyChat.close();
         } else {
             chatWindow.classList.add('hidden');
@@ -6247,12 +6382,15 @@ const ADMIN_CHAT = (() => {
     }
 
     /* ── Connect ─────────────────────────────────────────────── */
-    function connect(pin) {
+    function connect(pinOverride) {
         if (ws && ws.readyState < 2) return;
         ws = new WebSocket(WS_URL);
 
+        const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token') || '';
+        const pin = pinOverride || sessionStorage.getItem('supinkly_admin_pin') || '';
+
         ws.onopen = () => {
-            ws.send(JSON.stringify({ type: 'auth', role: 'admin', pin }));
+            ws.send(JSON.stringify({ type: 'auth', role: 'admin', token, pin }));
         };
 
         ws.onmessage = ({ data }) => {
@@ -6366,11 +6504,8 @@ function openAdminChatPanel() {
             msgInp.style.height = Math.min(msgInp.scrollHeight, 100) + 'px';
         });
 
-        // Connect WebSocket as admin (reuse session PIN prompt)
-        const pinHash = localStorage.getItem('supinkly_admin_pin_hash');
-        // ใช้ prompt สั้นๆ รับ PIN เพื่อ auth กับ WS Server
-        const pin = window.prompt('กรอก PIN แอดมินเพื่อเชื่อมต่อ Live Chat:');
-        if (pin) ADMIN_CHAT.connect(pin.trim());
+        // Connect WebSocket as admin
+        ADMIN_CHAT.connect();
     }
 }
 
@@ -6469,6 +6604,9 @@ window.handleAdminUserSearch = handleAdminUserSearch;
 window.clearAdminUserSearch = clearAdminUserSearch;
 window.filterAdminUsersStatus = filterAdminUsersStatus;
 window.handleAdminResetUserPassword = handleAdminResetUserPassword;
+window.openAdminResetPwModal = openAdminResetPwModal;
+window.closeAdminResetPwModal = closeAdminResetPwModal;
+window.submitAdminResetPassword = submitAdminResetPassword;
 window.handleDeleteAdminUser = handleDeleteAdminUser;
 window.handleClearAllAdminUsers = handleClearAllAdminUsers;
 
@@ -6533,9 +6671,13 @@ window.renderHighlightProducts = renderHighlightProducts;
 window.renderProducts = renderProducts;
 window.openSlipViewModal = openSlipViewModal;
 window.closeSlipViewModal = closeSlipViewModal;
+window.handleAdminSlipReupload = handleAdminSlipReupload;
 window.openOrdersModal = openOrdersModal;
 window.closeOrdersModal = closeOrdersModal;
 window.renderOrdersHistory = renderOrdersHistory;
+window.setCustomerKeysFilter = setCustomerKeysFilter;
+window.handleCustomerKeysSearch = handleCustomerKeysSearch;
+window.clearCustomerKeysSearch = clearCustomerKeysSearch;
 window.openCartDrawer = openCartDrawer;
 window.closeCartDrawer = closeCartDrawer;
 window.addToCart = addToCart;

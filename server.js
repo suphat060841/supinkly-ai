@@ -177,40 +177,6 @@ try {
         try { fs.copyFileSync(destJpgFile, destPngFile); } catch { }
     }
 
-    // Auto-sync all 19 product banner images
-    const productsImgDir = path.join(imagesDir, 'products');
-    if (!fs.existsSync(productsImgDir)) fs.mkdirSync(productsImgDir, { recursive: true });
-
-    const brainDir = 'C:/Users/BINARY/.gemini/antigravity/brain/836d7e14-1e8d-401f-afd4-ec16b1fbbc3c';
-    const productImagesMap = {
-        'cpc-01.jpg': path.join(brainDir, 'capcut_pro_card_1791049186129.jpg'),
-        'cpc-02.jpg': path.join(brainDir, 'capcut_shared_card_1791049423548.jpg'),
-        'cpc-03.jpg': path.join(brainDir, 'capcut_team_card_1791049450137.jpg'),
-        'cpc-04.jpg': path.join(brainDir, 'capcut_svip_card_1791049505797.jpg'),
-        'goo-02.jpg': path.join(brainDir, '.user_uploaded', 'media_1791049138382.jpg'),
-        'goo-ai-01.jpg': path.join(brainDir, 'gemini_adv_link_card_1791049542389.jpg'),
-        'goo-ai-02.jpg': path.join(brainDir, 'gemini_ultra_card_1791049587917.jpg'),
-        'goo-ai-03.jpg': path.join(brainDir, 'gemini_shared_card_1791076121301.jpg'),
-        'goo-01.jpg': path.join(brainDir, 'google_drive_5tb_card_1791076137905.jpg'),
-        'grk-01.jpg': path.join(brainDir, 'xai_grok_card_1791049315969.jpg'),
-        'grk-02.jpg': path.join(brainDir, 'xai_grok_30d_card_1791076154086.jpg'),
-        'grk-03.jpg': path.join(brainDir, 'supergrok_heavy_card_1791076197454.jpg'),
-        'cld-01.jpg': path.join(brainDir, 'claude_pro_card_1791049222986.jpg'),
-        'cld-02.jpg': path.join(brainDir, 'claude_shared_card_1791076222594.jpg'),
-        'ms-01.jpg': path.join(brainDir, 'windows11_pro_card_1791049243416.jpg'),
-        'ms-02.jpg': path.join(brainDir, 'ms_office365_card_1791049341288.jpg'),
-        'ms-03.jpg': path.join(brainDir, 'copilot_pro_card_1791049366066.jpg'),
-        'adb-01.jpg': path.join(brainDir, 'adobe_acrobat_card_1791049391660.jpg'),
-        'adb-02.jpg': path.join(brainDir, 'adobe_cc_card_1791049294249.jpg'),
-    };
-
-    for (const [destName, srcPath] of Object.entries(productImagesMap)) {
-        const destPath = path.join(productsImgDir, destName);
-        if (fs.existsSync(srcPath)) {
-            try { fs.copyFileSync(srcPath, destPath); } catch { }
-        }
-    }
-
     // Ensure images/slips directory exists for storing uploaded payment slips
     const slipsDir = path.join(imagesDir, 'slips');
     if (!fs.existsSync(slipsDir)) fs.mkdirSync(slipsDir, { recursive: true });
@@ -4065,9 +4031,18 @@ wss.on('connection', (ws, req) => {
         // ── AUTH: ลงทะเบียน role ──────────────────────────────────
         if (data.type === 'auth') {
             if (data.role === 'admin') {
-                // [SECURITY] Token-only auth over WebSocket — supports stateless HMAC token & in-memory session
-                const isTokenValid = (data.token && verifyAdminToken(data.token)) ||
-                    (data.token && adminSessions.has(data.token) && Date.now() < adminSessions.get(data.token));
+                // [SECURITY] Admin auth over WebSocket — supports stateless HMAC token, in-memory session & PIN verification
+                const token = data.token;
+                let isTokenValid = (token && verifyAdminToken(token)) ||
+                    (token && adminSessions.has(token) && Date.now() < adminSessions.get(token));
+
+                if (!isTokenValid && data.pin) {
+                    const db = getDb();
+                    const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
+                    if (verifyPin(data.pin, storedHash)) {
+                        isTokenValid = true;
+                    }
+                }
 
                 if (isTokenValid) {
                     clientInfo.role = 'admin';

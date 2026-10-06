@@ -444,11 +444,8 @@ const PRODUCTS = [
     }
 ];
 
-// Ensure every master product has banner image, raw G2G title, direct link, and guaranteed default stock (50 pcs minimum)
+// Ensure every master product has raw G2G title, direct link, and guaranteed default stock (50 pcs minimum)
 PRODUCTS.forEach(p => {
-    if (!p.image) {
-        p.image = `images/products/${p.id}.jpg`;
-    }
     if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[p.id]) {
         p.g2gRawTitle = G2G_MARKET_FEED.benchmarks[p.id].title || '';
         p.g2gUrl = G2G_MARKET_FEED.benchmarks[p.id].g2gUrl || '';
@@ -497,7 +494,7 @@ function getMasterProduct(productId) {
             deliveryType: "instant",
             warranty: customProd.warranty || "30 วัน",
             description: customProd.description || "",
-            image: customProd.image || `images/products/${productId}.jpg`
+            image: null
         };
     }
 
@@ -578,7 +575,7 @@ function getMasterProduct(productId) {
         duration,
         devices,
         warranty,
-        image: product.image || `images/products/${productId}.jpg`,
+        image: null,
         badge,
         isHighlight,
         price,
