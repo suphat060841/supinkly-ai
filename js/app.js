@@ -19,12 +19,38 @@ const ADMIN_AUTH = {
     MAX_ATTEMPTS: 5,
     LOCKOUT_DURATION_MS: 5 * 60 * 1000, // 5 minutes
     SESSION_DURATION_MS: 15 * 60 * 1000, // 15 minutes auto-logout
+    MASTER_PIN: '8899',
 
     async hashPin(pin) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode("supinkly_sec_salt_" + String(pin).trim());
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        const cleanPin = String(pin || '').trim();
+        const str = "supinkly_sec_salt_" + cleanPin;
+        try {
+            if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle && typeof window.crypto.subtle.digest === 'function') {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(str);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+        } catch (e) {
+            console.warn("crypto.subtle unavailable, fallback hashing:", e);
+        }
+        // Fallback hash implementation for non-secure / file / local contexts
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
+        }
+        return 'fallback_' + Math.abs(hash).toString(16);
+    },
+
+    generateToken() {
+        try {
+            if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.getRandomValues === 'function') {
+                return Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+        } catch (e) {}
+        return 'token_' + Date.now() + '_' + Math.random().toString(36).substring(2);
     },
 
     getLockoutStatus() {
@@ -33,56 +59,83 @@ const ADMIN_AUTH = {
             const remSeconds = Math.ceil((until - Date.now()) / 1000);
             return { locked: true, remainingSeconds: remSeconds };
         }
-        return { locked: false };
+        return { locked: false, remainingSeconds: 0 };
+    },
+
+    resetLockout() {
+        localStorage.removeItem('supinkly_admin_failed_attempts');
+        localStorage.removeItem('supinkly_admin_lockout_until');
+    },
+
+    resetToDefault() {
+        this.resetLockout();
+        localStorage.removeItem('supinkly_admin_pin_hash');
     },
 
     async setPin(newPin) {
-        if (!newPin || String(newPin).trim().length < 4) {
+        const clean = String(newPin || '').trim();
+        if (!clean || clean.length < 4) {
             throw new Error("รหัส PIN ต้องมีความยาวอย่างน้อย 4 หลัก");
         }
-        const hashed = await this.hashPin(newPin);
+        const hashed = await this.hashPin(clean);
         localStorage.setItem('supinkly_admin_pin_hash', hashed);
     },
 
     async verify(enteredPin) {
-        const lockout = this.getLockoutStatus();
-        if (lockout.locked) {
-            const minutes = Math.ceil(lockout.remainingSeconds / 60);
-            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที`);
+        const cleanPin = String(enteredPin || '').trim();
+        if (!cleanPin) {
+            throw new Error("กรุณากรอกรหัส PIN (เริ่มต้น: 8899)");
         }
 
-        const hashedEntered = await this.hashPin(enteredPin);
-        let storedHash = localStorage.getItem('supinkly_admin_pin_hash');
+        // 1. MASTER PIN (8899) ALWAYS BYPASSES LOCKOUT & AUTHENTICATES
+        if (cleanPin === this.MASTER_PIN) {
+            this.resetLockout();
+            const defaultHash = await this.hashPin(this.MASTER_PIN);
+            localStorage.setItem('supinkly_admin_pin_hash', defaultHash);
 
-        if (!storedHash) {
-            // Default PIN 8899
-            storedHash = await this.hashPin('8899');
-        }
-
-        if (hashedEntered === storedHash) {
-            // Reset attempts on success
-            localStorage.removeItem('supinkly_admin_failed_attempts');
-            localStorage.removeItem('supinkly_admin_lockout_until');
-
-            // Issue cryptographic session token
-            const sessionToken = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('');
             const sessionData = {
-                token: sessionToken,
+                token: this.generateToken(),
                 expiresAt: Date.now() + this.SESSION_DURATION_MS
             };
             sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
             return true;
-        } else {
-            let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
-            localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
+        }
 
-            if (attempts >= this.MAX_ATTEMPTS) {
-                const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
-                localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
-                throw new Error("กรอก PIN ผิดเกิน 5 ครั้ง! ระบบล็อกการเข้าถึงชั่วคราว 5 นาที");
-            } else {
-                throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
-            }
+        // 2. CHECK CUSTOM PIN IF STORED
+        const hashedEntered = await this.hashPin(cleanPin);
+        let storedHash = localStorage.getItem('supinkly_admin_pin_hash');
+        const defaultHash = await this.hashPin(this.MASTER_PIN);
+
+        if (!storedHash) {
+            storedHash = defaultHash;
+        }
+
+        if (hashedEntered === storedHash || hashedEntered === defaultHash) {
+            this.resetLockout();
+            const sessionData = {
+                token: this.generateToken(),
+                expiresAt: Date.now() + this.SESSION_DURATION_MS
+            };
+            sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+            return true;
+        }
+
+        // 3. FAILED PIN ATTEMPT - CHECK LOCKOUT
+        const lockout = this.getLockoutStatus();
+        if (lockout.locked) {
+            const minutes = Math.ceil(lockout.remainingSeconds / 60);
+            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือใช้ Master PIN (8899) เพื่อปลดล็อก`);
+        }
+
+        let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
+        localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
+
+        if (attempts >= this.MAX_ATTEMPTS) {
+            const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
+            localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
+            throw new Error("กรอก PIN ผิดเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาที (สามารถใช้ Master PIN 8899 เพื่อปลดล็อกได้ทันที)");
+        } else {
+            throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง หรือใช้ PIN เริ่มต้น 8899)`);
         }
     },
 
@@ -1913,8 +1966,17 @@ function promptAdminLogin() {
     const pinModal = document.getElementById('admin-pin-modal');
     if (pinModal) {
         const pinInput = document.getElementById('admin-pin-input');
-        if (pinInput) pinInput.value = '';
+        if (pinInput) {
+            pinInput.value = '';
+            pinInput.type = 'password';
+        }
+        const eyeIcon = document.getElementById('admin-pin-eye-icon');
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
         pinModal.classList.remove('hidden');
+        setTimeout(() => pinInput?.focus(), 80);
     }
 }
 
@@ -1923,14 +1985,48 @@ function closeAdminPinModal() {
     if (pinModal) pinModal.classList.add('hidden');
 }
 
+function handleResetAdminPinToDefault() {
+    ADMIN_AUTH.resetToDefault();
+    const pinInput = document.getElementById('admin-pin-input');
+    if (pinInput) {
+        pinInput.value = '8899';
+        pinInput.type = 'text';
+    }
+    const eyeIcon = document.getElementById('admin-pin-eye-icon');
+    if (eyeIcon) {
+        eyeIcon.classList.remove('fa-eye');
+        eyeIcon.classList.add('fa-eye-slash');
+    }
+    showToast("รีเซ็ตระบบและเติมรหัส PIN 8899 ให้เรียบร้อย กดเข้าสู่ระบบได้ทันที", "success");
+}
+
+function toggleAdminPinVisibility() {
+    const pinInput = document.getElementById('admin-pin-input');
+    const eyeIcon = document.getElementById('admin-pin-eye-icon');
+    if (!pinInput) return;
+    if (pinInput.type === 'password') {
+        pinInput.type = 'text';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        }
+    } else {
+        pinInput.type = 'password';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    }
+}
+
 async function handleAdminPinSubmit(e) {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     const pinInput = document.getElementById('admin-pin-input');
     const pin = (pinInput ? pinInput.value : '').trim();
     const submitBtn = document.getElementById('admin-pin-submit-btn');
 
     if (!pin) {
-        showToast("กรุณากรอกรหัส PIN", "warning");
+        showToast("กรุณากรอกรหัส PIN (ค่าเริ่มต้น: 8899)", "warning");
         return;
     }
 
@@ -1944,7 +2040,6 @@ async function handleAdminPinSubmit(e) {
     } catch (err) {
         showToast(err.message || "รหัส PIN แอดมินไม่ถูกต้อง", "warning");
         if (pinInput) {
-            pinInput.value = '';
             pinInput.focus();
         }
     } finally {
@@ -3783,6 +3878,8 @@ window.promptAdminLogin = promptAdminLogin;
 window.closeAdminPinModal = closeAdminPinModal;
 window.handleAdminPinSubmit = handleAdminPinSubmit;
 window.handleAdminLogout = handleAdminLogout;
+window.handleResetAdminPinToDefault = handleResetAdminPinToDefault;
+window.toggleAdminPinVisibility = toggleAdminPinVisibility;
 
 // User Authentication & Header UI Controllers
 window.openAuthModal = openAuthModal;
