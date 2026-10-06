@@ -8051,8 +8051,9 @@ async function renderCouponsModal() {
 
     list.innerHTML = activePromos.map(promo => {
         const isApplied = state.appliedCoupon && state.appliedCoupon.code === promo.code;
-        const isPercent = promo.discountType === 'percent';
-        const discBadgeText = isPercent ? `ลด ${promo.discountValue}%` : `ลด ฿${promo.discountValue}`;
+        const isPercent = promo.discountType === 'percent' || promo.type === 'percentage' || promo.type === 'percent';
+        const val = typeof promo.discountValue === 'number' ? promo.discountValue : (typeof promo.value === 'number' ? promo.value : (Number(promo.discountValue || promo.value) || 0));
+        const discBadgeText = isPercent ? `ลด ${val}%` : `ลด ฿${val}`;
         const minSpendText = (promo.minSpend && promo.minSpend > 0) ? `ขั้นต่ำ ฿${promo.minSpend}` : 'ไม่มีขั้นต่ำ';
         const expiryText = promo.expiresAt ? `หมดเขต: ${promo.expiresAt}` : 'ไม่มีวันหมดอายุ';
         const maxDiscText = (isPercent && promo.maxDiscount) ? ` (สูงสุด ฿${promo.maxDiscount})` : '';
@@ -8062,10 +8063,9 @@ async function renderCouponsModal() {
                 
                 <!-- Left Tag / Info -->
                 <div class="flex items-start gap-3 min-w-0 flex-1">
-                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 text-white flex flex-col items-center justify-center p-1 text-center shrink-0 shadow-sm shadow-pink-500/20">
-                        <span class="text-[10px] font-medium leading-none opacity-90">${isPercent ? 'ส่วนลด' : 'ลดทันที'}</span>
-                        <span class="text-base font-bold leading-tight mt-0.5">${isPercent ? `${promo.discountValue}%` : `฿${promo.discountValue}`}</span>
-                        <span class="text-[9px] font-bold opacity-80 leading-none">OFF</span>
+                    <!-- Brand Mascot Logo -->
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-pink-200/90 p-1.5 flex items-center justify-center shrink-0 shadow-xs shadow-pink-500/10 group-hover:scale-105 transition-transform overflow-hidden">
+                        <img src="images/pop_new.png" alt="Supinkly.AI Logo" class="w-full h-full object-contain" onerror="this.src='images/logo.jpg'">
                     </div>
 
                     <div class="min-w-0 flex-1">
