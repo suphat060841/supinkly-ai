@@ -182,7 +182,7 @@ const SlipVerifier = {
         if (input) input.value = '';
     },
 
-    async verifySlip(expectedAmount, expectedReceiver, cartItems = [], email = '') {
+    async verifySlip(expectedAmount, expectedReceiver, cartItems = [], email = '', promoCode = '') {
         if (!this.selectedFile) {
             throw new Error("กรุณาเลือกไฟล์รูปภาพสลิปก่อนทำการตรวจสอบ");
         }
@@ -196,12 +196,44 @@ const SlipVerifier = {
             throw new Error("สลิปใบนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้");
         }
 
+        // Resolve fallback values for cart, email, and coupon
+        const effectiveCart = (Array.isArray(cartItems) && cartItems.length > 0)
+            ? cartItems
+            : ((typeof state !== 'undefined' && Array.isArray(state.cart) && state.cart.length > 0) ? state.cart : []);
+
+        const effectiveEmail = (email && typeof email === 'string' && email.trim())
+            ? email.trim()
+            : ((typeof state !== 'undefined' && state.user?.email) ? state.user.email : (document.getElementById('checkout-email-input')?.value || '').trim());
+
+        const effectivePromo = (promoCode && typeof promoCode === 'string' && promoCode.trim())
+            ? promoCode.trim().toUpperCase()
+            : (typeof state !== 'undefined' && state.appliedCoupon?.code ? state.appliedCoupon.code.toUpperCase() : '');
+
+        if (!effectiveCart || effectiveCart.length === 0) {
+            throw new Error("ข้อมูลตะกร้าสินค้าว่างเปล่า กรุณาเลือกสินค้าก่อนทำการชำระเงิน");
+        }
+
+        const cleanCart = effectiveCart.map(it => {
+            const master = typeof getMasterProduct === 'function' ? getMasterProduct(it.productId) : null;
+            return {
+                productId: it.productId,
+                quantity: Math.max(1, Math.min(50, parseInt(it.quantity, 10) || 1)),
+                price: master && typeof master.price === 'number' ? master.price : undefined
+            };
+        });
+
+        if (typeof USER_AUTH !== 'undefined' && !USER_AUTH.isLoggedIn()) {
+            if (typeof openAuthModal === 'function') openAuthModal('register');
+            throw new Error("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนชำระเงิน เพื่อบันทึกคีย์เข้าบัญชีของคุณ");
+        }
+
         // 1. Production Web Server Verification (Node.js Backend)
         if (window.location.protocol.startsWith('http')) {
             const formData = new FormData();
             formData.append('slip', this.selectedFile);
-            if (email) formData.append('email', email);
-            formData.append('cartItems', typeof cartItems === 'string' ? cartItems : JSON.stringify(cartItems));
+            if (effectiveEmail) formData.append('email', effectiveEmail);
+            if (effectivePromo) formData.append('promoCode', effectivePromo);
+            formData.append('cartItems', JSON.stringify(cleanCart));
 
             try {
                 const headers = {};
@@ -216,6 +248,10 @@ const SlipVerifier = {
                     body: formData
                 });
                 const data = await res.json();
+                if (data.requireLogin) {
+                    if (typeof openAuthModal === 'function') openAuthModal('register');
+                    throw new Error(data.message || "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน");
+                }
                 if (!res.ok || !data.success) {
                     throw new Error(data.message || "สลิปไม่ผ่านการตรวจสอบจากระบบธนาคาร");
                 }

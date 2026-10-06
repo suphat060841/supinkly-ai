@@ -832,7 +832,7 @@ const MASTER_CATALOG = {
     "grk-02": { title: "Grok 1M Private", price: 950.00, warranty: "30 วัน" },
     "grk-03": { title: "SuperGrok Heavy 1M", price: 4990.00, warranty: "30 วัน" },
     "cld-01": { title: "Claude Pro 1M Private", price: 850.00, warranty: "30 วัน" },
-    "cld-02": { title: "Claude Pro 1M Shared", price: 290.00, warranty: "30 วัน" },
+    "cld-02": { title: "Claude Pro 1M Shared", price: 280.00, warranty: "30 วัน" },
     "adb-01": { title: "Adobe Acrobat Pro 1M", price: 490.00, warranty: "30 วัน" },
     "adb-02": { title: "Adobe CC All Apps 1M", price: 790.00, warranty: "30 วัน" },
     "ms-01": { title: "Windows 11 OEM Key", price: 290.00, warranty: "ตลอดชีพ" },
@@ -955,17 +955,15 @@ const inFlightSlips = new Set();
 app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), async (req, res) => {
     let activeSlipHash = null;
     try {
-        // [AUTHENTICATION GATE] ผู้เล่นต้องเข้าสู่ระบบหรือสมัครสมาชิกก่อนชำระเงิน
+        // [AUTHENTICATION GATE] บังคับให้สมัครสมาชิกและเข้าสู่ระบบก่อนซื้อสินค้าทุกครั้ง
         const userSession = authenticateUser(req);
         if (!userSession || !userSession.email) {
             return res.status(401).json({
                 success: false,
                 requireLogin: true,
-                message: "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกคีย์เข้าบัญชีของคุณ"
+                message: "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกคีย์และประวัติการสั่งซื้อเข้าบัญชีของคุณ"
             });
         }
-
-        // [SECURITY FIX] Single Source of Truth: อีเมลผูกกับ Session ของผู้ใช้ที่ผ่านการยืนยันแล้ว ป้องกันการดัดแปลงหรือปลอมแปลงอีเมล
         const orderEmail = userSession.email.trim().toLowerCase();
         const { cartItems } = req.body;
 
@@ -1015,7 +1013,13 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                 return res.status(400).json({ success: false, message: `ไม่พบข้อมูลสินค้ารหัส: ${item.productId}` });
             }
             const unitPrice = getEffectiveUnitPrice(item.productId, catalogItem, db);
-            expectedTotal += unitPrice * qty;
+            let finalUnitPrice = unitPrice;
+            if (typeof item.price === 'number' && item.price > 0) {
+                if (Math.abs(item.price - unitPrice) <= Math.max(30, unitPrice * 0.15)) {
+                    finalUnitPrice = item.price;
+                }
+            }
+            expectedTotal += finalUnitPrice * qty;
         }
 
         const originalSubtotal = expectedTotal;
@@ -1124,9 +1128,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                         return res.status(400).json({ success: false, message: "สลิปนี้ไม่ผ่านการตรวจสอบความถูกต้องจากธนาคาร" });
                     }
 
-                    // Check transferred amount
+                    // Check transferred amount (with 0.05 THB float tolerance)
                     const transferred = parseFloat(slipData.amount);
-                    if (isNaN(transferred) || transferred < expectedTotal) {
+                    if (isNaN(transferred) || (transferred + 0.05) < expectedTotal) {
                         return res.status(400).json({
                             success: false,
                             message: `ยอดเงินในสลิป (฿${(transferred || 0).toFixed(2)}) ไม่ตรงกับยอดชำระที่ต้องโอน (฿${expectedTotal.toFixed(2)})`
@@ -1252,7 +1256,8 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
             email: orderEmail,
             recipientEmail: orderEmail,
-            userId: userSession.userId,
+            userId: userSession.userId || null,
+            userName: userSession.displayName || orderEmail,
             subtotal: originalSubtotal,
             discountAmount: discountAmount,
             coupon: appliedCouponInfo,
@@ -1981,23 +1986,53 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         if (smtpConfig.port !== undefined) db.smtpConfig.port = parseInt(smtpConfig.port, 10) || 465;
         if (smtpConfig.user !== undefined) db.smtpConfig.user = String(smtpConfig.user).trim();
         if (smtpConfig.pass !== undefined && smtpConfig.pass !== '******') {
-            db.smtpConfig.pass = String(smtpConfig.pass).replace(/\s+/g, '');
+            const cleanPass = String(smtpConfig.pass).replace(/\s+/g, '');
+            if (cleanPass.length > 0) {
+                db.smtpConfig.pass = cleanPass;
+            } else if (smtpConfig.clearPass === true) {
+                delete db.smtpConfig.pass;
+            }
         }
         if (smtpConfig.from !== undefined) db.smtpConfig.from = String(smtpConfig.from).trim();
         if (smtpConfig.resendKey !== undefined && smtpConfig.resendKey !== '******') {
-            db.smtpConfig.resendKey = String(smtpConfig.resendKey).trim();
+            const trimmed = String(smtpConfig.resendKey).trim();
+            if (trimmed.length > 0) {
+                db.smtpConfig.resendKey = trimmed;
+            } else if (smtpConfig.clearResendKey === true) {
+                delete db.smtpConfig.resendKey;
+            }
         }
         if (smtpConfig.brevoKey !== undefined && smtpConfig.brevoKey !== '******') {
-            db.smtpConfig.brevoKey = String(smtpConfig.brevoKey).trim();
+            const trimmed = String(smtpConfig.brevoKey).trim();
+            if (trimmed.length > 0) {
+                db.smtpConfig.brevoKey = trimmed;
+            } else if (smtpConfig.clearBrevoKey === true) {
+                delete db.smtpConfig.brevoKey;
+            }
         }
         if (smtpConfig.sendgridKey !== undefined && smtpConfig.sendgridKey !== '******') {
-            db.smtpConfig.sendgridKey = String(smtpConfig.sendgridKey).trim();
+            const trimmed = String(smtpConfig.sendgridKey).trim();
+            if (trimmed.length > 0) {
+                db.smtpConfig.sendgridKey = trimmed;
+            } else if (smtpConfig.clearSendgridKey === true) {
+                delete db.smtpConfig.sendgridKey;
+            }
         }
         if (smtpConfig.mailjetKey !== undefined && smtpConfig.mailjetKey !== '******') {
-            db.smtpConfig.mailjetKey = String(smtpConfig.mailjetKey).trim();
+            const trimmed = String(smtpConfig.mailjetKey).trim();
+            if (trimmed.length > 0) {
+                db.smtpConfig.mailjetKey = trimmed;
+            } else if (smtpConfig.clearMailjetKey === true) {
+                delete db.smtpConfig.mailjetKey;
+            }
         }
         if (smtpConfig.mailjetSecret !== undefined && smtpConfig.mailjetSecret !== '******') {
-            db.smtpConfig.mailjetSecret = String(smtpConfig.mailjetSecret).trim();
+            const trimmed = String(smtpConfig.mailjetSecret).trim();
+            if (trimmed.length > 0) {
+                db.smtpConfig.mailjetSecret = trimmed;
+            } else if (smtpConfig.clearMailjetSecret === true) {
+                delete db.smtpConfig.mailjetSecret;
+            }
         }
         if (smtpConfig.logoUrl !== undefined) {
             db.smtpConfig.logoUrl = String(smtpConfig.logoUrl).trim();
@@ -2096,68 +2131,76 @@ app.post('/api/admin/test-email', adminRateLimit, async (req, res) => {
         });
     }
     try {
-        const { testEmail, smtpConfig } = req.body;
         const db = getDb();
+        const rawConfig = Object.assign(
+            {},
+            req.body,
+            (req.body.smtpConfig && typeof req.body.smtpConfig === 'object') ? req.body.smtpConfig : {}
+        );
 
-        let customConfig = null;
-        if (smtpConfig && typeof smtpConfig === 'object') {
-            customConfig = {};
-            if (smtpConfig.host) customConfig.host = String(smtpConfig.host).trim();
-            if (smtpConfig.port) customConfig.port = parseInt(smtpConfig.port, 10) || 465;
-            if (smtpConfig.user) customConfig.user = String(smtpConfig.user).trim();
-            if (smtpConfig.pass && smtpConfig.pass !== '******') {
-                customConfig.pass = String(smtpConfig.pass).replace(/\s+/g, '');
-            } else {
-                const existingPass = db.smtpConfig?.pass || process.env.SMTP_PASS;
-                if (existingPass) customConfig.pass = existingPass;
-            }
-            if (smtpConfig.from) customConfig.from = String(smtpConfig.from).trim();
-            if (smtpConfig.resendKey && smtpConfig.resendKey !== '******') {
-                customConfig.resendKey = String(smtpConfig.resendKey).trim();
-            } else {
-                const existingKey = db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
-                if (existingKey) customConfig.resendKey = existingKey;
-            }
-            if (smtpConfig.brevoKey && smtpConfig.brevoKey !== '******') {
-                customConfig.brevoKey = String(smtpConfig.brevoKey).trim();
-            } else {
-                const existingBrevo = db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
-                if (existingBrevo) customConfig.brevoKey = existingBrevo;
-            }
-            if (smtpConfig.sendgridKey && smtpConfig.sendgridKey !== '******') {
-                customConfig.sendgridKey = String(smtpConfig.sendgridKey).trim();
-            } else {
-                const existingSg = db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
-                if (existingSg) customConfig.sendgridKey = existingSg;
-            }
-            if (smtpConfig.mailjetKey && smtpConfig.mailjetKey !== '******') {
-                customConfig.mailjetKey = String(smtpConfig.mailjetKey).trim();
-            } else {
-                const existingMjKey = db.smtpConfig?.mailjetKey || process.env.MAILJET_API_KEY;
-                if (existingMjKey) customConfig.mailjetKey = existingMjKey;
-            }
-            if (smtpConfig.mailjetSecret && smtpConfig.mailjetSecret !== '******') {
-                customConfig.mailjetSecret = String(smtpConfig.mailjetSecret).trim();
-            } else {
-                const existingMjSec = db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY;
-                if (existingMjSec) customConfig.mailjetSecret = existingMjSec;
-            }
+        let customConfig = {};
+        if (rawConfig.host) customConfig.host = String(rawConfig.host).trim();
+        if (rawConfig.port) customConfig.port = parseInt(rawConfig.port, 10) || 465;
+        if (rawConfig.user) customConfig.user = String(rawConfig.user).trim();
+        if (rawConfig.pass && rawConfig.pass !== '******') {
+            customConfig.pass = String(rawConfig.pass).replace(/\s+/g, '');
+        } else {
+            const existingPass = db.smtpConfig?.pass || process.env.SMTP_PASS;
+            if (existingPass) customConfig.pass = String(existingPass).replace(/\s+/g, '');
+        }
+        if (rawConfig.from) customConfig.from = String(rawConfig.from).trim();
+        if (rawConfig.resendKey && rawConfig.resendKey !== '******') {
+            customConfig.resendKey = String(rawConfig.resendKey).trim();
+        } else {
+            const existingKey = db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
+            if (existingKey) customConfig.resendKey = existingKey;
+        }
+        if (rawConfig.brevoKey && rawConfig.brevoKey !== '******') {
+            customConfig.brevoKey = String(rawConfig.brevoKey).trim();
+        } else {
+            const existingBrevo = db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
+            if (existingBrevo) customConfig.brevoKey = existingBrevo;
+        }
+        if (rawConfig.sendgridKey && rawConfig.sendgridKey !== '******') {
+            customConfig.sendgridKey = String(rawConfig.sendgridKey).trim();
+        } else {
+            const existingSg = db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
+            if (existingSg) customConfig.sendgridKey = existingSg;
+        }
+        if (rawConfig.mailjetKey && rawConfig.mailjetKey !== '******') {
+            customConfig.mailjetKey = String(rawConfig.mailjetKey).trim();
+        } else {
+            const existingMjKey = db.smtpConfig?.mailjetKey || process.env.MAILJET_API_KEY;
+            if (existingMjKey) customConfig.mailjetKey = existingMjKey;
+        }
+        if (rawConfig.mailjetSecret && rawConfig.mailjetSecret !== '******') {
+            customConfig.mailjetSecret = String(rawConfig.mailjetSecret).trim();
+        } else {
+            const existingMjSec = db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY;
+            if (existingMjSec) customConfig.mailjetSecret = existingMjSec;
+        }
+        if (rawConfig.logoUrl) {
+            customConfig.logoUrl = String(rawConfig.logoUrl).trim();
         }
 
-        const effectivePass = customConfig?.pass || db.smtpConfig?.pass || process.env.SMTP_PASS;
-        const effectiveResend = customConfig?.resendKey || db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
-        const effectiveBrevo = customConfig?.brevoKey || db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
-        const effectiveSg = customConfig?.sendgridKey || db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
-        const effectiveMj = (customConfig?.mailjetKey || db.smtpConfig?.mailjetKey || process.env.MAILJET_API_KEY) &&
-            (customConfig?.mailjetSecret || db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY);
-        if (!effectivePass && !effectiveResend && !effectiveBrevo && !effectiveSg && !effectiveMj) {
+        const effectivePass = customConfig.pass || db.smtpConfig?.pass || process.env.SMTP_PASS;
+        const effectiveResend = customConfig.resendKey || db.smtpConfig?.resendKey || process.env.RESEND_API_KEY;
+        const effectiveBrevo = customConfig.brevoKey || db.smtpConfig?.brevoKey || process.env.BREVO_API_KEY;
+        const effectiveSg = customConfig.sendgridKey || db.smtpConfig?.sendgridKey || process.env.SENDGRID_API_KEY;
+        const effectiveMj = (customConfig.mailjetKey || db.smtpConfig?.mailjetKey || process.env.MAILJET_API_KEY) &&
+            (customConfig.mailjetSecret || db.smtpConfig?.mailjetSecret || process.env.MAILJET_SECRET_KEY);
+        const effectiveGmailOAuth = (db.smtpConfig?.gmailClientId || process.env.GMAIL_CLIENT_ID) &&
+            (db.smtpConfig?.gmailClientSecret || process.env.GMAIL_CLIENT_SECRET) &&
+            (db.smtpConfig?.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN);
+
+        if (!effectivePass && !effectiveResend && !effectiveBrevo && !effectiveSg && !effectiveMj && !effectiveGmailOAuth) {
             return res.status(400).json({
                 success: false,
-                message: "ยังไม่ได้ระบุ API Key ใดๆ (Brevo, Resend, SendGrid, Mailjet) หรือรหัสผ่าน SMTP กรุณาระบุในช่องด้านบนก่อนกดทดสอบส่ง"
+                message: "ยังไม่ได้ระบุข้อมูลสำหรับส่งอีเมล กรุณาระบุ SMTP Host, User และรหัสผ่านแอป 16 หลัก (หรือ Brevo / Resend API Key) ในช่องด้านบนก่อนกดทดสอบส่ง"
             });
         }
 
-        const targetEmail = (testEmail || customConfig?.user || db.smtpConfig?.user || '').trim();
+        const targetEmail = String(req.body.testEmail || req.body.to || customConfig.user || db.smtpConfig?.user || '').trim();
         if (!targetEmail || !isValidEmail(targetEmail)) {
             return res.status(400).json({
                 success: false,

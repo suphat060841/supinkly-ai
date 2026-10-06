@@ -1468,7 +1468,7 @@ class MailService {
         const config = { ...base };
         if (customConfig && typeof customConfig === 'object') {
             for (const [k, v] of Object.entries(customConfig)) {
-                if (v !== undefined && v !== null && v !== '') {
+                if (v !== undefined && v !== null && v !== '' && v !== '******') {
                     config[k] = v;
                 }
             }
@@ -1480,6 +1480,9 @@ class MailService {
         config.port = parseInt(config.port || '465', 10);
         config.resendKey = String(config.resendKey || '').trim();
         config.brevoKey = String(config.brevoKey || '').trim();
+        config.sendgridKey = String(config.sendgridKey || '').trim();
+        config.mailjetKey = String(config.mailjetKey || '').trim();
+        config.mailjetSecret = String(config.mailjetSecret || '').trim();
         config.from = String(config.from || '').trim();
 
         if (!this.isConfigured(config)) {
@@ -1529,8 +1532,9 @@ class MailService {
 
         const errors = [];
 
-        // 1. Try Brevo if configured (HTTPS Port 443 – works on Render Free)
-        if (config.brevoKey) {
+        // Definition of runner tasks
+        const tryBrevo = async () => {
+            if (!config.brevoKey) return null;
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Brevo ไปยัง: ${to}...`);
                 const res = await this.sendViaBrevo(config, { to, subject: testSubject, html: testHtml });
@@ -1544,11 +1548,12 @@ class MailService {
                 console.error('[MAIL-TEST] Brevo test error:', err);
                 let errText = (err && (err.message || String(err))) || 'Brevo error';
                 errors.push(`[Brevo]: ${errText}`);
+                return null;
             }
-        }
+        };
 
-        // 2. Try Resend if configured
-        if (config.resendKey) {
+        const tryResend = async () => {
+            if (!config.resendKey) return null;
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Resend ไปยัง: ${to}...`);
                 const res = await this.sendViaResend(config, { to, subject: testSubject, html: testHtml });
@@ -1565,11 +1570,12 @@ class MailService {
                     errText = 'Resend ไม่อนุญาตให้ส่ง: ในโหมดฟรี Resend อนุญาตให้ส่งได้เฉพาะอีเมลที่คุณใช้สมัครบัญชี Resend เท่านั้น';
                 }
                 errors.push(`[Resend]: ${errText}`);
+                return null;
             }
-        }
+        };
 
-        // 3. Try SendGrid if configured
-        if (config.sendgridKey) {
+        const trySendGrid = async () => {
+            if (!config.sendgridKey) return null;
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน SendGrid ไปยัง: ${to}...`);
                 const res = await this.sendViaSendGrid(config, { to, subject: testSubject, html: testHtml });
@@ -1583,11 +1589,12 @@ class MailService {
                 console.error('[MAIL-TEST] SendGrid test error:', err);
                 let errText = (err && (err.message || String(err))) || 'SendGrid error';
                 errors.push(`[SendGrid]: ${errText}`);
+                return null;
             }
-        }
+        };
 
-        // 4. Try Mailjet if configured
-        if (config.mailjetKey && config.mailjetSecret) {
+        const tryMailjet = async () => {
+            if (!config.mailjetKey || !config.mailjetSecret) return null;
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Mailjet ไปยัง: ${to}...`);
                 const res = await this.sendViaMailjet(config, { to, subject: testSubject, html: testHtml });
@@ -1601,11 +1608,12 @@ class MailService {
                 console.error('[MAIL-TEST] Mailjet test error:', err);
                 let errText = (err && (err.message || String(err))) || 'Mailjet error';
                 errors.push(`[Mailjet]: ${errText}`);
+                return null;
             }
-        }
+        };
 
-        // 5. Try Gmail API (OAuth2, HTTPS Port 443 – works on Render Free)
-        if (config.gmailClientId && config.gmailClientSecret && config.gmailRefreshToken) {
+        const tryGmailOAuth = async () => {
+            if (!config.gmailClientId || !config.gmailClientSecret || !config.gmailRefreshToken) return null;
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบส่งผ่าน Gmail API ไปยัง: ${to}...`);
                 const res = await this.sendViaGmailApi(config, { to, subject: testSubject, html: testHtml });
@@ -1618,11 +1626,12 @@ class MailService {
             } catch (err) {
                 console.error('[MAIL-TEST] Gmail API test error:', err);
                 errors.push(`[Gmail API]: ${(err && err.message) || String(err)}`);
+                return null;
             }
-        }
+        };
 
-        // 5. Try SMTP if configured
-        if (config.host && config.user && config.pass) {
+        const trySmtp = async () => {
+            if (!config.host || !config.user || !config.pass) return null;
             try {
                 console.log(`[MAIL-TEST] กำลังทดสอบเชื่อมต่อ SMTP ${config.host}:${config.port} ไปยัง: ${to}...`);
                 const res = await this.sendEmailViaSmtp(config, { to, subject: testSubject, html: testHtml });
@@ -1644,15 +1653,43 @@ class MailService {
                 } else if (combined.includes('534') || combined.includes('Application-specific password required')) {
                     msg = `Google แจ้งเตือนความปลอดภัย (534):\nต้องสร้าง "App Password 16 หลัก" ในบัญชี Google (เปิด 2-Step Verification แล้วไปที่ myaccount.google.com/apppasswords)`;
                 } else if (isConnectionIssue(err) || combined.includes('timeout') || combined.includes('ETIMEDOUT') || combined.includes('หมดเวลา')) {
-                    msg = `หมดเวลาเชื่อมต่อ (Connection Timeout / Blocked):\nเซิร์ฟเวอร์ไม่สามารถติดต่อ ${config.host}:${config.port} ได้ (เซิร์ฟเวอร์โฮสติ้ง Render อาจมีการจำกัดพอร์ต SMTP ขาออก)\n👉 แนะนำให้กดปุ่มเปลี่ยนพรีเซ็ตเป็น "Gmail (Port 587 STARTTLS)" หรือ "Port 465 SSL"\n👉 หรือใช้ Resend API (ส่งผ่าน HTTPS Port 443 รับประกันส่งได้ 100%)`;
+                    msg = `หมดเวลาเชื่อมต่อ (Connection Timeout / Blocked):\nเซิร์ฟเวอร์ไม่สามารถติดต่อ ${config.host}:${config.port} ได้ (เซิร์ฟเวอร์โฮสติ้ง Render อาจมีการจำกัดพอร์ต SMTP ขาออก)\n👉 แนะนำให้กดปุ่มเปลี่ยนพรีเซ็ตเป็น "Gmail (Port 587 STARTTLS)" หรือ "Port 465 SSL"\n👉 หรือใช้ Resend API / Brevo API (ส่งผ่าน HTTPS Port 443 รับประกันส่งได้ 100%)`;
                 } else if (combined.includes('ECONNREFUSED')) {
-                    msg = `การเชื่อมต่อถูกปฏิเสธ (Connection Refused):\nพอร์ต ${config.port} บน ${config.host} ปิดอยู่หรือไม่สามารถเข้าถึงได้ แนะนำให้ลองเปลี่ยนเป็น Port 587 หรือใช้ Resend API`;
+                    msg = `การเชื่อมต่อถูกปฏิเสธ (Connection Refused):\nพอร์ต ${config.port} บน ${config.host} ปิดอยู่หรือไม่สามารถเข้าถึงได้ แนะนำให้ลองเปลี่ยนเป็น Port 587 หรือใช้ Resend / Brevo API`;
                 } else if (combined.includes('ECONNRESET') || combined.includes('closed') || combined.includes('Closed by')) {
-                    msg = `การเชื่อมต่อถูกตัดกลางคัน (Connection Reset):\nเซิร์ฟเวอร์ตัดสายการเชื่อมต่อ แนะนำให้ลองสลับ Port (465 <-> 587) หรือใช้ Resend API`;
+                    msg = `การเชื่อมต่อถูกตัดกลางคัน (Connection Reset):\nเซิร์ฟเวอร์ตัดสายการเชื่อมต่อ แนะนำให้ลองสลับ Port (465 <-> 587) หรือใช้ Resend / Brevo API`;
                 } else {
                     msg = rawMsg || (errCode ? `Network Socket Error [${errCode}]` : '') || (err ? String(err) : '') || 'การเชื่อมต่อกับเซิร์ฟเวอร์ส่งอีเมลล้มเหลว';
                 }
                 errors.push(`[SMTP]: ${msg}`);
+                return null;
+            }
+        };
+
+        // Determine priority based on what the user explicitly entered in the test request
+        const hasExplicitApi = !!(customConfig && (customConfig.brevoKey || customConfig.resendKey || customConfig.sendgridKey || (customConfig.mailjetKey && customConfig.mailjetSecret)));
+        const hasExplicitSmtp = !!(customConfig && (customConfig.pass || (customConfig.host && customConfig.user)));
+
+        let runners = [];
+        if (hasExplicitSmtp && !hasExplicitApi) {
+            runners = [trySmtp, tryBrevo, tryResend, trySendGrid, tryMailjet, tryGmailOAuth];
+        } else if (customConfig && customConfig.brevoKey) {
+            runners = [tryBrevo, tryResend, trySendGrid, tryMailjet, tryGmailOAuth, trySmtp];
+        } else if (customConfig && customConfig.resendKey) {
+            runners = [tryResend, tryBrevo, trySendGrid, tryMailjet, tryGmailOAuth, trySmtp];
+        } else if (customConfig && customConfig.sendgridKey) {
+            runners = [trySendGrid, tryBrevo, tryResend, tryMailjet, tryGmailOAuth, trySmtp];
+        } else if (customConfig && (customConfig.mailjetKey && customConfig.mailjetSecret)) {
+            runners = [tryMailjet, tryBrevo, tryResend, trySendGrid, tryGmailOAuth, trySmtp];
+        } else {
+            // Default fallback order
+            runners = [tryBrevo, tryResend, trySendGrid, tryMailjet, tryGmailOAuth, trySmtp];
+        }
+
+        for (const runner of runners) {
+            const outcome = await runner();
+            if (outcome && outcome.success) {
+                return outcome;
             }
         }
 

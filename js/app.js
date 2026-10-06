@@ -493,6 +493,12 @@ async function handleLogin() {
                 closeAuthModal();
                 updateUserHeaderUI();
                 showToast(`ยินดีต้อนรับคุณ ${res.user?.displayName || email}!`, 'success');
+                if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
+                    state.pendingCheckoutAfterAuth = false;
+                    setTimeout(() => {
+                        startCheckout();
+                    }, 400);
+                }
                 return;
             } else {
                 showAuthError('auth-login-error', res.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
@@ -577,6 +583,12 @@ async function handleVerifyOtp() {
                 closeAuthModal();
                 updateUserHeaderUI();
                 showToast('สมัครสมาชิกและยืนยันอีเมลสำเร็จ ยินดีต้อนรับ!', 'success');
+                if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
+                    state.pendingCheckoutAfterAuth = false;
+                    setTimeout(() => {
+                        startCheckout();
+                    }, 400);
+                }
             } else {
                 showAuthError('auth-otp-error', res.message || 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ');
             }
@@ -768,6 +780,7 @@ function updateUserHeaderUI() {
             </div>
         `;
     }
+    if (typeof updateCartUI === 'function') updateCartUI();
 }
 
 // Brand Tabs
@@ -1299,12 +1312,19 @@ function updateCartUI() {
         }
     }
 
+    const isMemberLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
     if (checkoutBtn) {
         checkoutBtn.disabled = state.cart.length === 0 || finalTotal <= 0;
         if (state.cart.length === 0 || finalTotal <= 0) {
             checkoutBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            checkoutBtn.innerHTML = `<i class="fa-solid fa-lock"></i> <span>ไปขั้นตอนชำระเงิน (Checkout)</span>`;
         } else {
             checkoutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            if (!isMemberLoggedIn) {
+                checkoutBtn.innerHTML = `<i class="fa-solid fa-user-plus mr-1"></i> <span>สมัครสมาชิก / เข้าสู่ระบบเพื่อชำระเงิน</span>`;
+            } else {
+                checkoutBtn.innerHTML = `<i class="fa-solid fa-lock"></i> <span>ไปขั้นตอนชำระเงิน (Checkout)</span>`;
+            }
         }
     }
 
@@ -1385,6 +1405,15 @@ function startCheckout() {
         return;
     }
 
+    // [MEMBER ENFORCEMENT] บังคับให้สมัครสมาชิกหรือเข้าสู่ระบบก่อนซื้อสินค้าทุกครั้ง
+    const isLoggedIn = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn());
+    if (!isLoggedIn) {
+        state.pendingCheckoutAfterAuth = true;
+        showToast("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนซื้อสินค้า เพื่อบันทึกคีย์และประวัติเข้าบัญชีของคุณ", "warning");
+        openAuthModal('register');
+        return;
+    }
+
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
 
@@ -1412,9 +1441,16 @@ function startCheckout() {
     }
     const refCode = "SPK" + Math.floor(100000 + Math.random() * 900000);
 
+    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
+    const checkoutEmailInput = document.getElementById('checkout-email-input');
+    if (checkoutEmailInput && currentUser && currentUser.email) {
+        checkoutEmailInput.value = currentUser.email;
+        checkoutEmailInput.readOnly = true;
+        checkoutEmailInput.classList.add('bg-slate-100', 'text-slate-600', 'cursor-not-allowed');
+    }
+
     document.getElementById('checkout-ref-code').textContent = refCode;
     document.getElementById('checkout-total-amount').textContent = `฿${verifiedTotal.toFixed(2)}`;
-    document.getElementById('checkout-email-input').value = state.user ? state.user.email : '';
     const accEl = document.getElementById('checkout-account-name');
     if (accEl) accEl.textContent = STORE_CONFIG.promptPayAccountName || 'สุพัฒน์ มีสมบัติ';
 
@@ -1428,16 +1464,25 @@ function startCheckout() {
 
     const summaryContainer = document.getElementById('checkout-items-summary');
     if (summaryContainer) {
-        summaryContainer.innerHTML = state.cart.map(i => {
+        let itemsHtml = state.cart.map(i => {
             const master = getMasterProduct(i.productId);
             if (!master) return '';
             return `
                 <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-medium">
                     <span class="truncate flex-1 pr-2">${escapeHTML(master.title)} (x${i.quantity})</span>
-                    <span class="font-bold text-pink-600">฿${(master.price * i.quantity).toFixed(2)}</span>
+                    <span class="font-bold text-slate-800">฿${(master.price * i.quantity).toFixed(2)}</span>
                 </div>
             `;
         }).join('');
+        if (discountAmount > 0 && state.appliedCoupon) {
+            itemsHtml += `
+                <div class="flex items-center justify-between text-xs py-1 text-emerald-600 font-semibold border-t border-slate-100">
+                    <span class="truncate flex-1 pr-2"><i class="fa-solid fa-tags mr-1"></i>ส่วนลดโค้ด (${escapeHTML(state.appliedCoupon.code)})</span>
+                    <span>-฿${discountAmount.toFixed(2)}</span>
+                </div>
+            `;
+        }
+        summaryContainer.innerHTML = itemsHtml;
     }
 
     startQrCountdown();
@@ -1475,6 +1520,15 @@ function startQrCountdown() {
 // SECURE SLIP VERIFICATION & DISPENSE
 // ==========================================
 async function submitSlipVerification() {
+    // [MEMBER ENFORCEMENT] ตรวจสอบสถานะการเข้าสู่ระบบก่อนตรวจสลิป
+    const isLoggedIn = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn());
+    if (!isLoggedIn) {
+        showToast("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน", "warning");
+        closeCheckoutModal();
+        openAuthModal('login');
+        return;
+    }
+
     // Sanitize and validate cart
     state.cart = (state.cart || []).filter(item => item && item.productId && getMasterProduct(item.productId));
     state.cart.forEach(item => {
@@ -1486,19 +1540,28 @@ async function submitSlipVerification() {
         return;
     }
 
-    const verifiedTotal = calculateVerifiedTotal();
+    const verifiedSubtotal = calculateVerifiedTotal();
+    let discountAmount = 0;
+    if (state.appliedCoupon && typeof validateCouponCode === 'function') {
+        const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
+        if (recheck.valid) {
+            discountAmount = recheck.discountAmount;
+        }
+    }
+    const verifiedTotal = Math.max(1, verifiedSubtotal - discountAmount);
     if (!verifiedTotal || verifiedTotal <= 0) {
         showToast("ยอดชำระเงินไม่ถูกต้อง กรุณาเลือกสินค้าใหม่", "warning");
         return;
     }
 
+    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
     const emailInput = document.getElementById('checkout-email-input');
-    const recipientEmail = (emailInput ? emailInput.value : '').trim();
+    const recipientEmail = (currentUser && currentUser.email) ? currentUser.email.trim() : (emailInput ? emailInput.value : '').trim();
 
     // Stricter email format validation
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!recipientEmail || !emailRegex.test(recipientEmail)) {
-        showToast("กรุณากรอกอีเมลที่ถูกต้องสำหรับรับสำรองข้อมูลสินค้า (เช่น name@example.com)", "warning");
+        showToast("ไม่พบข้อมูลอีเมลสมาชิกที่ถูกต้อง กรุณาเข้าสู่ระบบใหม่อีกครั้ง", "warning");
         if (emailInput) emailInput.focus();
         return;
     }
@@ -1519,7 +1582,14 @@ async function submitSlipVerification() {
     btn.disabled = true;
 
     try {
-        const result = await SlipVerifier.verifySlip(verifiedTotal, STORE_CONFIG.promptPayNumber);
+        const promoCode = state.appliedCoupon ? state.appliedCoupon.code : '';
+        const result = await SlipVerifier.verifySlip(
+            verifiedTotal,
+            STORE_CONFIG.promptPayNumber,
+            state.cart,
+            recipientEmail,
+            promoCode
+        );
 
         btn.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> สลิปถูกต้อง! กำลังจัดส่งรหัส...`;
 
@@ -1527,6 +1597,28 @@ async function submitSlipVerification() {
             btn.innerHTML = originalText;
             btn.disabled = false;
             closeCheckoutModal();
+
+            // If server returned an order, integrate directly
+            if (result && result.order) {
+                const serverOrder = result.order;
+                if (!state.orders.some(o => o.orderId === serverOrder.orderId)) {
+                    state.orders.unshift(serverOrder);
+                    saveOrders();
+                }
+                state.cart = [];
+                state.appliedCoupon = null;
+                saveCart();
+                updateCartUI();
+
+                openVaultModal(serverOrder);
+                const hasPending = (serverOrder.items || []).some(i => i.status === 'pending_fulfillment' || !i.credentials);
+                if (hasPending) {
+                    showToast("สลิปถูกต้องและยอดเงินตรง! ร้านค้ากำลังจัดเตรียมบัญชีให้คุณ (5-15 นาที)", "success");
+                } else {
+                    showToast("สลิปถูกต้องและยอดเงินตรง! ส่งมอบรหัสเข้าคลังเรียบร้อยแล้ว", "success");
+                }
+                return;
+            }
 
             const deliveredItems = [];
             let hasPendingFulfillment = false;
@@ -1605,7 +1697,9 @@ async function submitSlipVerification() {
             saveOrders();
 
             state.cart = [];
+            state.appliedCoupon = null;
             saveCart();
+            updateCartUI();
 
             openVaultModal(newOrder);
             if (hasPendingFulfillment) {
@@ -3512,6 +3606,10 @@ async function loadAdminSettingsIntoForm() {
                     const discEl = document.getElementById('admin-discord-webhook');
                     if (discEl && !discEl.value) discEl.value = data.discordWebhookUrl;
                 }
+                if (data.geminiApiKey) {
+                    const geminiEl = document.getElementById('admin-gemini-api-key');
+                    if (geminiEl && !geminiEl.value) geminiEl.placeholder = "•••••••• (บันทึกคีย์แล้ว - กรอกใหม่เพื่อเปลี่ยน)";
+                }
                 if (data.smtpConfig) {
                     const smtp = data.smtpConfig;
                     const hostEl = document.getElementById('admin-smtp-host');
@@ -3524,6 +3622,35 @@ async function loadAdminSettingsIntoForm() {
                     if (fromEl && smtp.from) fromEl.value = smtp.from;
                     const logoEl = document.getElementById('admin-smtp-logourl');
                     if (logoEl && smtp.logoUrl) logoEl.value = smtp.logoUrl;
+
+                    const passEl = document.getElementById('admin-smtp-pass');
+                    if (passEl && !passEl.value && smtp.pass) {
+                        passEl.placeholder = "•••••••• (บันทึกรหัสแอปไว้แล้ว - กรอกใหม่เพื่อเปลี่ยน)";
+                    }
+                    const brevoEl = document.getElementById('admin-smtp-brevo');
+                    if (brevoEl && !brevoEl.value && smtp.brevoKey) {
+                        brevoEl.placeholder = "•••••••• (บันทึกไว้แล้ว)";
+                    }
+                    const resendEl = document.getElementById('admin-smtp-resend');
+                    if (resendEl && !resendEl.value && smtp.resendKey) {
+                        resendEl.placeholder = "•••••••• (บันทึกไว้แล้ว)";
+                    }
+                    const sgEl = document.getElementById('admin-smtp-sendgrid');
+                    if (sgEl && !sgEl.value && smtp.sendgridKey) {
+                        sgEl.placeholder = "•••••••• (บันทึกไว้แล้ว)";
+                    }
+                    const mjKeyEl = document.getElementById('admin-smtp-mailjet-key');
+                    if (mjKeyEl && !mjKeyEl.value && smtp.mailjetKey) {
+                        mjKeyEl.placeholder = "•••••••• (บันทึกแล้ว)";
+                    }
+                    const mjSecEl = document.getElementById('admin-smtp-mailjet-secret');
+                    if (mjSecEl && !mjSecEl.value && smtp.mailjetSecret) {
+                        mjSecEl.placeholder = "•••••••• (บันทึกแล้ว)";
+                    }
+                    const testTargetEl = document.getElementById('admin-test-email-target');
+                    if (testTargetEl && !testTargetEl.value && smtp.user) {
+                        testTargetEl.value = smtp.user;
+                    }
                 }
                 if (data.maintenanceMode !== undefined) {
                     const maintCheck = document.getElementById('admin-maintenance-mode');
@@ -3753,14 +3880,42 @@ async function handleAdminTestEmail() {
 
     if (!targetEmail || !targetEmail.includes('@')) {
         showToast("กรุณากรอกอีเมลผู้รับทดสอบให้ถูกต้อง", "warning");
+        const targetInput = document.getElementById('admin-test-email-target');
+        if (targetInput) targetInput.focus();
         return;
     }
+
+    const host = document.getElementById('admin-smtp-host')?.value.trim() || '';
+    const port = parseInt(document.getElementById('admin-smtp-port')?.value || '465', 10);
+    const user = document.getElementById('admin-smtp-user')?.value.trim() || '';
+    const pass = document.getElementById('admin-smtp-pass')?.value.trim() || '';
+    const from = document.getElementById('admin-smtp-from')?.value.trim() || '';
+    const logoUrl = document.getElementById('admin-smtp-logourl')?.value.trim() || '';
+    const brevoKey = document.getElementById('admin-smtp-brevo')?.value.trim() || '';
+    const resendKey = document.getElementById('admin-smtp-resend')?.value.trim() || '';
+    const sendgridKey = document.getElementById('admin-smtp-sendgrid')?.value.trim() || '';
+    const mailjetKey = document.getElementById('admin-smtp-mailjet-key')?.value.trim() || '';
+    const mailjetSecret = document.getElementById('admin-smtp-mailjet-secret')?.value.trim() || '';
+
+    const smtpConfig = {
+        host,
+        port,
+        user,
+        pass,
+        from,
+        logoUrl,
+        brevoKey,
+        resendKey,
+        sendgridKey,
+        mailjetKey,
+        mailjetSecret
+    };
 
     if (btn) btn.disabled = true;
     if (resultEl) {
         resultEl.classList.remove('hidden');
-        resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700";
-        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> กำลังส่งอีเมลทดสอบไปยัง ${escapeHTML(targetEmail)}...`;
+        resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 animate-pulse";
+        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5 text-pink-600"></i> กำลังทดสอบส่งอีเมลไปยัง <strong>${escapeHTML(targetEmail)}</strong>...`;
     }
 
     try {
@@ -3768,29 +3923,30 @@ async function handleAdminTestEmail() {
             method: 'POST',
             headers: getAdminHeaders(),
             body: JSON.stringify({
+                testEmail: targetEmail,
                 to: targetEmail,
-                host: document.getElementById('admin-smtp-host')?.value.trim(),
-                port: parseInt(document.getElementById('admin-smtp-port')?.value || '465', 10),
-                user: document.getElementById('admin-smtp-user')?.value.trim(),
-                pass: document.getElementById('admin-smtp-pass')?.value.trim(),
-                from: document.getElementById('admin-smtp-from')?.value.trim(),
-                logoUrl: document.getElementById('admin-smtp-logourl')?.value.trim()
+                smtpConfig: smtpConfig,
+                ...smtpConfig
             })
         });
         const data = await res.json();
         if (resultEl) {
+            resultEl.classList.remove('animate-pulse');
             if (data && data.success) {
-                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200";
-                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'ส่งอีเมลทดสอบสำเร็จ! ตรวจสอบกล่องจดหมายของคุณ'}`;
+                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs";
+                const msg = escapeHTML(data.message || 'ส่งอีเมลทดสอบสำเร็จ! ตรวจสอบกล่องจดหมายของคุณ').replace(/\n/g, '<br>');
+                resultEl.innerHTML = `<div class="flex items-start gap-2"><i class="fa-solid fa-circle-check text-emerald-600 mt-0.5 shrink-0 text-sm"></i><div class="leading-relaxed">${msg}</div></div>`;
             } else {
-                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200";
-                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'ส่งอีเมลไม่สำเร็จ ตรวจสอบการตั้งค่า SMTP และ App Password'}`;
+                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200 shadow-2xs";
+                const msg = escapeHTML(data.message || 'ส่งอีเมลไม่สำเร็จ ตรวจสอบการตั้งค่า SMTP และ App Password').replace(/\n/g, '<br>');
+                resultEl.innerHTML = `<div class="flex items-start gap-2"><i class="fa-solid fa-circle-xmark text-rose-600 mt-0.5 shrink-0 text-sm"></i><div class="leading-relaxed whitespace-pre-wrap">${msg}</div></div>`;
             }
         }
     } catch (e) {
         if (resultEl) {
+            resultEl.classList.remove('animate-pulse');
             resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
-            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบส่งอีเมลได้`;
+            resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-600 mr-1.5"></i> ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบส่งอีเมลได้ (${escapeHTML(e.message || 'Network Error')})`;
         }
     } finally {
         if (btn) btn.disabled = false;
@@ -5288,9 +5444,26 @@ async function saveAdminSettings() {
     const newApiKey = slipOkKeyEl ? slipOkKeyEl.value.trim() : '';
     const pinEl = document.getElementById('admin-new-pin');
     const newPin = pinEl ? pinEl.value.trim() : '';
+    const discordWebhookUrl = (document.getElementById('admin-discord-webhook')?.value || '').trim();
+    const geminiApiKey = (document.getElementById('admin-gemini-api-key')?.value || '').trim();
+    const maintCheck = document.getElementById('admin-maintenance-mode');
+    const maintenanceMode = maintCheck ? maintCheck.checked : undefined;
 
+    const host = document.getElementById('admin-smtp-host')?.value.trim() || '';
+    const port = parseInt(document.getElementById('admin-smtp-port')?.value || '465', 10);
+    const user = document.getElementById('admin-smtp-user')?.value.trim() || '';
+    const pass = document.getElementById('admin-smtp-pass')?.value.trim() || '';
+    const from = document.getElementById('admin-smtp-from')?.value.trim() || '';
+    const logoUrl = document.getElementById('admin-smtp-logourl')?.value.trim() || '';
+    const brevoKey = document.getElementById('admin-smtp-brevo')?.value.trim() || '';
+    const resendKey = document.getElementById('admin-smtp-resend')?.value.trim() || '';
+    const sendgridKey = document.getElementById('admin-smtp-sendgrid')?.value.trim() || '';
+    const mailjetKey = document.getElementById('admin-smtp-mailjet-key')?.value.trim() || '';
+    const mailjetSecret = document.getElementById('admin-smtp-mailjet-secret')?.value.trim() || '';
+
+    let cleanPhone = '';
     if (newPhone) {
-        const cleanPhone = newPhone.replace(/[-\s]/g, '');
+        cleanPhone = newPhone.replace(/[-\s]/g, '');
         if (!/^[0-9]{10,15}$/.test(cleanPhone)) {
             showToast("รูปแบบหมายเลขพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10-15 หลัก)", "warning");
             return;
@@ -5305,9 +5478,11 @@ async function saveAdminSettings() {
     if (newBranchId) {
         STORE_CONFIG.slipOkBranchId = newBranchId;
     }
-    STORE_CONFIG.slipOkApiKey = newApiKey;
+    if (newApiKey && newApiKey !== '******') {
+        STORE_CONFIG.slipOkApiKey = newApiKey;
+    }
 
-    // Persist store config
+    // Persist store config locally
     try {
         localStorage.setItem('supinkly_store_config', JSON.stringify({
             promptPayNumber: STORE_CONFIG.promptPayNumber,
@@ -5319,17 +5494,59 @@ async function saveAdminSettings() {
         console.error("Config save error:", e);
     }
 
+    // Save all settings to Server Database via API
+    try {
+        const payload = {
+            promptPayNumber: cleanPhone || STORE_CONFIG.promptPayNumber,
+            promptPayAccountName: newAccountName || STORE_CONFIG.promptPayAccountName,
+            slipOkBranchId: newBranchId || STORE_CONFIG.slipOkBranchId,
+            slipOkApiKey: newApiKey,
+            discordWebhookUrl,
+            geminiApiKey,
+            maintenanceMode,
+            smtpConfig: {
+                host,
+                port,
+                user,
+                pass,
+                from,
+                logoUrl,
+                brevoKey,
+                resendKey,
+                sendgridKey,
+                mailjetKey,
+                mailjetSecret
+            }
+        };
+        if (newPin) payload.newPin = newPin;
+
+        const res = await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast("บันทึกการตั้งค่าทั้งหมด (SMTP, พร้อมเพย์, บอท) เรียบร้อยแล้ว", "success");
+        } else {
+            showToast(data.message || "บันทึกการตั้งค่าสำเร็จ", "info");
+        }
+    } catch (e) {
+        console.warn("Could not save settings to server:", e);
+        showToast("บันทึกการตั้งค่าลงเบราว์เซอร์แล้ว", "info");
+    }
+
     if (newPin) {
         try {
             await ADMIN_AUTH.setPin(newPin);
             showToast("เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จ", "info");
+            if (pinEl) pinEl.value = '';
         } catch (err) {
             showToast(err.message, "warning");
             return;
         }
     }
 
-    showToast("บันทึกการตั้งค่าร้านค้าเรียบร้อยแล้ว", "success");
     closeAdminModal();
 }
 
@@ -5696,6 +5913,163 @@ function showToast(message, type = "info") {
     }, 3200);
 }
 
+// ==========================================
+// UNIVERSAL ESCAPE (ESC) KEY HANDLER
+// Close modals, drawers, popups, and panels in hierarchical LIFO order
+// ==========================================
+function closeTopmostModal() {
+    // 1. Admin Chat Panel (z-[200])
+    const adminChat = document.getElementById('admin-chat-panel');
+    if (adminChat && !adminChat.classList.contains('hidden')) {
+        closeAdminChatPanel();
+        return true;
+    }
+
+    // 2. Coupons Promo Modal (z-[160])
+    const couponsModal = document.getElementById('coupons-modal');
+    if (couponsModal && !couponsModal.classList.contains('hidden')) {
+        closeCouponsModal();
+        return true;
+    }
+
+    // 3. Logo Mascot Popup (z-[150])
+    const logoPopup = document.getElementById('logo-popup-modal');
+    if (logoPopup && !logoPopup.classList.contains('hidden')) {
+        closeLogoPopup();
+        return true;
+    }
+
+    // 4. Mobile Menu Navigation Drawer (z-[110])
+    const mobileOverlay = document.getElementById('mobile-menu-overlay');
+    const mobileDrawer = document.getElementById('mobile-menu-drawer');
+    if ((mobileOverlay && !mobileOverlay.classList.contains('hidden')) || 
+        (mobileDrawer && !mobileDrawer.classList.contains('-translate-x-full'))) {
+        closeMobileMenu();
+        return true;
+    }
+
+    // 5. Admin Slip View Modal (z-[75])
+    const slipModal = document.getElementById('admin-slip-view-modal');
+    if (slipModal && !slipModal.classList.contains('hidden')) {
+        closeSlipViewModal();
+        return true;
+    }
+
+    // 6. Product Detail Modal (z-[70])
+    const productDetailModal = document.getElementById('product-detail-modal');
+    if (productDetailModal && !productDetailModal.classList.contains('hidden')) {
+        closeProductDetailModal();
+        return true;
+    }
+
+    // 7. Checkout & Payment Modal (z-[70])
+    const checkoutModal = document.getElementById('checkout-modal');
+    if (checkoutModal && !checkoutModal.classList.contains('hidden')) {
+        closeCheckoutModal();
+        return true;
+    }
+
+    // 8. Instant Delivery Vault Modal (z-[70])
+    const vaultModal = document.getElementById('vault-modal');
+    if (vaultModal && !vaultModal.classList.contains('hidden')) {
+        closeVaultModal();
+        return true;
+    }
+
+    // 9. User Authentication Modal (Login / Register / OTP / Forgot) (z-[70])
+    const authModal = document.getElementById('auth-modal');
+    if (authModal && !authModal.classList.contains('hidden')) {
+        closeAuthModal();
+        return true;
+    }
+
+    // 10. Admin Edit & Manage Product Modal (z-[60])
+    const editPriceModal = document.getElementById('edit-price-modal');
+    if (editPriceModal && !editPriceModal.classList.contains('hidden')) {
+        closeEditPriceModal();
+        return true;
+    }
+
+    // 11. Admin Add Stock Modal (z-[60])
+    const addStockModal = document.getElementById('add-stock-modal');
+    if (addStockModal && !addStockModal.classList.contains('hidden')) {
+        closeAddStockModal();
+        return true;
+    }
+
+    // 12. Admin Fulfill Order Modal (z-50)
+    const fulfillModal = document.getElementById('admin-fulfill-modal');
+    if (fulfillModal && !fulfillModal.classList.contains('hidden')) {
+        closeFulfillModal();
+        return true;
+    }
+
+    // 13. Admin Reset Password Confirmation Modal (z-50)
+    const resetPwModal = document.getElementById('admin-reset-pw-modal');
+    if (resetPwModal && !resetPwModal.classList.contains('hidden')) {
+        resetPwModal.classList.add('hidden');
+        return true;
+    }
+
+    // 14. Admin PIN Security Gate Modal (z-50)
+    const pinModal = document.getElementById('admin-pin-modal');
+    if (pinModal && !pinModal.classList.contains('hidden')) {
+        closeAdminPinModal();
+        return true;
+    }
+
+    // 15. Orders History & My Keys Modal (z-50)
+    const ordersModal = document.getElementById('orders-modal');
+    if (ordersModal && !ordersModal.classList.contains('hidden')) {
+        closeOrdersModal();
+        return true;
+    }
+
+    // 16. Secured Admin Dashboard Modal (z-50)
+    const adminModal = document.getElementById('admin-modal');
+    if (adminModal && !adminModal.classList.contains('hidden')) {
+        closeAdminModal();
+        return true;
+    }
+
+    // 17. Cart Drawer & Overlay (z-50)
+    const cartOverlay = document.getElementById('drawer-overlay');
+    const cartDrawer = document.getElementById('cart-drawer');
+    if ((cartOverlay && !cartOverlay.classList.contains('hidden')) || 
+        (cartDrawer && !cartDrawer.classList.contains('translate-x-full'))) {
+        closeCartDrawer();
+        return true;
+    }
+
+    // 18. Customer Live Chat Window
+    const chatWindow = document.getElementById('chat-window');
+    if (chatWindow && !chatWindow.classList.contains('hidden')) {
+        if (typeof window.SupinklyChat !== 'undefined' && typeof window.SupinklyChat.close === 'function') {
+            window.SupinklyChat.close();
+        } else {
+            chatWindow.classList.add('hidden');
+        }
+        return true;
+    }
+
+    // 19. Generic fallback for any other modal overlay
+    const anyModal = Array.from(document.querySelectorAll('.fixed.inset-0:not(.hidden)'))
+        .filter(el => el.id !== 'global-admin-maintenance-bar' && !el.classList.contains('pointer-events-none'));
+    if (anyModal.length > 0) {
+        anyModal[anyModal.length - 1].classList.add('hidden');
+        return true;
+    }
+
+    // 20. If an input or textarea is focused and no modal is open, blur it
+    if (document.activeElement && typeof document.activeElement.blur === 'function' && 
+        (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        document.activeElement.blur();
+        return true;
+    }
+
+    return false;
+}
+
 function initEvents() {
     const slipInput = document.getElementById('slip-file-input');
     if (slipInput) {
@@ -5723,6 +6097,17 @@ function initEvents() {
             }
         });
     }
+
+    // Universal ESC key listener to exit/close any modal, popup, or drawer (Capture phase for instant priority)
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+            const closed = closeTopmostModal();
+            if (closed) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+    }, true);
 
     // Owner shortcut to open admin login (Ctrl + Shift + A)
     window.addEventListener('keydown', (e) => {
@@ -6164,6 +6549,7 @@ window.copyOrderCustomerSummary = copyOrderCustomerSummary;
 window.viewPastOrderVault = viewPastOrderVault;
 window.openVaultModal = openVaultModal;
 window.closeVaultModal = closeVaultModal;
+window.closeTopmostModal = closeTopmostModal;
 
 // Auto-check for ?admin=1 query parameter on page load
 if (typeof window !== 'undefined' && window.location && window.location.search) {
