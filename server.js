@@ -245,6 +245,50 @@ app.get(['/favicon.ico', '/favicon.png'], (req, res, next) => {
     next();
 });
 
+// Dedicated handler for slip images with automatic disk-recovery from database
+app.get('/images/slips/:filename', (req, res, next) => {
+    const filename = path.basename(req.params.filename || '');
+    if (!filename) return next();
+
+    const slipsDir = path.join(__dirname, 'images', 'slips');
+    const filePath = path.join(slipsDir, filename);
+
+    // 1. Direct disk hit
+    if (fs.existsSync(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Content-Type', 'image/jpeg');
+        return res.sendFile(filePath);
+    }
+
+    // 2. Database recovery fallback (handles ephemeral disk wipes and container redeploys)
+    try {
+        const db = getDb();
+        const order = (db.orders || []).find(o => 
+            (o.slipUrl && o.slipUrl.endsWith(filename)) ||
+            (o.slipHash && filename.startsWith(o.slipHash.slice(0, 16))) ||
+            (o.orderId && filename.includes(o.orderId))
+        );
+        if (order && order.slipData && typeof order.slipData === 'string') {
+            const matches = order.slipData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches[2]) {
+                const mime = matches[1] || 'image/jpeg';
+                const buffer = Buffer.from(matches[2], 'base64');
+                try {
+                    if (!fs.existsSync(slipsDir)) fs.mkdirSync(slipsDir, { recursive: true });
+                    fs.writeFileSync(filePath, buffer);
+                } catch (e) {}
+                res.setHeader('Content-Type', mime);
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                return res.send(buffer);
+            }
+        }
+    } catch (e) {
+        console.warn('[SLIP SERVE] Error resolving slip image:', e.message);
+    }
+
+    next();
+});
+
 // ── Maintenance Mode Middleware (ปิดเว็บชั่วคราว) ──
 app.use((req, res, next) => {
     let db = null;
@@ -1029,6 +1073,8 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             console.warn("[SLIP] Could not write slip image to disk:", e.message);
         }
         const slipUrl = `/images/slips/${slipFilename}`;
+        const slipMime = req.file.mimetype || 'image/jpeg';
+        const slipData = `data:${slipMime};base64,${req.file.buffer.toString('base64')}`;
 
         // ── Verify with SlipOK Server-Side (if API key is configured) ──
         const apiKey = (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
@@ -1206,6 +1252,7 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             status: hasPending ? "🟡 รอส่งมอบ (On-Demand)" : "🟢 จัดส่งสำเร็จทันที",
             slipHash,
             slipUrl,
+            slipData,
             isAutoVerified
         };
         if (!currentDb.orders) currentDb.orders = [];
@@ -1541,6 +1588,48 @@ app.delete('/api/admin/orders/:orderId', adminRateLimit, (req, res) => {
 
     saveDb(db);
     res.json({ success: true, message: `ลบคำสั่งซื้อ ${orderId} สำเร็จเรียบร้อย`, orders: db.orders });
+});
+
+// 5.2 API: Admin Attach/Re-upload Slip Image for an Existing Order
+app.post('/api/admin/orders/:orderId/attach-slip', adminRateLimit, upload.single('slip'), (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { orderId } = req.params;
+    if (!orderId || !req.file || !isValidImageBuffer(req.file.buffer)) {
+        return res.status(400).json({ success: false, message: "กรุณาแนบไฟล์รูปภาพสลิปที่ถูกต้อง (JPG, PNG, WEBP)" });
+    }
+
+    const db = getDb();
+    if (!db.orders) db.orders = [];
+    const order = db.orders.find(o => o.orderId === orderId);
+    if (!order) {
+        return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อที่ระบุ" });
+    }
+
+    const slipHash = computeSlipSHA256(req.file.buffer);
+    const slipsDir = path.join(__dirname, 'images', 'slips');
+    if (!fs.existsSync(slipsDir)) {
+        try { fs.mkdirSync(slipsDir, { recursive: true }); } catch {}
+    }
+    const slipFilename = `${slipHash.slice(0, 20)}.jpg`;
+    const slipFilePath = path.join(slipsDir, slipFilename);
+    try {
+        fs.writeFileSync(slipFilePath, req.file.buffer);
+    } catch (e) {
+        console.warn("[ATTACH-SLIP] Could not write file:", e.message);
+    }
+
+    const slipUrl = `/images/slips/${slipFilename}`;
+    const slipMime = req.file.mimetype || 'image/jpeg';
+    const slipData = `data:${slipMime};base64,${req.file.buffer.toString('base64')}`;
+
+    order.slipUrl = slipUrl;
+    order.slipData = slipData;
+    order.slipHash = slipHash;
+
+    saveDb(db);
+    res.json({ success: true, message: "แนบรูปสลิปให้คำสั่งซื้อเรียบร้อยแล้ว", slipUrl });
 });
 
 // 6. API: Admin Fulfill Order Item

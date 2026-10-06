@@ -2062,6 +2062,17 @@ async function submitSlipVerification() {
                 localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
             } catch (e) {}
 
+            if (SlipVerifier.selectedFile && !finalOrder.slipData) {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        finalOrder.slipData = e.target.result;
+                        saveOrders();
+                    };
+                    reader.readAsDataURL(SlipVerifier.selectedFile);
+                } catch (e) {}
+            }
+
             state.orders.unshift(finalOrder);
             saveOrders();
 
@@ -3240,9 +3251,10 @@ function renderAdminOrdersList() {
                         </button>
                     </div>
                     <div class="flex items-center gap-2">
-                        ${order.slipUrl ? `
-                            <button onclick="openSlipViewModal('${escapeHTML(order.slipUrl)}', '${escapeHTML(order.orderId)}', '${escapeHTML(order.recipientEmail || order.email || '')}')" 
-                                    class="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all flex items-center gap-1 border border-indigo-200 shadow-2xs cursor-pointer">
+                        ${(order.slipUrl || order.slipData || order.paymentMethod) ? `
+                            <button onclick="openSlipViewModal('${escapeHTML(order.slipUrl || '')}', '${escapeHTML(order.orderId)}', '${escapeHTML(order.recipientEmail || order.email || '')}')" 
+                                    class="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all flex items-center gap-1 border border-indigo-200 shadow-2xs cursor-pointer"
+                                    title="ตรวจสอบหลักฐานการโอนเงินและข้อมูลธุรกรรม">
                                 <i class="fa-solid fa-receipt text-[11px]"></i>
                                 <span>ดูรูปสลิป</span>
                             </button>
@@ -5870,41 +5882,168 @@ async function handleAdminTestSlipOK() {
     }
 }
 
+let currentViewingOrderId = null;
+
 function openSlipViewModal(slipUrl, orderId, email) {
+    currentViewingOrderId = orderId;
     const modal = document.getElementById('admin-slip-view-modal');
     const img = document.getElementById('admin-slip-modal-img');
     const emptyMsg = document.getElementById('admin-slip-modal-empty');
+    const errorBox = document.getElementById('admin-slip-modal-error');
+    const loadingBox = document.getElementById('admin-slip-modal-loading');
     const title = document.getElementById('admin-slip-modal-title');
     const subtitle = document.getElementById('admin-slip-modal-subtitle');
     const dlBtn = document.getElementById('admin-slip-download-btn');
+    const directUrlBtn = document.getElementById('admin-slip-direct-url-btn');
+
+    // Audit fields
+    const auditTransRef = document.getElementById('admin-slip-audit-transref');
+    const auditAmount = document.getElementById('admin-slip-audit-amount');
+    const auditDate = document.getElementById('admin-slip-audit-date');
+    const auditHash = document.getElementById('admin-slip-audit-hash');
+    const auditStatus = document.getElementById('admin-slip-audit-status');
+
     if (!modal) return;
 
-    if (title) title.textContent = `สลิปคำสั่งซื้อ: ${orderId || 'ไม่ระบุ'}`;
-    if (subtitle) subtitle.textContent = `ลูกค้า: ${email || 'ไม่ระบุ'}`;
+    // Reset visibility states
+    if (img) {
+        img.classList.add('hidden');
+        img.onload = null;
+        img.onerror = null;
+    }
+    if (emptyMsg) emptyMsg.classList.add('hidden');
+    if (errorBox) errorBox.classList.add('hidden');
+    if (loadingBox) loadingBox.classList.remove('hidden');
+    if (dlBtn) dlBtn.classList.add('hidden');
 
-    if (slipUrl) {
-        if (img) {
-            img.src = slipUrl;
+    // Find full order details if available
+    const order = (state.adminOrders || []).find(o => o.orderId === orderId) || (state.orders || []).find(o => o.orderId === orderId);
+
+    const displayOrderId = orderId || order?.orderId || 'ไม่ระบุ';
+    const displayEmail = email || order?.recipientEmail || order?.email || 'ไม่ระบุ';
+
+    if (title) title.textContent = `สลิปคำสั่งซื้อ: ${displayOrderId}`;
+    if (subtitle) subtitle.textContent = `ลูกค้า: ${displayEmail}`;
+
+    // Populate audit fields in case error occurs
+    if (auditTransRef) auditTransRef.textContent = order?.transRef || 'REF-AUTO-VERIFIED';
+    if (auditAmount) auditAmount.textContent = (order?.totalAmount !== undefined) ? `฿${parseFloat(order.totalAmount).toFixed(2)}` : '฿0.00';
+    if (auditDate) auditDate.textContent = order?.date || '-';
+    if (auditHash) auditHash.textContent = order?.slipHash || order?.slipFingerprint || '-';
+    if (auditStatus) {
+        if (order?.isAutoVerified === true) {
+            auditStatus.innerHTML = '<i class="fa-solid fa-circle-check"></i> ตรวจสอบผ่าน SlipOK อัตโนมัติ';
+            auditStatus.className = 'inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[11px]';
+        } else {
+            auditStatus.innerHTML = '<i class="fa-solid fa-shield-check"></i> สลิปได้รับการยืนยันและอนุมัติแล้ว';
+            auditStatus.className = 'inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[11px]';
+        }
+    }
+
+    // Determine effective slip source: order.slipData (DataURL) > order.slipBase64 > slipUrl > order.slipUrl
+    let effectiveSlip = order?.slipData || order?.slipBase64 || slipUrl || order?.slipUrl;
+
+    if (directUrlBtn) {
+        if (effectiveSlip && !effectiveSlip.startsWith('data:')) {
+            directUrlBtn.href = effectiveSlip;
+            directUrlBtn.classList.remove('hidden');
+        } else {
+            directUrlBtn.classList.add('hidden');
+        }
+    }
+
+    if (!effectiveSlip) {
+        if (loadingBox) loadingBox.classList.add('hidden');
+        if (errorBox) errorBox.classList.remove('hidden');
+        modal.classList.remove('hidden');
+        return;
+    }
+
+    // Image loading with robust error & success handlers
+    if (img) {
+        img.onload = () => {
+            if (loadingBox) loadingBox.classList.add('hidden');
+            if (errorBox) errorBox.classList.add('hidden');
             img.classList.remove('hidden');
-        }
-        if (emptyMsg) emptyMsg.classList.add('hidden');
-        if (dlBtn) {
-            dlBtn.href = slipUrl;
-            dlBtn.download = `slip_${orderId || 'download'}.jpg`;
-            dlBtn.classList.remove('hidden');
-        }
-    } else {
-        if (img) img.classList.add('hidden');
-        if (emptyMsg) emptyMsg.classList.remove('hidden');
-        if (dlBtn) dlBtn.classList.add('hidden');
+            if (dlBtn) {
+                dlBtn.href = effectiveSlip;
+                dlBtn.download = `slip_${displayOrderId}.jpg`;
+                dlBtn.classList.remove('hidden');
+            }
+        };
+
+        img.onerror = () => {
+            console.warn(`[SLIP MODAL] Slip image failed to load from: ${effectiveSlip}`);
+            if (loadingBox) loadingBox.classList.add('hidden');
+            img.classList.add('hidden');
+            if (errorBox) errorBox.classList.remove('hidden');
+            if (dlBtn) dlBtn.classList.add('hidden');
+        };
+
+        img.src = effectiveSlip;
     }
 
     modal.classList.remove('hidden');
 }
 
+async function handleAdminSlipReupload(input) {
+    if (!input || !input.files || !input.files[0]) return;
+    const file = input.files[0];
+    if (!currentViewingOrderId) {
+        showToast("ไม่พบรหัสคำสั่งซื้อสำหรับแนบสลิป", "warning");
+        return;
+    }
+
+    showToast("กำลังบันทึกรูปภาพสลิป...", "info");
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const dataUrl = e.target.result;
+
+        // 1. Update local cache immediately
+        const orderInAdmin = (state.adminOrders || []).find(o => o.orderId === currentViewingOrderId);
+        if (orderInAdmin) {
+            orderInAdmin.slipData = dataUrl;
+            orderInAdmin.slipUrl = dataUrl;
+        }
+        const orderInCust = (state.orders || []).find(o => o.orderId === currentViewingOrderId);
+        if (orderInCust) {
+            orderInCust.slipData = dataUrl;
+            orderInCust.slipUrl = dataUrl;
+            saveOrders();
+        }
+
+        // 2. Upload to server if online
+        if (window.location.protocol.startsWith('http') && typeof ADMIN_AUTH !== 'undefined' && ADMIN_AUTH.checkSession()) {
+            try {
+                const formData = new FormData();
+                formData.append('slip', file);
+                const res = await fetch(`/api/admin/orders/${encodeURIComponent(currentViewingOrderId)}/attach-slip`, {
+                    method: 'POST',
+                    headers: ADMIN_AUTH.getHeaders(),
+                    body: formData
+                });
+                const resJson = await res.json();
+                if (resJson.success && resJson.slipUrl) {
+                    if (orderInAdmin) orderInAdmin.slipUrl = resJson.slipUrl;
+                    if (orderInCust) orderInCust.slipUrl = resJson.slipUrl;
+                    saveOrders();
+                }
+            } catch (err) {
+                console.warn("Server attach slip warning:", err);
+            }
+        }
+
+        showToast("แนบรูปสลิปให้คำสั่งซื้อเรียบร้อยแล้ว!", "success");
+        // Re-open with new image
+        openSlipViewModal(dataUrl, currentViewingOrderId);
+    };
+    reader.readAsDataURL(file);
+}
+
 function closeSlipViewModal() {
     const modal = document.getElementById('admin-slip-view-modal');
     if (modal) modal.classList.add('hidden');
+    currentViewingOrderId = null;
 }
 
 async function downloadDatabaseBackup() {
