@@ -303,33 +303,63 @@ const CHAT = (() => {
         ws.send(JSON.stringify({ type: 'message', text: questionText }));
     }
 
+    function openChatWindow() {
+        if (!document.getElementById('spk-chat-root')) {
+            init();
+        }
+        opened = true;
+        const win = document.getElementById('spk-chat-window');
+        if (win) {
+            win.classList.remove('hidden');
+            unreadCount = 0;
+            updateBadge();
+            const inp = document.getElementById('spk-msg-input');
+            const nameInp = document.getElementById('spk-name-input');
+            if (inp && !inp.closest('.hidden')) {
+                inp.focus();
+            } else if (nameInp) {
+                nameInp.focus();
+            }
+        }
+    }
+
+    function closeChatWindow() {
+        opened = false;
+        const win = document.getElementById('spk-chat-window');
+        if (win) {
+            win.classList.add('hidden');
+        }
+    }
+
     /* ── Init ─────────────────────────────────────────────────────── */
     function init() {
+        if (document.getElementById('spk-chat-root')) return;
         injectWidget();
 
         const btn     = document.getElementById('spk-chat-btn');
-        const win     = document.getElementById('spk-chat-window');
         const close   = document.getElementById('spk-chat-close');
         const nameBtn = document.getElementById('spk-name-btn');
         const nameInp = document.getElementById('spk-name-input');
         const msgInp  = document.getElementById('spk-msg-input');
         const sendBtn = document.getElementById('spk-send-btn');
 
-        btn.addEventListener('click', () => {
-            opened = !opened;
-            win.classList.toggle('hidden', !opened);
-            if (opened) {
-                unreadCount = 0;
-                updateBadge();
-                msgInp?.focus();
+        // Auto-fill member name if logged in
+        if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+            const user = USER_AUTH.getUser();
+            if (user && nameInp && !nameInp.value) {
+                nameInp.value = user.displayName || user.name || user.email?.split('@')[0] || '';
             }
-        });
-        function closeChatWindow() {
-            opened = false;
-            win.classList.add('hidden');
         }
 
-        close.addEventListener('click', closeChatWindow);
+        btn?.addEventListener('click', () => {
+            if (opened) {
+                closeChatWindow();
+            } else {
+                openChatWindow();
+            }
+        });
+
+        close?.addEventListener('click', closeChatWindow);
 
         // Close on ESC key (only if no higher modal or drawer overlay is active)
         document.addEventListener('keydown', (e) => {
@@ -345,12 +375,12 @@ const CHAT = (() => {
 
         // Start chat (auth as customer)
         const startChat = () => {
-            const name = nameInp.value.trim() || 'ลูกค้า';
-            nameInp.dataset.savedName = name;
+            const name = (nameInp?.value || '').trim() || 'ลูกค้า';
+            if (nameInp) nameInp.dataset.savedName = name;
             connect(name);
         };
-        nameBtn.addEventListener('click', startChat);
-        nameInp.addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
+        nameBtn?.addEventListener('click', startChat);
+        nameInp?.addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
 
         // Quick FAQ chips binding
         document.querySelectorAll('.spk-chip').forEach(chip => {
@@ -361,31 +391,24 @@ const CHAT = (() => {
         });
 
         // Auto-resize textarea
-        msgInp.addEventListener('input', () => {
-            msgInp.style.height = '';
-            msgInp.style.height = Math.min(msgInp.scrollHeight, 100) + 'px';
-            // Typing signal
-            if (ws && ws.readyState === 1) {
-                clearTimeout(typingTimer);
-                ws.send(JSON.stringify({ type: 'typing' }));
-                typingTimer = setTimeout(() => {}, 2000);
-            }
-        });
+        if (msgInp) {
+            msgInp.addEventListener('input', () => {
+                msgInp.style.height = '';
+                msgInp.style.height = Math.min(msgInp.scrollHeight, 100) + 'px';
+                // Typing signal
+                if (ws && ws.readyState === 1) {
+                    clearTimeout(typingTimer);
+                    ws.send(JSON.stringify({ type: 'typing' }));
+                    typingTimer = setTimeout(() => {}, 2000);
+                }
+            });
 
-        sendBtn.addEventListener('click', sendMsg);
-        msgInp.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
-        });
-    }
-
-    function openChatWindow() {
-        const win = document.getElementById('spk-chat-window');
-        const btn = document.getElementById('spk-chat-btn');
-        if (win && win.classList.contains('hidden')) {
-            btn?.click();
-        } else if (win) {
-            (document.getElementById('spk-msg-input') || document.getElementById('spk-name-input'))?.focus();
+            msgInp.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+            });
         }
+
+        sendBtn?.addEventListener('click', sendMsg);
     }
 
     return { init, openChatWindow, closeChatWindow };
@@ -395,8 +418,8 @@ window.openLiveChat = function() {
     if (typeof CHAT !== 'undefined' && typeof CHAT.openChatWindow === 'function') {
         CHAT.openChatWindow();
     } else {
-        const btn = document.getElementById('spk-chat-btn');
-        btn?.click();
+        const win = document.getElementById('spk-chat-window');
+        if (win) win.classList.remove('hidden');
     }
 };
 
@@ -404,8 +427,8 @@ window.closeLiveChat = function() {
     if (typeof CHAT !== 'undefined' && typeof CHAT.closeChatWindow === 'function') {
         CHAT.closeChatWindow();
     } else {
-        const btn = document.getElementById('spk-chat-close');
-        btn?.click();
+        const win = document.getElementById('spk-chat-window');
+        if (win) win.classList.add('hidden');
     }
 };
 

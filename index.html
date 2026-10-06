@@ -70,6 +70,8 @@
         window.createDemoOrder = window.createDemoOrder || function() {};
         window.renderHighlightProducts = window.renderHighlightProducts || function() {};
         window.closeTopmostModal = window.closeTopmostModal || function() {};
+        window.openLiveChat = window.openLiveChat || function() {};
+        window.closeLiveChat = window.closeLiveChat || function() {};
     </script>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white pb-28 md:pb-0">
@@ -140,8 +142,19 @@
             <div class="hidden md:flex flex-1 max-w-lg xl:max-w-xl mx-4">
                 <div class="relative w-full">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
-                    <input type="text" id="search-input" placeholder="ค้นหา เช่น CapCut, Grok..." 
-                           class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs sm:text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
+                    <input type="text" id="search-input" name="spk_search_q" placeholder="ค้นหา เช่น CapCut, Grok..." 
+                           autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                           readonly
+                           data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                           data-form-type="other" aria-autocomplete="none"
+                           onfocus="this.removeAttribute('readonly');"
+                           onpointerdown="this.removeAttribute('readonly');"
+                           ontouchstart="this.removeAttribute('readonly');"
+                           class="w-full pl-9 pr-9 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs sm:text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
+                    <button type="button" id="desktop-search-clear" onclick="const di = document.getElementById('search-input'); if(di){di.value=''; state.searchQuery=''; const mi = document.getElementById('mobile-search-input'); if(mi) mi.value=''; this.classList.add('hidden'); const mc = document.getElementById('mobile-search-clear'); if(mc) mc.classList.add('hidden'); applyFilters();}" 
+                            class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer" title="ล้างการค้นหา">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
                 </div>
             </div>
 
@@ -177,10 +190,17 @@
         <div class="md:hidden px-3 sm:px-4 pb-2">
             <div class="relative w-full">
                 <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 text-xs"></i>
-                <input type="text" id="mobile-search-input" placeholder="ค้นหา เช่น CapCut, Grok, Claude..." 
+                <input type="text" id="mobile-search-input" name="spk_m_search_q" placeholder="ค้นหา เช่น CapCut, Grok, Claude..." 
+                       autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                       readonly
+                       data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                       data-form-type="other" aria-autocomplete="none"
+                       onfocus="this.removeAttribute('readonly');"
+                       onpointerdown="this.removeAttribute('readonly');"
+                       ontouchstart="this.removeAttribute('readonly');"
                        class="w-full pl-8 pr-8 py-1.5 rounded-xl bg-slate-100 border border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs text-slate-900 placeholder-slate-400 outline-none transition-all font-medium">
-                <button type="button" id="mobile-search-clear" onclick="const mi = document.getElementById('mobile-search-input'); if(mi){mi.value=''; state.searchQuery=''; const di = document.getElementById('search-input'); if(di) di.value=''; this.classList.add('hidden'); applyFilters();}" 
-                        class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1" title="ล้างการค้นหา">
+                <button type="button" id="mobile-search-clear" onclick="const mi = document.getElementById('mobile-search-input'); if(mi){mi.value=''; state.searchQuery=''; const di = document.getElementById('search-input'); if(di) di.value=''; this.classList.add('hidden'); const dc = document.getElementById('desktop-search-clear'); if(dc) dc.classList.add('hidden'); applyFilters();}" 
+                        class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer" title="ล้างการค้นหา">
                     <i class="fa-solid fa-circle-xmark"></i>
                 </button>
             </div>
@@ -1737,8 +1757,15 @@
             <div class="mt-3 space-y-2 shrink-0">
                 <div class="relative">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                    <input type="text" id="customer-keys-search" oninput="handleCustomerKeysSearch(this.value)"
+                    <input type="text" id="customer-keys-search" name="spk_ck_search_q" oninput="handleCustomerKeysSearch(this.value)"
                            placeholder="🔍 ค้นหาชื่อสินค้า, อีเมล, เลขที่คำสั่งซื้อ (เช่น CapCut, Windows, ORD-)..."
+                           autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                           readonly
+                           data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                           data-form-type="other" aria-autocomplete="none"
+                           onfocus="this.removeAttribute('readonly');"
+                           onpointerdown="this.removeAttribute('readonly');"
+                           ontouchstart="this.removeAttribute('readonly');"
                            class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-pink-500 outline-none transition-all font-medium">
                     <button id="customer-keys-clear-search" onclick="clearCustomerKeysSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
                         <i class="fa-solid fa-circle-xmark"></i>
@@ -2242,8 +2269,15 @@
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                     <div class="relative flex-1">
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                        <input type="text" id="admin-order-search" oninput="handleAdminOrderSearch(this.value)" 
+                        <input type="text" id="admin-order-search" name="spk_adm_order_q" oninput="handleAdminOrderSearch(this.value)" 
                                placeholder="ค้นหาเลขออเดอร์ (SPK-...), อีเมลลูกค้า, หรือชื่อสินค้า..." 
+                               autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                               readonly
+                               data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                               data-form-type="other" aria-autocomplete="none"
+                               onfocus="this.removeAttribute('readonly');"
+                               onpointerdown="this.removeAttribute('readonly');"
+                               ontouchstart="this.removeAttribute('readonly');"
                                class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
                         <button id="admin-order-clear-search" onclick="clearAdminOrderSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                             <i class="fa-solid fa-xmark text-xs"></i>
@@ -2289,8 +2323,15 @@
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                     <div class="relative flex-1">
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                        <input type="text" id="admin-stock-search" oninput="handleAdminStockSearch(this.value)" 
+                        <input type="text" id="admin-stock-search" name="spk_adm_stock_q" oninput="handleAdminStockSearch(this.value)" 
                                placeholder="ค้นหาชื่อสินค้าในระบบ..." 
+                               autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                               readonly
+                               data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                               data-form-type="other" aria-autocomplete="none"
+                               onfocus="this.removeAttribute('readonly');"
+                               onpointerdown="this.removeAttribute('readonly');"
+                               ontouchstart="this.removeAttribute('readonly');"
                                class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
                         <button id="admin-stock-clear-search" onclick="clearAdminStockSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer">
                             <i class="fa-solid fa-xmark text-xs"></i>
@@ -2727,8 +2768,15 @@
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                     <div class="relative flex-1">
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                        <input type="text" id="admin-user-search" oninput="handleAdminUserSearch(this.value)"
+                        <input type="text" id="admin-user-search" name="spk_adm_user_q" oninput="handleAdminUserSearch(this.value)"
                             placeholder="ค้นหาสมาชิกด้วยชื่อ, อีเมล หรือ User ID..."
+                            autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                            readonly
+                            data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                            data-form-type="other" aria-autocomplete="none"
+                            onfocus="this.removeAttribute('readonly');"
+                            onpointerdown="this.removeAttribute('readonly');"
+                            ontouchstart="this.removeAttribute('readonly');"
                             class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
                         <button id="admin-user-clear-search" onclick="clearAdminUserSearch()"
                             class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -2794,10 +2842,15 @@
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                     <div class="relative flex-1">
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                        <input type="text" id="admin-coupon-search" oninput="handleAdminCouponSearch(this.value)"
+                        <input type="text" id="admin-coupon-search" name="spk_adm_cpsearch_q" oninput="handleAdminCouponSearch(this.value)"
                             placeholder="ค้นหารหัสคูปอง หรือคำอธิบายโปรโมชั่น..."
-                            autocomplete="off" autocorrect="off" spellcheck="false"
-                            data-lpignore="true" data-form-type="other" aria-autocomplete="none"
+                            autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                            readonly
+                            data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                            data-form-type="other" aria-autocomplete="none"
+                            onfocus="this.removeAttribute('readonly');"
+                            onpointerdown="this.removeAttribute('readonly');"
+                            ontouchstart="this.removeAttribute('readonly');"
                             class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
                         <button id="admin-coupon-clear-search" onclick="clearAdminCouponSearch()"
                             class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">

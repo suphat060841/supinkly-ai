@@ -879,11 +879,24 @@ function selectType(type) {
 
 function initFilters() {
     const searchInput = document.getElementById('search-input');
+    const mobileSearchInput = document.getElementById('mobile-search-input');
+    const desktopClear = document.getElementById('desktop-search-clear');
+    const mobileClear = document.getElementById('mobile-search-clear');
+
+    const handleSearch = (val, origin) => {
+        state.searchQuery = (val || '').toLowerCase().trim();
+        if (origin !== 'desktop' && searchInput) searchInput.value = val;
+        if (origin !== 'mobile' && mobileSearchInput) mobileSearchInput.value = val;
+        if (desktopClear) desktopClear.classList.toggle('hidden', !val);
+        if (mobileClear) mobileClear.classList.toggle('hidden', !val);
+        applyFilters();
+    };
+
     if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            state.searchQuery = e.target.value.toLowerCase().trim();
-            applyFilters();
-        });
+        searchInput.addEventListener('input', (e) => handleSearch(e.target.value, 'desktop'));
+    }
+    if (mobileSearchInput) {
+        mobileSearchInput.addEventListener('input', (e) => handleSearch(e.target.value, 'mobile'));
     }
 
     const sortSelect = document.getElementById('sort-select');
@@ -1192,6 +1205,12 @@ function resetFilters() {
     state.searchQuery = '';
     const searchInput = document.getElementById('search-input');
     if (searchInput) searchInput.value = '';
+    const mobileSearchInput = document.getElementById('mobile-search-input');
+    if (mobileSearchInput) mobileSearchInput.value = '';
+    const desktopClear = document.getElementById('desktop-search-clear');
+    if (desktopClear) desktopClear.classList.add('hidden');
+    const mobileClear = document.getElementById('mobile-search-clear');
+    if (mobileClear) mobileClear.classList.add('hidden');
     renderBrandTabs();
     selectType('all');
     applyFilters();
@@ -6419,6 +6438,38 @@ function initEvents() {
         const unlock = () => {
             input.removeAttribute('readonly');
             input.setAttribute('autocomplete', 'one-time-code');
+        };
+        input.addEventListener('pointerdown', unlock, { passive: true });
+        input.addEventListener('touchstart', unlock, { passive: true });
+        input.addEventListener('focus', unlock, { passive: true });
+    });
+
+    // Setup anti-browser autofill / anti-memory protection for all search inputs
+    const searchInputs = [
+        document.getElementById('search-input'),
+        document.getElementById('mobile-search-input'),
+        document.getElementById('customer-keys-search'),
+        document.getElementById('admin-order-search'),
+        document.getElementById('admin-stock-search'),
+        document.getElementById('admin-user-search'),
+        document.getElementById('admin-coupon-search')
+    ];
+    searchInputs.forEach(input => {
+        if (!input) return;
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'none');
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('data-lpignore', 'true');
+        input.setAttribute('data-1p-ignore', 'true');
+        input.setAttribute('data-bwignore', 'true');
+        input.setAttribute('data-dashlane-ignore', 'true');
+        input.setAttribute('data-form-type', 'other');
+        input.setAttribute('aria-autocomplete', 'none');
+        input.name = 'spk_s_' + Math.random().toString(36).slice(2, 9);
+        const unlock = () => {
+            input.removeAttribute('readonly');
+            input.setAttribute('autocomplete', 'off');
         };
         input.addEventListener('pointerdown', unlock, { passive: true });
         input.addEventListener('touchstart', unlock, { passive: true });
