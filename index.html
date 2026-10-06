@@ -3479,39 +3479,149 @@ W11PR-XXXX-XXXX-XXXX"
          PRODUCT DETAILS MODAL (Bright & Readable)
          ========================================== -->
     <div id="product-detail-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-2.5 sm:p-4">
-        <div class="bg-white max-w-lg w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border border-slate-200 relative max-h-[92vh] overflow-y-auto shadow-2xl">
+        <div class="bg-white max-w-lg w-full rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 relative max-h-[92vh] overflow-y-auto shadow-2xl">
             
-            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
-                <div class="flex items-center gap-2">
-                    <span id="modal-product-brand" class="px-3 py-1 rounded-full text-xs font-bold bg-pink-100 text-pink-700 border border-pink-300"></span>
-                    <span id="modal-product-type" class="text-xs font-bold text-slate-600"></span>
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span id="modal-product-brand" class="px-3 py-1 rounded-full text-xs font-bold bg-pink-100 text-pink-700 border border-pink-200 shadow-2xs"></span>
+                    <span id="modal-product-type" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200"></span>
+                    <span id="modal-product-badge" class="hidden px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300"></span>
                 </div>
-                <button onclick="closeProductDetailModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm">
+                <button onclick="closeProductDetailModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm transition-colors cursor-pointer shrink-0">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
-            <div class="mt-4 space-y-4">
-                <h2 id="modal-product-title" class="text-lg font-black text-slate-900 leading-snug"></h2>
-                
-                <p id="modal-product-desc" class="text-xs sm:text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200 font-medium"></p>
+            <div class="mt-3.5 space-y-4">
+                <!-- Product Title -->
+                <div>
+                    <h2 id="modal-product-title" class="text-base sm:text-lg font-black text-slate-900 leading-snug"></h2>
+                </div>
 
-                <div class="grid grid-cols-2 gap-3 text-xs">
-                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                        <span class="text-slate-500 block text-[11px] font-medium">ระยะเวลารับประกัน:</span>
-                        <span id="modal-product-warranty" class="font-extrabold text-cyan-700 text-sm"></span>
+                <!-- Subtitle / Highlight Proposition -->
+                <div id="modal-product-subtitle-wrap" class="p-3 rounded-2xl bg-gradient-to-r from-pink-50/70 via-purple-50/50 to-pink-50/70 border border-pink-200/80 flex items-start gap-2.5 shadow-2xs">
+                    <div class="w-6 h-6 rounded-lg bg-pink-500 text-white flex items-center justify-center text-xs shrink-0 mt-0.5 shadow-2xs">
+                        <i class="fa-solid fa-sparkles"></i>
                     </div>
-                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                        <span class="text-slate-500 block text-[11px] font-medium">การจัดส่ง:</span>
-                        <span class="font-extrabold text-amber-700 text-sm">⚡ ทันทีผ่าน AI Vault</span>
+                    <div class="min-w-0">
+                        <span class="text-[10px] uppercase tracking-wider font-extrabold text-pink-600 block">สรุปจุดเด่นแพ็กเกจ</span>
+                        <p id="modal-product-subtitle" class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug"></p>
                     </div>
-                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                        <span class="text-slate-500 block text-[11px] font-medium">สินค้าคงเหลือ:</span>
-                        <span id="modal-product-stock" class="font-extrabold text-emerald-700 text-sm"></span>
+                </div>
+
+                <!-- Section: Key Features & Included Benefits -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+                            <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                            <span>สิทธิ์และฟังก์ชันที่คุณจะได้รับ:</span>
+                        </span>
+                        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✨ ลิขสิทธิ์แท้ 100%
+                        </span>
                     </div>
-                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                        <span class="text-slate-500 block text-[11px] font-medium">ยอดจำหน่ายแล้ว:</span>
-                        <span id="modal-product-sold" class="font-extrabold text-slate-800 text-sm"></span>
+
+                    <!-- Dynamic Structured Feature Items -->
+                    <div id="modal-product-features-list" class="space-y-1.5">
+                        <!-- Populated by openProductDetailModal -->
+                    </div>
+
+                    <!-- Plain Text Description (Hidden fallback for compatibility) -->
+                    <p id="modal-product-desc" class="hidden text-xs text-slate-600 font-medium"></p>
+                </div>
+
+                <!-- Section: Systematic Specifications Grid -->
+                <div class="space-y-2 pt-1">
+                    <span class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-table-list text-pink-500"></i>
+                        <span>ข้อมูลจำเพาะของแพ็กเกจ (Specifications):</span>
+                    </span>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        <!-- 1. รูปแบบสิทธิ์ -->
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                            <span class="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-id-badge text-pink-500"></i> รูปแบบสิทธิ์
+                            </span>
+                            <span id="modal-product-spec-type" class="font-extrabold text-slate-900 text-xs mt-1 truncate"></span>
+                        </div>
+                        <!-- 2. ระยะเวลา -->
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                            <span class="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <i class="fa-regular fa-clock text-pink-500"></i> ระยะเวลาใช้งาน
+                            </span>
+                            <span id="modal-product-duration" class="font-extrabold text-slate-900 text-xs mt-1 truncate"></span>
+                        </div>
+                        <!-- 3. การรับประกัน -->
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                            <span class="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-shield-halved text-emerald-600"></i> การรับประกัน
+                            </span>
+                            <span id="modal-product-warranty" class="font-extrabold text-emerald-700 text-xs mt-1 truncate"></span>
+                        </div>
+                        <!-- 4. อุปกรณ์ที่รองรับ -->
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                            <span class="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-desktop text-blue-500"></i> อุปกรณ์ที่รองรับ
+                            </span>
+                            <span id="modal-product-devices" class="font-extrabold text-slate-900 text-xs mt-1 truncate"></span>
+                        </div>
+                        <!-- 5. ภูมิภาค / โซน -->
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                            <span class="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-globe text-cyan-600"></i> โซนการใช้งาน
+                            </span>
+                            <span id="modal-product-region" class="font-extrabold text-slate-900 text-xs mt-1 truncate"></span>
+                        </div>
+                        <!-- 6. รูปแบบจัดส่ง -->
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                            <span class="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-bolt text-amber-500"></i> ระบบส่งมอบ
+                            </span>
+                            <span class="font-extrabold text-amber-700 text-xs mt-1 truncate">⚡ ทันที AI Vault</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Stock Counter & Sold Counter Strip -->
+                <div class="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-50/90 border border-slate-200">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-slate-500 font-medium">คงเหลือ:</span>
+                        <b id="modal-product-stock" class="text-emerald-700 font-extrabold"></b>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-fire text-orange-500 text-xs"></i>
+                        <span class="text-slate-500 font-medium">ยอดสั่งซื้อแล้ว:</span>
+                        <b id="modal-product-sold" class="text-slate-800 font-extrabold"></b>
+                    </div>
+                </div>
+
+                <!-- 3-Step Instant Delivery Workflow -->
+                <div class="p-3 rounded-2xl bg-gradient-to-r from-pink-50/50 via-white to-purple-50/50 border border-pink-200 space-y-2 text-xs">
+                    <div class="font-black text-slate-800 flex items-center justify-between">
+                        <span class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-shield-cat text-pink-600"></i>
+                            <span>3 ขั้นตอนการสั่งซื้อและรับสินค้าทันที:</span>
+                        </span>
+                        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ตรวจสลิปอัตโนมัติ 24 ชม.
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                        <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                            <b class="text-pink-600 block">1. โอนชำระเงิน</b>
+                            <span class="text-slate-500">สแกน QR พร้อมเพย์</span>
+                        </div>
+                        <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                            <b class="text-pink-600 block">2. ตรวจสลิป AI</b>
+                            <span class="text-slate-500">ตรวจสอบทันที</span>
+                        </div>
+                        <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                            <b class="text-pink-600 block">3. รับรหัสใช้งาน</b>
+                            <span class="text-slate-500">ออกหน้าเว็บและอีเมล</span>
+                        </div>
                     </div>
                 </div>
 
@@ -3538,12 +3648,13 @@ W11PR-XXXX-XXXX-XXXX"
                     </div>
                 </div>
 
+                <!-- Modal Bottom Pricing & Action Bar -->
                 <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-4">
                     <div>
                         <span id="modal-product-original-price" class="text-xs text-slate-400 line-through block font-medium"></span>
-                        <span id="modal-product-price" class="text-3xl font-black text-pink-600"></span>
+                        <span id="modal-product-price" class="text-2xl sm:text-3xl font-black text-pink-600"></span>
                     </div>
-                    <button id="modal-add-cart-btn" class="flex-1 py-3.5 rounded-2xl gradient-btn text-white text-sm font-extrabold flex items-center justify-center gap-2">
+                    <button id="modal-add-cart-btn" class="flex-1 py-3.5 rounded-2xl gradient-btn text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-95 transition-transform cursor-pointer">
                         <i class="fa-solid fa-cart-plus"></i>
                         <span>ใส่ตะกร้าสินค้า</span>
                     </button>

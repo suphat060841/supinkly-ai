@@ -1164,15 +1164,41 @@ function renderProducts() {
                         ${escapeHTML(product.title)}
                     </h3>
 
-                    <!-- Concise Subtitle Benefit (Desktop only to keep mobile cards neat) -->
-                    <p class="hidden sm:block text-xs text-slate-500 font-medium mt-1 leading-relaxed line-clamp-2 min-h-[32px]">
-                        ${escapeHTML(product.subtitle || product.description)}
-                    </p>
+                    <!-- Organized Benefit Highlights (Desktop) -->
+                    <div class="hidden sm:flex flex-col gap-1 mt-1.5 min-h-[38px] justify-center">
+                        ${(() => {
+                            const raw = product.subtitle || product.description || '';
+                            const parts = raw.split(/\s*•\s*/).map(s => s.replace(/^[\s•\-\*]+/, '').trim()).filter(Boolean);
+                            if (parts.length > 0) {
+                                return `
+                                    <div class="text-xs text-slate-700 font-medium flex items-center gap-1.5 truncate">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0"></span>
+                                        <span class="truncate">${escapeHTML(parts[0])}</span>
+                                    </div>
+                                    ${parts[1] ? `
+                                    <div class="text-[11px] text-slate-500 font-normal flex items-center gap-1.5 truncate">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
+                                        <span class="truncate">${escapeHTML(parts[1])}</span>
+                                    </div>
+                                    ` : ''}
+                                `;
+                            }
+                            return `<p class="text-xs text-slate-500 font-medium leading-snug line-clamp-2">${escapeHTML(raw)}</p>`;
+                        })()}
+                    </div>
 
-                    <!-- Mobile compact specs tag -->
-                    <div class="sm:hidden flex items-center gap-1 mt-1.5 text-[10px] font-medium text-slate-600 truncate">
-                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">🛡️ ${escapeHTML(product.duration || '30 วัน')}</span>
-                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">⚡ ส่งไว</span>
+                    <!-- Mobile compact specs & benefit tag -->
+                    <div class="sm:hidden flex flex-col gap-1 mt-1">
+                        ${product.subtitle ? `
+                        <div class="text-[10px] text-pink-700 font-semibold truncate bg-pink-50/80 border border-pink-200/60 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                            <i class="fa-solid fa-sparkles text-[8px] text-pink-500 shrink-0"></i>
+                            <span class="truncate">${escapeHTML((product.subtitle || '').split('•')[0].trim())}</span>
+                        </div>
+                        ` : ''}
+                        <div class="flex items-center gap-1 text-[10px] font-medium text-slate-600 truncate">
+                            <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">🛡️ ประกัน ${escapeHTML(product.warranty || '30 วัน')}</span>
+                            <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">⚡ ส่งทันที</span>
+                        </div>
                     </div>
 
                     <!-- 2x2 Neat Specs Grid (Desktop) -->
@@ -5843,21 +5869,89 @@ function openProductDetailModal(productId) {
         imgEl.alt = product.title;
     }
 
-    document.getElementById('modal-product-brand').textContent = product.brand;
-    document.getElementById('modal-product-type').textContent = product.type;
-    document.getElementById('modal-product-title').textContent = product.title;
-    document.getElementById('modal-product-desc').textContent = product.description;
-    document.getElementById('modal-product-price').textContent = `฿${product.price.toFixed(2)}`;
-    document.getElementById('modal-product-original-price').textContent = `฿${product.originalPrice.toFixed(2)}`;
-    document.getElementById('modal-product-warranty').textContent = product.warranty;
-    document.getElementById('modal-product-stock').textContent = `${availableStock} ชิ้น (พร้อมส่ง)`;
-    document.getElementById('modal-product-sold').textContent = `${product.soldCount.toLocaleString()} ชิ้น`;
+    const brandEl = document.getElementById('modal-product-brand');
+    if (brandEl) brandEl.textContent = product.brand || 'AI Tools';
+    const typeEl = document.getElementById('modal-product-type');
+    if (typeEl) typeEl.textContent = product.type || 'บัญชีส่วนตัว';
+    const specTypeEl = document.getElementById('modal-product-spec-type');
+    if (specTypeEl) specTypeEl.textContent = product.type || 'บัญชีส่วนตัว';
+
+    // Marketing Badge
+    const badgeEl = document.getElementById('modal-product-badge');
+    if (badgeEl) {
+        if (product.badge) {
+            badgeEl.textContent = product.badge;
+            badgeEl.classList.remove('hidden');
+        } else {
+            badgeEl.classList.add('hidden');
+        }
+    }
+
+    // Title
+    const titleEl = document.getElementById('modal-product-title');
+    if (titleEl) titleEl.textContent = product.title || '';
+
+    // Subtitle / Tagline Proposition
+    const subtitleEl = document.getElementById('modal-product-subtitle');
+    const subtitleWrap = document.getElementById('modal-product-subtitle-wrap');
+    if (subtitleEl) {
+        const sub = product.subtitle || '';
+        subtitleEl.textContent = sub;
+        if (subtitleWrap) {
+            if (sub) subtitleWrap.classList.remove('hidden');
+            else subtitleWrap.classList.add('hidden');
+        }
+    }
+
+    // Key Features & Benefits (Organized bullet cards)
+    const featuresListEl = document.getElementById('modal-product-features-list');
+    const descEl = document.getElementById('modal-product-desc');
+    if (descEl) descEl.textContent = product.description || '';
+
+    if (featuresListEl) {
+        const rawDesc = product.description || '';
+        const lines = rawDesc
+            .split(/\n+/)
+            .map(line => line.replace(/^[\s•\-\*]+/, '').trim())
+            .filter(line => line.length > 0);
+
+        if (lines.length > 0) {
+            featuresListEl.innerHTML = lines.map(feature => `
+                <div class="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-pink-50/50 via-white to-purple-50/30 border border-slate-200/90 hover:border-pink-300 transition-colors shadow-2xs">
+                    <span class="w-5 h-5 rounded-lg bg-pink-500 text-white flex items-center justify-center text-[10px] shrink-0 mt-0.5 shadow-2xs">
+                        <i class="fa-solid fa-check"></i>
+                    </span>
+                    <span class="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">${escapeHTML(feature)}</span>
+                </div>
+            `).join('');
+        } else {
+            featuresListEl.innerHTML = `
+                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 font-medium">
+                    ${escapeHTML(product.description || 'สิทธิ์การใช้งานแท้ พร้อมระบบตรวจสอบอัตโนมัติ')}
+                </div>
+            `;
+        }
+    }
+
+    // Pricing
+    const priceEl = document.getElementById('modal-product-price');
+    if (priceEl) priceEl.textContent = `฿${product.price.toFixed(2)}`;
+    const origPriceEl = document.getElementById('modal-product-original-price');
+    if (origPriceEl) origPriceEl.textContent = `฿${product.originalPrice.toFixed(2)}`;
+
+    // Specifications Grid
     const durEl = document.getElementById('modal-product-duration');
     if (durEl) durEl.textContent = product.duration || '30 วัน';
     const devEl = document.getElementById('modal-product-devices');
     if (devEl) devEl.textContent = product.devices || 'ทุกอุปกรณ์';
     const regionEl = document.getElementById('modal-product-region');
-    if (regionEl) regionEl.textContent = product.region;
+    if (regionEl) regionEl.textContent = product.region || 'Global (ทั่วโลก)';
+    const warEl = document.getElementById('modal-product-warranty');
+    if (warEl) warEl.textContent = product.warranty || '30 วัน เคลมง่าย';
+    const stockEl = document.getElementById('modal-product-stock');
+    if (stockEl) stockEl.textContent = `${availableStock} ชิ้น (พร้อมส่ง)`;
+    const soldEl = document.getElementById('modal-product-sold');
+    if (soldEl) soldEl.textContent = `${(product.soldCount || 100).toLocaleString()} ชิ้น`;
 
     const addBtn = document.getElementById('modal-add-cart-btn');
     if (addBtn) {
