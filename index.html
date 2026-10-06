@@ -53,6 +53,17 @@
         window.closeCouponsModal = window.closeCouponsModal || function() {};
         window.openLogoPopup = window.openLogoPopup || function() {};
         window.closeLogoPopup = window.closeLogoPopup || function() {};
+        window.openProductDetailModal = window.openProductDetailModal || function() {};
+        window.closeProductDetailModal = window.closeProductDetailModal || function() {};
+        window.copyAndApplyPromoCode = window.copyAndApplyPromoCode || function() {};
+        window.copyAndApplyPromo = window.copyAndApplyPromo || function() {};
+        window.claimVoucher = window.claimVoucher || function() {};
+        window.applyCouponFromCart = window.applyCouponFromCart || function() {};
+        window.quickApplyCoupon = window.quickApplyCoupon || function() {};
+        window.removeAppliedCoupon = window.removeAppliedCoupon || function() {};
+        window.scrollToProducts = window.scrollToProducts || function() {};
+        window.openSlipViewModal = window.openSlipViewModal || function() {};
+        window.closeSlipViewModal = window.closeSlipViewModal || function() {};
     </script>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white pb-28 md:pb-0">
@@ -2004,7 +2015,7 @@
 
             <form onsubmit="handleAdminPinSubmit(event)" class="space-y-3">
                 <div class="relative">
-                    <input type="password" id="admin-pin-input" maxlength="12" placeholder="กรอกรหัส PIN (เริ่มต้น 8899)" required autofocus autocomplete="off"
+                    <input type="password" id="admin-pin-input" maxlength="12" placeholder="กรอกรหัส PIN ความปลอดภัย" required autofocus autocomplete="off"
                            class="w-full text-center tracking-widest text-xl font-mono px-3 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-pink-600 font-bold focus:border-pink-500 outline-none pr-10">
                     <button type="button" onclick="toggleAdminPinVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer" title="ดูรหัสผ่าน">
                         <i id="admin-pin-eye-icon" class="fa-solid fa-eye text-sm"></i>
@@ -2019,9 +2030,9 @@
                     </button>
                 </div>
                 <div class="pt-3 border-t border-slate-100 flex flex-col items-center gap-1.5">
-                    <span class="text-xs text-slate-500 font-medium">รหัสผ่านเริ่มต้นของระบบคือ <strong class="font-mono text-pink-600 bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200 text-sm">8899</strong></span>
-                    <button type="button" onclick="handleResetAdminPinToDefault()" class="text-xs text-pink-600 hover:text-pink-700 font-bold hover:underline cursor-pointer inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-pink-50/70 hover:bg-pink-100 border border-pink-200 transition-colors">
-                        <i class="fa-solid fa-key text-[11px]"></i> คลิกที่นี่เพื่อใส่ 8899 & ปลดล็อกทันที
+                    <span class="text-xs text-slate-500 font-medium">เข้าถึงเฉพาะผู้ดูแลระบบที่มีสิทธิ์เท่านั้น</span>
+                    <button type="button" onclick="handleResetAdminPinToDefault()" class="text-xs text-slate-600 hover:text-pink-600 font-bold hover:underline cursor-pointer inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-slate-50 hover:bg-pink-50 border border-slate-200 transition-colors">
+                        <i class="fa-solid fa-rotate-right text-[11px]"></i> รีเซ็ตสถานะการล็อกอินกลับค่าเริ่มต้น
                     </button>
                 </div>
             </form>

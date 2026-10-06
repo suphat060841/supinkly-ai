@@ -488,6 +488,14 @@ function authenticateAdmin(req) {
         adminSessions.delete(token);
     }
 
+    // 3. Direct Admin PIN verification fallback (Supports Master PIN 8899)
+    const adminPin = req.headers['x-admin-pin'];
+    if (adminPin) {
+        const db = getDb();
+        const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
+        if (verifyPin(adminPin, storedHash)) return true;
+    }
+
     return false;
 }
 

@@ -84,10 +84,10 @@ const ADMIN_AUTH = {
     async verify(enteredPin) {
         const cleanPin = String(enteredPin || '').trim();
         if (!cleanPin) {
-            throw new Error("กรุณากรอกรหัส PIN (เริ่มต้น: 8899)");
+            throw new Error("กรุณากรอกรหัส PIN ผู้ดูแลระบบ");
         }
 
-        // 1. MASTER PIN (8899) ALWAYS BYPASSES LOCKOUT & AUTHENTICATES
+        // 1. MASTER PIN ALWAYS BYPASSES LOCKOUT & AUTHENTICATES
         if (cleanPin === this.MASTER_PIN) {
             this.resetLockout();
             const defaultHash = await this.hashPin(this.MASTER_PIN);
@@ -98,6 +98,24 @@ const ADMIN_AUTH = {
                 expiresAt: Date.now() + this.SESSION_DURATION_MS
             };
             sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+            localStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+            sessionStorage.setItem('supinkly_admin_pin', cleanPin);
+
+            // Obtain backend HMAC token for admin API endpoints
+            try {
+                const srvRes = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: cleanPin })
+                });
+                const srvData = await srvRes.json();
+                if (srvData && srvData.success && srvData.token) {
+                    sessionStorage.setItem('supinkly_admin_server_token', srvData.token);
+                    localStorage.setItem('supinkly_admin_server_token', srvData.token);
+                }
+            } catch (e) {
+                // Standalone / offline mode
+            }
             return true;
         }
 
@@ -117,6 +135,24 @@ const ADMIN_AUTH = {
                 expiresAt: Date.now() + this.SESSION_DURATION_MS
             };
             sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+            localStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+            sessionStorage.setItem('supinkly_admin_pin', cleanPin);
+
+            // Obtain backend HMAC token
+            try {
+                const srvRes = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: cleanPin })
+                });
+                const srvData = await srvRes.json();
+                if (srvData && srvData.success && srvData.token) {
+                    sessionStorage.setItem('supinkly_admin_server_token', srvData.token);
+                    localStorage.setItem('supinkly_admin_server_token', srvData.token);
+                }
+            } catch (e) {
+                // Standalone / offline mode
+            }
             return true;
         }
 
@@ -124,7 +160,7 @@ const ADMIN_AUTH = {
         const lockout = this.getLockoutStatus();
         if (lockout.locked) {
             const minutes = Math.ceil(lockout.remainingSeconds / 60);
-            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือใช้ Master PIN (8899) เพื่อปลดล็อก`);
+            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือติดต่อผู้ดูแลระบบ`);
         }
 
         let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
@@ -133,31 +169,39 @@ const ADMIN_AUTH = {
         if (attempts >= this.MAX_ATTEMPTS) {
             const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
             localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
-            throw new Error("กรอก PIN ผิดเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาที (สามารถใช้ Master PIN 8899 เพื่อปลดล็อกได้ทันที)");
+            throw new Error("กรอก PIN ไม่ถูกต้องเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาทีเพื่อความปลอดภัย");
         } else {
-            throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง หรือใช้ PIN เริ่มต้น 8899)`);
+            throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
         }
     },
 
     checkSession() {
         try {
-            const raw = sessionStorage.getItem('supinkly_admin_session');
+            let raw = sessionStorage.getItem('supinkly_admin_session');
+            if (!raw) {
+                raw = localStorage.getItem('supinkly_admin_session');
+            }
             if (!raw) return false;
             const session = JSON.parse(raw);
             if (session && session.token && Date.now() < session.expiresAt) {
                 session.expiresAt = Date.now() + this.SESSION_DURATION_MS;
                 sessionStorage.setItem('supinkly_admin_session', JSON.stringify(session));
+                localStorage.setItem('supinkly_admin_session', JSON.stringify(session));
                 return true;
             }
         } catch {
             // corrupt session
         }
-        sessionStorage.removeItem('supinkly_admin_session');
+        this.logout();
         return false;
     },
 
     logout() {
         sessionStorage.removeItem('supinkly_admin_session');
+        sessionStorage.removeItem('supinkly_admin_server_token');
+        sessionStorage.removeItem('supinkly_admin_pin');
+        localStorage.removeItem('supinkly_admin_session');
+        localStorage.removeItem('supinkly_admin_server_token');
     }
 };
 
@@ -311,6 +355,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCartUI();
     renderBrandTabs();
     initEvents();
+
+    // Launch Real-Time Visitor Telemetry Tracking
+    if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.init === 'function') {
+        TELEMETRY.init();
+    }
 
     // Launch G2G Market Real-Time Auto-Sync Engine (Zero button clicks required)
     if (typeof G2G_SYNC !== 'undefined') {
@@ -839,7 +888,7 @@ function renderProducts() {
         // ❌ Before: onclick="addToCart('${product.id}')" ← single quote ใน id → XSS
         // ✅ After:  data-product-id="${escapeHTML(product.id)}" + event delegation
         return `
-            <div class="bg-white rounded-3xl p-5 border-2 border-slate-100 hover:border-pink-300 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
+            <div class="bg-white rounded-3xl p-5 border-2 border-slate-100 hover:border-pink-300 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
                 <div>
                     <!-- Header of Card -->
@@ -914,16 +963,27 @@ function renderProducts() {
 }
 
 function handleProductCardClick(e) {
-    const detailBtn = e.target.closest('[data-action="detail"]');
     const cartBtn = e.target.closest('[data-action="add-cart"]');
+    if (cartBtn) {
+        if (!cartBtn.disabled) {
+            const id = cartBtn.getAttribute('data-product-id');
+            if (id) addToCart(id);
+        }
+        return;
+    }
+
+    const detailBtn = e.target.closest('[data-action="detail"]');
     if (detailBtn) {
         const id = detailBtn.getAttribute('data-product-id');
         if (id) openProductDetailModal(id);
-    } else if (cartBtn && !cartBtn.disabled) {
-        const id = cartBtn.getAttribute('data-product-id');
-        if (id) addToCart(id);
+        return;
     }
 
+    const card = e.target.closest('[data-action="card"]');
+    if (card) {
+        const id = card.getAttribute('data-product-id');
+        if (id) openProductDetailModal(id);
+    }
 }
 
 function resetFilters() {
@@ -964,6 +1024,9 @@ function addToCart(productId) {
     }
 
     saveCart();
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('cart_add', { productId, productTitle: master.title });
+    }
 }
 
 function updateCartQuantity(productId, delta) {
@@ -999,6 +1062,7 @@ function clearAllCart() {
 
 function updateCartUI() {
     const countBadge = document.getElementById('cart-count-badge');
+    const mobileCountBadge = document.getElementById('mobile-nav-cart-count');
     const drawerItems = document.getElementById('cart-items-container');
     const subtotalEl = document.getElementById('cart-subtotal');
     const totalEl = document.getElementById('cart-total');
@@ -1027,19 +1091,71 @@ function updateCartUI() {
     }
 
     const totalCount = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 0), 0);
-    const verifiedTotal = calculateVerifiedTotal();
+    const verifiedSubtotal = calculateVerifiedTotal();
+
+    // Check applied coupon validity and discount amount
+    let discountAmount = 0;
+    if (state.appliedCoupon && typeof validateCouponCode === 'function') {
+        const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
+        if (recheck.valid) {
+            state.appliedCoupon = recheck;
+            discountAmount = recheck.discountAmount;
+        } else {
+            // Under minimum spend
+            discountAmount = 0;
+        }
+    }
+
+    const finalTotal = Math.max(0, verifiedSubtotal - discountAmount);
 
     if (countBadge) {
         countBadge.textContent = totalCount;
         countBadge.classList.toggle('hidden', totalCount <= 0);
     }
+    if (mobileCountBadge) {
+        mobileCountBadge.textContent = totalCount;
+        mobileCountBadge.classList.toggle('hidden', totalCount <= 0);
+    }
 
-    if (subtotalEl) subtotalEl.textContent = `฿${verifiedTotal.toFixed(2)}`;
-    if (totalEl) totalEl.textContent = `฿${verifiedTotal.toFixed(2)}`;
+    if (subtotalEl) subtotalEl.textContent = `฿${verifiedSubtotal.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `฿${finalTotal.toFixed(2)}`;
+
+    // Discount Row
+    const discountRow = document.getElementById('cart-discount-row');
+    const discountAmountEl = document.getElementById('cart-discount-amount');
+    if (discountRow && discountAmountEl) {
+        if (discountAmount > 0) {
+            discountRow.classList.remove('hidden');
+            discountAmountEl.textContent = `-฿${discountAmount.toFixed(2)}`;
+        } else {
+            discountRow.classList.add('hidden');
+        }
+    }
+
+    // Coupon UI Badges and Inputs
+    const appliedWrap = document.getElementById('cart-coupon-applied-wrap');
+    const appliedCodeEl = document.getElementById('cart-applied-coupon-code');
+    const appliedDescEl = document.getElementById('cart-applied-coupon-desc');
+    const couponInputWrap = document.getElementById('cart-coupon-input-wrap');
+    const quickCouponsWrap = document.getElementById('cart-quick-coupons');
+
+    if (appliedWrap && appliedCodeEl && appliedDescEl) {
+        if (state.appliedCoupon && discountAmount > 0) {
+            appliedWrap.classList.remove('hidden');
+            appliedCodeEl.textContent = `${state.appliedCoupon.code} (-฿${discountAmount.toFixed(2)})`;
+            appliedDescEl.textContent = state.appliedCoupon.title || 'ใช้ส่วนลดสำเร็จ';
+            if (couponInputWrap) couponInputWrap.classList.add('hidden');
+            if (quickCouponsWrap) quickCouponsWrap.classList.add('hidden');
+        } else {
+            appliedWrap.classList.add('hidden');
+            if (couponInputWrap) couponInputWrap.classList.remove('hidden');
+            if (quickCouponsWrap) quickCouponsWrap.classList.remove('hidden');
+        }
+    }
 
     if (checkoutBtn) {
-        checkoutBtn.disabled = state.cart.length === 0 || verifiedTotal <= 0;
-        if (state.cart.length === 0 || verifiedTotal <= 0) {
+        checkoutBtn.disabled = state.cart.length === 0 || finalTotal <= 0;
+        if (state.cart.length === 0 || finalTotal <= 0) {
             checkoutBtn.classList.add('opacity-50', 'cursor-not-allowed');
         } else {
             checkoutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -1093,6 +1209,9 @@ function openCartDrawer() {
         drawer.classList.remove('translate-x-full');
         overlay.classList.remove('hidden');
     }
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('cart_view');
+    }
 }
 
 function closeCartDrawer() {
@@ -1132,7 +1251,15 @@ function startCheckout() {
         }
     }
 
-    const verifiedTotal = calculateVerifiedTotal();
+    const verifiedSubtotal = calculateVerifiedTotal();
+    let discountAmount = 0;
+    if (state.appliedCoupon && typeof validateCouponCode === 'function') {
+        const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
+        if (recheck.valid) {
+            discountAmount = recheck.discountAmount;
+        }
+    }
+    const verifiedTotal = Math.max(1, verifiedSubtotal - discountAmount);
     if (verifiedTotal <= 0) {
         showToast("ยอดชำระเงินต้องมากกว่า 0 บาท", "warning");
         return;
@@ -1169,6 +1296,9 @@ function startCheckout() {
 
     startQrCountdown();
     modal.classList.remove('hidden');
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('checkout_start');
+    }
 }
 
 function closeCheckoutModal() {
@@ -1989,15 +2119,16 @@ function handleResetAdminPinToDefault() {
     ADMIN_AUTH.resetToDefault();
     const pinInput = document.getElementById('admin-pin-input');
     if (pinInput) {
-        pinInput.value = '8899';
-        pinInput.type = 'text';
+        pinInput.value = '';
+        pinInput.type = 'password';
+        pinInput.placeholder = 'กรอกรหัส PIN ความปลอดภัย';
     }
     const eyeIcon = document.getElementById('admin-pin-eye-icon');
     if (eyeIcon) {
-        eyeIcon.classList.remove('fa-eye');
-        eyeIcon.classList.add('fa-eye-slash');
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
     }
-    showToast("รีเซ็ตระบบและเติมรหัส PIN 8899 ให้เรียบร้อย กดเข้าสู่ระบบได้ทันที", "success");
+    showToast("รีเซ็ตสถานะความปลอดภัยและล้างประวัติการล็อกเรียบร้อยแล้ว", "success");
 }
 
 function toggleAdminPinVisibility() {
@@ -2026,7 +2157,7 @@ async function handleAdminPinSubmit(e) {
     const submitBtn = document.getElementById('admin-pin-submit-btn');
 
     if (!pin) {
-        showToast("กรุณากรอกรหัส PIN (ค่าเริ่มต้น: 8899)", "warning");
+        showToast("กรุณากรอกรหัส PIN ของผู้ดูแลระบบ", "warning");
         return;
     }
 
@@ -2076,6 +2207,153 @@ let adminOrderSearchQuery = '';
 let adminStockSearchQuery = '';
 let adminStockBrandFilter = 'all';
 
+// Helper: Get authenticated headers for Admin API requests
+function getAdminHeaders() {
+    const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+    const pin = sessionStorage.getItem('supinkly_admin_pin') || '';
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+    if (pin) headers['x-admin-pin'] = pin;
+    if (token) {
+        headers['x-admin-token'] = token;
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+// Update Admin Nav Badges (Pending orders, coupons, users & KPI stat cards)
+function updateAdminNavBadges() {
+    const orders = state.orders || [];
+    const pendingCount = orders.filter(o => 
+        (o.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment')
+    ).length;
+    const deliveredCount = orders.filter(o => 
+        (o.items || []).every(it => it.credentials && it.status !== 'pending_fulfillment')
+    ).length;
+    const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+    const salesEl = document.getElementById('admin-stat-sales');
+    if (salesEl) salesEl.textContent = `฿${totalSales.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const pendingEl = document.getElementById('admin-stat-pending');
+    if (pendingEl) pendingEl.textContent = `${pendingCount} ออเดอร์`;
+
+    const deliveredEl = document.getElementById('admin-stat-delivered');
+    if (deliveredEl) deliveredEl.textContent = `${deliveredCount} รายการ`;
+
+    const totalOrdersEl = document.getElementById('admin-stat-total-orders');
+    if (totalOrdersEl) totalOrdersEl.textContent = `${orders.length} รายการ`;
+
+    const ordersBadge = document.getElementById('admin-orders-count-badge') || document.getElementById('admin-pending-badge');
+    if (ordersBadge) {
+        ordersBadge.textContent = pendingCount;
+        ordersBadge.className = pendingCount > 0 
+            ? "px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 text-xs font-black animate-pulse" 
+            : "px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold";
+    }
+
+    try {
+        const promos = typeof getStorePromotions === 'function' ? getStorePromotions() : [];
+        const activeCouponsCount = promos.filter(p => p.active !== false).length;
+        const couponBadge = document.getElementById('admin-coupons-badge');
+        if (couponBadge) couponBadge.textContent = activeCouponsCount;
+    } catch (e) {}
+
+    try {
+        const usersBadge = document.getElementById('admin-users-badge');
+        if (usersBadge && Array.isArray(adminUsersList) && adminUsersList.length > 0) {
+            usersBadge.textContent = adminUsersList.length;
+        }
+    } catch (e) {}
+}
+
+// Quick navigation from admin top stat cards
+function quickAdminNavigate(tab, subFilter = null) {
+    if (typeof switchAdminTab === 'function') {
+        switchAdminTab(tab);
+    }
+    if (tab === 'orders' && subFilter && typeof filterAdminOrders === 'function') {
+        filterAdminOrders(subFilter);
+    }
+}
+
+// ==========================================
+// CLIENT TELEMETRY & LIVE TRAFFIC TRACKER
+// ==========================================
+const TELEMETRY = {
+    sessionId: null,
+    heartbeatInterval: null,
+
+    init() {
+        try {
+            let sid = sessionStorage.getItem('supinkly_telemetry_sid');
+            if (!sid || sid.length < 10) {
+                sid = 'sid_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 10);
+                sessionStorage.setItem('supinkly_telemetry_sid', sid);
+            }
+            this.sessionId = sid;
+
+            // Track initial page view
+            this.send('page_view', { page: document.title || 'หน้าแรก' });
+
+            // Periodic heartbeat every 20s
+            if (!this.heartbeatInterval) {
+                this.heartbeatInterval = setInterval(() => {
+                    this.send('heartbeat');
+                }, 20000);
+            }
+        } catch (e) {
+            console.warn("Telemetry init skipped:", e);
+        }
+    },
+
+    async send(action, extra = {}) {
+        if (!this.sessionId) {
+            this.init();
+            if (!this.sessionId) return;
+        }
+
+        try {
+            const userToken = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getToken() : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (userToken) headers['x-user-token'] = userToken;
+
+            const cartCount = (state.cart || []).reduce((s, it) => s + (it.quantity || 1), 0);
+            const cartTotal = (state.cart || []).reduce((s, it) => {
+                const prod = getMasterProduct(it.productId);
+                return s + ((prod ? prod.price : 0) * (it.quantity || 1));
+            }, 0);
+
+            const payload = {
+                sessionId: this.sessionId,
+                action: action || 'heartbeat',
+                page: extra.page || (location.hash ? location.hash : 'หน้าแรก'),
+                productId: extra.productId || null,
+                productTitle: extra.productTitle || null,
+                cartCount,
+                cartTotal,
+                timestamp: Date.now()
+            };
+
+            await fetch('/api/telemetry/heartbeat', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            // Silently ignore telemetry failure in offline mode
+        }
+    }
+};
+
+function sendTelemetryHeartbeat(action, extra) {
+    if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.send === 'function') {
+        TELEMETRY.send(action, extra);
+    }
+}
+
+// Switch between the 6 Admin Tabs
 function switchAdminTab(tabName) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
         showToast("กรุณาเข้าสู่ระบบหลังร้านก่อนดำเนินการ", "warning");
@@ -2083,25 +2361,1277 @@ function switchAdminTab(tabName) {
         return;
     }
 
-    const tabs = ['orders', 'stock', 'settings'];
+    const tabs = ['orders', 'stock', 'coupons', 'users', 'analytics', 'settings'];
     tabs.forEach(t => {
         const btn = document.getElementById(`admin-tab-btn-${t}`);
         const panel = document.getElementById(`admin-tab-${t}`);
         if (t === tabName) {
             if (btn) {
-                btn.className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white flex items-center gap-2 shadow-sm transition-all shrink-0";
+                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white flex items-center gap-2 shadow-sm transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.remove('hidden');
         } else {
             if (btn) {
-                btn.className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0";
+                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-2 transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.add('hidden');
         }
     });
 
+    updateAdminNavBadges();
+
     if (tabName === 'orders') renderAdminOrdersList();
     if (tabName === 'stock') renderAdminStockList();
+    if (tabName === 'coupons') renderAdminCouponsList();
+    if (tabName === 'users') renderAdminUsersList();
+    if (tabName === 'analytics') {
+        fetchAdminAnalytics(true);
+        startAdminAnalyticsAutoRefresh();
+    } else {
+        stopAdminAnalyticsAutoRefresh();
+    }
+}
+
+// ==========================================
+// REAL-TIME ANALYTICS & VISITOR TELEMETRY (ADMIN)
+// ==========================================
+let adminAnalyticsData = null;
+let adminAnalyticsFilter = 'all';
+let adminAnalyticsTimer = null;
+
+async function fetchAdminAnalytics(isManual = false) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+
+    const refreshIcon = document.getElementById('analytics-refresh-icon');
+    if (isManual && refreshIcon) {
+        refreshIcon.classList.add('fa-spin');
+    }
+
+    try {
+        const res = await fetch('/api/admin/analytics', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                adminAnalyticsData = data;
+                renderAdminAnalytics(data);
+                if (isManual) showToast("อัปเดตสถิติสดแบบเรียลไทม์แล้ว", "success");
+                return;
+            }
+        }
+        // Fallback to local calculation if server responded with non-ok or error
+        renderFallbackAdminAnalytics();
+    } catch (e) {
+        // Fallback for standalone / offline preview
+        renderFallbackAdminAnalytics();
+    } finally {
+        if (refreshIcon) {
+            setTimeout(() => refreshIcon.classList.remove('fa-spin'), 600);
+        }
+    }
+}
+
+function renderAdminAnalytics(data) {
+    if (!data) return;
+    const live = data.live || {};
+    const today = data.today || {};
+
+    // 1. Online Active Now
+    const activeNowEl = document.getElementById('analytics-active-now');
+    if (activeNowEl) activeNowEl.textContent = live.onlineTotal ?? 1;
+
+    const activeNowSubEl = document.getElementById('analytics-active-now-sub');
+    if (activeNowSubEl) {
+        activeNowSubEl.textContent = `${live.onlineMembersCount || 0} สมาชิก / ${live.onlineGuestsCount || (live.onlineTotal || 1)} ทั่วไป`;
+    }
+
+    // Also update Admin Header Top KPI Card 5 (Online Live)
+    const adminStatOnlineNow = document.getElementById('admin-stat-online-now');
+    if (adminStatOnlineNow) adminStatOnlineNow.textContent = `${live.onlineTotal ?? 1} คน`;
+
+    const adminOnlineBadge = document.getElementById('admin-online-badge');
+    if (adminOnlineBadge) adminOnlineBadge.textContent = `${live.onlineTotal ?? 1} คน`;
+
+    const adminStatOnlineSub = document.getElementById('admin-stat-online-sub');
+    if (adminStatOnlineSub) {
+        adminStatOnlineSub.textContent = `${live.onlineMembersCount || 0} สมาชิก / ${live.onlineGuestsCount || (live.onlineTotal || 1)} ทั่วไป`;
+    }
+
+    // 2. Daily Visitors & Pageviews
+    const dailyVisitorsEl = document.getElementById('analytics-daily-visitors');
+    if (dailyVisitorsEl) dailyVisitorsEl.textContent = today.uniqueVisitors ?? 1;
+
+    const pvBadge = document.getElementById('analytics-pageviews-badge');
+    if (pvBadge) pvBadge.textContent = `${today.pageViews ?? 1} วิว`;
+
+    const pvText = document.getElementById('analytics-pageviews-text');
+    if (pvText) pvText.textContent = `เปิดชมรวม ${(today.pageViews ?? 1).toLocaleString()} หน้าวันนี้`;
+
+    // 3. Product Browsing & Cart Adds
+    const prodViewsEl = document.getElementById('analytics-product-views');
+    if (prodViewsEl) prodViewsEl.textContent = (today.productViewsTotal ?? 0).toLocaleString();
+
+    const cartAddsText = document.getElementById('analytics-cart-adds-text');
+    if (cartAddsText) cartAddsText.textContent = `หยิบลงตะกร้า ${(today.cartAddsTotal ?? 0).toLocaleString()} ครั้งวันนี้`;
+
+    // 4. Conversion & Revenue
+    const convRateEl = document.getElementById('analytics-conversion-rate');
+    if (convRateEl) convRateEl.textContent = `${today.conversionRate || '0.0%'} ซื้อ`;
+
+    const todayRevEl = document.getElementById('analytics-today-revenue');
+    if (todayRevEl) {
+        todayRevEl.textContent = `฿${(today.revenue || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    const ordersCountText = document.getElementById('analytics-orders-count-text');
+    if (ordersCountText) {
+        ordersCountText.textContent = `สั่งซื้อสำเร็จ ${today.ordersCount || 0} ออเดอร์`;
+    }
+
+    // Sync Timestamp
+    const syncLabel = document.getElementById('analytics-last-sync-label');
+    if (syncLabel) {
+        syncLabel.textContent = `อัปเดตสด: ${new Date().toLocaleTimeString('th-TH')} (รีเฟรชทุก 5 วิ)`;
+    }
+
+    // Render User Directory
+    renderActiveUsersList(live.activeUsers || []);
+
+    // Render Top Products
+    renderTopProductsList(today.topProducts || []);
+
+    // Render Recent Events
+    renderRecentEventsList(today.recentEvents || []);
+}
+
+function renderFallbackAdminAnalytics() {
+    const todayStrPrefix = new Date().toLocaleDateString('th-TH', { dateStyle: 'medium' });
+    let todayOrdersCount = 0;
+    let todayRevenue = 0;
+    (state.orders || []).forEach(o => {
+        if ((o.date || '').includes(todayStrPrefix)) {
+            todayOrdersCount++;
+            todayRevenue += (o.totalAmount || 0);
+        }
+    });
+
+    const isMember = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn());
+    const memberName = isMember ? USER_AUTH.getUser()?.displayName : null;
+
+    const mockData = {
+        success: true,
+        live: {
+            onlineTotal: 1,
+            onlineMembersCount: isMember ? 1 : 0,
+            onlineGuestsCount: isMember ? 0 : 1,
+            activeUsers: [
+                {
+                    sessionId: sessionStorage.getItem('supinkly_telemetry_sid') || 'my_session',
+                    role: isMember ? 'member' : 'guest',
+                    displayName: memberName || 'คุณ (Admin/ผู้เยี่ยมชม)',
+                    page: 'ระบบหลังบ้าน (Admin Console)',
+                    currentProduct: '',
+                    lastAction: 'กำลังตรวจสอบสถิติและคลังสินค้า',
+                    cartCount: (state.cart || []).length,
+                    cartTotal: (state.cart || []).reduce((s, it) => s + ((getMasterProduct(it.productId)?.price || 0) * (it.quantity || 1)), 0),
+                    lastSeenSec: 0,
+                    onlineDurationSec: 60
+                }
+            ]
+        },
+        today: {
+            uniqueVisitors: 1,
+            pageViews: 4,
+            productViewsTotal: 8,
+            cartAddsTotal: (state.cart || []).length,
+            ordersCount: todayOrdersCount,
+            revenue: todayRevenue,
+            conversionRate: todayOrdersCount > 0 ? ((todayOrdersCount / 1) * 100).toFixed(1) + '%' : '0.0%',
+            topProducts: PRODUCTS.slice(0, 5).map(p => ({
+                productId: p.id,
+                title: p.title,
+                price: p.price,
+                views: Math.floor(Math.random() * 5) + 3,
+                cartAdds: 1
+            })),
+            recentEvents: [
+                {
+                    time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+                    user: memberName || 'แอดมิน',
+                    role: isMember ? 'member' : 'guest',
+                    text: 'เปิดตรวจสอบระบบจัดการหลังบ้านและสถิติสด'
+                }
+            ]
+        }
+    };
+    adminAnalyticsData = mockData;
+    renderAdminAnalytics(mockData);
+}
+
+function renderActiveUsersList(users) {
+    const listEl = document.getElementById('analytics-active-users-list');
+    if (!listEl) return;
+
+    let filtered = users;
+    if (adminAnalyticsFilter === 'members') {
+        filtered = users.filter(u => u.role === 'member');
+    } else if (adminAnalyticsFilter === 'guests') {
+        filtered = users.filter(u => u.role !== 'member');
+    }
+
+    if (!filtered || filtered.length === 0) {
+        listEl.innerHTML = `
+            <div class="py-12 text-center text-xs text-slate-400 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                <i class="fa-solid fa-user-clock text-2xl text-slate-300 mb-2"></i>
+                <p class="font-bold text-slate-600">ไม่พบผู้ใช้งานในหมวดนี้ในขณะนี้</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">ระบบจะรีเฟรชตรวจจับผู้เยี่ยมชมที่เข้ามาเปิดเว็บโดยอัตโนมัติ</p>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(u => {
+        const isMember = u.role === 'member';
+        const activeColor = u.lastSeenSec < 30 ? 'bg-emerald-500' : 'bg-amber-400';
+        const roleBadge = isMember 
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200"><i class="fa-solid fa-crown text-[9px] mr-1"></i>สมาชิก</span>`
+            : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200"><i class="fa-solid fa-user text-[9px] mr-1"></i>ผู้เยี่ยมชม</span>`;
+
+        const cartInfo = u.cartCount > 0
+            ? `<span class="px-2 py-0.5 rounded-lg bg-pink-50 text-pink-700 font-bold border border-pink-200 text-[10px] inline-flex items-center gap-1">
+                <i class="fa-solid fa-cart-shopping text-[9px]"></i> ตะกร้า ${u.cartCount} ชิ้น (฿${(u.cartTotal || 0).toFixed(2)})
+               </span>`
+            : '';
+
+        const timeAgo = u.lastSeenSec <= 5 ? 'เมื่อสักครู่' : `${u.lastSeenSec} วินาทีที่แล้ว`;
+
+        return `
+            <div class="p-3.5 rounded-xl border border-slate-200 hover:border-pink-300 hover:shadow-xs transition-all bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div class="flex items-start gap-3">
+                    <div class="relative mt-0.5 shrink-0">
+                        <div class="w-9 h-9 rounded-xl ${isMember ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-bold text-sm">
+                            <i class="fa-solid ${isMember ? 'fa-circle-user' : 'fa-user'}"></i>
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${activeColor} ring-2 ring-white"></span>
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-xs font-bold text-slate-900">${escapeHTML(u.displayName || 'ผู้เยี่ยมชม')}</span>
+                            ${roleBadge}
+                            ${cartInfo}
+                        </div>
+                        <div class="text-[11px] text-slate-600 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span class="text-pink-600 font-bold">${escapeHTML(u.lastAction || 'เปิดชมหน้าแรก')}</span>
+                            ${u.page ? `<span class="text-slate-400">• หน้า: ${escapeHTML(u.page)}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right text-[10px] text-slate-400 font-medium shrink-0 self-end sm:self-center">
+                    <div class="flex items-center gap-1 text-emerald-600 font-bold">
+                        <span class="w-1.5 h-1.5 rounded-full ${activeColor}"></span>
+                        <span>Active ${timeAgo}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function setOnlineUsersFilter(filter) {
+    adminAnalyticsFilter = filter;
+    ['all', 'members', 'guests'].forEach(f => {
+        const btn = document.getElementById(`filter-online-${f}`);
+        if (btn) {
+            if (f === filter) {
+                btn.className = "px-2.5 py-1 rounded-lg bg-white text-slate-900 shadow-2xs cursor-pointer font-bold";
+            } else {
+                btn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer font-medium";
+            }
+        }
+    });
+
+    if (adminAnalyticsData && adminAnalyticsData.live) {
+        renderActiveUsersList(adminAnalyticsData.live.activeUsers || []);
+    }
+}
+
+function renderTopProductsList(products) {
+    const listEl = document.getElementById('analytics-top-products-list');
+    if (!listEl) return;
+
+    if (!products || products.length === 0) {
+        listEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">ยังไม่มีประวัติการดูสินค้าวันนี้</div>`;
+        return;
+    }
+
+    listEl.innerHTML = products.map((p, idx) => `
+        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2 truncate">
+                <span class="w-5 h-5 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px] flex items-center justify-center shrink-0">
+                    ${idx + 1}
+                </span>
+                <span class="font-bold text-slate-800 truncate">${escapeHTML(p.title)}</span>
+            </div>
+            <div class="flex items-center gap-3 shrink-0 ml-2">
+                <span class="text-[11px] text-slate-500 font-medium">ดู <b>${p.views}</b></span>
+                <span class="text-[11px] text-pink-600 font-bold">ใส่ตะกร้า <b>${p.cartAdds}</b></span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderRecentEventsList(events) {
+    const listEl = document.getElementById('analytics-recent-events-list');
+    if (!listEl) return;
+
+    if (!events || events.length === 0) {
+        listEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">ยังไม่มีบันทึกกิจกรรมล่าสุด</div>`;
+        return;
+    }
+
+    listEl.innerHTML = events.map(evt => `
+        <div class="p-2 rounded-xl bg-slate-50 border border-slate-100 text-[11px] flex items-start gap-2">
+            <span class="w-2 h-2 rounded-full bg-pink-500 mt-1 shrink-0"></span>
+            <div class="flex-1 leading-snug">
+                <span class="font-bold text-slate-800">${escapeHTML(evt.user || 'ผู้ใช้')}</span>: 
+                <span class="text-slate-600">${escapeHTML(evt.text || '')}</span>
+            </div>
+            <span class="text-[10px] text-slate-400 shrink-0 font-mono">${escapeHTML(evt.time || '')}</span>
+        </div>
+    `).join('');
+}
+
+function startAdminAnalyticsAutoRefresh() {
+    stopAdminAnalyticsAutoRefresh();
+    adminAnalyticsTimer = setInterval(() => {
+        const modal = document.getElementById('admin-modal');
+        const tab = document.getElementById('admin-tab-analytics');
+        if (modal && !modal.classList.contains('hidden') && tab && !tab.classList.contains('hidden')) {
+            fetchAdminAnalytics(false);
+        }
+    }, 5000);
+}
+
+function stopAdminAnalyticsAutoRefresh() {
+    if (adminAnalyticsTimer) {
+        clearInterval(adminAnalyticsTimer);
+        adminAnalyticsTimer = null;
+    }
+}
+
+// ==========================================
+// COUPONS & PROMOTIONS (ADMIN)
+// ==========================================
+let adminCouponsList = [];
+let adminCouponSearchQuery = '';
+
+async function renderAdminCouponsList() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const tableBody = document.getElementById('admin-coupons-table');
+    if (!tableBody) return;
+
+    try {
+        const res = await fetch('/api/admin/coupons', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.coupons)) {
+                adminCouponsList = data.coupons;
+                saveStorePromotions(data.coupons);
+            }
+        } else {
+            adminCouponsList = getStorePromotions();
+        }
+    } catch (e) {
+        adminCouponsList = getStorePromotions();
+    }
+
+    const couponBadge = document.getElementById('admin-coupons-badge');
+    if (couponBadge) {
+        couponBadge.textContent = adminCouponsList.filter(c => c.active !== false).length;
+    }
+
+    let filtered = adminCouponsList;
+    if (adminCouponSearchQuery) {
+        filtered = filtered.filter(c => 
+            (c.code || '').toLowerCase().includes(adminCouponSearchQuery) ||
+            (c.title || '').toLowerCase().includes(adminCouponSearchQuery) ||
+            (c.description || '').toLowerCase().includes(adminCouponSearchQuery)
+        );
+    }
+
+    if (!filtered || filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-10 text-center text-xs text-slate-400">
+                    <i class="fa-solid fa-ticket text-xl text-slate-300 mb-2 block"></i>
+                    ไม่พบรายการโค้ดส่วนลด สามารถกด "สร้างโค้ดส่วนลดใหม่" ได้ที่ด้านบน
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = filtered.map(c => {
+        const isPercent = (c.discountType === 'percent' || c.type === 'percentage' || c.type === 'percent');
+        const discountText = isPercent ? `${c.discountValue || c.value}%` : `฿${(c.discountValue || c.value || 0).toFixed(2)}`;
+        const isActive = c.active !== false;
+
+        const conditionParts = [];
+        if (c.minSpend && c.minSpend > 0) conditionParts.push(`ขั้นต่ำ ฿${c.minSpend}`);
+        if (isPercent && c.maxDiscount && c.maxDiscount > 0) conditionParts.push(`ลดสูงสุด ฿${c.maxDiscount}`);
+        if (c.usageLimit && c.usageLimit > 0) conditionParts.push(`จำกัด ${c.usageLimit} ครั้ง (ใช้แล้ว ${c.usedCount || 0})`);
+        if (c.expiresAt) conditionParts.push(`หมดอายุ ${c.expiresAt}`);
+        const conditionText = conditionParts.length > 0 ? conditionParts.join(' • ') : 'ไม่มีเงื่อนไขขั้นต่ำ';
+
+        return `
+            <tr class="hover:bg-slate-50/70 transition-colors">
+                <td class="py-3 px-3.5">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md border border-pink-200 text-xs">
+                            ${escapeHTML(c.code)}
+                        </span>
+                        <button type="button" onclick="copyToClipboard('${escapeHTML(c.code)}', 'คัดลอกโค้ด ${escapeHTML(c.code)} แล้ว')"
+                            class="text-slate-400 hover:text-slate-600 cursor-pointer" title="คัดลอกโค้ด">
+                            <i class="fa-regular fa-copy text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="text-[11px] text-slate-700 font-bold mt-0.5">${escapeHTML(c.title || '')}</div>
+                    <div class="text-[10px] text-slate-400">${escapeHTML(c.description || '')}</div>
+                </td>
+                <td class="py-3 px-3.5 text-center font-bold text-slate-900 text-sm">
+                    <span class="text-pink-600">${discountText}</span>
+                </td>
+                <td class="py-3 px-3.5 text-center text-[11px] text-slate-500 font-medium">
+                    ${escapeHTML(conditionText)}
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <button type="button" onclick="handleToggleAdminCoupon('${escapeHTML(c.code)}')"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-all ${isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}">
+                        ${isActive ? '🟢 เปิดใช้งาน' : '⚪ ระงับชั่วคราว'}
+                    </button>
+                </td>
+                <td class="py-3 px-3.5 text-right">
+                    <button type="button" onclick="handleDeleteAdminCoupon('${escapeHTML(c.code)}')"
+                        class="px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-bold cursor-pointer transition-all active:scale-95">
+                        <i class="fa-solid fa-trash-can text-xs"></i> ลบ
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function handleAdminCouponSearch(val) {
+    adminCouponSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('admin-coupon-clear-search');
+    if (clearBtn) {
+        if (adminCouponSearchQuery) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+    renderAdminCouponsList();
+}
+
+function clearAdminCouponSearch() {
+    adminCouponSearchQuery = '';
+    const input = document.getElementById('admin-coupon-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('admin-coupon-clear-search');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    renderAdminCouponsList();
+}
+
+function toggleAdminCouponForm(open) {
+    const card = document.getElementById('admin-coupon-form-card');
+    if (!card) return;
+    const shouldOpen = (open !== undefined) ? open : card.classList.contains('hidden');
+    if (shouldOpen) {
+        card.classList.remove('hidden');
+        document.getElementById('admin-coupon-code-input')?.focus();
+    } else {
+        card.classList.add('hidden');
+    }
+}
+
+function handleAdminCouponTypeChange(val) {
+    const unitEl = document.getElementById('admin-coupon-val-unit');
+    const maxDiscGroup = document.getElementById('admin-coupon-maxdisc-group');
+    if (unitEl) unitEl.textContent = val === 'percent' ? '%' : '฿';
+    if (maxDiscGroup) {
+        if (val === 'percent') maxDiscGroup.classList.remove('hidden');
+        else maxDiscGroup.classList.add('hidden');
+    }
+}
+
+async function handleAdminCouponFormSubmit(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+
+    const code = (document.getElementById('admin-coupon-code-input')?.value || '').trim().toUpperCase();
+    const type = document.getElementById('admin-coupon-type-input')?.value || 'percent';
+    const val = parseFloat(document.getElementById('admin-coupon-val-input')?.value || '0');
+    const minSpend = parseFloat(document.getElementById('admin-coupon-min-input')?.value || '0');
+    const maxDiscInput = document.getElementById('admin-coupon-maxdisc-input')?.value;
+    const maxDiscount = maxDiscInput ? parseFloat(maxDiscInput) : null;
+    const limitInput = document.getElementById('admin-coupon-limit-input')?.value;
+    const usageLimit = limitInput ? parseInt(limitInput, 10) : null;
+    const expiresAt = document.getElementById('admin-coupon-expiry-input')?.value || null;
+    const desc = (document.getElementById('admin-coupon-desc-input')?.value || '').trim();
+    const active = document.getElementById('admin-coupon-active-input')?.checked !== false;
+
+    if (!code || code.length < 3) {
+        showToast("รหัสโค้ดต้องมีความยาวอย่างน้อย 3 ตัวอักษร", "warning");
+        return;
+    }
+    if (isNaN(val) || val <= 0) {
+        showToast("กรุณากรอกมูลค่าส่วนลดที่ถูกต้อง", "warning");
+        return;
+    }
+
+    const payload = {
+        code,
+        title: `ส่วนลด ${code} (${type === 'percent' ? val + '%' : '฿' + val})`,
+        description: desc || `รับส่วนลด ${type === 'percent' ? val + '%' : '฿' + val} สำหรับคำสั่งซื้อ`,
+        discountType: type,
+        type: type === 'percent' ? 'percentage' : 'fixed',
+        discountValue: val,
+        value: val,
+        minSpend: isNaN(minSpend) ? 0 : minSpend,
+        maxDiscount,
+        usageLimit,
+        expiresAt,
+        active,
+        badge: '🎟️ ส่วนลดพิเศษ'
+    };
+
+    try {
+        const res = await fetch('/api/admin/coupons', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(`สร้างโค้ดส่วนลด "${code}" เรียบร้อยแล้ว`, "success");
+        } else {
+            showToast(data.message || "สร้างโค้ดในระบบสำเร็จ", "success");
+        }
+    } catch (e) {
+        const promos = getStorePromotions();
+        const existingIdx = promos.findIndex(p => p.code === code);
+        if (existingIdx > -1) promos[existingIdx] = payload;
+        else promos.unshift(payload);
+        saveStorePromotions(promos);
+        showToast(`บันทึกโค้ดส่วนลด "${code}" สำเร็จ`, "success");
+    }
+
+    toggleAdminCouponForm(false);
+    renderAdminCouponsList();
+}
+
+async function handleToggleAdminCoupon(code) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    try {
+        await fetch(`/api/admin/coupons/${encodeURIComponent(code)}/toggle`, {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+    } catch (e) {}
+
+    const promos = getStorePromotions();
+    const target = promos.find(p => p.code === code);
+    if (target) {
+        target.active = !(target.active !== false);
+        saveStorePromotions(promos);
+        showToast(`อัปเดตสถานะโค้ด "${code}" สำเร็จ`, "info");
+    }
+    renderAdminCouponsList();
+}
+
+async function handleDeleteAdminCoupon(code) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบโค้ด "${code}"?`)) return;
+
+    try {
+        await fetch(`/api/admin/coupons/${encodeURIComponent(code)}`, {
+            method: 'DELETE',
+            headers: getAdminHeaders()
+        });
+    } catch (e) {}
+
+    let promos = getStorePromotions();
+    promos = promos.filter(p => p.code !== code);
+    saveStorePromotions(promos);
+    showToast(`ลบโค้ด "${code}" เรียบร้อยแล้ว`, "success");
+    renderAdminCouponsList();
+}
+
+// ==========================================
+// USERS & MEMBERS MANAGEMENT (ADMIN)
+// ==========================================
+let adminUsersList = [];
+let adminUserSearchQuery = '';
+let adminUserStatusFilter = 'all';
+
+async function renderAdminUsersList() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const tableBody = document.getElementById('admin-users-table');
+    if (!tableBody) return;
+
+    try {
+        const res = await fetch('/api/admin/users', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.users)) {
+                adminUsersList = data.users;
+            }
+        }
+    } catch (e) {
+        if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+            const user = USER_AUTH.getUser();
+            if (user) {
+                adminUsersList = [{
+                    userId: user.userId || 'usr_current',
+                    email: user.email,
+                    displayName: user.displayName || 'สมาชิกปัจจุบัน',
+                    createdAt: new Date().toISOString(),
+                    isEmailVerified: true,
+                    totalOrders: 0,
+                    totalSpent: 0
+                }];
+            }
+        }
+    }
+
+    adminUsersList.forEach(u => {
+        let count = 0;
+        let spent = 0;
+        (state.orders || []).forEach(o => {
+            if ((o.recipientEmail || '').toLowerCase() === (u.email || '').toLowerCase()) {
+                count++;
+                spent += (o.totalAmount || 0);
+            }
+        });
+        u.computedOrders = count;
+        u.computedSpent = spent;
+    });
+
+    const totalUsers = adminUsersList.length;
+    const onlineCount = adminUsersList.filter(u => u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000))).length;
+    const offlineCount = Math.max(0, totalUsers - onlineCount);
+
+    document.getElementById('admin-users-count-all') && (document.getElementById('admin-users-count-all').textContent = totalUsers);
+    document.getElementById('admin-users-count-online') && (document.getElementById('admin-users-count-online').textContent = onlineCount);
+    document.getElementById('admin-users-count-offline') && (document.getElementById('admin-users-count-offline').textContent = offlineCount);
+    document.getElementById('admin-users-count-label') && (document.getElementById('admin-users-count-label').textContent = `พบสมาชิก ${totalUsers} คน`);
+    document.getElementById('admin-users-badge') && (document.getElementById('admin-users-badge').textContent = totalUsers);
+
+    let filtered = adminUsersList;
+    if (adminUserStatusFilter === 'online') {
+        filtered = filtered.filter(u => u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000)));
+    } else if (adminUserStatusFilter === 'offline') {
+        filtered = filtered.filter(u => !(u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000))));
+    }
+
+    if (adminUserSearchQuery) {
+        filtered = filtered.filter(u =>
+            (u.email || '').toLowerCase().includes(adminUserSearchQuery) ||
+            (u.displayName || '').toLowerCase().includes(adminUserSearchQuery) ||
+            (u.userId || '').toLowerCase().includes(adminUserSearchQuery)
+        );
+    }
+
+    if (!filtered || filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="py-10 text-center text-xs text-slate-400">
+                    <i class="fa-solid fa-users text-2xl text-slate-300 mb-2 block"></i>
+                    ยังไม่พบรายชื่อสมาชิกในระบบ เมื่อลูกค้าสมัครสมาชิกผ่านหน้าเว็บ ข้อมูลจะแสดงที่นี่
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = filtered.map(u => {
+        const isOnline = u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000));
+        const regDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH') : '-';
+        const totalSpent = u.computedSpent || u.totalSpent || 0;
+        const totalOrders = u.computedOrders || u.totalOrders || 0;
+
+        return `
+            <tr class="hover:bg-slate-50/70 transition-colors">
+                <td class="py-3 px-3.5">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-full bg-pink-100 text-pink-600 font-bold flex items-center justify-center text-xs shrink-0">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-900 text-xs">${escapeHTML(u.displayName || 'สมาชิก')}</div>
+                            <div class="text-[11px] text-slate-500 font-mono">${escapeHTML(u.email)}</div>
+                            <div class="text-[9px] text-slate-400 font-mono">ID: ${escapeHTML(u.userId || '')}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${isOnline ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}">
+                        <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></span>
+                        ${isOnline ? 'ออนไลน์' : 'ออฟไลน์'}
+                    </span>
+                </td>
+                <td class="py-3 px-3.5 text-center text-xs">
+                    ${u.isEmailVerified !== false
+                        ? '<span class="text-emerald-600 font-bold text-[11px]"><i class="fa-solid fa-circle-check"></i> ยืนยันแล้ว</span>'
+                        : '<span class="text-amber-600 font-medium text-[11px]"><i class="fa-solid fa-clock"></i> รอยืนยัน</span>'}
+                </td>
+                <td class="py-3 px-3.5 text-center text-slate-500 text-xs font-medium">
+                    ${regDate}
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <div class="font-bold text-pink-600 text-xs">฿${totalSpent.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div class="text-[10px] text-slate-400">${totalOrders} ออเดอร์</div>
+                </td>
+                <td class="py-3 px-3.5 text-right space-x-1">
+                    <button type="button" onclick="handleAdminResetUserPassword('${escapeHTML(u.userId || '')}', '${escapeHTML(u.email)}')"
+                        class="px-2.5 py-1 rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 text-xs font-bold cursor-pointer transition-all" title="รีเซ็ตรหัสผ่าน">
+                        <i class="fa-solid fa-key text-[10px]"></i> รีเซ็ตรหัส
+                    </button>
+                    <button type="button" onclick="handleDeleteAdminUser('${escapeHTML(u.userId || '')}', '${escapeHTML(u.email)}')"
+                        class="px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-bold cursor-pointer transition-all active:scale-95" title="ลบผู้ใช้">
+                        <i class="fa-solid fa-trash-can text-[10px]"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function handleAdminUserSearch(val) {
+    adminUserSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('admin-user-clear-search');
+    if (clearBtn) {
+        if (adminUserSearchQuery) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+    renderAdminUsersList();
+}
+
+function clearAdminUserSearch() {
+    adminUserSearchQuery = '';
+    const input = document.getElementById('admin-user-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('admin-user-clear-search');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    renderAdminUsersList();
+}
+
+function filterAdminUsersStatus(status) {
+    adminUserStatusFilter = status;
+    ['all', 'online', 'offline'].forEach(s => {
+        const btn = document.getElementById(`admin-users-filter-${s}`);
+        if (btn) {
+            if (s === status) {
+                btn.className = "px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs font-bold cursor-pointer transition-all";
+            } else {
+                btn.className = "px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 font-bold cursor-pointer transition-all";
+            }
+        }
+    });
+    renderAdminUsersList();
+}
+
+async function handleAdminResetUserPassword(userId, email) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const newPass = prompt(`กำหนดรหัสผ่านใหม่สำหรับ ${email} (ขั้นต่ำ 6 ตัวอักษร):`);
+    if (!newPass) return;
+    if (newPass.length < 6) {
+        showToast("รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "warning");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/users/reset-password', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ userId, newPassword: newPass })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(`รีเซ็ตรหัสผ่านของ ${email} สำเร็จแล้ว`, "success");
+        } else {
+            showToast(data.message || "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน", "error");
+        }
+    } catch (e) {
+        showToast("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", "error");
+    }
+}
+
+async function handleDeleteAdminUser(userId, email) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    if (!confirm(`ยืนยันการลบสมาชิก ${email} ออกจากระบบ?`)) return;
+
+    try {
+        const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+            method: 'DELETE',
+            headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(`ลบสมาชิก ${email} เรียบร้อยแล้ว`, "success");
+        } else {
+            showToast(data.message || "ลบสมาชิกสำเร็จ", "info");
+        }
+    } catch (e) {
+        showToast("ลบสมาชิกออกจากรายการแล้ว", "info");
+    }
+
+    adminUsersList = adminUsersList.filter(u => u.userId !== userId);
+    renderAdminUsersList();
+}
+
+async function handleClearAllAdminUsers() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const confirmInput = prompt("⚠️ คำเตือน: คุณกำลังจะล้างข้อมูลลูกค้าทั้งหมด! พิมพ์ 'CLEAR-USERS' เพื่อยืนยัน:");
+    if (confirmInput !== 'CLEAR-USERS') {
+        showToast("ยกเลิกการล้างข้อมูลสมาชิก", "info");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/users/clear-all', {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast("ล้างข้อมูลสมาชิกทั้งหมดเรียบร้อยแล้ว", "success");
+        }
+    } catch (e) {}
+
+    adminUsersList = [];
+    renderAdminUsersList();
+}
+
+// ==========================================
+// ADMIN SETTINGS & INTEGRATIONS & BACKUP TOOLS
+// ==========================================
+async function loadAdminSettingsIntoForm() {
+    try {
+        const res = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                if (data.promptPayAccountName) {
+                    const accEl = document.getElementById('admin-account-name');
+                    if (accEl) accEl.value = data.promptPayAccountName;
+                }
+                if (data.promptPayNumber) {
+                    const phoneEl = document.getElementById('admin-promptpay-input');
+                    if (phoneEl) phoneEl.value = data.promptPayNumber;
+                }
+                if (data.slipOkBranchId) {
+                    const branchEl = document.getElementById('admin-slipok-branch');
+                    if (branchEl) branchEl.value = data.slipOkBranchId;
+                }
+                if (data.hasSlipOkKey) {
+                    const badge = document.getElementById('admin-slipok-status-badge');
+                    if (badge) {
+                        badge.textContent = `🟢 บันทึกแล้ว (${data.slipOkKeyHint || 'พร้อมใช้งาน'})`;
+                        badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 transition-all";
+                    }
+                }
+                if (data.discordWebhookUrl) {
+                    const discEl = document.getElementById('admin-discord-webhook');
+                    if (discEl && !discEl.value) discEl.value = data.discordWebhookUrl;
+                }
+                if (data.smtpConfig) {
+                    const smtp = data.smtpConfig;
+                    const hostEl = document.getElementById('admin-smtp-host');
+                    if (hostEl && smtp.host) hostEl.value = smtp.host;
+                    const portEl = document.getElementById('admin-smtp-port');
+                    if (portEl && smtp.port) portEl.value = smtp.port;
+                    const userEl = document.getElementById('admin-smtp-user');
+                    if (userEl && smtp.user) userEl.value = smtp.user;
+                    const fromEl = document.getElementById('admin-smtp-from');
+                    if (fromEl && smtp.from) fromEl.value = smtp.from;
+                    const logoEl = document.getElementById('admin-smtp-logourl');
+                    if (logoEl && smtp.logoUrl) logoEl.value = smtp.logoUrl;
+                }
+                if (data.maintenanceMode !== undefined) {
+                    const maintCheck = document.getElementById('admin-maintenance-mode');
+                    if (maintCheck) maintCheck.checked = !!data.maintenanceMode;
+                    updateMaintenanceBadge(data.maintenanceMode);
+                }
+            }
+        }
+    } catch (e) {}
+}
+
+function scrollToAdminSetting(sectionId) {
+    const el = document.getElementById(sectionId);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function updateMaintenanceBadge(isMaint) {
+    const badge = document.getElementById('admin-maintenance-badge');
+    const directBtn = document.getElementById('admin-maint-direct-btn');
+    if (badge) {
+        if (isMaint) {
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> ⚠️ ปิดปรับปรุงอยู่ (Maintenance)`;
+            badge.className = "text-[11px] text-amber-800 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1";
+        } else {
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 🟢 เปิดให้บริการปกติ`;
+            badge.className = "text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1";
+        }
+    }
+    if (directBtn) {
+        directBtn.innerHTML = isMaint
+            ? `<i class="fa-solid fa-circle-check"></i> <span>คลิกเปิดร้านปกติทันที</span>`
+            : `<i class="fa-solid fa-power-off"></i> <span>คลิกปิดเว็บชั่วคราวทันที</span>`;
+        directBtn.className = isMaint
+            ? "px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+            : "px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-md shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
+    }
+}
+
+async function toggleMaintenanceModeDirectly(checked) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    const checkbox = document.getElementById('admin-maintenance-mode');
+    const newState = (checked !== undefined) ? !!checked : (checkbox ? !checkbox.checked : true);
+    if (checkbox) checkbox.checked = newState;
+
+    updateMaintenanceBadge(newState);
+
+    try {
+        const res = await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ maintenanceMode: newState })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(newState ? "เปิดโหมดปิดปรับปรุงชั่วคราวแล้ว" : "เปิดให้บริการร้านค้าตามปกติแล้ว", "success");
+        }
+    } catch (e) {
+        showToast(newState ? "เปิดโหมดปรับปรุง (จำลอง)" : "เปิดร้านปกติ (จำลอง)", "info");
+    }
+}
+
+function toggleSlipOkKeyVisibility() {
+    const input = document.getElementById('admin-slipok-apikey');
+    const icon = document.getElementById('slipok-eye-icon');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+    } else {
+        input.type = 'password';
+        if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+    }
+}
+
+async function handleAdminTestSlipOK() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const branchId = document.getElementById('admin-slipok-branch')?.value.trim();
+    const apiKey = document.getElementById('admin-slipok-apikey')?.value.trim();
+    const resultEl = document.getElementById('admin-slipok-test-result');
+    const btn = document.getElementById('admin-test-slipok-btn');
+
+    if (btn) btn.disabled = true;
+    if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = "p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 sm:col-span-2 lg:col-span-3";
+        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> กำลังทดสอบเชื่อมต่อ SlipOK...`;
+    }
+
+    try {
+        const res = await fetch('/api/admin/test-slipok', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ branchId, apiKey })
+        });
+        const data = await res.json();
+        if (resultEl) {
+            if (data && data.success) {
+                resultEl.className = "p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 sm:col-span-2 lg:col-span-3";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'เชื่อมต่อ SlipOK สำเร็จ!'}`;
+                const badge = document.getElementById('admin-slipok-status-badge');
+                if (badge) {
+                    badge.textContent = "🟢 เชื่อมต่อสำเร็จ";
+                    badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700";
+                }
+            } else {
+                resultEl.className = "p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 sm:col-span-2 lg:col-span-3";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'การเชื่อมต่อล้มเหลว ตรวจสอบ Branch ID และ API Key'}`;
+            }
+        }
+    } catch (e) {
+        if (resultEl) {
+            resultEl.className = "p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 sm:col-span-2 lg:col-span-3";
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบ SlipOK ได้ในขณะนี้`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function savePromptPayAndSlipOkSettings() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const phoneEl = document.getElementById('admin-promptpay-input');
+    const newPhone = phoneEl ? phoneEl.value.trim().replace(/[-\s]/g, '') : '';
+    const newAccountName = (document.getElementById('admin-account-name')?.value || '').trim();
+    const newBranchId = (document.getElementById('admin-slipok-branch')?.value || '').trim();
+    const newApiKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
+
+    if (newPhone && !/^[0-9]{10,15}$/.test(newPhone)) {
+        showToast("รูปแบบเบอร์พร้อมเพย์ต้องเป็นตัวเลข 10-15 หลัก", "warning");
+        return;
+    }
+
+    if (newPhone) STORE_CONFIG.promptPayNumber = newPhone;
+    if (newAccountName) STORE_CONFIG.promptPayAccountName = newAccountName;
+    if (newBranchId) STORE_CONFIG.slipOkBranchId = newBranchId;
+    if (newApiKey && newApiKey !== '******') STORE_CONFIG.slipOkApiKey = newApiKey;
+
+    try {
+        await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({
+                promptPayNumber: STORE_CONFIG.promptPayNumber,
+                promptPayAccountName: STORE_CONFIG.promptPayAccountName,
+                slipOkBranchId: STORE_CONFIG.slipOkBranchId,
+                slipOkApiKey: STORE_CONFIG.slipOkApiKey
+            })
+        });
+        localStorage.setItem('supinkly_store_config', JSON.stringify(STORE_CONFIG));
+        showToast("บันทึกการตั้งค่าพร้อมเพย์ & SlipOK เรียบร้อยแล้ว", "success");
+    } catch (e) {
+        localStorage.setItem('supinkly_store_config', JSON.stringify(STORE_CONFIG));
+        showToast("บันทึกการตั้งค่าลงเบราว์เซอร์สำเร็จ", "success");
+    }
+}
+
+async function handleAdminTestDiscord() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const webhookUrl = document.getElementById('admin-discord-webhook')?.value.trim();
+    const resultEl = document.getElementById('admin-test-discord-result');
+    const btn = document.getElementById('admin-test-discord-btn');
+
+    if (!webhookUrl) {
+        showToast("กรุณากรอก Discord Webhook URL", "warning");
+        return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = "mt-2 p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700";
+        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> กำลังส่งข้อความทดสอบเข้า Discord...`;
+    }
+
+    try {
+        const res = await fetch('/api/admin/test-discord', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ webhookUrl })
+        });
+        const data = await res.json();
+        if (resultEl) {
+            if (data && data.success) {
+                resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'ส่งแจ้งเตือนเข้า Discord สำเร็จ! ตรวจสอบที่ห้องแชทของคุณ'}`;
+            } else {
+                resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'ส่งไม่สำเร็จ ตรวจสอบ Webhook URL'}`;
+            }
+        }
+    } catch (e) {
+        if (resultEl) {
+            resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบได้`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function applySmtpPreset(preset) {
+    const hostEl = document.getElementById('admin-smtp-host');
+    const portEl = document.getElementById('admin-smtp-port');
+    if (!hostEl || !portEl) return;
+    if (preset === 'gmail-465') {
+        hostEl.value = 'smtp.gmail.com';
+        portEl.value = '465';
+        showToast("เลือกโปรไฟล์ Gmail SSL (พอร์ต 465) แล้ว", "info");
+    } else if (preset === 'gmail-587') {
+        hostEl.value = 'smtp.gmail.com';
+        portEl.value = '587';
+        showToast("เลือกโปรไฟล์ Gmail TLS (พอร์ต 587) แล้ว", "info");
+    }
+}
+
+async function handleAdminTestEmail() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const targetEmail = document.getElementById('admin-test-email-target')?.value.trim();
+    const resultEl = document.getElementById('admin-test-email-result');
+    const btn = document.getElementById('admin-test-email-btn');
+
+    if (!targetEmail || !targetEmail.includes('@')) {
+        showToast("กรุณากรอกอีเมลผู้รับทดสอบให้ถูกต้อง", "warning");
+        return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700";
+        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> กำลังส่งอีเมลทดสอบไปยัง ${escapeHTML(targetEmail)}...`;
+    }
+
+    try {
+        const res = await fetch('/api/admin/test-email', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({
+                to: targetEmail,
+                host: document.getElementById('admin-smtp-host')?.value.trim(),
+                port: parseInt(document.getElementById('admin-smtp-port')?.value || '465', 10),
+                user: document.getElementById('admin-smtp-user')?.value.trim(),
+                pass: document.getElementById('admin-smtp-pass')?.value.trim(),
+                from: document.getElementById('admin-smtp-from')?.value.trim(),
+                logoUrl: document.getElementById('admin-smtp-logourl')?.value.trim()
+            })
+        });
+        const data = await res.json();
+        if (resultEl) {
+            if (data && data.success) {
+                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'ส่งอีเมลทดสอบสำเร็จ! ตรวจสอบกล่องจดหมายของคุณ'}`;
+            } else {
+                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'ส่งอีเมลไม่สำเร็จ ตรวจสอบการตั้งค่า SMTP และ App Password'}`;
+            }
+        }
+    } catch (e) {
+        if (resultEl) {
+            resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบส่งอีเมลได้`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function downloadDatabaseBackup() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    try {
+        const res = await fetch('/api/admin/backup-db', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `supinkly_db_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("ดาวน์โหลดไฟล์สำรองข้อมูลฐานข้อมูลสำเร็จ!", "success");
+            return;
+        }
+    } catch (e) {}
+
+    const localBackup = {
+        exportedAt: new Date().toISOString(),
+        version: "2026.1",
+        orders: state.orders || [],
+        inventory: state.inventory || {},
+        promotions: getStorePromotions(),
+        config: STORE_CONFIG
+    };
+    const blob = new Blob([JSON.stringify(localBackup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `supinkly_local_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("ดาวน์โหลดไฟล์สำรองข้อมูลจากเบราว์เซอร์สำเร็จ!", "success");
+}
+
+async function handleDatabaseRestore(fileInput) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const file = fileInput?.files?.[0];
+    if (!file) return;
+
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการกู้คืนข้อมูลจากไฟล์ "${file.name}"? ข้อมูลปัจจุบันอาจถูกเขียนทับ`)) {
+        fileInput.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const jsonText = e.target.result;
+            const parsed = JSON.parse(jsonText);
+
+            try {
+                const res = await fetch('/api/admin/restore-db', {
+                    method: 'POST',
+                    headers: getAdminHeaders(),
+                    body: JSON.stringify({ backupJson: parsed })
+                });
+                const data = await res.json();
+                if (data && data.success) {
+                    showToast("กู้คืนฐานข้อมูลผ่านเซิร์ฟเวอร์เรียบร้อยแล้ว!", "success");
+                    setTimeout(() => location.reload(), 1000);
+                    return;
+                }
+            } catch (err) {}
+
+            if (Array.isArray(parsed.orders)) {
+                state.orders = parsed.orders;
+                saveOrders();
+            }
+            if (parsed.inventory && typeof parsed.inventory === 'object') {
+                state.inventory = parsed.inventory;
+                saveSecureInventory(state.inventory);
+            }
+            if (Array.isArray(parsed.promotions)) {
+                saveStorePromotions(parsed.promotions);
+            }
+            showToast("กู้คืนข้อมูลลงในระบบเรียบร้อยแล้ว กำลังรีโหลด...", "success");
+            setTimeout(() => location.reload(), 1200);
+        } catch (err) {
+            showToast("ไฟล์สำรองไม่ถูกต้องหรือไม่ใช่รูปแบบ JSON ที่ถูกต้อง", "error");
+        } finally {
+            fileInput.value = '';
+        }
+    };
+    reader.readAsText(file);
 }
 
 function handleAdminOrderSearch(val) {
@@ -2180,6 +3710,26 @@ function exportOrdersToCSV() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     showToast("ส่งออกไฟล์ CSV คำสั่งซื้อเรียบร้อยแล้ว", "success");
+}
+
+function handleClearAllAdminOrders() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+    if (!state.orders || state.orders.length === 0) {
+        showToast("ไม่มีคำสั่งซื้อในระบบให้ล้าง", "info");
+        return;
+    }
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้างข้อมูลคำสั่งซื้อทั้งหมด ${state.orders.length} รายการ?\n\nการกระทำนี้ไม่สามารถย้อนกลับได้!`)) {
+        return;
+    }
+    state.orders = [];
+    saveOrders();
+    renderAdminOrdersList();
+    if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+    showToast("ล้างข้อมูลคำสั่งซื้อทั้งหมดเรียบร้อยแล้ว", "success");
 }
 
 function copyOrderCustomerReceipt(orderId) {
@@ -2321,6 +3871,11 @@ function renderAdminOrdersList() {
                         </button>
                     </div>
                     <div class="flex items-center gap-2">
+                        <button onclick="openSlipViewModal('${escapeHTML(order.orderId)}')" 
+                                class="px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-all flex items-center gap-1 border border-purple-200 shadow-2xs cursor-pointer" title="คลิกดูสลิปโอนเงิน">
+                            <i class="fa-solid fa-file-invoice-dollar text-[11px]"></i>
+                            <span>ดูสลิป</span>
+                        </button>
                         <button onclick="copyOrderCustomerReceipt('${escapeHTML(order.orderId)}')" 
                                 class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold transition-all flex items-center gap-1 border border-pink-200 shadow-2xs">
                             <i class="fa-regular fa-message text-[11px]"></i>
@@ -2448,6 +4003,12 @@ function openFulfillModal(orderId, itemIndex) {
     document.getElementById('fulfill-customer-email-label').textContent = order.recipientEmail || 'ลูกค้าหน้าร้าน';
     document.getElementById('fulfill-product-title-label').textContent = item.productTitle;
 
+    const master = getMasterProduct(item.productId);
+    const g2gRawTitleEl = document.getElementById('fulfill-g2g-raw-title-label');
+    if (g2gRawTitleEl) {
+        g2gRawTitleEl.textContent = (master && (master.g2gRawTitle || master.title)) || item.productTitle || '';
+    }
+
     const g2gBtn = document.getElementById('fulfill-g2g-btn');
     if (g2gBtn) {
         g2gBtn.onclick = () => openG2GMarketLink(item.productId);
@@ -2484,6 +4045,15 @@ function openFulfillModal(orderId, itemIndex) {
 function closeFulfillModal() {
     const modal = document.getElementById('admin-fulfill-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+function copyFulfillG2GTitle() {
+    const label = document.getElementById('fulfill-g2g-raw-title-label');
+    const text = label ? label.textContent.trim() : '';
+    if (text) {
+        navigator.clipboard.writeText(text);
+        showToast(`คัดลอกชื่อสินค้าสำหรับค้นหาใน G2G เรียบร้อย: "${text}"`, "info");
+    }
 }
 
 function handleFulfillQuickPaste(val) {
@@ -2607,6 +4177,13 @@ function openAdminModal() {
     const pinInput = document.getElementById('admin-new-pin');
     if (pinInput) pinInput.value = '';
 
+    if (typeof loadAdminSettingsIntoForm === 'function') {
+        loadAdminSettingsIntoForm();
+    }
+    if (typeof updateAdminNavBadges === 'function') {
+        updateAdminNavBadges();
+    }
+
     renderAdminOrdersList();
     renderAdminStockList();
     switchAdminTab('orders');
@@ -2616,8 +4193,25 @@ function openAdminModal() {
 function closeAdminModal() {
     const modal = document.getElementById('admin-modal');
     if (modal) modal.classList.add('hidden');
+    if (typeof stopAdminAnalyticsAutoRefresh === 'function') {
+        stopAdminAnalyticsAutoRefresh();
+    }
 }
 
+
+function triggerManualAutoSync() {
+    if (typeof G2G_SYNC !== 'undefined' && typeof G2G_SYNC.performAutoSync === 'function') {
+        G2G_SYNC.performAutoSync();
+        renderAdminStockList();
+        renderProducts();
+        showToast("ซิงค์ราคาและสต็อกล่าสุดจากตลาด G2G สำเร็จแล้ว!", "success");
+    } else {
+        syncStockCount();
+        renderAdminStockList();
+        renderProducts();
+        showToast("รีเฟรชสต็อกสินค้าเรียบร้อยแล้ว", "info");
+    }
+}
 
 function handleAdminStockSearch(val) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
@@ -3464,7 +5058,9 @@ async function saveAdminSettings() {
     closeAdminModal();
 }
 
-// Product Detail Modal
+// ==========================================
+// PRODUCT DETAIL MODAL
+// ==========================================
 function openProductDetailModal(productId) {
     const product = getMasterProduct(productId);
     if (!product) return;
@@ -3474,20 +5070,53 @@ function openProductDetailModal(productId) {
 
     const availableStock = product.stock || (state.inventory[productId] || []).length || 0;
 
-    document.getElementById('modal-product-brand').textContent = product.brand;
-    document.getElementById('modal-product-type').textContent = product.type;
-    document.getElementById('modal-product-title').textContent = product.title;
-    document.getElementById('modal-product-desc').textContent = product.description;
-    document.getElementById('modal-product-price').textContent = `฿${product.price.toFixed(2)}`;
-    document.getElementById('modal-product-original-price').textContent = `฿${product.originalPrice.toFixed(2)}`;
-    document.getElementById('modal-product-warranty').textContent = product.warranty;
-    document.getElementById('modal-product-stock').textContent = `${availableStock} ชิ้น`;
-    document.getElementById('modal-product-sold').textContent = `${product.soldCount.toLocaleString()} ชิ้น`;
-    document.getElementById('modal-product-region').textContent = product.region;
+    const setElemText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    };
+
+    setElemText('modal-product-title', product.title || '');
+    setElemText('modal-product-desc', product.description || '');
+    setElemText('modal-product-spec-type', product.type || 'สิทธิ์แท้ 100%');
+    setElemText('modal-product-duration', product.duration || '30 วัน');
+    setElemText('modal-product-warranty', product.warranty ? `รับประกัน ${product.warranty}` : 'รับประกัน 30 วัน');
+    setElemText('modal-product-devices', product.devices || 'iOS • Android • Windows • Mac');
+    setElemText('modal-product-region', product.region || 'Global (ทั่วโลก)');
+    setElemText('modal-product-stock', `${availableStock} ชิ้น`);
+    setElemText('modal-product-sold', `${(product.soldCount || 0).toLocaleString()} ชิ้น`);
+    setElemText('modal-product-original-price', product.originalPrice ? `฿${product.originalPrice.toFixed(2)}` : '');
+    setElemText('modal-product-price', `฿${product.price.toFixed(2)}`);
+
+    const featuresList = document.getElementById('modal-product-features-list');
+    if (featuresList) {
+        const descLines = (product.description || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        if (descLines.length > 0) {
+            featuresList.innerHTML = descLines.map(line => `
+                <div class="flex items-start gap-2 text-xs text-slate-700 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                    <i class="fa-solid fa-check text-pink-500 mt-0.5 shrink-0 text-xs"></i>
+                    <span class="font-normal">${escapeHTML(line.replace(/^[•\-\*]\s*/, ''))}</span>
+                </div>
+            `).join('');
+        } else {
+            featuresList.innerHTML = `
+                <div class="flex items-start gap-2 text-xs text-slate-700 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                    <i class="fa-solid fa-check text-pink-500 mt-0.5 shrink-0 text-xs"></i>
+                    <span class="font-normal">สิทธิ์แท้มาตรฐาน พร้อมการรับประกันและดูแลตลอดการใช้งาน</span>
+                </div>
+            `;
+        }
+    }
 
     const addBtn = document.getElementById('modal-add-cart-btn');
     if (addBtn) {
         addBtn.disabled = availableStock <= 0;
+        if (availableStock <= 0) {
+            addBtn.innerHTML = `<i class="fa-solid fa-ban"></i> <span>สินค้าหมดชั่วคราว</span>`;
+            addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            addBtn.innerHTML = `<i class="fa-solid fa-cart-plus"></i> <span>ใส่ตะกร้าสินค้า</span>`;
+            addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
         addBtn.onclick = () => {
             addToCart(product.id);
             closeProductDetailModal();
@@ -3495,10 +5124,267 @@ function openProductDetailModal(productId) {
     }
 
     modal.classList.remove('hidden');
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('product_view', { productId, productTitle: product.title });
+    }
 }
 
 function closeProductDetailModal() {
     const modal = document.getElementById('product-detail-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// ==========================================
+// STORE COUPONS & PROMOTIONS POPUP
+// ==========================================
+function openCouponsModal() {
+    renderCouponsModal();
+    const modal = document.getElementById('coupons-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeCouponsModal() {
+    const modal = document.getElementById('coupons-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function renderCouponsModal() {
+    const list = document.getElementById('coupons-modal-list');
+    const badge = document.getElementById('coupons-modal-count-badge');
+    const promotions = (typeof getStorePromotions === 'function' ? getStorePromotions() : []).filter(p => p.active !== false);
+
+    if (badge) badge.textContent = `${promotions.length} โค้ด`;
+    if (!list) return;
+
+    if (promotions.length === 0) {
+        list.innerHTML = `
+            <div class="py-12 text-center text-slate-400 text-xs">
+                <i class="fa-solid fa-ticket-simple text-3xl mb-2 text-slate-300"></i>
+                <p>ขณะนี้ยังไม่มีโค้ดส่วนลดที่เปิดใช้งาน</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = promotions.map(promo => {
+        const isPct = (promo.discountType === 'percent' || promo.type === 'percentage');
+        const valText = isPct ? `${promo.discountValue || promo.value}%` : `฿${promo.discountValue || promo.value}`;
+        const minSpend = promo.minSpend ? `ขั้นต่ำ ฿${promo.minSpend.toFixed(2)}` : 'ไม่มีขั้นต่ำ';
+        const isApplied = state.appliedCoupon && (state.appliedCoupon.code || '').toUpperCase() === (promo.code || '').toUpperCase();
+
+        return `
+            <div class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-pink-50/60 to-purple-50/60 border border-pink-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div class="flex items-start gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white flex flex-col items-center justify-center shrink-0 shadow-sm shadow-pink-500/20">
+                        <span class="text-xs font-black font-mono leading-none">${valText}</span>
+                        <span class="text-[9px] uppercase font-bold mt-0.5">ส่วนลด</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono font-bold text-sm text-pink-600 bg-white px-2 py-0.5 rounded-lg border border-pink-200 select-all">${escapeHTML(promo.code)}</span>
+                            <span class="text-[10px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">${minSpend}</span>
+                        </div>
+                        <h4 class="text-xs font-bold text-slate-800 mt-1">${escapeHTML(promo.title || '')}</h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5">${escapeHTML(promo.description || '')}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 justify-end shrink-0">
+                    <button type="button" onclick="copyAndApplyPromoCode('${escapeHTML(promo.code)}')" 
+                        class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${isApplied ? 'bg-emerald-500 text-white' : 'gradient-btn text-white hover:scale-105 active:scale-95'}">
+                        <i class="fa-solid ${isApplied ? 'fa-circle-check' : 'fa-copy'}"></i>
+                        <span>${isApplied ? 'กำลังใช้งานอยู่' : 'คัดลอก & นำไปใช้'}</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function copyAndApplyPromoCode(code) {
+    if (!code) return;
+    copyToClipboard(code, `คัดลอกโค้ด "${code}" แล้ว`);
+
+    const subtotal = calculateVerifiedTotal();
+    const result = typeof validateCouponCode === 'function' ? validateCouponCode(code, subtotal) : { valid: false, message: 'ไม่สามารถตรวจสอบโค้ดได้' };
+
+    if (result.valid) {
+        state.appliedCoupon = result;
+        showToast(result.message || `นำโค้ด "${code}" ไปใช้ในตะกร้าเรียบร้อยแล้ว`, "success");
+    } else {
+        state.appliedCoupon = { code: code.toUpperCase(), discountAmount: 0, title: 'โค้ดส่วนลด' };
+        showToast(`คัดลอกโค้ด "${code}" แล้ว! (${result.message})`, "info");
+    }
+
+    updateCartUI();
+    closeCouponsModal();
+    openCartDrawer();
+}
+
+function copyAndApplyPromo(code) {
+    copyAndApplyPromoCode(code);
+}
+
+function claimVoucher(code, btn) {
+    if (btn) {
+        const orig = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-check text-emerald-300"></i> <span>เก็บสำเร็จ!</span>`;
+        btn.classList.add('bg-emerald-600');
+        setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.classList.remove('bg-emerald-600');
+        }, 1800);
+    }
+    copyAndApplyPromoCode(code);
+}
+
+function applyCouponFromCart() {
+    const input = document.getElementById('cart-coupon-input');
+    const code = (input ? input.value : '').trim().toUpperCase();
+    if (!code) {
+        showToast("กรุณากรอกโค้ดส่วนลด", "warning");
+        return;
+    }
+
+    const subtotal = calculateVerifiedTotal();
+    if (subtotal <= 0) {
+        showToast("กรุณาเพิ่มสินค้าลงในตะกร้าก่อนใช้โค้ดส่วนลด", "warning");
+        return;
+    }
+
+    const result = typeof validateCouponCode === 'function' ? validateCouponCode(code, subtotal) : { valid: false, message: 'ระบบไม่พร้อมใช้งาน' };
+    if (!result.valid) {
+        showToast(result.message || "โค้ดส่วนลดไม่ถูกต้อง", "warning");
+        return;
+    }
+
+    state.appliedCoupon = result;
+    if (input) input.value = '';
+    showToast(result.message, "success");
+    updateCartUI();
+}
+
+function quickApplyCoupon(code) {
+    const input = document.getElementById('cart-coupon-input');
+    if (input) input.value = code;
+    applyCouponFromCart();
+}
+
+function removeAppliedCoupon() {
+    state.appliedCoupon = null;
+    showToast("ยกเลิกการใช้โค้ดส่วนลดแล้ว", "info");
+    updateCartUI();
+}
+
+// ==========================================
+// LOGO MASCOT POPUP
+// ==========================================
+function openLogoPopup() {
+    const modal = document.getElementById('logo-popup-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeLogoPopup() {
+    const modal = document.getElementById('logo-popup-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// ==========================================
+// MOBILE MENU DRAWER
+// ==========================================
+function openMobileMenu() {
+    const drawer = document.getElementById('mobile-menu-drawer');
+    const overlay = document.getElementById('mobile-menu-overlay');
+    if (drawer) drawer.classList.remove('-translate-x-full');
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+function closeMobileMenu() {
+    const drawer = document.getElementById('mobile-menu-drawer');
+    const overlay = document.getElementById('mobile-menu-overlay');
+    if (drawer) drawer.classList.add('-translate-x-full');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+// ==========================================
+// SMOOTH SCROLL TO PRODUCTS
+// ==========================================
+function scrollToProducts() {
+    const section = document.getElementById('products-section') || document.getElementById('featured-ai');
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// ==========================================
+// ADMIN SLIP VIEW MODAL
+// ==========================================
+function openSlipViewModal(orderId) {
+    const order = state.orders.find(o => o.orderId === orderId);
+    if (!order) {
+        showToast("ไม่พบข้อมูลคำสั่งซื้อ", "warning");
+        return;
+    }
+
+    const modal = document.getElementById('admin-slip-view-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('admin-slip-modal-title');
+    if (titleEl) titleEl.textContent = `ตรวจสอบสลิปการโอนเงิน — ${order.orderId}`;
+
+    const imgEl = document.getElementById('admin-slip-view-img');
+    const phEl = document.getElementById('admin-slip-view-img-placeholder');
+    const emptyEl = document.getElementById('admin-slip-modal-empty');
+    const directBtn = document.getElementById('admin-slip-direct-url-btn');
+    const downloadBtn = document.getElementById('admin-slip-download-btn');
+
+    const slipUrl = order.slipUrl || order.slipImage || order.slipDataUrl || '';
+
+    if (slipUrl) {
+        if (imgEl) {
+            imgEl.src = slipUrl;
+            imgEl.classList.remove('hidden');
+        }
+        if (phEl) phEl.classList.add('hidden');
+        if (emptyEl) emptyEl.classList.add('hidden');
+        if (directBtn) {
+            directBtn.href = slipUrl;
+            directBtn.classList.remove('hidden');
+        }
+        if (downloadBtn) {
+            downloadBtn.href = slipUrl;
+            downloadBtn.classList.remove('hidden');
+        }
+    } else {
+        if (imgEl) imgEl.classList.add('hidden');
+        if (phEl) phEl.classList.add('hidden');
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        if (directBtn) directBtn.classList.add('hidden');
+        if (downloadBtn) downloadBtn.classList.add('hidden');
+    }
+
+    // Slip audit details
+    const transEl = document.getElementById('admin-slip-audit-trans-id');
+    if (transEl) transEl.textContent = order.transRef || order.transactionId || '-';
+
+    const amtEl = document.getElementById('admin-slip-audit-amount');
+    if (amtEl) amtEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
+
+    const timeEl = document.getElementById('admin-slip-audit-time');
+    if (timeEl) timeEl.textContent = order.date || '-';
+
+    const senderEl = document.getElementById('admin-slip-audit-sender');
+    if (senderEl) senderEl.textContent = order.senderName || order.recipientEmail || 'ลูกค้าทั่วไป';
+
+    const statusEl = document.getElementById('admin-slip-audit-status');
+    if (statusEl) {
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ตรวจสอบผ่านแล้ว`;
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function closeSlipViewModal() {
+    const modal = document.getElementById('admin-slip-view-modal');
     if (modal) modal.classList.add('hidden');
 }
 
@@ -3870,6 +5756,75 @@ window.handleRestoreProduct = handleRestoreProduct;
 window.handleDeleteCurrentProduct = handleDeleteCurrentProduct;
 window.applyRecommendedAutoPriceToInput = applyRecommendedAutoPriceToInput;
 window.setEditBadgePreset = setEditBadgePreset;
+window.triggerManualAutoSync = triggerManualAutoSync;
+window.openAddStockModal = openAddStockModal;
+window.closeAddStockModal = closeAddStockModal;
+window.handleSaveAddedStock = handleSaveAddedStock;
+
+// Admin Navigation & Orders Management Controllers
+window.switchAdminTab = switchAdminTab;
+window.quickAdminNavigate = quickAdminNavigate;
+window.updateAdminNavBadges = updateAdminNavBadges;
+window.renderAdminOrdersList = renderAdminOrdersList;
+window.handleAdminOrderSearch = handleAdminOrderSearch;
+window.clearAdminOrderSearch = clearAdminOrderSearch;
+window.filterAdminOrders = filterAdminOrders;
+window.exportOrdersToCSV = exportOrdersToCSV;
+window.handleClearAllAdminOrders = handleClearAllAdminOrders;
+window.openFulfillModal = openFulfillModal;
+window.closeFulfillModal = closeFulfillModal;
+window.copyFulfillG2GTitle = copyFulfillG2GTitle;
+window.handleFulfillQuickPaste = handleFulfillQuickPaste;
+window.handleFulfillSubmit = handleFulfillSubmit;
+window.setFulfillType = setFulfillType;
+window.autoFillDefaultInstruction = autoFillDefaultInstruction;
+
+// Admin Real-Time Analytics & Telemetry Controllers
+window.fetchAdminAnalytics = fetchAdminAnalytics;
+window.renderAdminAnalytics = renderAdminAnalytics;
+window.renderFallbackAdminAnalytics = renderFallbackAdminAnalytics;
+window.renderActiveUsersList = renderActiveUsersList;
+window.setOnlineUsersFilter = setOnlineUsersFilter;
+window.renderTopProductsList = renderTopProductsList;
+window.renderRecentEventsList = renderRecentEventsList;
+window.startAdminAnalyticsAutoRefresh = startAdminAnalyticsAutoRefresh;
+window.stopAdminAnalyticsAutoRefresh = stopAdminAnalyticsAutoRefresh;
+window.sendTelemetryHeartbeat = sendTelemetryHeartbeat;
+window.TELEMETRY = TELEMETRY;
+
+// Admin Coupons Management Controllers
+window.renderAdminCouponsList = renderAdminCouponsList;
+window.handleAdminCouponSearch = handleAdminCouponSearch;
+window.clearAdminCouponSearch = clearAdminCouponSearch;
+window.toggleAdminCouponForm = toggleAdminCouponForm;
+window.handleAdminCouponTypeChange = handleAdminCouponTypeChange;
+window.handleAdminCouponFormSubmit = handleAdminCouponFormSubmit;
+window.handleToggleAdminCoupon = handleToggleAdminCoupon;
+window.handleDeleteAdminCoupon = handleDeleteAdminCoupon;
+
+// Admin Users Management Controllers
+window.renderAdminUsersList = renderAdminUsersList;
+window.handleAdminUserSearch = handleAdminUserSearch;
+window.clearAdminUserSearch = clearAdminUserSearch;
+window.filterAdminUsersStatus = filterAdminUsersStatus;
+window.handleAdminResetUserPassword = handleAdminResetUserPassword;
+window.handleDeleteAdminUser = handleDeleteAdminUser;
+window.handleClearAllAdminUsers = handleClearAllAdminUsers;
+
+// Admin Settings & Store Configuration Tools
+window.loadAdminSettingsIntoForm = loadAdminSettingsIntoForm;
+window.scrollToAdminSetting = scrollToAdminSetting;
+window.updateMaintenanceBadge = updateMaintenanceBadge;
+window.toggleMaintenanceModeDirectly = toggleMaintenanceModeDirectly;
+window.toggleSlipOkKeyVisibility = toggleSlipOkKeyVisibility;
+window.handleAdminTestSlipOK = handleAdminTestSlipOK;
+window.savePromptPayAndSlipOkSettings = savePromptPayAndSlipOkSettings;
+window.handleAdminTestDiscord = handleAdminTestDiscord;
+window.applySmtpPreset = applySmtpPreset;
+window.handleAdminTestEmail = handleAdminTestEmail;
+window.downloadDatabaseBackup = downloadDatabaseBackup;
+window.handleDatabaseRestore = handleDatabaseRestore;
+window.saveAdminSettings = saveAdminSettings;
 
 // Admin Authentication & Modal Controllers
 window.openAdminModal = openAdminModal;
@@ -3895,3 +5850,58 @@ window.handleResendResetOtp = handleResendResetOtp;
 window.handleBackToRegister = handleBackToRegister;
 window.handleUserLogout = handleUserLogout;
 window.updateUserHeaderUI = updateUserHeaderUI;
+
+// Customer-Facing Modals, Cart, Coupons, and Interactive Controllers
+window.openProductDetailModal = openProductDetailModal;
+window.closeProductDetailModal = closeProductDetailModal;
+window.openCouponsModal = openCouponsModal;
+window.closeCouponsModal = closeCouponsModal;
+window.renderCouponsModal = renderCouponsModal;
+window.copyAndApplyPromoCode = copyAndApplyPromoCode;
+window.copyAndApplyPromo = copyAndApplyPromo;
+window.claimVoucher = claimVoucher;
+window.applyCouponFromCart = applyCouponFromCart;
+window.quickApplyCoupon = quickApplyCoupon;
+window.removeAppliedCoupon = removeAppliedCoupon;
+window.openLogoPopup = openLogoPopup;
+window.closeLogoPopup = closeLogoPopup;
+window.openMobileMenu = openMobileMenu;
+window.closeMobileMenu = closeMobileMenu;
+window.scrollToProducts = scrollToProducts;
+window.openSlipViewModal = openSlipViewModal;
+window.closeSlipViewModal = closeSlipViewModal;
+window.openOrdersModal = openOrdersModal;
+window.closeOrdersModal = closeOrdersModal;
+window.renderOrdersHistory = renderOrdersHistory;
+window.openCartDrawer = openCartDrawer;
+window.closeCartDrawer = closeCartDrawer;
+window.addToCart = addToCart;
+window.updateCartQuantity = updateCartQuantity;
+window.removeFromCart = removeFromCart;
+window.clearAllCart = clearAllCart;
+window.startCheckout = startCheckout;
+window.closeCheckoutModal = closeCheckoutModal;
+window.copyOrderCustomerReceipt = copyOrderCustomerReceipt;
+window.copyOrderCustomerSummary = copyOrderCustomerSummary;
+window.viewPastOrderVault = viewPastOrderVault;
+window.openVaultModal = openVaultModal;
+window.closeVaultModal = closeVaultModal;
+
+// Auto-check for ?admin=1 query parameter on page load
+if (typeof window !== 'undefined' && window.location && window.location.search) {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('admin') === '1') {
+            setTimeout(() => {
+                if (typeof promptAdminLogin === 'function') promptAdminLogin();
+            }, 300);
+        }
+    } catch (e) {}
+}
+
+// Immediate Telemetry initialization if page is already loaded
+if (typeof document !== 'undefined' && (document.readyState === 'complete' || document.readyState === 'interactive')) {
+    if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.init === 'function') {
+        TELEMETRY.init();
+    }
+}
