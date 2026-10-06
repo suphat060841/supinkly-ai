@@ -32,6 +32,7 @@ const USER_AUTH = (() => {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(EXPIRY_KEY);
         localStorage.removeItem(USER_KEY);
+        localStorage.removeItem('supinkly_user');
     }
 
     // ── Register ───────────────────────────────────────────────
@@ -128,10 +129,11 @@ const USER_AUTH = (() => {
 
     // ── Logout ─────────────────────────────────────────────────
     async function logout() {
-        try {
-            await fetch('/api/auth/logout', { method: 'POST', headers: getHeaders() });
-        } catch {}
+        const headers = getHeaders();
         clearSession();
+        try {
+            await fetch('/api/auth/logout', { method: 'POST', headers });
+        } catch {}
     }
 
     // ── Verify session against server ──────────────────────────

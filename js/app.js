@@ -383,7 +383,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof G2G_SYNC !== 'undefined') {
         G2G_SYNC.init();
     }
+
+    // Synchronize custom prices and products with server
+    syncCatalogWithServer();
 });
+
+async function syncCatalogWithServer() {
+    if (!window.location.protocol.startsWith('http')) return;
+    try {
+        const res = await fetch('/api/catalog');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.success) {
+            let updated = false;
+            if (data.customPrices && Object.keys(data.customPrices).length > 0) {
+                const local = getCustomPrices();
+                const merged = { ...local, ...data.customPrices };
+                localStorage.setItem('supinkly_custom_prices', JSON.stringify(merged));
+                updated = true;
+            }
+            if (data.customProducts && Object.keys(data.customProducts).length > 0) {
+                const local = getCustomProducts();
+                const merged = { ...local, ...data.customProducts };
+                localStorage.setItem('supinkly_custom_products', JSON.stringify(merged));
+                updated = true;
+            }
+            if (updated) {
+                applyCustomPricesToProducts();
+                syncStockCount();
+                renderProducts();
+                renderHighlightProducts();
+                updateCartUI();
+            }
+        }
+    } catch (e) { }
+}
 
 function saveCart() {
     localStorage.setItem('supinkly_cart', JSON.stringify(state.cart));
@@ -736,6 +770,13 @@ function handleResendResetOtp() {
 function handleUserLogout() {
     if (typeof USER_AUTH !== 'undefined') {
         USER_AUTH.logout();
+    }
+    if (typeof state !== 'undefined') {
+        state.user = null;
+    }
+    const ordersModal = document.getElementById('orders-modal');
+    if (ordersModal && !ordersModal.classList.contains('hidden')) {
+        closeOrdersModal();
     }
     updateUserHeaderUI();
     showToast('ออกจากระบบสมาชิกเรียบร้อยแล้ว', 'info');
@@ -1374,6 +1415,16 @@ function openCartDrawer() {
     if (drawer && overlay) {
         drawer.classList.remove('translate-x-full');
         overlay.classList.remove('hidden');
+    }
+    // Anti-browser autofill / anti-memory protection for coupon input
+    const couponInput = document.getElementById('cart-coupon-input');
+    if (couponInput) {
+        couponInput.setAttribute('readonly', 'readonly');
+        couponInput.setAttribute('autocomplete', 'one-time-code');
+        couponInput.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+        if (!state.appliedCoupon) {
+            couponInput.value = '';
+        }
     }
     if (typeof sendTelemetryHeartbeat === 'function') {
         sendTelemetryHeartbeat('cart_view');
@@ -3201,11 +3252,25 @@ function toggleAdminCouponForm(open) {
     const card = document.getElementById('admin-coupon-form-card');
     if (!card) return;
     const shouldOpen = (open !== undefined) ? open : card.classList.contains('hidden');
+    const codeInput = document.getElementById('admin-coupon-code-input');
     if (shouldOpen) {
         card.classList.remove('hidden');
-        document.getElementById('admin-coupon-code-input')?.focus();
+        if (codeInput) {
+            codeInput.name = 'adm_cp_' + Math.random().toString(36).slice(2, 9);
+            codeInput.setAttribute('readonly', 'readonly');
+            setTimeout(() => {
+                if (codeInput) {
+                    codeInput.removeAttribute('readonly');
+                    codeInput.focus();
+                }
+            }, 60);
+        }
     } else {
         card.classList.add('hidden');
+        if (codeInput) {
+            codeInput.value = '';
+            codeInput.setAttribute('readonly', 'readonly');
+        }
     }
 }
 
@@ -3279,6 +3344,14 @@ async function handleAdminCouponFormSubmit(e) {
         else promos.unshift(payload);
         saveStorePromotions(promos);
         showToast(`บันทึกโค้ดส่วนลด "${code}" สำเร็จ`, "success");
+    }
+
+    const adminCodeInput = document.getElementById('admin-coupon-code-input');
+    if (adminCodeInput) {
+        adminCodeInput.value = '';
+        adminCodeInput.setAttribute('readonly', 'readonly');
+        adminCodeInput.name = 'adm_cp_' + Math.random().toString(36).slice(2, 9);
+        if (typeof adminCodeInput.blur === 'function') adminCodeInput.blur();
     }
 
     toggleAdminCouponForm(false);
@@ -5184,7 +5257,7 @@ function setEditBadgePreset(badgeText) {
     }
 }
 
-function handleResetToAutoPrice() {
+async function handleResetToAutoPrice() {
     const productId = document.getElementById('edit-price-product-id').value;
     if (!productId) return;
 
@@ -5193,6 +5266,18 @@ function handleResetToAutoPrice() {
         delete customPrices[productId].manualOverride;
         delete customPrices[productId].lastManualUpdate;
         localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
+    }
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/price', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify({ productId, action: 'reset' })
+            });
+        } catch (e) {
+            console.warn('[ADMIN SYNC] Could not reset price on server:', e.message);
+        }
     }
 
     if (typeof G2G_SYNC !== 'undefined') {
@@ -5216,7 +5301,7 @@ function closeEditPriceModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-function handleSaveEditedProduct() {
+async function handleSaveEditedProduct() {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
         closeEditPriceModal();
@@ -5256,7 +5341,7 @@ function handleSaveEditedProduct() {
         return;
     }
 
-    // 1. Save custom products metadata
+    // 1. Save custom products metadata locally
     const customProducts = getCustomProducts();
     customProducts[productId] = {
         ...(customProducts[productId] || {}),
@@ -5279,7 +5364,7 @@ function handleSaveEditedProduct() {
     };
     localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
 
-    // 2. Save custom price overrides
+    // 2. Save custom price overrides locally
     const customPrices = getCustomPrices();
     customPrices[productId] = {
         ...(customPrices[productId] || {}),
@@ -5293,7 +5378,35 @@ function handleSaveEditedProduct() {
     };
     localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
 
-    // 3. Reload application catalog
+    // 3. Synchronize with backend server (so checkout & receipt verification get real updated price)
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/product', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify({
+                    id: productId,
+                    title: titleVal,
+                    subtitle: subtitleVal,
+                    description: descVal,
+                    brand: brandVal,
+                    type: typeVal,
+                    duration: durationVal,
+                    devices: devicesVal,
+                    warranty: warrantyVal,
+                    price: Math.round(saleVal * 100) / 100,
+                    originalPrice: isNaN(origVal) || origVal < saleVal ? Math.round(saleVal * 100) / 100 : Math.round(origVal * 100) / 100,
+                    badge: badgeVal,
+                    isHighlight: isHighlight,
+                    g2gUrl: g2gUrlVal
+                })
+            });
+        } catch (syncErr) {
+            console.warn('[ADMIN SYNC] Could not sync product to server:', syncErr.message);
+        }
+    }
+
+    // 4. Reload application catalog
     state.products = getAllMasterProducts(false).map(p => ({
         ...p,
         stock: p.stock || 0
@@ -5336,6 +5449,16 @@ function handleDeleteProduct(productId) {
         deletedAt: new Date().toISOString()
     };
     localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            fetch('/api/admin/product/delete', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify({ productId })
+            }).catch(() => {});
+        } catch (e) {}
+    }
 
     // Remove from active cart if customer has it
     state.cart = state.cart.filter(item => item.productId !== productId);
@@ -5788,19 +5911,33 @@ function applyCouponFromCart() {
     }
 
     state.appliedCoupon = result;
-    if (input) input.value = '';
+    if (input) {
+        input.value = '';
+        input.setAttribute('readonly', 'readonly');
+        input.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+        if (typeof input.blur === 'function') input.blur();
+    }
     showToast(result.message, "success");
     updateCartUI();
 }
 
 function quickApplyCoupon(code) {
     const input = document.getElementById('cart-coupon-input');
-    if (input) input.value = code;
+    if (input) {
+        input.removeAttribute('readonly');
+        input.value = code;
+    }
     applyCouponFromCart();
 }
 
 function removeAppliedCoupon() {
     state.appliedCoupon = null;
+    const input = document.getElementById('cart-coupon-input');
+    if (input) {
+        input.value = '';
+        input.setAttribute('readonly', 'readonly');
+        input.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+    }
     showToast("ยกเลิกการใช้โค้ดส่วนลดแล้ว", "info");
     updateCartUI();
 }
@@ -6259,6 +6396,33 @@ function initEvents() {
             if (ADMIN_AUTH.checkSession()) openAdminChatPanel();
             else promptAdminLogin();
         }
+    });
+
+    // Setup anti-browser autofill / anti-memory protection for coupon & promo inputs
+    const promoInputs = [
+        document.getElementById('cart-coupon-input'),
+        document.getElementById('admin-coupon-code-input')
+    ];
+    promoInputs.forEach(input => {
+        if (!input) return;
+        input.setAttribute('autocomplete', 'one-time-code');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'characters');
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('data-lpignore', 'true');
+        input.setAttribute('data-1p-ignore', 'true');
+        input.setAttribute('data-bwignore', 'true');
+        input.setAttribute('data-dashlane-ignore', 'true');
+        input.setAttribute('data-form-type', 'other');
+        input.setAttribute('aria-autocomplete', 'none');
+        input.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+        const unlock = () => {
+            input.removeAttribute('readonly');
+            input.setAttribute('autocomplete', 'one-time-code');
+        };
+        input.addEventListener('pointerdown', unlock, { passive: true });
+        input.addEventListener('touchstart', unlock, { passive: true });
+        input.addEventListener('focus', unlock, { passive: true });
     });
 }
 

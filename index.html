@@ -1205,10 +1205,14 @@
             <div id="cart-coupon-input-wrap" class="space-y-1.5">
                 <label class="text-xs font-bold text-slate-700 block">โค้ดส่วนลด / โปรโมชั่น:</label>
                 <div class="flex items-center gap-1.5">
-                    <input type="text" id="cart-coupon-input" name="spk_coupon_no_autofill" placeholder="กรอกรหัสโค้ดส่วนลด"
-                           autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
-                           data-lpignore="true" data-form-type="other" aria-autocomplete="none"
-                           onfocus="this.setAttribute('autocomplete', 'off');"
+                    <input type="text" id="cart-coupon-input" name="spk_c_ephemeral" placeholder="กรอกรหัสโค้ดส่วนลด"
+                           autocomplete="one-time-code" autocorrect="off" autocapitalize="characters" spellcheck="false"
+                           readonly
+                           data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                           data-form-type="other" aria-autocomplete="none"
+                           onfocus="this.removeAttribute('readonly'); this.setAttribute('autocomplete', 'one-time-code');"
+                           onpointerdown="this.removeAttribute('readonly');"
+                           ontouchstart="this.removeAttribute('readonly');"
                            onkeydown="if(event.key==='Enter') applyCouponFromCart()"
                            class="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono font-bold uppercase outline-none focus:border-pink-500">
                     <button type="button" onclick="applyCouponFromCart()"
@@ -2792,6 +2796,8 @@
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                         <input type="text" id="admin-coupon-search" oninput="handleAdminCouponSearch(this.value)"
                             placeholder="ค้นหารหัสคูปอง หรือคำอธิบายโปรโมชั่น..."
+                            autocomplete="off" autocorrect="off" spellcheck="false"
+                            data-lpignore="true" data-form-type="other" aria-autocomplete="none"
                             class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
                         <button id="admin-coupon-clear-search" onclick="clearAdminCouponSearch()"
                             class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -2830,9 +2836,15 @@
                                 <label class="text-[11px] font-bold text-slate-700 block mb-1">
                                     รหัสโค้ด (Coupon Code) <span class="text-pink-600">*</span>:
                                 </label>
-                                <input type="text" id="admin-coupon-code-input" required
+                                <input type="text" id="admin-coupon-code-input" name="adm_c_ephemeral" required
                                     placeholder="เช่น SUPINKLY10, NEWUSER"
-                                    autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
+                                    autocomplete="one-time-code" autocorrect="off" autocapitalize="characters" spellcheck="false"
+                                    readonly
+                                    data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                                    data-form-type="other" aria-autocomplete="none"
+                                    onfocus="this.removeAttribute('readonly'); this.setAttribute('autocomplete', 'one-time-code');"
+                                    onpointerdown="this.removeAttribute('readonly');"
+                                    ontouchstart="this.removeAttribute('readonly');"
                                     class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold uppercase outline-none focus:border-pink-500">
                             </div>
 
