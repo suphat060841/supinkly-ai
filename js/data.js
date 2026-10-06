@@ -43,6 +43,7 @@ const PRODUCTS = [
         title: "CapCut Pro (1 เดือน) - บัญชีส่วนตัว",
         subtitle: "บัญชีส่วนตัว 1 ผู้ใช้ • ปลดล็อกเครื่องมือ Pro & เรนเดอร์ 4K ไร้ลายน้ำ",
         badge: "⭐ แพ็คขายดีติดดาว",
+        isHighlight: true,
         type: "บัญชีส่วนตัว (Private)",
         typeKey: "private",
         duration: "1 เดือน (30 วัน)",
@@ -127,6 +128,7 @@ const PRODUCTS = [
         title: "Google AI Pro (Gemini Advanced 1 เดือน) - ลิงก์เปิดสิทธิ์",
         subtitle: "อัปเกรดเข้า Gmail ของคุณโดยตรง • ปลอดภัย 100% พร้อมคลาวด์ 2TB",
         badge: "⭐ แนะนำยอดนิยม",
+        isHighlight: true,
         type: "ลิงก์เปิดสิทธิ์ (Link)",
         typeKey: "link",
         duration: "1 เดือน (30 วัน)",
@@ -189,7 +191,8 @@ const PRODUCTS = [
         brandBadgeColor: "from-blue-500 via-green-500 to-yellow-500",
         title: "Google Drive 5TB + Gemini Advanced (1 เดือน)",
         subtitle: "คลาวด์ขนาดใหญ่ 5,000 GB + ใช้งาน Gemini Advanced ในบัญชีเดียว",
-        badge: "พื้นที่จัดเก็บ 5TB",
+        badge: "⭐ พื้นที่จัดเก็บ 5TB",
+        isHighlight: true,
         type: "บัญชีส่วนตัว (Private)",
         typeKey: "private",
         duration: "1 เดือน (30 วัน)",
@@ -231,7 +234,8 @@ const PRODUCTS = [
         brandBadgeColor: "from-slate-700 to-zinc-950",
         title: "xAI Grok / SuperGrok (7 วัน) - บัญชีส่วนตัว",
         subtitle: "แพ็กเกจทดลอง 7 วัน • ข้อมูลเรียลไทม์บน X + เจนภาพ AI Aurora Flux",
-        badge: "แพ็กเกจทดลอง 7 วัน",
+        badge: "⭐ แพ็กเกจทดลอง 7 วัน",
+        isHighlight: true,
         type: "บัญชีส่วนตัว (Private)",
         typeKey: "private",
         duration: "7 วัน",
@@ -295,6 +299,7 @@ const PRODUCTS = [
         title: "Anthropic Claude Pro (1 เดือน) - บัญชีส่วนตัว",
         subtitle: "บัญชีส่วนตัว 1 ผู้ใช้ • Claude 3.5 Sonnet โควต้า 5 เท่า พร้อม Artifacts",
         badge: "⭐ ยอดนิยมสำหรับเขียนโค้ด",
+        isHighlight: true,
         type: "บัญชีส่วนตัว (Private)",
         typeKey: "private",
         duration: "1 เดือน (30 วัน)",
@@ -358,6 +363,7 @@ const PRODUCTS = [
         title: "Adobe Creative Cloud All Apps (1 เดือน) + 100GB",
         subtitle: "รวม 20+ แอปสร้างสรรค์ (Photoshop, Premiere) + Firefly AI & Cloud 100GB",
         badge: "⭐ รวมทุกแอปสร้างสรรค์",
+        isHighlight: true,
         type: "บัญชีส่วนตัว (Private)",
         typeKey: "private",
         duration: "1 เดือน (30 วัน)",
@@ -379,6 +385,7 @@ const PRODUCTS = [
         title: "Windows 11 Pro / Home - คีย์แท้ถาวร (OEM License)",
         subtitle: "คีย์แท้ดิจิทัล 25 หลัก • เปิดใช้งานถาวรตลอดชีพ อัปเดตทางการ Microsoft",
         badge: "⭐ คีย์ถาวรตลอดชีพ",
+        isHighlight: true,
         type: "คีย์แท้ถาวร (Key)",
         typeKey: "key",
         duration: "ตลอดชีพ (Lifetime)",
@@ -399,7 +406,8 @@ const PRODUCTS = [
         brandBadgeColor: "from-blue-600 to-cyan-700",
         title: "Microsoft 365 Personal (1 เดือน) + 1TB OneDrive Cloud",
         subtitle: "ชุดออฟฟิศแท้ (Word, Excel, PowerPoint) + พื้นที่คลาวด์ OneDrive 1TB",
-        badge: "ออฟฟิศแท้ + คลาวด์ 1TB",
+        badge: "⭐ ออฟฟิศแท้ + คลาวด์ 1TB",
+        isHighlight: true,
         type: "บัญชีส่วนตัว (Private)",
         typeKey: "private",
         duration: "1 เดือน (30 วัน)",
@@ -526,6 +534,7 @@ function getMasterProduct(productId) {
     }
 
     // Apply customProducts overrides (Title, Subtitle, Description, Brand, Type, Duration, Warranty, Devices, Delete)
+    let isHighlight = !!product.isHighlight;
     if (customProd) {
         if (customProd.title) title = customProd.title;
         if (customProd.subtitle !== undefined) subtitle = customProd.subtitle;
@@ -538,6 +547,7 @@ function getMasterProduct(productId) {
         if (typeof customProd.price === 'number') price = customProd.price;
         if (typeof customProd.originalPrice === 'number') originalPrice = customProd.originalPrice;
         if (typeof customProd.badge === 'string') badge = customProd.badge;
+        if (customProd.isHighlight !== undefined) isHighlight = !!customProd.isHighlight;
         if (customProd.g2gUrl) g2gUrl = customProd.g2gUrl;
         if (customProd.deleted === true) deleted = true;
     }
@@ -550,6 +560,7 @@ function getMasterProduct(productId) {
             if (typeof custom.price === 'number') price = custom.price;
             if (typeof custom.originalPrice === 'number') originalPrice = custom.originalPrice;
             if (typeof custom.badge === 'string') badge = custom.badge;
+            if (custom.isHighlight !== undefined) isHighlight = !!custom.isHighlight;
             if (typeof custom.g2gStockAvailable === 'number' && custom.g2gStockAvailable > 0) stock = custom.g2gStockAvailable;
             if (typeof custom.marketCostTHB === 'number') marketCostTHB = custom.marketCostTHB;
             if (typeof custom.g2gUrl === 'string' && custom.g2gUrl) g2gUrl = custom.g2gUrl;
@@ -569,6 +580,7 @@ function getMasterProduct(productId) {
         warranty,
         image: product.image || `images/products/${productId}.jpg`,
         badge,
+        isHighlight,
         price,
         originalPrice,
         stock: stock || 50,

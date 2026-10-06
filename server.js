@@ -1652,7 +1652,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
-    const { id, title, subtitle, description, brand, type, duration, devices, warranty, price, originalPrice, badge, g2gUrl } = req.body;
+    const { id, title, subtitle, description, brand, type, duration, devices, warranty, price, originalPrice, badge, isHighlight, g2gUrl } = req.body;
     if (!title || typeof title !== 'string' || !title.trim()) {
         return res.status(400).json({ success: false, message: "กรุณาระบุชื่อสินค้า" });
     }
@@ -1685,6 +1685,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
         price: Math.round(numPrice * 100) / 100,
         originalPrice: Math.round(numOrig * 100) / 100,
         badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : (existing.badge || ''),
+        isHighlight: isHighlight !== undefined ? !!isHighlight : (existing.isHighlight !== undefined ? existing.isHighlight : false),
         g2gUrl: typeof g2gUrl === 'string' ? g2gUrl.trim() : (existing.g2gUrl || ''),
         deleted: false,
         updatedAt: new Date().toISOString()
@@ -1698,6 +1699,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
         price: updatedProduct.price,
         originalPrice: updatedProduct.originalPrice,
         badge: updatedProduct.badge,
+        isHighlight: updatedProduct.isHighlight,
         g2gUrl: updatedProduct.g2gUrl,
         manualOverride: true,
         updatedAt: updatedProduct.updatedAt

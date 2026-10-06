@@ -427,6 +427,7 @@ function applyCustomPricesToProducts() {
             p.devices = master.devices;
             p.warranty = master.warranty;
             p.badge = master.badge;
+            p.isHighlight = !!master.isHighlight;
             p.price = master.price;
             p.originalPrice = master.originalPrice;
         } else {
@@ -435,6 +436,7 @@ function applyCustomPricesToProducts() {
                 if (typeof cp.price === 'number') p.price = cp.price;
                 if (typeof cp.originalPrice === 'number') p.originalPrice = cp.originalPrice;
                 if (typeof cp.badge === 'string' && cp.badge !== '') p.badge = cp.badge;
+                if (cp.isHighlight !== undefined) p.isHighlight = !!cp.isHighlight;
             }
         }
     });
@@ -549,6 +551,7 @@ async function syncCustomPricesFromServer() {
                             price: srv.price,
                             originalPrice: srv.originalPrice || srv.price,
                             badge: srv.badge !== undefined ? srv.badge : (localCustomPrices[pid]?.badge || ''),
+                            isHighlight: srv.isHighlight !== undefined ? !!srv.isHighlight : localCustomPrices[pid]?.isHighlight,
                             manualOverride: true,
                             lastManualUpdate: srv.updatedAt || new Date().toISOString()
                         };
@@ -905,8 +908,10 @@ function renderBrandTabs() {
     const container = document.getElementById('brand-tabs-container');
     if (!container) return;
 
+    const highlightCount = state.products.filter(p => p.isHighlight || (p.badge && (p.badge.includes('⭐') || p.badge.includes('🔥')))).length;
     const brands = [
         { key: "all", name: "สินค้าทั้งหมด", icon: "fa-solid fa-shapes", count: state.products.length },
+        { key: "highlight", name: "⭐ สินค้าไฮไลท์", icon: "fa-solid fa-star", count: highlightCount },
         { key: "CapCut", name: "CapCut", icon: "fa-solid fa-scissors", count: state.products.filter(p => p.brand === 'CapCut').length },
         { key: "Google AI", name: "Google AI", icon: "fa-solid fa-wand-magic-sparkles", count: state.products.filter(p => p.brand === 'Google AI').length },
         { key: "Google", name: "Google", icon: "fa-brands fa-google", count: state.products.filter(p => p.brand === 'Google').length },
@@ -1031,7 +1036,9 @@ function initFilters() {
 function applyFilters() {
     let result = [...state.products];
 
-    if (state.filterBrand !== 'all') {
+    if (state.filterBrand === 'highlight') {
+        result = result.filter(p => p.isHighlight || (p.badge && (p.badge.includes('⭐') || p.badge.includes('🔥'))));
+    } else if (state.filterBrand !== 'all') {
         result = result.filter(p => p.brand === state.filterBrand);
     }
 
@@ -1066,8 +1073,194 @@ function applyFilters() {
     renderProducts();
 }
 
+// Render Highlight Products Showcase Section
+function renderHighlightSection() {
+    const container = document.getElementById('highlight-products-grid');
+    if (!container) return;
+
+    // Filter highlight products: explicit isHighlight === true, or fallback to star/fire badges
+    let highlights = state.products.filter(p => p.isHighlight === true);
+    if (highlights.length === 0) {
+        highlights = state.products.filter(p => p.badge && (p.badge.includes('⭐') || p.badge.includes('🔥') || p.badge.includes('อันดับ 1')));
+    }
+    highlights = highlights.slice(0, 8);
+
+    const sec = document.getElementById('highlight-section');
+    if (highlights.length === 0) {
+        if (sec) sec.style.display = 'none';
+        return;
+    } else {
+        if (sec) sec.style.display = '';
+    }
+
+    container.innerHTML = highlights.map(product => {
+        let typeBadgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+        let typeIcon = "fa-solid fa-sparkles";
+        if (product.typeKey === 'private') {
+            typeBadgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+            typeIcon = "fa-solid fa-user-shield";
+        } else if (product.typeKey === 'shared') {
+            typeBadgeClass = "bg-amber-50 text-amber-800 border-amber-200";
+            typeIcon = "fa-solid fa-users";
+        } else if (product.typeKey === 'link') {
+            typeBadgeClass = "bg-cyan-50 text-cyan-800 border-cyan-200";
+            typeIcon = "fa-solid fa-link";
+        } else if (product.typeKey === 'key') {
+            typeBadgeClass = "bg-emerald-50 text-emerald-800 border-emerald-200";
+            typeIcon = "fa-solid fa-key";
+        } else if (product.typeKey === 'topup') {
+            typeBadgeClass = "bg-indigo-50 text-indigo-800 border-indigo-200";
+            typeIcon = "fa-solid fa-bolt";
+        }
+
+        const inStock = product.stock > 0;
+        const brandGrad = product.brandBadgeColor || "from-pink-500 to-rose-500";
+        const discountPct = (product.originalPrice && product.originalPrice > product.price)
+            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+            : 0;
+
+        const isStarBadge = product.badge && (product.badge.includes('⭐') || product.badge.includes('ดาว') || product.badge.includes('ขายดี') || product.badge.includes('อันดับ 1'));
+        const isHotBadge = product.badge && (product.badge.includes('🔥') || product.badge.includes('ยอดนิยม'));
+        const badgeClass = isStarBadge 
+            ? 'bg-gradient-to-r from-amber-50 via-yellow-100 to-amber-100 text-amber-900 border-amber-300 shadow-2xs font-semibold' 
+            : (isHotBadge ? 'bg-rose-50 text-rose-700 border-rose-200 font-medium' : 'bg-pink-100 text-pink-700 border-pink-200 font-medium');
+
+        return `
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-pink-200 hover:border-pink-400 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden shadow-sm hover:shadow-xl hover:shadow-pink-500/10">
+                <!-- Highlight Ribbon Badge -->
+                <div class="absolute top-2 left-2 z-10 pointer-events-none">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 via-rose-500 to-pink-500 text-white text-[9px] sm:text-[10px] font-bold shadow-md shadow-amber-500/30">
+                        <i class="fa-solid fa-crown text-[8px] text-yellow-200"></i>
+                        <span>ไฮไลท์</span>
+                    </span>
+                </div>
+
+                <div>
+                    <!-- Header of Card: Brand & Plan Type -->
+                    <div class="flex items-center justify-between gap-1 mb-2 pl-14 sm:pl-16">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr ${brandGrad} text-white flex items-center justify-center text-[9px] sm:text-[11px] font-bold shadow-2xs shrink-0">
+                                ${escapeHTML(product.brandCode)}
+                            </span>
+                            <span class="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide truncate">${escapeHTML(product.brand)}</span>
+                        </div>
+                        <span class="px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[11px] font-medium border ${typeBadgeClass} flex items-center gap-0.5 sm:gap-1 shrink-0">
+                            <i class="${typeIcon} text-[8px] sm:text-[10px]"></i>
+                            <span class="max-w-[70px] sm:max-w-none truncate">${escapeHTML(product.type)}</span>
+                        </span>
+                    </div>
+
+                    <!-- Commercial 3D Kawaii Product Banner Thumbnail -->
+                    <div class="relative w-full aspect-square rounded-xl sm:rounded-2xl overflow-hidden mb-2 bg-slate-100 border border-slate-100 shadow-2xs group-hover:shadow-md transition-all cursor-pointer" data-action="detail" data-product-id="${escapeHTML(product.id)}" title="คลิกเพื่อดูรายละเอียดและสั่งซื้อ">
+                        <img src="${escapeHTML(product.image || 'images/products/' + product.id + '.jpg')}" 
+                             alt="${escapeHTML(product.title)}" 
+                             loading="lazy"
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                             onerror="this.parentElement.style.display='none';">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-2 pointer-events-none">
+                            <span class="text-[10px] font-bold text-white bg-slate-900/70 backdrop-blur-xs px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                                <i class="fa-regular fa-eye"></i> ดูข้อมูล
+                            </span>
+                            <span class="text-[9px] font-bold text-pink-300 bg-pink-950/80 px-1.5 py-0.5 rounded border border-pink-500/30">
+                                ⭐ ยอดนิยม
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Marketing Badge -->
+                    ${product.badge ? `
+                        <div class="mb-1.5">
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-md text-[9px] sm:text-[11px] border ${badgeClass}">
+                                ${isStarBadge && !product.badge.includes('⭐') ? '<i class="fa-solid fa-star text-amber-500 text-[9px]"></i>' : ''}
+                                <span class="truncate max-w-[120px] sm:max-w-none">${escapeHTML(product.badge)}</span>
+                            </span>
+                        </div>
+                    ` : ''}
+
+                    <!-- Product Title -->
+                    <h3 class="text-xs sm:text-base font-normal text-slate-800 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                        ${escapeHTML(product.title)}
+                    </h3>
+
+                    <!-- Concise Subtitle Benefit (Desktop) -->
+                    <p class="hidden sm:block text-xs text-slate-500 font-medium mt-1 leading-relaxed line-clamp-2 min-h-[32px]">
+                        ${escapeHTML(product.subtitle || product.description)}
+                    </p>
+
+                    <!-- Mobile compact specs tag -->
+                    <div class="sm:hidden flex items-center gap-1 mt-1.5 text-[10px] font-medium text-slate-600 truncate">
+                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">🛡️ ประกัน ${escapeHTML(product.warranty || '30 วัน')}</span>
+                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">⚡ ส่งทันที</span>
+                    </div>
+
+                    <!-- 2x2 Neat Specs Grid (Desktop) -->
+                    <div class="hidden sm:grid grid-cols-2 gap-1.5 mt-3 text-[11px] font-medium text-slate-700">
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระยะเวลา: ${escapeHTML(product.duration || '30 วัน')}">
+                            <i class="fa-regular fa-clock text-pink-500 text-xs shrink-0"></i>
+                            <span class="truncate">${escapeHTML(product.duration || '30 วัน')}</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="อุปกรณ์: ${escapeHTML(product.devices || 'ทุกอุปกรณ์')}">
+                            <i class="fa-solid fa-desktop text-blue-500 text-xs shrink-0"></i>
+                            <span class="truncate">${escapeHTML(product.devices || 'ทุกอุปกรณ์')}</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="รับประกัน: ${escapeHTML(product.warranty || '30 วัน')}">
+                            <i class="fa-solid fa-shield-halved text-emerald-600 text-xs shrink-0"></i>
+                            <span class="truncate">ประกัน ${escapeHTML(product.warranty || '30 วัน')}</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 truncate" title="ระบบพร้อมส่งมอบตลอด 24 ชม.">
+                            <i class="fa-solid fa-bolt text-amber-500 text-xs shrink-0"></i>
+                            <span class="truncate">พร้อมส่งมอบ 24 ชม.</span>
+                        </div>
+                    </div>
+
+                    <!-- Live Stock Counter & Rating -->
+                    <div class="flex items-center justify-between mt-2 sm:mt-3 text-[10px] sm:text-xs font-medium border-t border-slate-100 pt-1.5 sm:pt-2.5">
+                        <span class="flex items-center gap-1 ${inStock ? 'text-emerald-700 bg-emerald-50 px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg border border-rose-200'}">
+                            <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+                            <span class="text-[9px] sm:text-[11px]">${inStock ? `พร้อมส่ง (${product.stock})` : 'หมด'}</span>
+                        </span>
+                        <span class="flex items-center gap-0.5 text-slate-500 text-[9px] sm:text-[11px] font-medium">
+                            <i class="fa-solid fa-star text-amber-400 text-[10px] sm:text-xs"></i>
+                            <b class="text-slate-800 font-semibold">${product.rating || '5.0'}</b>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Price and Action Buttons -->
+                <div class="mt-2 sm:mt-3.5 pt-2 sm:pt-3 border-t border-slate-100 flex items-center justify-between gap-1 sm:gap-2">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1">
+                            <span class="text-[10px] sm:text-xs text-slate-400 line-through font-normal">฿${product.originalPrice.toFixed(0)}</span>
+                            ${discountPct > 0 ? `<span class="text-[8px] sm:text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1 rounded">-${discountPct}%</span>` : ''}
+                        </div>
+                        <div class="text-sm sm:text-2xl font-bold text-pink-600 flex items-baseline tracking-tight truncate">
+                            <span class="text-[11px] sm:text-sm font-semibold mr-0.5">฿</span>${product.price.toFixed(0)}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+                        <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs active:scale-95 touch-active cursor-pointer">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                        <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
+                            ${!inStock ? 'disabled' : ''}
+                            class="gradient-btn px-2 sm:px-4 h-7 sm:h-10 rounded-xl sm:rounded-2xl text-[10px] sm:text-sm font-bold flex items-center gap-1 shadow-md shadow-pink-500/20 active:scale-95 touch-active transition-all cursor-pointer ${!inStock ? 'opacity-40 cursor-not-allowed shadow-none' : ''}">
+                            <i class="fa-solid fa-cart-plus text-[10px] sm:text-xs"></i>
+                            <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.removeEventListener('click', handleProductCardClick);
+    container.addEventListener('click', handleProductCardClick);
+}
+
 // Render Products Grid (Bright, High-Contrast, Ultra-Readable Cards)
 function renderProducts() {
+    renderHighlightSection();
     const container = document.getElementById('products-grid');
     const countEl = document.getElementById('product-count-display');
     if (!container) return;
@@ -4303,7 +4496,7 @@ function handleAdminStockSearch(val) {
 function filterAdminStockBrand(brand) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
     adminStockBrandFilter = brand;
-    const chips = ['all', 'CapCut', 'Google-AI', 'Google', 'Grok', 'Claude', 'Adobe', 'Microsoft', 'deleted'];
+    const chips = ['all', 'highlight', 'CapCut', 'Google-AI', 'Google', 'Grok', 'Claude', 'Adobe', 'Microsoft', 'deleted'];
     chips.forEach(c => {
         const btn = document.getElementById(`admin-stock-chip-${c}`);
         if (btn) {
@@ -4313,12 +4506,16 @@ function filterAdminStockBrand(brand) {
             if (matches) {
                 if (c === 'deleted') {
                     btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-rose-100 text-rose-700 transition-all shrink-0 flex items-center gap-1";
+                } else if (c === 'highlight') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 transition-all shrink-0 flex items-center gap-1";
                 } else {
                     btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0";
                 }
             } else {
                 if (c === 'deleted') {
                     btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 transition-all shrink-0 flex items-center gap-1";
+                } else if (c === 'highlight') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-all shrink-0 flex items-center gap-1";
                 } else {
                     btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0";
                 }
@@ -4355,7 +4552,9 @@ function renderAdminStockList() {
         prods = allProdsWithDeleted.filter(p => p.deleted === true);
     } else {
         prods = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: p.stock || 50 }));
-        if (adminStockBrandFilter !== 'all') {
+        if (adminStockBrandFilter === 'highlight') {
+            prods = prods.filter(p => p.isHighlight || (p.badge && (p.badge.includes('⭐') || p.badge.includes('🔥'))));
+        } else if (adminStockBrandFilter !== 'all') {
             prods = prods.filter(p => p.brand.toLowerCase() === adminStockBrandFilter.toLowerCase() || (adminStockBrandFilter === 'Google' && p.brand === 'Google'));
         }
     }
@@ -4395,8 +4594,9 @@ function renderAdminStockList() {
         return `
             <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs font-medium transition-colors ${master.deleted ? 'bg-rose-50/40' : ''}">
                 <td class="py-3 px-3.5">
-                    <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                    <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
                         <span>${escapeHTML(master.title)}</span>
+                        ${master.isHighlight ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-300 shrink-0 flex items-center gap-0.5 shadow-2xs"><i class="fa-solid fa-star text-amber-500 text-[9px]"></i> ไฮไลท์</span>' : ''}
                         ${master.deleted ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-200 shrink-0">ลบแล้ว</span>' : ''}
                     </div>
                     <div class="flex items-center gap-1.5 mt-0.5">
@@ -4536,6 +4736,9 @@ function openEditProductModal(productId) {
     const badgeInp = document.getElementById('edit-price-badge');
     if (badgeInp) badgeInp.value = master.badge || '';
 
+    const highlightInp = document.getElementById('edit-product-is-highlight');
+    if (highlightInp) highlightInp.checked = !!master.isHighlight;
+
     const g2gUrlInp = document.getElementById('edit-price-g2g-url');
     const customPrices = getCustomPrices();
     if (g2gUrlInp) {
@@ -4600,6 +4803,8 @@ function openAddNewProductModal() {
     document.getElementById('edit-price-sale').value = 99;
     document.getElementById('edit-price-original').value = 159;
     document.getElementById('edit-price-badge').value = "⭐ มาใหม่แนะนำ";
+    const newHighlightInp = document.getElementById('edit-product-is-highlight');
+    if (newHighlightInp) newHighlightInp.checked = false;
     document.getElementById('edit-price-g2g-url').value = "";
 
     const g2gRawEl = document.getElementById('edit-price-g2g-raw-title');
@@ -4773,6 +4978,7 @@ async function handleSaveEditedProduct() {
     const saleVal = parseFloat(document.getElementById('edit-price-sale').value);
     const origVal = parseFloat(document.getElementById('edit-price-original').value);
     const badgeVal = (document.getElementById('edit-price-badge')?.value || '').trim();
+    const isHighlightVal = document.getElementById('edit-product-is-highlight')?.checked || false;
     const g2gUrlVal = (document.getElementById('edit-price-g2g-url')?.value || '').trim();
 
     if (!title) {
@@ -4806,6 +5012,7 @@ async function handleSaveEditedProduct() {
         price: cleanPrice,
         originalPrice: cleanOrig,
         badge: badgeVal,
+        isHighlight: isHighlightVal,
         g2gUrl: g2gUrlVal || existingProd.g2gUrl || '',
         deleted: false,
         updatedAt: new Date().toISOString()
@@ -4820,6 +5027,7 @@ async function handleSaveEditedProduct() {
         price: cleanPrice,
         originalPrice: cleanOrig,
         badge: badgeVal,
+        isHighlight: isHighlightVal,
         g2gUrl: g2gUrlVal || existingPrice.g2gUrl || '',
         manualOverride: true,
         lastManualUpdate: new Date().toISOString()
@@ -4845,6 +5053,7 @@ async function handleSaveEditedProduct() {
                     price: cleanPrice,
                     originalPrice: cleanOrig,
                     badge: badgeVal,
+                    isHighlight: isHighlightVal,
                     g2gUrl: g2gUrlVal
                 })
             });
@@ -8244,5 +8453,10 @@ Object.assign(window, {
     applyCouponFromCart,
     removeAppliedCoupon,
     clearAllCart,
-    closeVaultModal
+    closeVaultModal,
+    renderHighlightSection,
+    setEditBadgePreset,
+    openAddNewProductModal,
+    openEditProductModal,
+    handleSaveEditedProduct
 });

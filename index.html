@@ -819,6 +819,53 @@
         </div>
     </section>
 
+    <!-- ==========================================
+         HIGHLIGHT PRODUCTS SHOWCASE (⭐ สินค้าไฮไลท์คัดสรรพิเศษ)
+         ========================================== -->
+    <section id="highlight-section" class="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 pt-2 sm:pt-4 pb-4 sm:pb-6">
+        <div class="relative bg-gradient-to-br from-white via-amber-50/40 to-pink-50/40 rounded-2xl sm:rounded-[32px] p-3.5 sm:p-7 md:p-8 border-2 border-pink-200/90 shadow-xl shadow-pink-500/5 overflow-hidden">
+            <!-- Decorative Background Glows -->
+            <div class="absolute -top-16 -left-16 w-56 h-56 bg-amber-400/15 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-16 -right-16 w-56 h-56 bg-pink-400/15 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Header Row -->
+            <div class="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-4 pb-4 sm:pb-5 border-b border-pink-100/80">
+                <div>
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-100 to-pink-100 text-pink-700 text-xs font-bold mb-2 shadow-2xs border border-pink-200">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <i class="fa-solid fa-crown text-amber-500"></i>
+                        <span>SELECTION PICKS • สินค้าไฮไลท์ประจำสัปดาห์</span>
+                    </div>
+                    <h2 class="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
+                        <span>⭐ ดีลเด็ดไฮไลท์</span>
+                        <span class="gradient-supinkly font-['Outfit']">Supinkly.AI</span>
+                        <span class="text-amber-500 text-lg sm:text-2xl">🔥 ขายดีติดเทรนด์</span>
+                    </h2>
+                    <p class="text-xs sm:text-sm text-slate-600 font-medium mt-1">
+                        รวมบัญชี AI และซอฟต์แวร์ของแท้ 100% ตัวท็อปที่ลูกค้าเลือกใช้มากที่สุด การันตีส่งมอบใน 24 ชม. พร้อมประกันเต็มอายุการใช้งาน
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" onclick="selectBrand('highlight')" class="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white hover:bg-pink-50 text-pink-600 border-2 border-pink-200 font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-star text-amber-500"></i>
+                        <span>ดูไฮไลท์ทั้งหมด</span>
+                    </button>
+                    <a href="#products-section" class="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl gradient-btn text-white font-bold text-xs sm:text-sm shadow-md shadow-pink-500/25 flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                        <i class="fa-solid fa-shapes"></i>
+                        <span class="hidden sm:inline">ดูแคตตาล็อกทั้งหมด</span>
+                        <span class="sm:hidden">สินค้าทั้งหมด</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Highlight Products Grid -->
+            <div id="highlight-products-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-6 mt-4 sm:mt-6 relative z-10">
+                <!-- Rendered Dynamically via app.js -->
+            </div>
+        </div>
+    </section>
+
     <!-- Anchor for Smooth Scrolling to Products -->
     <div id="products-section" class="scroll-mt-24"></div>
 
@@ -2218,6 +2265,7 @@
                         </button>
                         <span class="text-slate-300 select-none">|</span>
                         <button onclick="filterAdminStockBrand('all')" id="admin-stock-chip-all" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0">ทั้งหมด</button>
+                        <button onclick="filterAdminStockBrand('highlight')" id="admin-stock-chip-highlight" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-all shrink-0 flex items-center gap-1"><i class="fa-solid fa-star text-amber-500 text-[10px]"></i> ⭐ สินค้าไฮไลท์</button>
                         <button onclick="filterAdminStockBrand('CapCut')" id="admin-stock-chip-CapCut" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">CapCut</button>
                         <button onclick="filterAdminStockBrand('Google AI')" id="admin-stock-chip-Google-AI" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Google AI</button>
                         <button onclick="filterAdminStockBrand('Google')" id="admin-stock-chip-Google" class="admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0">Google Drive</button>
@@ -3317,6 +3365,8 @@
                         <div class="flex flex-wrap gap-1.5 mt-2">
                             <button type="button" onclick="setEditBadgePreset('⭐ แพ็คขายดีติดดาว')"
                                 class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-medium transition-all shadow-2xs">⭐ แพ็คขายดีติดดาว</button>
+                            <button type="button" onclick="setEditBadgePreset('⭐ สินค้าไฮไลท์')"
+                                class="px-2.5 py-1 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-300 text-[11px] font-medium transition-all shadow-2xs">⭐ สินค้าไฮไลท์</button>
                             <button type="button" onclick="setEditBadgePreset('🔥 ขายดีอันดับ 1')"
                                 class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-medium transition-all shadow-2xs">🔥 ขายดีอันดับ 1</button>
                             <button type="button" onclick="setEditBadgePreset('⚡ แนะนำ คุ้มค่าสุด')"
@@ -3326,6 +3376,19 @@
                             <button type="button" onclick="setEditBadgePreset('')"
                                 class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 text-[11px] font-medium transition-all">ล้างป้าย</button>
                         </div>
+                    </div>
+
+                    <!-- Highlight Toggle Checkbox -->
+                    <div>
+                        <label class="flex items-center gap-2.5 p-3 rounded-2xl bg-amber-50/80 border-2 border-amber-200 cursor-pointer select-none hover:bg-amber-100/80 transition-colors">
+                            <input type="checkbox" id="edit-product-is-highlight" class="w-4 h-4 rounded text-pink-600 focus:ring-pink-500 border-amber-300">
+                            <div>
+                                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                    <span class="text-amber-500">⭐</span> ปักหมุดเป็นสินค้าไฮไลท์ (Featured Showcase)
+                                </span>
+                                <span class="text-[10px] text-slate-500 block">สินค้านี้จะแสดงในโซน "⭐ ดีลเด็ดไฮไลท์" ด้านบนหน้าร้านทันที</span>
+                            </div>
+                        </label>
                     </div>
 
                     <!-- Direct G2G URL -->
