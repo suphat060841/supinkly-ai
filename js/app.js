@@ -270,6 +270,13 @@ function safeGetSessionJSON(key, fallback) {
 // Application State
 const initialMasterProducts = (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : (typeof PRODUCTS !== 'undefined' ? PRODUCTS : [])).map(p => ({ ...p, stock: p.stock || 50 }));
 
+// Purge customer & order data as requested
+try {
+    localStorage.removeItem('supinkly_orders');
+    localStorage.removeItem('supinkly_user_orders');
+    localStorage.removeItem('supinkly_used_slips');
+} catch (e) {}
+
 const state = {
     products: initialMasterProducts,
     inventory: getSecureInventory(),
@@ -277,7 +284,7 @@ const state = {
     cart: loadAndSanitizeCart(),
     appliedCoupon: safeGetStorageJSON('supinkly_applied_coupon', null),
     user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
-    orders: safeGetStorageJSON('supinkly_orders', []),
+    orders: [],
     adminOrders: [],
     filterBrand: 'all',
     filterType: 'all',
@@ -3133,6 +3140,39 @@ async function handleDeleteAdminOrder(orderId, customerEmail) {
     }
 }
 
+async function handleClearAllAdminOrders() {
+    if (!confirm("⚠️ คุณแน่ใจหรือไม่ว่าต้องการลบคำสั่งซื้อทั้งหมดทุกรายการ?\nการกระทำนี้จะล้างประวัติออเดอร์ทั้งหมดและไม่สามารถย้อนกลับได้!")) return;
+    if (!confirm("⚠️ ยืนยันครั้งสุดท้าย: ลบคำสั่งซื้อทั้งหมดออกจากระบบจริงหรือไม่?")) return;
+
+    try {
+        if (window.location.protocol.startsWith('http')) {
+            const adminPin = (typeof ADMIN_AUTH !== 'undefined' ? ADMIN_AUTH.getStoredPin() : '') || localStorage.getItem('supinkly_admin_pin') || '';
+            await fetch('/api/admin/orders/clear-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Admin-Pin': adminPin,
+                    ...(typeof ADMIN_AUTH !== 'undefined' ? ADMIN_AUTH.getHeaders() : {})
+                }
+            });
+        }
+    } catch (e) {
+        console.warn("Clear all orders server error:", e);
+    }
+
+    state.adminOrders = [];
+    state.orders = [];
+    try {
+        localStorage.removeItem('supinkly_orders');
+        localStorage.removeItem('supinkly_user_orders');
+        localStorage.removeItem('supinkly_used_slips');
+    } catch (e) {}
+
+    renderAdminOrdersList();
+    if (typeof renderCustomerOrdersList === 'function') renderCustomerOrdersList();
+    showToast("ลบข้อมูลคำสั่งซื้อทั้งหมดทุกรายการเรียบร้อยแล้ว", "success");
+}
+
 function renderAdminOrdersList() {
     const container = document.getElementById('admin-orders-list');
     const badge = document.getElementById('admin-pending-badge');
@@ -4487,6 +4527,33 @@ async function handleAdminDeleteUser(userId, email) {
     }
 }
 
+async function handleClearAllAdminUsers() {
+    if (!confirm("⚠️ คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลสมาชิกลูกค้าทั้งหมดทุกราย?\nการกระทำนี้จะล้างบัญชีและประวัติการลงทะเบียนทั้งหมด และไม่สามารถกู้คืนได้!")) return;
+    if (!confirm("⚠️ ยืนยันครั้งสุดท้าย: ล้างข้อมูลลูกค้าทั้งหมดออกจากระบบจริงหรือไม่?")) return;
+
+    try {
+        if (window.location.protocol.startsWith('http')) {
+            await fetch('/api/admin/users/clear-all', {
+                method: 'POST',
+                headers: ADMIN_AUTH.getHeaders()
+            });
+        }
+    } catch (e) {
+        console.warn("Clear all users server error:", e);
+    }
+
+    cachedAdminUsers = [];
+    try {
+        localStorage.removeItem('supinkly_user_info');
+        localStorage.removeItem('supinkly_user_token');
+        localStorage.removeItem('supinkly_user_expiry');
+        localStorage.removeItem('supinkly_vault');
+    } catch (e) {}
+
+    renderAdminUsersList();
+    showToast("ลบข้อมูลสมาชิกลูกค้าทั้งหมดเรียบร้อยแล้ว", "success");
+}
+
 function handleAdminStockSearch(val) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
     adminStockSearchQuery = (val || '').toLowerCase().trim();
@@ -4590,80 +4657,105 @@ function renderAdminStockList() {
         const profit = master.price - costTHB;
         const profitPct = master.price > 0 ? ((profit / master.price) * 100).toFixed(0) : 0;
         const isManual = customPrices[p.id]?.manualOverride === true;
+        const isOutOfStock = pool.length === 0;
 
         return `
-            <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs font-medium transition-colors ${master.deleted ? 'bg-rose-50/40' : ''}">
+            <tr class="border-b border-slate-100 hover:bg-slate-50/80 text-xs font-medium transition-colors ${master.deleted ? 'bg-rose-50/40' : ''}">
+                <!-- 1. รายการสินค้า -->
                 <td class="py-3 px-3.5">
-                    <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
-                        <span>${escapeHTML(master.title)}</span>
-                        ${master.isHighlight ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-300 shrink-0 flex items-center gap-0.5 shadow-2xs"><i class="fa-solid fa-star text-amber-500 text-[9px]"></i> ไฮไลท์</span>' : ''}
-                        ${master.deleted ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-200 shrink-0">ลบแล้ว</span>' : ''}
+                    <div class="flex items-center gap-2.5">
+                        <img src="${master.image || `images/products/${master.id}.jpg`}" 
+                             alt="${escapeHTML(master.title)}" 
+                             class="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-200 bg-slate-100 shadow-2xs" 
+                             onerror="this.src='images/pop_new.png'">
+                        <div class="min-w-0 flex-1">
+                            <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
+                                <span class="truncate max-w-[280px]" title="${escapeHTML(master.title)}">${escapeHTML(master.title)}</span>
+                                ${master.isHighlight ? '<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-300 shrink-0"><i class="fa-solid fa-star text-amber-500 text-[8px]"></i> ไฮไลท์</span>' : ''}
+                                ${master.deleted ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-200 shrink-0">ลบแล้ว</span>' : ''}
+                            </div>
+                            <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span class="text-[10px] font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-200">${escapeHTML(master.brand)}</span>
+                                <span class="text-[10px] text-slate-500 font-medium">${escapeHTML(master.type)}</span>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded-full font-bold ${isManual ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}">
+                                    ${isManual ? '🟡 ตั้งเอง' : '🟢 Auto-Sync'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-1.5 mt-0.5">
-                        <span class="text-[11px] font-bold text-pink-600">${escapeHTML(master.brand)} (${escapeHTML(master.type)})</span>
-                        <span class="text-slate-300">•</span>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${isManual ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}">
-                            ${isManual ? '🟡 ราคาตั้งเอง' : '🟢 ตลาด Auto-Sync'}
-                        </span>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] font-mono">
-                        <span class="text-amber-950 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 inline-flex items-center gap-1">
-                            <i class="fa-solid fa-magnifying-glass text-amber-600 text-[10px]"></i>
-                            <span>ค้นหา: <b>${escapeHTML(getG2GSearchKeyword(p.id))}</b></span>
-                            <button type="button" onclick="copyG2GSearchKeyword('${escapeHTML(p.id)}')"
-                                    class="text-slate-400 hover:text-pink-600 cursor-pointer ml-1" title="คัดลอกคำค้นหาไปวางในช่องค้นหาบน G2G">
-                                <i class="fa-regular fa-copy text-[10px]"></i>
-                            </button>
-                        </span>
+                </td>
+
+                <!-- 2. ต้นทุนตลาด G2G -->
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                    <div class="font-bold text-slate-700 text-xs font-mono">฿${costTHB.toFixed(2)}</div>
+                    <div class="mt-1 flex items-center justify-center gap-1">
                         <a href="${escapeHTML(getG2GMarketLink(p.id))}" target="_blank" rel="noopener noreferrer"
-                           class="px-2 py-0.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 text-[10px] font-bold inline-flex items-center gap-1 no-underline transition-all"
-                           title="เปิดหน้าตลาด G2G ทันที">
-                            <i class="fa-solid fa-cart-shopping text-orange-600 text-[10px]"></i> ไปซื้อ G2G ↗
+                           class="px-2 py-0.5 rounded-md bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[10px] font-bold inline-flex items-center gap-1 transition-all no-underline"
+                           title="เปิดหน้าตลาด G2G เพื่อจัดซื้อ">
+                            <i class="fa-solid fa-cart-shopping text-orange-500 text-[9px]"></i> ซื้อ G2G ↗
                         </a>
+                        <button type="button" onclick="copyG2GSearchKeyword('${escapeHTML(p.id)}')"
+                                class="px-1.5 py-0.5 rounded-md bg-slate-100 hover:bg-pink-50 text-slate-500 hover:text-pink-600 text-[10px] transition-all cursor-pointer border border-slate-200"
+                                title="คัดลอกคำค้นหา G2G: ${escapeHTML(getG2GSearchKeyword(p.id))}">
+                            <i class="fa-regular fa-copy text-[10px]"></i>
+                        </button>
                     </div>
                 </td>
-                <td class="py-3 px-3.5 text-center font-mono">
-                    <span class="text-slate-500 font-bold text-xs">฿${costTHB.toFixed(2)}</span>
-                </td>
-                <td class="py-3 px-3.5 text-center">
-                    <div class="font-bold text-pink-600 text-sm font-mono">฿${master.price.toFixed(2)}</div>
+
+                <!-- 3. ราคาขายหน้าร้าน -->
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                    <div class="font-bold text-pink-600 text-sm font-mono leading-tight">฿${master.price.toFixed(2)}</div>
                     <div class="text-[10px] text-slate-400 line-through font-mono">฿${master.originalPrice.toFixed(2)}</div>
                 </td>
-                <td class="py-3 px-3.5 text-center font-mono">
-                    <span class="font-bold text-xs ${profit >= 0 ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
+
+                <!-- 4. กำไรโดยประมาณ -->
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                    <span class="inline-flex items-center font-mono font-bold text-xs px-2.5 py-1 rounded-lg border shadow-2xs ${profit >= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-rose-700 bg-rose-50 border-rose-200'}">
                         ${profit >= 0 ? '+' : ''}฿${profit.toFixed(2)} (${profitPct}%)
                     </span>
                 </td>
-                <td class="py-3 px-3.5 text-center">
+
+                <!-- 5. คงเหลือ (คลัง / ตลาด) -->
+                <td class="py-3 px-3 text-center whitespace-nowrap">
                     <div class="flex flex-col items-center gap-1">
-                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${pool.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
-                            คลัง: ${pool.length}
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ${!isOutOfStock ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}">
+                            ${!isOutOfStock ? `คลัง: ${pool.length} ชิ้น` : 'คลัง: 0 (หมด)'}
                         </span>
-                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200">
-                            ตลาด: ${marketStock}
+                        <span class="text-[10px] font-medium text-slate-500">
+                            ตลาด: <b class="text-cyan-700 font-mono">${marketStock}</b>
                         </span>
                     </div>
                 </td>
-                <td class="py-3 px-3.5 text-right">
+
+                <!-- 6. การจัดการ -->
+                <td class="py-3 px-3.5 text-right whitespace-nowrap">
                     ${master.deleted ? `
                         <div class="flex items-center justify-end gap-1.5">
-                            <button onclick="handleRestoreProduct('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 hover:bg-emerald-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
+                            <button onclick="handleRestoreProduct('${p.id}')" class="px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap">
                                 <i class="fa-solid fa-trash-arrow-up text-emerald-600"></i> กู้คืน
                             </button>
-                            <button onclick="openEditProductModal('${p.id}')" class="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs" title="ดู/แก้ไขข้อมูล">
+                            <button onclick="openEditProductModal('${p.id}')" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95" title="ดู/แก้ไขข้อมูล">
                                 <i class="fa-solid fa-pen"></i>
                             </button>
                         </div>
                     ` : `
                         <div class="flex items-center justify-end gap-1.5">
-                            <button onclick="openEditProductModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1" title="แก้ไขชื่อ รายละเอียด และราคา">
-                                <i class="fa-solid fa-pen-to-square"></i> แก้ไข
+                            <button onclick="openAddStockModal('${p.id}')" 
+                                    class="px-3 py-1.5 rounded-xl ${isOutOfStock ? 'bg-pink-600 hover:bg-pink-700 text-white shadow-sm shadow-pink-500/25 ring-2 ring-pink-300' : 'bg-pink-100 hover:bg-pink-200 text-pink-700'} text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap"
+                                    title="เติมคีย์หรือบัญชีเข้าสต็อก">
+                                <i class="fa-solid fa-plus text-[10px]"></i>
+                                <span>เติมสต็อก</span>
                             </button>
-                            <button onclick="openAddStockModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
-                                <i class="fa-solid fa-plus"></i> เติมสต็อก
+                            <button onclick="openEditProductModal('${p.id}')" 
+                                    class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap" 
+                                    title="แก้ไขราคาและข้อมูลสินค้า">
+                                <i class="fa-solid fa-pen-to-square text-[11px] text-slate-500"></i>
+                                <span>แก้ไข</span>
                             </button>
-                            <button onclick="handleDeleteProduct('${p.id}')" class="px-2 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold transition-all shadow-2xs flex items-center gap-1" title="ลบสินค้านี้">
-                                <i class="fa-solid fa-trash-can"></i>
+                            <button onclick="handleDeleteProduct('${p.id}')" 
+                                    class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 text-xs font-bold transition-all flex items-center justify-center cursor-pointer active:scale-95 shrink-0" 
+                                    title="ลบสินค้านี้">
+                                <i class="fa-solid fa-trash-can text-[11px]"></i>
                             </button>
                         </div>
                     `}
@@ -8585,5 +8677,7 @@ Object.assign(window, {
     setEditBadgePreset,
     openAddNewProductModal,
     openEditProductModal,
-    handleSaveEditedProduct
+    handleSaveEditedProduct,
+    handleClearAllAdminOrders,
+    handleClearAllAdminUsers
 });

@@ -1590,6 +1590,33 @@ app.delete('/api/admin/orders/:orderId', adminRateLimit, (req, res) => {
     res.json({ success: true, message: `ลบคำสั่งซื้อ ${orderId} สำเร็จเรียบร้อย`, orders: db.orders });
 });
 
+// 5.1.1 API: Admin Clear All Orders
+app.post(['/api/admin/orders/clear-all', '/api/admin/orders/delete-all'], adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const count = (db.orders || []).length;
+    db.orders = [];
+    db.usedSlips = [];
+    db.usedTransRefs = [];
+    saveDb(db);
+    res.json({ success: true, message: `ลบข้อมูลคำสั่งซื้อทั้งหมด ${count} รายการเรียบร้อยแล้ว`, orders: [] });
+});
+
+app.delete('/api/admin/orders', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const count = (db.orders || []).length;
+    db.orders = [];
+    db.usedSlips = [];
+    db.usedTransRefs = [];
+    saveDb(db);
+    res.json({ success: true, message: `ลบข้อมูลคำสั่งซื้อทั้งหมด ${count} รายการเรียบร้อยแล้ว`, orders: [] });
+});
+
 // 5.2 API: Admin Attach/Re-upload Slip Image for an Existing Order
 app.post('/api/admin/orders/:orderId/attach-slip', adminRateLimit, upload.single('slip'), (req, res) => {
     if (!authenticateAdmin(req)) {
@@ -2585,6 +2612,54 @@ app.delete('/api/admin/users/:userId', adminRateLimit, (req, res) => {
     const deletedUser = db.users.splice(idx, 1)[0];
     saveDb(db);
     res.json({ success: true, message: `ลบบัญชีผู้ใช้ ${deletedUser.email} เรียบร้อยแล้ว` });
+});
+
+// 6.6 API: Admin Clear All User Accounts & Registrations
+app.post(['/api/admin/users/clear-all', '/api/admin/users/delete-all'], adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const count = (db.users || []).length;
+    db.users = [];
+    db.pendingRegistrations = {};
+    db.passwordResets = {};
+    saveDb(db);
+    res.json({ success: true, message: `ลบข้อมูลสมาชิกและลูกค้าทั้งหมด ${count} คนเรียบร้อยแล้ว`, users: [] });
+});
+
+app.delete('/api/admin/users', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const count = (db.users || []).length;
+    db.users = [];
+    db.pendingRegistrations = {};
+    db.passwordResets = {};
+    saveDb(db);
+    res.json({ success: true, message: `ลบข้อมูลสมาชิกและลูกค้าทั้งหมด ${count} คนเรียบร้อยแล้ว`, users: [] });
+});
+
+// 6.7 API: Admin Clear Both Orders and Users in One Go
+app.post('/api/admin/clear-all-data', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const orderCount = (db.orders || []).length;
+    const userCount = (db.users || []).length;
+    db.orders = [];
+    db.users = [];
+    db.usedSlips = [];
+    db.usedTransRefs = [];
+    db.pendingRegistrations = {};
+    db.passwordResets = {};
+    saveDb(db);
+    res.json({ 
+        success: true, 
+        message: `ล้างข้อมูลทั้งหมดสำเร็จ: ลูกค้า ${userCount} คน และคำสั่งซื้อ ${orderCount} รายการ` 
+    });
 });
 
 const orderLookupRateLimit = rateLimit({

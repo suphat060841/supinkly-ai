@@ -2229,6 +2229,11 @@
                             <i class="fa-solid fa-file-csv text-emerald-600 text-sm"></i>
                             <span class="hidden sm:inline">ส่งออก CSV</span>
                         </button>
+                        <button onclick="handleClearAllAdminOrders()" title="ลบข้อมูลคำสั่งซื้อทั้งหมดทุกรายการออกจากระบบ" 
+                                class="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-trash-can text-rose-500 text-xs"></i>
+                            <span class="hidden sm:inline">ล้างออเดอร์ทั้งหมด</span>
+                        </button>
                     </div>
                 </div>
 
@@ -2282,14 +2287,14 @@
 
                 <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs">
                     <table class="w-full text-left">
-                        <thead class="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 whitespace-nowrap">
                             <tr>
-                                <th class="py-3 px-3.5">รายการสินค้า</th>
-                                <th class="py-3 px-3.5 text-center">ต้นทุนตลาด G2G</th>
-                                <th class="py-3 px-3.5 text-center">ราคาขายหน้าร้าน</th>
-                                <th class="py-3 px-3.5 text-center">กำไรโดยประมาณ</th>
-                                <th class="py-3 px-3.5 text-center">คงเหลือ (คลัง / ตลาด)</th>
-                                <th class="py-3 px-3.5 text-right">การจัดการ</th>
+                                <th class="py-3 px-3.5 min-w-[240px]">รายการสินค้า</th>
+                                <th class="py-3 px-3 text-center min-w-[125px]">ต้นทุนตลาด G2G</th>
+                                <th class="py-3 px-3 text-center min-w-[110px]">ราคาขายหน้าร้าน</th>
+                                <th class="py-3 px-3 text-center min-w-[125px]">กำไรโดยประมาณ</th>
+                                <th class="py-3 px-3 text-center min-w-[130px]">คงเหลือ (คลัง / ตลาด)</th>
+                                <th class="py-3 px-3.5 text-right min-w-[200px]">การจัดการ</th>
                             </tr>
                         </thead>
                         <tbody id="admin-stock-table"></tbody>
@@ -2684,6 +2689,11 @@
                             class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
                             <i class="fa-solid fa-rotate text-[11px]"></i>
                             <span>รีเฟรชรายชื่อ</span>
+                        </button>
+                        <button onclick="handleClearAllAdminUsers()" title="ลบข้อมูลสมาชิกลูกค้าทั้งหมดออกจากระบบ"
+                            class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-user-xmark text-rose-500 text-xs"></i>
+                            <span>ล้างข้อมูลลูกค้าทั้งหมด</span>
                         </button>
                     </div>
                 </div>
