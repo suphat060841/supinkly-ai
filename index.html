@@ -2023,7 +2023,7 @@
          SECURED ADMIN MODAL (Clean Bright Layout)
          ========================================== -->
     <div id="admin-modal" class="hidden fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 md:p-6">
-        <div class="bg-white max-w-6xl w-full rounded-3xl p-4 sm:p-6 lg:p-7 border-2 border-pink-200/80 relative max-h-[94vh] overflow-y-auto shadow-2xl">
+        <div class="bg-white max-w-7xl w-full rounded-3xl p-4 sm:p-6 lg:p-7 border-2 border-pink-200/80 relative max-h-[94vh] overflow-y-auto shadow-2xl">
             
             <!-- Admin Top Header Bar -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-200 gap-3">
@@ -2255,7 +2255,10 @@
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                         <input type="text" id="admin-stock-search" oninput="handleAdminStockSearch(this.value)" 
                                placeholder="ค้นหาชื่อสินค้าในระบบ..." 
-                               class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
+                               class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-pink-500">
+                        <button id="admin-stock-clear-search" onclick="clearAdminStockSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
                     </div>
                     <div class="flex items-center gap-1.5 overflow-x-auto py-1">
                         <button onclick="openAddNewProductModal()" title="เพิ่มสินค้าใหม่เข้าสู่ระบบร้านค้า"
@@ -2285,16 +2288,27 @@
                     </div>
                 </div>
 
+                <!-- Stock Summary & Interactive Tip -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 px-1 font-medium gap-1.5">
+                    <div class="flex items-center gap-2">
+                        <span>แสดงสินค้าทั้งหมด <b id="admin-stock-count" class="text-pink-600 font-bold">0</b> รายการ</span>
+                    </div>
+                    <span class="text-[11px] text-pink-700 bg-pink-50 px-2.5 py-1 rounded-full border border-pink-200 font-semibold self-start sm:self-auto flex items-center gap-1.5 shadow-2xs">
+                        <i class="fa-solid fa-lightbulb text-amber-500 text-xs"></i>
+                        <span>เคล็ดลับ: คลิกที่ "ชื่อสินค้า" หรือ "ราคาขาย" ในตาราง เพื่อแก้ไขได้ทันที</span>
+                    </span>
+                </div>
+
                 <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs">
-                    <table class="w-full text-left">
+                    <table class="w-full text-left border-separate border-spacing-0">
                         <thead class="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 whitespace-nowrap">
                             <tr>
-                                <th class="py-3 px-3.5 min-w-[240px]">รายการสินค้า</th>
-                                <th class="py-3 px-3 text-center min-w-[125px]">ต้นทุนตลาด G2G</th>
-                                <th class="py-3 px-3 text-center min-w-[110px]">ราคาขายหน้าร้าน</th>
-                                <th class="py-3 px-3 text-center min-w-[125px]">กำไรโดยประมาณ</th>
-                                <th class="py-3 px-3 text-center min-w-[130px]">คงเหลือ (คลัง / ตลาด)</th>
-                                <th class="py-3 px-3.5 text-right min-w-[200px]">การจัดการ</th>
+                                <th class="py-3 px-3.5 min-w-[230px] border-b border-slate-200">รายการสินค้า</th>
+                                <th class="py-3 px-3 text-center min-w-[120px] border-b border-slate-200">ต้นทุนตลาด G2G</th>
+                                <th class="py-3 px-3 text-center min-w-[115px] border-b border-slate-200">ราคาขายหน้าร้าน</th>
+                                <th class="py-3 px-3 text-center min-w-[120px] border-b border-slate-200">กำไรโดยประมาณ</th>
+                                <th class="py-3 px-3 text-center min-w-[125px] border-b border-slate-200">คงเหลือ (คลัง / ตลาด)</th>
+                                <th class="py-3 px-4 text-center min-w-[250px] sticky right-0 bg-slate-50 z-20 border-b border-slate-200 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)]">การจัดการ</th>
                             </tr>
                         </thead>
                         <tbody id="admin-stock-table"></tbody>
@@ -3179,7 +3193,7 @@
          EDIT & MANAGE PRODUCT MODAL (PRICE + DETAILS + DELETE)
          ========================================== -->
     <div id="edit-price-modal"
-        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
         <div class="bg-white max-w-xl w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
             
             <!-- Modal Header -->
@@ -3220,6 +3234,7 @@
                             ชื่อสินค้า (Title) <span class="text-pink-600">*</span>
                         </label>
                         <input type="text" id="edit-product-title-input" required placeholder="เช่น CapCut Pro (1 เดือน) - บัญชีส่วนตัว"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();handleSaveEditedProduct();}"
                             class="w-full p-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 font-bold text-slate-900 outline-none focus:border-pink-500 focus:bg-white text-xs sm:text-sm">
                     </div>
 
@@ -3353,14 +3368,14 @@
                             <label class="block font-bold text-slate-700 mb-1">
                                 ราคาขายจริง (฿) <span class="text-pink-600">*ลูกค้าชำระราคานี้</span>
                             </label>
-                            <input type="number" id="edit-price-sale" oninput="updateEditPricePreview()" step="0.01" min="0"
+                            <input type="number" id="edit-price-sale" oninput="updateEditPricePreview()" onkeydown="if(event.key==='Enter'){event.preventDefault();handleSaveEditedProduct();}" step="0.01" min="0"
                                 class="w-full p-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-base font-bold text-pink-600 outline-none focus:border-pink-500 focus:bg-white font-mono">
                         </div>
                         <div>
                             <label class="block font-bold text-slate-700 mb-1">
                                 ราคาปกติก่อนลด (฿) <span class="text-slate-400">*ขีดฆ่า</span>
                             </label>
-                            <input type="number" id="edit-price-original" step="0.01" min="0"
+                            <input type="number" id="edit-price-original" onkeydown="if(event.key==='Enter'){event.preventDefault();handleSaveEditedProduct();}" step="0.01" min="0"
                                 class="w-full p-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-sm font-semibold text-slate-500 outline-none focus:border-pink-500 focus:bg-white font-mono">
                         </div>
                     </div>
@@ -3442,7 +3457,7 @@
     <!-- ==========================================
          ADD STOCK MODAL
          ========================================== -->
-    <div id="add-stock-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div id="add-stock-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
         <div class="bg-white max-w-md w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl">
             <h3 class="text-base font-bold text-slate-900 mb-1">เติมสต็อกสินค้า</h3>
             <p id="add-stock-product-title" class="text-xs font-bold text-pink-600 mb-3"></p>
