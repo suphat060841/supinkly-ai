@@ -214,12 +214,6 @@ try {
     // Ensure images/slips directory exists for storing uploaded payment slips
     const slipsDir = path.join(imagesDir, 'slips');
     if (!fs.existsSync(slipsDir)) fs.mkdirSync(slipsDir, { recursive: true });
-
-    const customerSlipBrain = path.join(brainDir, '.user_uploaded', 'media_1791164474838.jpg');
-    const customerSlipLocal = path.join(slipsDir, 'slip_piyawat_224_10.jpg');
-    if (fs.existsSync(customerSlipBrain) && !fs.existsSync(customerSlipLocal)) {
-        try { fs.copyFileSync(customerSlipBrain, customerSlipLocal); } catch { }
-    }
 } catch (e) {
     // Non-blocking
 }
@@ -1518,6 +1512,35 @@ app.get('/api/admin/orders', adminRateLimit, (req, res) => {
     }
     const db = getDb();
     res.json({ success: true, orders: db.orders || [] });
+});
+
+// 5.1 API: Admin Delete Order
+app.delete('/api/admin/orders/:orderId', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { orderId } = req.params;
+    if (!orderId) {
+        return res.status(400).json({ success: false, message: "ไม่ระบุรหัสคำสั่งซื้อ" });
+    }
+    const db = getDb();
+    const orderIndex = (db.orders || []).findIndex(o => o.orderId === orderId);
+    if (orderIndex === -1) {
+        return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อที่ต้องการลบ" });
+    }
+
+    const removedOrder = db.orders.splice(orderIndex, 1)[0];
+
+    // Clean up usedSlips and usedTransRefs
+    if (removedOrder.slipHash && Array.isArray(db.usedSlips)) {
+        db.usedSlips = db.usedSlips.filter(h => h !== removedOrder.slipHash);
+    }
+    if (removedOrder.transRef && Array.isArray(db.usedTransRefs)) {
+        db.usedTransRefs = db.usedTransRefs.filter(r => r !== removedOrder.transRef);
+    }
+
+    saveDb(db);
+    res.json({ success: true, message: `ลบคำสั่งซื้อ ${orderId} สำเร็จเรียบร้อย`, orders: db.orders });
 });
 
 // 6. API: Admin Fulfill Order Item

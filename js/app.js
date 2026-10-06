@@ -1164,41 +1164,15 @@ function renderProducts() {
                         ${escapeHTML(product.title)}
                     </h3>
 
-                    <!-- Organized Benefit Highlights (Desktop) -->
-                    <div class="hidden sm:flex flex-col gap-1 mt-1.5 min-h-[38px] justify-center">
-                        ${(() => {
-                            const raw = product.subtitle || product.description || '';
-                            const parts = raw.split(/\s*•\s*/).map(s => s.replace(/^[\s•\-\*]+/, '').trim()).filter(Boolean);
-                            if (parts.length > 0) {
-                                return `
-                                    <div class="text-xs text-slate-700 font-medium flex items-center gap-1.5 truncate">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0"></span>
-                                        <span class="truncate">${escapeHTML(parts[0])}</span>
-                                    </div>
-                                    ${parts[1] ? `
-                                    <div class="text-[11px] text-slate-500 font-normal flex items-center gap-1.5 truncate">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
-                                        <span class="truncate">${escapeHTML(parts[1])}</span>
-                                    </div>
-                                    ` : ''}
-                                `;
-                            }
-                            return `<p class="text-xs text-slate-500 font-medium leading-snug line-clamp-2">${escapeHTML(raw)}</p>`;
-                        })()}
-                    </div>
+                    <!-- Concise Subtitle Benefit (Desktop) -->
+                    <p class="hidden sm:block text-xs text-slate-500 font-medium mt-1 leading-relaxed line-clamp-2 min-h-[32px]">
+                        ${escapeHTML(product.subtitle || product.description)}
+                    </p>
 
-                    <!-- Mobile compact specs & benefit tag -->
-                    <div class="sm:hidden flex flex-col gap-1 mt-1">
-                        ${product.subtitle ? `
-                        <div class="text-[10px] text-pink-700 font-semibold truncate bg-pink-50/80 border border-pink-200/60 px-1.5 py-0.5 rounded-md flex items-center gap-1">
-                            <i class="fa-solid fa-sparkles text-[8px] text-pink-500 shrink-0"></i>
-                            <span class="truncate">${escapeHTML((product.subtitle || '').split('•')[0].trim())}</span>
-                        </div>
-                        ` : ''}
-                        <div class="flex items-center gap-1 text-[10px] font-medium text-slate-600 truncate">
-                            <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">🛡️ ประกัน ${escapeHTML(product.warranty || '30 วัน')}</span>
-                            <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">⚡ ส่งทันที</span>
-                        </div>
+                    <!-- Mobile compact specs tag -->
+                    <div class="sm:hidden flex items-center gap-1 mt-1.5 text-[10px] font-medium text-slate-600 truncate">
+                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">🛡️ ประกัน ${escapeHTML(product.warranty || '30 วัน')}</span>
+                        <span class="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md truncate">⚡ ส่งทันที</span>
                     </div>
 
                     <!-- 2x2 Neat Specs Grid (Desktop) -->
@@ -2916,6 +2890,43 @@ function copyOrderCustomerReceipt(orderId) {
     copyToClipboard(text, "คัดลอกข้อความแจ้งลูกค้าเรียบร้อยแล้ว นำไปส่งในแชทได้ทันที!");
 }
 
+async function handleDeleteAdminOrder(orderId, customerEmail) {
+    if (!orderId) return;
+    const label = customerEmail ? `ออเดอร์ ${orderId} ของลูกค้า: ${customerEmail}` : `ออเดอร์ ${orderId}`;
+    if (!confirm(`ยืนยันการลบ ${label} ออกจากระบบถาวรหรือไม่?`)) return;
+
+    try {
+        const adminPin = (typeof ADMIN_AUTH !== 'undefined' ? ADMIN_AUTH.getStoredPin() : '') || localStorage.getItem('supinkly_admin_pin') || '';
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Admin-Pin': adminPin
+            }
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`ลบคำสั่งซื้อ ${orderId} สำเร็จแล้ว`, 'success');
+            state.adminOrders = (state.adminOrders || []).filter(o => o.orderId !== orderId);
+            state.orders = (state.orders || []).filter(o => o.orderId !== orderId);
+            try { localStorage.setItem('supinkly_orders', JSON.stringify(state.orders)); } catch (e) {}
+            renderAdminOrdersList();
+            if (typeof renderCustomerOrdersList === 'function') renderCustomerOrdersList();
+        } else {
+            showToast(data.message || 'ไม่สามารถลบคำสั่งซื้อได้', 'error');
+        }
+    } catch (e) {
+        console.error('Delete order error:', e);
+        // Fallback for local cache/offline
+        state.adminOrders = (state.adminOrders || []).filter(o => o.orderId !== orderId);
+        state.orders = (state.orders || []).filter(o => o.orderId !== orderId);
+        try { localStorage.setItem('supinkly_orders', JSON.stringify(state.orders)); } catch (e) {}
+        renderAdminOrdersList();
+        if (typeof renderCustomerOrdersList === 'function') renderCustomerOrdersList();
+        showToast(`ลบคำสั่งซื้อ ${orderId} ออกจากระบบแล้ว`, 'success');
+    }
+}
+
 function renderAdminOrdersList() {
     const container = document.getElementById('admin-orders-list');
     const badge = document.getElementById('admin-pending-badge');
@@ -3045,6 +3056,12 @@ function renderAdminOrdersList() {
                                 class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold transition-all flex items-center gap-1 border border-pink-200 shadow-2xs">
                             <i class="fa-regular fa-message text-[11px]"></i>
                             <span>ข้อความส่งลูกค้า</span>
+                        </button>
+                        <button onclick="handleDeleteAdminOrder('${escapeHTML(order.orderId)}', '${escapeHTML(order.recipientEmail || order.email || '')}')" 
+                                class="px-2 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition-all flex items-center gap-1 border border-rose-200 shadow-2xs cursor-pointer" 
+                                title="ลบออเดอร์นี้">
+                            <i class="fa-solid fa-trash-can text-[11px]"></i>
+                            <span>ลบ</span>
                         </button>
                         <span class="px-2.5 py-1 rounded-full text-xs font-bold ${hasPending ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}">
                             ${hasPending ? '🟡 รอส่งมอบ (On-Demand)' : '🟢 จัดส่งสำเร็จ'}
@@ -5890,18 +5907,6 @@ function openProductDetailModal(productId) {
     // Title
     const titleEl = document.getElementById('modal-product-title');
     if (titleEl) titleEl.textContent = product.title || '';
-
-    // Subtitle / Tagline Proposition
-    const subtitleEl = document.getElementById('modal-product-subtitle');
-    const subtitleWrap = document.getElementById('modal-product-subtitle-wrap');
-    if (subtitleEl) {
-        const sub = product.subtitle || '';
-        subtitleEl.textContent = sub;
-        if (subtitleWrap) {
-            if (sub) subtitleWrap.classList.remove('hidden');
-            else subtitleWrap.classList.add('hidden');
-        }
-    }
 
     // Key Features & Benefits (Organized bullet cards)
     const featuresListEl = document.getElementById('modal-product-features-list');
