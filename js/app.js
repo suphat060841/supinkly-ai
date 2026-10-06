@@ -100,6 +100,7 @@ const ADMIN_AUTH = {
             sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
             localStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
             sessionStorage.setItem('supinkly_admin_pin', cleanPin);
+            localStorage.setItem('supinkly_admin_pin', cleanPin);
 
             // Obtain backend HMAC token for admin API endpoints
             try {
@@ -137,6 +138,7 @@ const ADMIN_AUTH = {
             sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
             localStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
             sessionStorage.setItem('supinkly_admin_pin', cleanPin);
+            localStorage.setItem('supinkly_admin_pin', cleanPin);
 
             // Obtain backend HMAC token
             try {
@@ -187,6 +189,22 @@ const ADMIN_AUTH = {
                 session.expiresAt = Date.now() + this.SESSION_DURATION_MS;
                 sessionStorage.setItem('supinkly_admin_session', JSON.stringify(session));
                 localStorage.setItem('supinkly_admin_session', JSON.stringify(session));
+
+                // Silent token refresh if server token is missing
+                const savedPin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin');
+                if (savedPin && (!sessionStorage.getItem('supinkly_admin_server_token') && !localStorage.getItem('supinkly_admin_server_token'))) {
+                    fetch('/api/admin/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pin: savedPin })
+                    }).then(r => r.json()).then(d => {
+                        if (d && d.success && d.token) {
+                            sessionStorage.setItem('supinkly_admin_server_token', d.token);
+                            localStorage.setItem('supinkly_admin_server_token', d.token);
+                        }
+                    }).catch(() => {});
+                }
+
                 return true;
             }
         } catch {
@@ -202,6 +220,7 @@ const ADMIN_AUTH = {
         sessionStorage.removeItem('supinkly_admin_pin');
         localStorage.removeItem('supinkly_admin_session');
         localStorage.removeItem('supinkly_admin_server_token');
+        localStorage.removeItem('supinkly_admin_pin');
     }
 };
 
@@ -273,14 +292,8 @@ const state = {
     inventory: getSecureInventory(),
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
-    user: JSON.parse(localStorage.getItem('supinkly_user') || JSON.stringify({
-        id: "USR-8821",
-        name: "Supinkly Member",
-        email: "member@supinkly.ai",
-        isLoggedIn: true,
-        points: 450
-    })),
-    orders: JSON.parse(localStorage.getItem('supinkly_orders') || '[]'),
+    user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
+    orders: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? JSON.parse(localStorage.getItem('supinkly_orders') || '[]') : [],
     filterBrand: 'all',
     filterType: 'all',
     searchQuery: '',
@@ -386,6 +399,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Synchronize custom prices and products with server
     syncCatalogWithServer();
+
+    // User session & isolated keys initialization
+    if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+        refreshUserOrders();
+    } else {
+        state.orders = [];
+        localStorage.removeItem('supinkly_orders');
+        updateNavOrdersCount();
+    }
 });
 
 async function syncCatalogWithServer() {
@@ -419,15 +441,55 @@ async function syncCatalogWithServer() {
     } catch (e) { }
 }
 
+function updateNavOrdersCount() {
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    const count = isLoggedIn ? (state.orders || []).length : 0;
+    const navCnt = document.getElementById('nav-orders-count');
+    if (navCnt) navCnt.textContent = count;
+    const mobileNavCnt = document.getElementById('mobile-nav-orders-count');
+    if (mobileNavCnt) {
+        mobileNavCnt.textContent = count;
+        mobileNavCnt.classList.toggle('hidden', count === 0);
+    }
+    const badgeTotal = document.getElementById('customer-keys-count-badge');
+    if (badgeTotal) badgeTotal.textContent = `${count} รายการ`;
+}
+
+async function refreshUserOrders() {
+    if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) {
+        if (state) state.orders = [];
+        localStorage.removeItem('supinkly_orders');
+        updateNavOrdersCount();
+        return [];
+    }
+    try {
+        const serverOrders = await USER_AUTH.fetchMyOrders();
+        if (Array.isArray(serverOrders)) {
+            state.orders = serverOrders;
+            localStorage.setItem('supinkly_orders', JSON.stringify(serverOrders));
+            updateNavOrdersCount();
+            return serverOrders;
+        }
+    } catch (e) {
+        console.warn("Could not fetch user orders:", e);
+    }
+    updateNavOrdersCount();
+    return state.orders || [];
+}
+
 function saveCart() {
     localStorage.setItem('supinkly_cart', JSON.stringify(state.cart));
     updateCartUI();
 }
 
 function saveOrders() {
-    localStorage.setItem('supinkly_orders', JSON.stringify(state.orders));
-    const navCnt = document.getElementById('nav-orders-count');
-    if (navCnt) navCnt.textContent = state.orders.length;
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    if (isLoggedIn) {
+        localStorage.setItem('supinkly_orders', JSON.stringify(state.orders));
+    } else {
+        localStorage.removeItem('supinkly_orders');
+    }
+    updateNavOrdersCount();
 }
 
 // Header & User Actions
@@ -525,6 +587,7 @@ async function handleLogin() {
             const res = await USER_AUTH.login(email, password);
             if (res.success) {
                 closeAuthModal();
+                await refreshUserOrders();
                 updateUserHeaderUI();
                 showToast(`ยินดีต้อนรับคุณ ${res.user?.displayName || email}!`, 'success');
                 if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
@@ -615,6 +678,7 @@ async function handleVerifyOtp() {
             const res = await USER_AUTH.verifyOtp(pendingAuthEmail, otp);
             if (res.success) {
                 closeAuthModal();
+                await refreshUserOrders();
                 updateUserHeaderUI();
                 showToast('สมัครสมาชิกและยืนยันอีเมลสำเร็จ ยินดีต้อนรับ!', 'success');
                 if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
@@ -747,6 +811,7 @@ async function handleResetPasswordSubmit() {
             const res = await USER_AUTH.resetPassword(pendingAuthEmail, otp, newPass);
             if (res.success) {
                 closeAuthModal();
+                await refreshUserOrders();
                 updateUserHeaderUI();
                 showToast('เปลี่ยนรหัสผ่านและเข้าสู่ระบบสำเร็จแล้ว!', 'success');
             } else {
@@ -773,13 +838,23 @@ function handleUserLogout() {
     }
     if (typeof state !== 'undefined') {
         state.user = null;
+        state.orders = [];
     }
+    localStorage.removeItem('supinkly_orders');
+    sessionStorage.removeItem('supinkly_orders');
+    updateNavOrdersCount();
+
     const ordersModal = document.getElementById('orders-modal');
     if (ordersModal && !ordersModal.classList.contains('hidden')) {
         closeOrdersModal();
     }
+    const vaultModal = document.getElementById('vault-modal');
+    if (vaultModal && !vaultModal.classList.contains('hidden')) {
+        closeVaultModal();
+    }
+
     updateUserHeaderUI();
-    showToast('ออกจากระบบสมาชิกเรียบร้อยแล้ว', 'info');
+    showToast('ออกจากระบบและล้างข้อมูลคีย์ในเครื่องนี้เรียบร้อยแล้ว', 'info');
 }
 
 function updateUserHeaderUI() {
@@ -794,7 +869,7 @@ function updateUserHeaderUI() {
             <div class="flex items-center gap-1.5 sm:gap-2">
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-                    <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
                 </button>
                 <div class="flex items-center gap-1">
                     <button onclick="openOrdersModal()" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 text-pink-700 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ดูคีย์และข้อมูลสมาชิก">
@@ -812,9 +887,9 @@ function updateUserHeaderUI() {
             <div class="flex items-center gap-1.5 sm:gap-2">
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-                    <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">0</span>)</span>
                 </button>
-                <button onclick="openAuthModal('login')" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 sm:gap-1.5 shrink-0 touch-active cursor-pointer">
+                <button onclick="openAuthModal('login')" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 text-pink-700 border-2 border-pink-300 transition-all shadow-sm flex items-center justify-center gap-1 sm:gap-1.5 shrink-0 touch-active cursor-pointer">
                     <i class="fa-solid fa-right-to-bracket text-xs sm:text-sm"></i>
                     <span class="inline font-bold">เข้าสู่ระบบ</span>
                 </button>
@@ -822,6 +897,7 @@ function updateUserHeaderUI() {
         `;
     }
     if (typeof updateCartUI === 'function') updateCartUI();
+    updateNavOrdersCount();
 }
 
 // Brand Tabs
@@ -2103,8 +2179,37 @@ function renderOrdersHistory() {
     const list = document.getElementById('orders-history-list');
     if (!list) return;
 
-    const totalOrders = state.orders.length;
-    const deliveredOrders = state.orders.filter(o => o.items && o.items.every(it => it.credentials && it.status !== 'pending_fulfillment')).length;
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    if (!isLoggedIn) {
+        // Enforce zero state when unauthenticated
+        const cntAll = document.getElementById('ck-cnt-all');
+        if (cntAll) cntAll.textContent = '0';
+        const cntDelivered = document.getElementById('ck-cnt-delivered');
+        if (cntDelivered) cntDelivered.textContent = '0';
+        const cntPending = document.getElementById('ck-cnt-pending');
+        if (cntPending) cntPending.textContent = '0';
+        const badgeTotal = document.getElementById('customer-keys-count-badge');
+        if (badgeTotal) badgeTotal.textContent = `0 รายการ`;
+        const navOrdersCount = document.getElementById('nav-orders-count');
+        if (navOrdersCount) navOrdersCount.textContent = '0';
+
+        list.innerHTML = `
+            <div class="py-12 text-center bg-slate-50/60 rounded-2xl border-2 border-dashed border-slate-200 p-6">
+                <div class="w-16 h-16 mx-auto mb-3 rounded-3xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-600 text-2xl shadow-inner">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <p class="text-base font-black text-slate-800">กรุณาเข้าสู่ระบบเพื่อดูคีย์ของคุณ</p>
+                <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto font-medium">เพื่อความปลอดภัยสูงสุด ข้อมูลคีย์และรหัสผ่านจะแสดงเฉพาะเมื่อคุณเข้าสู่ระบบสมาชิกเท่านั้น</p>
+                <button onclick="closeOrdersModal(); openAuthModal('login');" class="mt-4 px-5 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm cursor-pointer hover:opacity-95 transition-all">
+                    <i class="fa-solid fa-right-to-bracket mr-1.5"></i> เข้าสู่ระบบสมาชิก
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    const totalOrders = (state.orders || []).length;
+    const deliveredOrders = (state.orders || []).filter(o => o.items && o.items.every(it => it.credentials && it.status !== 'pending_fulfillment')).length;
     const pendingOrders = totalOrders - deliveredOrders;
 
     // Update filter counts & badges
@@ -2365,10 +2470,18 @@ function renderOrdersHistory() {
     }).join('');
 }
 
-function openOrdersModal() {
+async function openOrdersModal() {
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    if (!isLoggedIn) {
+        showToast("กรุณาเข้าสู่ระบบเพื่อดูคีย์และประวัติคำสั่งซื้อของคุณ", "info");
+        openAuthModal('login');
+        return;
+    }
+
     const modal = document.getElementById('orders-modal');
     if (!modal) return;
 
+    await refreshUserOrders();
     renderOrdersHistory();
     modal.classList.remove('hidden');
 }
@@ -2520,7 +2633,7 @@ let adminStockBrandFilter = 'all';
 // Helper: Get authenticated headers for Admin API requests
 function getAdminHeaders() {
     const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
-    const pin = sessionStorage.getItem('supinkly_admin_pin') || '';
+    const pin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || '';
     const headers = {
         'Content-Type': 'application/json'
     };
@@ -3868,7 +3981,10 @@ function toggleSlipOkKeyVisibility() {
 }
 
 async function handleAdminTestSlipOK() {
-    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
     const branchId = document.getElementById('admin-slipok-branch')?.value.trim();
     const apiKey = document.getElementById('admin-slipok-apikey')?.value.trim();
     const resultEl = document.getElementById('admin-slipok-test-result');
@@ -3889,12 +4005,17 @@ async function handleAdminTestSlipOK() {
         });
         const data = await res.json();
         if (resultEl) {
+            if (res.status === 403) {
+                resultEl.className = "p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 sm:col-span-2 lg:col-span-3";
+                resultEl.innerHTML = `<i class="fa-solid fa-lock text-amber-600 mr-1.5"></i> เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบด้วยรหัส PIN อีกครั้ง <button type="button" onclick="promptAdminLogin()" class="ml-2 px-2.5 py-1 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer">เข้าสู่ระบบ PIN</button>`;
+                return;
+            }
             if (data && data.success) {
                 resultEl.className = "p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 sm:col-span-2 lg:col-span-3";
                 resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'เชื่อมต่อ SlipOK สำเร็จ!'}`;
                 const badge = document.getElementById('admin-slipok-status-badge');
                 if (badge) {
-                    badge.textContent = "🟢 เชื่อมต่อสำเร็จ";
+                    badge.textContent = `🟢 เชื่อมต่อสำเร็จ (โควต้า: ${data.quota || '-'})`;
                     badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700";
                 }
             } else {
@@ -3905,7 +4026,7 @@ async function handleAdminTestSlipOK() {
     } catch (e) {
         if (resultEl) {
             resultEl.className = "p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 sm:col-span-2 lg:col-span-3";
-            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบ SlipOK ได้ในขณะนี้`;
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบ SlipOK ได้ในขณะนี้ (${e.message})`;
         }
     } finally {
         if (btn) btn.disabled = false;
@@ -6907,6 +7028,22 @@ window.viewPastOrderVault = viewPastOrderVault;
 window.openVaultModal = openVaultModal;
 window.closeVaultModal = closeVaultModal;
 window.closeTopmostModal = closeTopmostModal;
+
+// Additional UI & Navigation Controllers
+window.selectBrand = selectBrand;
+window.selectType = selectType;
+window.applyFilters = applyFilters;
+window.resetFilters = resetFilters;
+window.submitSlipVerification = submitSlipVerification;
+window.closeEditPriceModal = closeEditPriceModal;
+window.updateEditPricePreview = updateEditPricePreview;
+window.handleResetToAutoPrice = handleResetToAutoPrice;
+window.openAdminChatPanel = openAdminChatPanel;
+window.closeAdminChatPanel = closeAdminChatPanel;
+window.copyFromData = copyFromData;
+window.copyCombinedFromData = copyCombinedFromData;
+window.copyToClipboard = copyToClipboard;
+window.openG2GMarketLink = openG2GMarketLink;
 
 // Auto-check for ?admin=1 query parameter on page load
 if (typeof window !== 'undefined' && window.location && window.location.search) {

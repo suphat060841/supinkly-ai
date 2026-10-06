@@ -2039,7 +2039,10 @@ app.post('/api/admin/test-discord', adminRateLimit, async (req, res) => {
 // 6.2.0.1 API: Admin Test SlipOK Connection & Quota
 app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
     if (!authenticateAdmin(req)) {
-        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+        return res.status(403).json({ 
+            success: false, 
+            message: "สิทธิ์การเข้าถึงถูกปฏิเสธ: เซสชันแอดมินหลังร้านหมดอายุ กรุณาเข้าสู่ระบบด้วยรหัส PIN อีกครั้ง (PIN เริ่มต้น: 8899)" 
+        });
     }
     const { branchId, apiKey } = req.body;
     const db = getDb();
@@ -2055,7 +2058,7 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
             method: 'GET',
             headers: { 'x-authorization': targetApiKey }
         });
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         if (response.ok && data.success) {
             const quota = data.data ? data.data.quota : (data.quota !== undefined ? data.quota : 'N/A');
             let autoSaved = false;
@@ -2074,9 +2077,16 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
                 branchId: targetBranchId
             });
         } else {
+            let errorMsg = data.message || '';
+            if (response.status === 401 || response.status === 403 || errorMsg.includes('Access Denied') || errorMsg.includes('ปฏิเสธ') || errorMsg.includes('Unauthorized') || errorMsg.includes('Forbidden') || errorMsg.includes('Invalid')) {
+                errorMsg = `SlipOK ปฏิเสธการเข้าถึง: รหัส API Key หรือ Branch ID (${targetBranchId}) ไม่ถูกต้อง หรือยังไม่ได้เปิดสิทธิ์ใช้งานใน SlipOK Portal กรุณาตรวจสอบรหัสสาขาและคีย์อีกครั้ง`;
+            } else if (!errorMsg) {
+                errorMsg = `รหัส API Key หรือ Branch ID ไม่ถูกต้อง (HTTP ${response.status})`;
+            }
             return res.status(400).json({
                 success: false,
-                message: `SlipOK แจ้งเตือน: ${data.message || 'รหัส API Key หรือ Branch ID ไม่ถูกต้อง'}`
+                message: `SlipOK แจ้งเตือน: ${errorMsg}`,
+                upstreamStatus: response.status
             });
         }
     } catch (err) {
