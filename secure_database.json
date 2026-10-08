@@ -70,5 +70,6 @@
   ],
   "pendingRegistrations": {},
   "passwordResets": {},
-  "smtpConfig": {}
+  "smtpConfig": {},
+  "geminiApiKey": "AQ.Ab8RN6KajocSnuHm_BbdQfnywwI9mZPssAacQ2lv8b8NyMIyYQ"
 }
