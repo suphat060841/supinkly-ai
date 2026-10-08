@@ -4128,7 +4128,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 - หากลูกค้าถามเรื่องสถานะคำสั่งซื้อ ให้แนะนำให้แจ้งเลขออเดอร์ SPK-xxxxxx
 - ห้ามให้ข้อมูลเท็จ หากไม่แน่ใจให้แนะนำให้ติดต่อแอดมินคนจริงในแชทนี้`;
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
     for (const model of modelsToTry) {
         try {
@@ -4139,11 +4139,14 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
             ];
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const timeoutId = setTimeout(() => controller.abort(), 7000);
 
             const res = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': apiKey
+                },
                 body: JSON.stringify({
                     systemInstruction: { parts: [{ text: systemInstruction }] },
                     contents,
@@ -4156,7 +4159,37 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
             });
             clearTimeout(timeoutId);
 
-            if (!res.ok) continue;
+            if (!res.ok) {
+                const errBody = await res.text().catch(() => '');
+                console.warn(`[GEMINI-AI] ${model} failed with status ${res.status}: ${errBody.slice(0, 150)}`);
+                // Fallback attempt without systemInstruction in case endpoint prefers pure contents
+                try {
+                    const fallbackRes = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-goog-api-key': apiKey
+                        },
+                        body: JSON.stringify({
+                            contents: [
+                                { role: 'user', parts: [{ text: `[คำสั่งระบบ: ${systemInstruction}]\n\nคำถามจากลูกค้า: ${userMsg}` }] }
+                            ]
+                        })
+                    });
+                    if (fallbackRes.ok) {
+                        const fbData = await fallbackRes.json();
+                        const fbReply = fbData.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (fbReply) {
+                            history.push({ role: 'user', parts: [{ text: userMsg }] });
+                            history.push({ role: 'model', parts: [{ text: fbReply }] });
+                            if (history.length > 8) history.splice(0, history.length - 8);
+                            chatHistoryPerSession.set(sessionId, history);
+                            return fbReply.trim();
+                        }
+                    }
+                } catch {}
+                continue;
+            }
 
             const data = await res.json();
             const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
