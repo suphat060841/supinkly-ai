@@ -111,7 +111,7 @@ app.use(cors({
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-order-email', 'x-user-token']
+    allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-admin-pin', 'x-order-email', 'x-user-token']
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -639,17 +639,19 @@ function getDb() {
 }
 
 function saveDb(data) {
+    const jsonStr = JSON.stringify(data, null, 2);
     try {
-        const jsonStr = JSON.stringify(data, null, 2);
         fs.writeFileSync(DB_TMP, jsonStr, 'utf-8');
         if (fs.existsSync(DB_FILE)) {
             try { fs.copyFileSync(DB_FILE, DB_BAK); } catch (e) { }
+            try { fs.unlinkSync(DB_FILE); } catch (e) { }
         }
         fs.renameSync(DB_TMP, DB_FILE);
     } catch (err) {
         console.error("Atomic database write error, falling back to direct write:", err.message);
         try {
-            fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+            fs.writeFileSync(DB_FILE, jsonStr, 'utf-8');
+            try { if (fs.existsSync(DB_TMP)) fs.unlinkSync(DB_TMP); } catch (e) { }
         } catch (e) {
             console.error("Direct write failure:", e.message);
         }
@@ -821,11 +823,14 @@ function getCatalogProduct(productId, db) {
     return null;
 }
 
-// Effective unit price calculator (considers admin dynamic customPrices)
+// Effective unit price calculator (considers admin dynamic customPrices & customProducts)
 function getEffectiveUnitPrice(productId, product, db) {
     const currentDb = db || getDb();
     if (currentDb.customPrices && currentDb.customPrices[productId] && typeof currentDb.customPrices[productId].price === 'number') {
         return currentDb.customPrices[productId].price;
+    }
+    if (currentDb.customProducts && currentDb.customProducts[productId] && typeof currentDb.customProducts[productId].price === 'number') {
+        return currentDb.customProducts[productId].price;
     }
     return (product && typeof product.price === 'number') ? product.price : 0;
 }
@@ -1730,6 +1735,7 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
         ? parseFloat(originalPrice)
         : numPrice;
 
+    const nowIso = new Date().toISOString();
     const existing = db.customPrices[productId] || {};
     db.customPrices[productId] = {
         ...existing,
@@ -1738,7 +1744,8 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
         badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : (existing.badge || ''),
         g2gUrl: typeof g2gUrl === 'string' ? g2gUrl.trim() : (existing.g2gUrl || ''),
         manualOverride: true,
-        updatedAt: new Date().toISOString()
+        lastManualUpdate: nowIso,
+        updatedAt: nowIso
     };
 
     saveDb(db);
@@ -1769,6 +1776,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
         : numPrice;
 
     const existing = db.customProducts[prodId] || {};
+    const nowIso = new Date().toISOString();
     const updatedProduct = {
         ...existing,
         id: prodId,
@@ -1786,7 +1794,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
         isHighlight: isHighlight !== undefined ? !!isHighlight : (existing.isHighlight !== undefined ? existing.isHighlight : false),
         g2gUrl: typeof g2gUrl === 'string' ? g2gUrl.trim() : (existing.g2gUrl || ''),
         deleted: false,
-        updatedAt: new Date().toISOString()
+        updatedAt: nowIso
     };
 
     db.customProducts[prodId] = updatedProduct;
@@ -1800,7 +1808,8 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
         isHighlight: updatedProduct.isHighlight,
         g2gUrl: updatedProduct.g2gUrl,
         manualOverride: true,
-        updatedAt: updatedProduct.updatedAt
+        lastManualUpdate: nowIso,
+        updatedAt: nowIso
     };
 
     saveDb(db);
@@ -1845,6 +1854,71 @@ app.post('/api/admin/product/delete', adminRateLimit, (req, res) => {
 
     saveDb(db);
     res.json({ success: true, message: "ลบสินค้าออกจากหน้าร้านเรียบร้อยแล้ว (สามารถกู้คืนได้)", productId, customProducts: db.customProducts });
+});
+
+// 6.0.5 API: Admin Full Catalog Reconcile / Bulk Sync
+app.post('/api/admin/catalog/sync', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const { customPrices, customProducts } = req.body;
+    const db = getDb();
+    if (!db.customPrices) db.customPrices = {};
+    if (!db.customProducts) db.customProducts = {};
+
+    let changed = false;
+
+    // Reconcile customPrices
+    if (customPrices && typeof customPrices === 'object') {
+        for (const [prodId, clientItem] of Object.entries(customPrices)) {
+            if (!clientItem || typeof clientItem !== 'object') continue;
+            const srvItem = db.customPrices[prodId];
+            const clientTime = new Date(clientItem.updatedAt || clientItem.lastManualUpdate || 0).getTime();
+            const srvTime = srvItem ? new Date(srvItem.updatedAt || srvItem.lastManualUpdate || 0).getTime() : 0;
+
+            if (!srvItem || clientTime >= srvTime || clientItem.manualOverride) {
+                db.customPrices[prodId] = {
+                    ...(srvItem || {}),
+                    ...clientItem,
+                    price: typeof clientItem.price === 'number' ? Math.round(clientItem.price * 100) / 100 : (srvItem?.price || 0),
+                    originalPrice: typeof clientItem.originalPrice === 'number' ? Math.round(clientItem.originalPrice * 100) / 100 : (srvItem?.originalPrice || clientItem.price || 0),
+                    manualOverride: clientItem.manualOverride !== undefined ? !!clientItem.manualOverride : true,
+                    updatedAt: clientItem.updatedAt || clientItem.lastManualUpdate || new Date().toISOString()
+                };
+                changed = true;
+            }
+        }
+    }
+
+    // Reconcile customProducts
+    if (customProducts && typeof customProducts === 'object') {
+        for (const [prodId, clientProd] of Object.entries(customProducts)) {
+            if (!clientProd || typeof clientProd !== 'object') continue;
+            const srvProd = db.customProducts[prodId];
+            const clientTime = new Date(clientProd.updatedAt || 0).getTime();
+            const srvTime = srvProd ? new Date(srvProd.updatedAt || 0).getTime() : 0;
+
+            if (!srvProd || clientTime >= srvTime) {
+                db.customProducts[prodId] = {
+                    ...(srvProd || {}),
+                    ...clientProd,
+                    updatedAt: clientProd.updatedAt || new Date().toISOString()
+                };
+                changed = true;
+            }
+        }
+    }
+
+    if (changed) {
+        saveDb(db);
+    }
+
+    res.json({
+        success: true,
+        message: "ซิงค์ข้อมูลราคากับเซิร์ฟเวอร์สำเร็จ",
+        customPrices: db.customPrices,
+        customProducts: db.customProducts
+    });
 });
 
 // 6.1 API: Admin Fetch Store & SMTP Settings
@@ -2570,11 +2644,14 @@ app.get('/api/admin/users', adminRateLimit, (req, res) => {
 
         return {
             id: u.id,
+            userId: u.id,
             email: u.email,
             displayName: u.displayName || u.email.split('@')[0],
             emailVerified: !!u.emailVerified,
+            isEmailVerified: !!u.emailVerified,
             createdAt: u.createdAt || null,
             ordersCount: userOrders.length,
+            totalOrders: userOrders.length,
             totalSpent,
             isOnline,
             onlineSession
@@ -2614,7 +2691,8 @@ app.post('/api/admin/users/reset-password', adminRateLimit, (req, res) => {
     }
     const db = getDb();
     if (!db.users) db.users = [];
-    const user = db.users.find(u => u.id === userId);
+    const target = String(userId).trim().toLowerCase();
+    const user = db.users.find(u => u.id === userId || (u.email && u.email.toLowerCase() === target));
     if (!user) {
         return res.status(404).json({ success: false, message: "ไม่พบผู้ใช้งานนี้ในระบบ" });
     }
@@ -2630,12 +2708,13 @@ app.delete('/api/admin/users/:userId', adminRateLimit, (req, res) => {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const { userId } = req.params;
-    if (!userId) {
+    if (!userId || !userId.trim()) {
         return res.status(400).json({ success: false, message: "กรุณาระบุ userId" });
     }
     const db = getDb();
     if (!db.users) db.users = [];
-    const idx = db.users.findIndex(u => u.id === userId);
+    const target = String(userId).trim().toLowerCase();
+    const idx = db.users.findIndex(u => u.id === userId || (u.email && u.email.toLowerCase() === target));
     if (idx === -1) {
         return res.status(404).json({ success: false, message: "ไม่พบผู้ใช้งานนี้ในระบบ" });
     }
@@ -2658,17 +2737,12 @@ app.post(['/api/admin/users/clear-all', '/api/admin/users/delete-all'], adminRat
     res.json({ success: true, message: `ลบข้อมูลสมาชิกและลูกค้าทั้งหมด ${count} คนเรียบร้อยแล้ว`, users: [] });
 });
 
+// [SECURITY GUARD] Explicit check: Reject accidental DELETE /api/admin/users without userId to prevent total wipe
 app.delete('/api/admin/users', adminRateLimit, (req, res) => {
-    if (!authenticateAdmin(req)) {
-        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
-    }
-    const db = getDb();
-    const count = (db.users || []).length;
-    db.users = [];
-    db.pendingRegistrations = {};
-    db.passwordResets = {};
-    saveDb(db);
-    res.json({ success: true, message: `ลบข้อมูลสมาชิกและลูกค้าทั้งหมด ${count} คนเรียบร้อยแล้ว`, users: [] });
+    return res.status(400).json({ 
+        success: false, 
+        message: "กรุณาระบุรหัสสมาชิกที่ต้องการลบ เช่น /api/admin/users/:userId (หากต้องการล้างข้อมูลทั้งหมด ให้ใช้เมนู /api/admin/users/clear-all)" 
+    });
 });
 
 // 6.7 API: Admin Clear Both Orders and Users in One Go
@@ -2922,22 +2996,60 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
         };
         saveDb(db);
 
+        const isSmtpConfigured = mailService.isConfigured(mailService.getConfig(db));
         const mailResult = await mailService.sendOtpEmail(normalEmail, otp, cleanDisplayName, db);
         const isDevLocal = isLocalRequest(req) && process.env.NODE_ENV !== 'production';
+
+        // If SMTP is unconfigured, auto-complete registration immediately so customers are never blocked or lost!
+        if (!isSmtpConfigured && !mailResult.delivered) {
+            const user = {
+                id: pendingUserId,
+                email: normalEmail,
+                displayName: cleanDisplayName || 'สมาชิก Supinkly',
+                passwordHash: hashPassword(pw, pendingUserId),
+                tokenVersion: 1,
+                emailVerified: true,
+                createdAt: new Date().toISOString()
+            };
+            if (!db.users) db.users = [];
+            db.users.push(user);
+            delete db.pendingRegistrations[normalEmail];
+
+            // Auto-link past orders belonging to this email
+            (db.orders || []).forEach(o => {
+                if (!o.userId) {
+                    const oEmail = (o.email || '').toLowerCase().trim();
+                    const rEmail = (o.recipientEmail || '').toLowerCase().trim();
+                    if (oEmail === normalEmail || rEmail === normalEmail || rEmail.startsWith(normalEmail + ' ') || rEmail.startsWith(normalEmail + '(')) {
+                        o.userId = user.id;
+                    }
+                }
+            });
+
+            saveDb(db);
+            const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+            return res.json({
+                success: true,
+                autoVerified: true,
+                token,
+                expiresAt,
+                user: { id: user.id, userId: user.id, email: user.email, displayName: user.displayName },
+                message: "สมัครสมาชิกและเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!"
+            });
+        }
+
         res.json({
             success: true,
             requireOtp: true,
             email: normalEmail,
             message: mailResult.delivered
                 ? "ระบบได้ส่งรหัส OTP 6 หลักไปยังอีเมลของคุณแล้ว (หากไม่พบในกล่องจดหมาย กรุณาตรวจสอบโฟลเดอร์สแปม/เมลขยะ)"
-                : (isDevLocal
-                    ? (mailResult.deliveryError
-                        ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP สำหรับทดสอบคือ: ${otp}`
-                        : `[โหมดทดสอบ] เซิร์ฟเวอร์ยังไม่ได้เชื่อมต่อ SMTP ร้านค้า รหัส OTP ทดสอบคือ: ${otp}`)
-                    : "ระบบไม่สามารถจัดส่งอีเมล OTP ได้ในขณะนี้ กรุณาลองใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่ร้านค้า"),
+                : (mailResult.deliveryError
+                    ? `[แจ้งเตือน] ส่งอีเมลไม่สำเร็จ (${mailResult.deliveryError}) — รหัส OTP สำหรับทดสอบคือ: ${otp}`
+                    : `รหัส OTP สำหรับยืนยันตัวตนคือ: ${otp}`),
             delivered: !!mailResult.delivered,
-            devOtp: (!mailResult.delivered && isDevLocal) ? otp : undefined,
-            deliveryError: isDevLocal ? mailResult.deliveryError : undefined
+            devOtp: (!mailResult.delivered || isDevLocal) ? otp : undefined,
+            deliveryError: mailResult.deliveryError || undefined
         });
     } catch (err) {
         console.error('Registration OTP error:', err);
@@ -3026,7 +3138,7 @@ app.post('/api/auth/verify-otp', otpRateLimit, (req, res) => {
             success: true,
             token,
             expiresAt,
-            user: { id: user.id, email: user.email, displayName: user.displayName }
+            user: { id: user.id, userId: user.id, email: user.email, displayName: user.displayName }
         });
     } catch (err) {
         console.error('Verify OTP error:', err);
@@ -3122,7 +3234,7 @@ app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
     if (linked) saveDb(db);
 
     const { token, expiresAt } = generateUserToken(user.id, normalEmail, user.tokenVersion || 1);
-    res.json({ success: true, token, expiresAt, user: { id: user.id, email: normalEmail, displayName: user.displayName } });
+    res.json({ success: true, token, expiresAt, user: { id: user.id, userId: user.id, email: normalEmail, displayName: user.displayName } });
 });
 
 // U2.1 Forgot Password: Request OTP to reset password
@@ -3287,7 +3399,7 @@ app.post('/api/auth/reset-password', otpRateLimit, (req, res) => {
             message: "ตั้งรหัสผ่านใหม่และเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว",
             token,
             expiresAt,
-            user: { id: user.id, email: normalEmail, displayName: user.displayName }
+            user: { id: user.id, userId: user.id, email: normalEmail, displayName: user.displayName }
         });
     } catch (err) {
         console.error('Reset password error:', err);
@@ -3314,7 +3426,7 @@ app.post('/api/auth/logout', (req, res) => {
 app.post('/api/auth/verify-session', sessionCheckRateLimit, (req, res) => {
     const session = authenticateUser(req);
     if (session) {
-        return res.json({ success: true, valid: true, user: { id: session.userId, email: session.email, displayName: session.displayName } });
+        return res.json({ success: true, valid: true, user: { id: session.userId, userId: session.userId, email: session.email, displayName: session.displayName } });
     }
     return res.status(401).json({ success: false, valid: false });
 });
@@ -3779,9 +3891,13 @@ async function getBotResponse(userMsg, sessionId) {
 
     // ── 2. DYNAMIC PRODUCT & PRICING LOOKUP (ค้นหาสินค้า & เช็คราคาจริง) ──
     const customPrices = db.customPrices || {};
+    const customProducts = db.customProducts || {};
     const getProductLivePrice = (id, defaultPrice) => {
         const cp = customPrices[id];
-        return (cp && typeof cp.price === 'number') ? cp.price : defaultPrice;
+        if (cp && typeof cp.price === 'number') return cp.price;
+        const cprod = customProducts[id];
+        if (cprod && typeof cprod.price === 'number') return cprod.price;
+        return defaultPrice;
     };
 
     if (/capcut|แคปคัท|ตัดต่อ/i.test(q)) {

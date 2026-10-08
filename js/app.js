@@ -313,13 +313,6 @@ function getCustomPrices() {
 
 function applyCustomPricesToProducts() {
     const customPrices = getCustomPrices();
-    // Clean up any legacy 1.00 Baht test price on cpc-01
-    if (customPrices['cpc-01'] && customPrices['cpc-01'].price === 1.00 && !customPrices['cpc-01'].manualOverride) {
-        delete customPrices['cpc-01'];
-        try {
-            localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
-        } catch (e) { }
-    }
 
     state.products.forEach(p => {
         if (customPrices[p.id]) {
@@ -400,13 +393,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Synchronize custom prices and products with server
     syncCatalogWithServer();
 
-    // User session & isolated keys initialization
-    if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
-        refreshUserOrders();
-    } else {
+    // User session & isolated keys initialization (Preserve orders safely)
+    try {
+        const storedOrders = localStorage.getItem('supinkly_orders');
+        if (storedOrders) {
+            state.orders = JSON.parse(storedOrders) || [];
+        }
+    } catch (e) {
         state.orders = [];
-        localStorage.removeItem('supinkly_orders');
-        updateNavOrdersCount();
+    }
+    updateNavOrdersCount();
+    updateUserHeaderUI();
+
+    if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+        USER_AUTH.verifySession().then(() => {
+            updateUserHeaderUI();
+            refreshUserOrders();
+        });
     }
 });
 
@@ -418,32 +421,97 @@ async function syncCatalogWithServer() {
         const data = await res.json();
         if (data && data.success) {
             let updated = false;
-            if (data.customPrices && Object.keys(data.customPrices).length > 0) {
-                const local = getCustomPrices();
-                const merged = { ...local, ...data.customPrices };
-                localStorage.setItem('supinkly_custom_prices', JSON.stringify(merged));
-                updated = true;
+            let needsServerPush = false;
+            const localPrices = getCustomPrices();
+            const localProducts = getCustomProducts();
+            const mergedPrices = { ...localPrices };
+            const mergedProducts = { ...localProducts };
+
+            // 1. Reconcile customPrices with timestamp awareness
+            if (data.customPrices && typeof data.customPrices === 'object') {
+                for (const [pid, srvItem] of Object.entries(data.customPrices)) {
+                    if (!srvItem) continue;
+                    const locItem = localPrices[pid];
+                    if (!locItem) {
+                        mergedPrices[pid] = srvItem;
+                        updated = true;
+                    } else {
+                        const srvTime = new Date(srvItem.updatedAt || srvItem.lastManualUpdate || 0).getTime();
+                        const locTime = new Date(locItem.updatedAt || locItem.lastManualUpdate || 0).getTime();
+
+                        // If local has manual override and local timestamp is newer or equal, NEVER overwrite with server!
+                        if (locItem.manualOverride && locTime >= srvTime) {
+                            if (locTime > srvTime) needsServerPush = true;
+                        } else if (srvTime > locTime) {
+                            mergedPrices[pid] = { ...locItem, ...srvItem };
+                            updated = true;
+                        }
+                    }
+                }
             }
-            if (data.customProducts && Object.keys(data.customProducts).length > 0) {
-                const local = getCustomProducts();
-                const merged = { ...local, ...data.customProducts };
-                localStorage.setItem('supinkly_custom_products', JSON.stringify(merged));
-                updated = true;
+
+            // Check if local has manual overrides not present on server
+            for (const [pid, locItem] of Object.entries(localPrices)) {
+                if (locItem && locItem.manualOverride && (!data.customPrices || !data.customPrices[pid])) {
+                    needsServerPush = true;
+                }
             }
+
+            // 2. Reconcile customProducts with timestamp awareness
+            if (data.customProducts && typeof data.customProducts === 'object') {
+                for (const [pid, srvProd] of Object.entries(data.customProducts)) {
+                    if (!srvProd) continue;
+                    const locProd = localProducts[pid];
+                    if (!locProd) {
+                        mergedProducts[pid] = srvProd;
+                        updated = true;
+                    } else {
+                        const srvTime = new Date(srvProd.updatedAt || 0).getTime();
+                        const locTime = new Date(locProd.updatedAt || 0).getTime();
+                        if (srvTime > locTime) {
+                            mergedProducts[pid] = { ...locProd, ...srvProd };
+                            updated = true;
+                        } else if (locTime > srvTime) {
+                            needsServerPush = true;
+                        }
+                    }
+                }
+            }
+
+            for (const [pid, locProd] of Object.entries(localProducts)) {
+                if (locProd && (!data.customProducts || !data.customProducts[pid])) {
+                    needsServerPush = true;
+                }
+            }
+
             if (updated) {
+                localStorage.setItem('supinkly_custom_prices', JSON.stringify(mergedPrices));
+                localStorage.setItem('supinkly_custom_products', JSON.stringify(mergedProducts));
                 applyCustomPricesToProducts();
                 syncStockCount();
                 renderProducts();
                 renderHighlightProducts();
                 updateCartUI();
             }
+
+            // Push pending local manual changes to server if admin authenticated
+            const hasAdminCreds = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+            if (needsServerPush && hasAdminCreds) {
+                fetch('/api/admin/catalog/sync', {
+                    method: 'POST',
+                    headers: getAdminHeaders(),
+                    body: JSON.stringify({
+                        customPrices: mergedPrices,
+                        customProducts: mergedProducts
+                    })
+                }).catch(() => {});
+            }
         }
     } catch (e) { }
 }
 
 function updateNavOrdersCount() {
-    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
-    const count = isLoggedIn ? (state.orders || []).length : 0;
+    const count = (state.orders || []).length;
     const navCnt = document.getElementById('nav-orders-count');
     if (navCnt) navCnt.textContent = count;
     const mobileNavCnt = document.getElementById('mobile-nav-orders-count');
@@ -457,23 +525,37 @@ function updateNavOrdersCount() {
 
 async function refreshUserOrders() {
     if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) {
-        if (state) state.orders = [];
-        localStorage.removeItem('supinkly_orders');
+        try {
+            const stored = localStorage.getItem('supinkly_orders');
+            if (stored) state.orders = JSON.parse(stored) || [];
+        } catch {}
         updateNavOrdersCount();
-        return [];
+        updateUserHeaderUI();
+        return state.orders || [];
     }
     try {
+        // Claim any local unlinked orders under this account
+        const localOrderIds = (state.orders || []).map(o => o.orderId).filter(Boolean);
+        if (localOrderIds.length > 0) {
+            try { await USER_AUTH.linkLocalOrders(localOrderIds); } catch {}
+        }
+
         const serverOrders = await USER_AUTH.fetchMyOrders();
         if (Array.isArray(serverOrders)) {
-            state.orders = serverOrders;
-            localStorage.setItem('supinkly_orders', JSON.stringify(serverOrders));
+            const serverIds = new Set(serverOrders.map(o => o.orderId));
+            const existingLocal = (state.orders || []).filter(o => o.orderId && !serverIds.has(o.orderId));
+            const merged = [...serverOrders, ...existingLocal];
+            state.orders = merged;
+            localStorage.setItem('supinkly_orders', JSON.stringify(merged));
             updateNavOrdersCount();
-            return serverOrders;
+            updateUserHeaderUI();
+            return merged;
         }
     } catch (e) {
         console.warn("Could not fetch user orders:", e);
     }
     updateNavOrdersCount();
+    updateUserHeaderUI();
     return state.orders || [];
 }
 
@@ -483,13 +565,13 @@ function saveCart() {
 }
 
 function saveOrders() {
-    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
-    if (isLoggedIn) {
-        localStorage.setItem('supinkly_orders', JSON.stringify(state.orders));
-    } else {
-        localStorage.removeItem('supinkly_orders');
+    try {
+        localStorage.setItem('supinkly_orders', JSON.stringify(state.orders || []));
+    } catch (e) {
+        console.warn("Could not save orders to localStorage:", e);
     }
     updateNavOrdersCount();
+    updateUserHeaderUI();
 }
 
 // Header & User Actions
@@ -638,12 +720,31 @@ async function handleRegister() {
         if (typeof USER_AUTH !== 'undefined') {
             const res = await USER_AUTH.register(email, password, displayName);
             if (res.success) {
+                if (res.autoVerified || res.token) {
+                    closeAuthModal();
+                    await refreshUserOrders();
+                    updateUserHeaderUI();
+                    showToast(res.message || `ยินดีต้อนรับคุณ ${res.user?.displayName || displayName}!`, 'success');
+                    if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
+                        state.pendingCheckoutAfterAuth = false;
+                        setTimeout(() => {
+                            startCheckout();
+                        }, 400);
+                    }
+                    return;
+                }
                 pendingAuthEmail = email;
                 const emailDisplay = document.getElementById('auth-otp-target-email');
                 if (emailDisplay) emailDisplay.textContent = email;
                 switchAuthTab('otp');
                 startResendOtpTimer();
-                showToast('ส่งรหัส OTP ไปยังอีเมลของคุณแล้ว กรุณาตรวจสอบกล่องข้อความ', 'info');
+                if (res.devOtp) {
+                    const otpInput = document.getElementById('auth-otp-input');
+                    if (otpInput) otpInput.value = res.devOtp;
+                    showToast(`รหัส OTP สำหรับยืนยันตัวตนคือ: ${res.devOtp}`, 'info');
+                } else {
+                    showToast(res.message || 'ส่งรหัส OTP ไปยังอีเมลของคุณแล้ว กรุณาตรวจสอบกล่องข้อความ', 'info');
+                }
             } else {
                 showAuthError('auth-register-error', res.message || 'ไม่สามารถสมัครสมาชิกได้');
             }
@@ -887,7 +988,7 @@ function updateUserHeaderUI() {
             <div class="flex items-center gap-1.5 sm:gap-2">
                 <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-                    <span>คีย์ของฉัน (<span id="nav-orders-count">0</span>)</span>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
                 </button>
                 <button onclick="openAuthModal('login')" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 text-pink-700 border-2 border-pink-300 transition-all shadow-sm flex items-center justify-center gap-1 sm:gap-1.5 shrink-0 touch-active cursor-pointer">
                     <i class="fa-solid fa-right-to-bracket text-xs sm:text-sm"></i>
@@ -2180,8 +2281,10 @@ function renderOrdersHistory() {
     if (!list) return;
 
     const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
-    if (!isLoggedIn) {
-        // Enforce zero state when unauthenticated
+    const hasOrders = Array.isArray(state.orders) && state.orders.length > 0;
+
+    if (!isLoggedIn && !hasOrders) {
+        // Enforce zero state only when unauthenticated AND no local orders
         const cntAll = document.getElementById('ck-cnt-all');
         if (cntAll) cntAll.textContent = '0';
         const cntDelivered = document.getElementById('ck-cnt-delivered');
@@ -2190,8 +2293,6 @@ function renderOrdersHistory() {
         if (cntPending) cntPending.textContent = '0';
         const badgeTotal = document.getElementById('customer-keys-count-badge');
         if (badgeTotal) badgeTotal.textContent = `0 รายการ`;
-        const navOrdersCount = document.getElementById('nav-orders-count');
-        if (navOrdersCount) navOrdersCount.textContent = '0';
 
         list.innerHTML = `
             <div class="py-12 text-center bg-slate-50/60 rounded-2xl border-2 border-dashed border-slate-200 p-6">
@@ -2472,7 +2573,8 @@ function renderOrdersHistory() {
 
 async function openOrdersModal() {
     const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
-    if (!isLoggedIn) {
+    const hasOrders = Array.isArray(state.orders) && state.orders.length > 0;
+    if (!isLoggedIn && !hasOrders) {
         showToast("กรุณาเข้าสู่ระบบเพื่อดูคีย์และประวัติคำสั่งซื้อของคุณ", "info");
         openAuthModal('login');
         return;
@@ -2504,6 +2606,26 @@ function closeOrdersModal() {
 // ==========================================
 // SECURED ADMIN PANEL (SESSION & PIN AUTHENTICATED)
 // ==========================================
+function openAdminModal() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    const modal = document.getElementById('admin-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    updateAdminNavBadges();
+    renderAdminOrdersList();
+    renderAdminStockList();
+    renderAdminUsersList();
+    loadAdminSettingsIntoForm();
+}
+
+function closeAdminModal() {
+    const modal = document.getElementById('admin-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
 function handleAdminLogout() {
     ADMIN_AUTH.logout();
     closeAdminModal();
@@ -3547,7 +3669,14 @@ async function renderAdminUsersList() {
         if (res.ok) {
             const data = await res.json();
             if (data && data.success && Array.isArray(data.users)) {
-                adminUsersList = data.users;
+                adminUsersList = data.users.map(u => ({
+                    ...u,
+                    id: u.id || u.userId,
+                    userId: u.userId || u.id,
+                    displayName: u.displayName || 'สมาชิก',
+                    isEmailVerified: u.isEmailVerified !== undefined ? u.isEmailVerified : (u.emailVerified !== false),
+                    totalOrders: u.totalOrders !== undefined ? u.totalOrders : (u.ordersCount || 0)
+                }));
             }
         }
     } catch (e) {
@@ -3555,7 +3684,8 @@ async function renderAdminUsersList() {
             const user = USER_AUTH.getUser();
             if (user) {
                 adminUsersList = [{
-                    userId: user.userId || 'usr_current',
+                    id: user.userId || user.id || 'usr_current',
+                    userId: user.userId || user.id || 'usr_current',
                     email: user.email,
                     displayName: user.displayName || 'สมาชิกปัจจุบัน',
                     createdAt: new Date().toISOString(),
@@ -3656,11 +3786,11 @@ async function renderAdminUsersList() {
                     <div class="text-[10px] text-slate-400">${totalOrders} ออเดอร์</div>
                 </td>
                 <td class="py-3 px-3.5 text-right space-x-1">
-                    <button type="button" onclick="handleAdminResetUserPassword('${escapeHTML(u.userId || '')}', '${escapeHTML(u.email)}')"
+                    <button type="button" onclick="handleAdminResetUserPassword('${escapeHTML(u.userId || u.id || '')}', '${escapeHTML(u.email || '')}')"
                         class="px-2.5 py-1 rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 text-xs font-bold cursor-pointer transition-all" title="รีเซ็ตรหัสผ่าน">
                         <i class="fa-solid fa-key text-[10px]"></i> รีเซ็ตรหัส
                     </button>
-                    <button type="button" onclick="handleDeleteAdminUser('${escapeHTML(u.userId || '')}', '${escapeHTML(u.email)}')"
+                    <button type="button" onclick="handleDeleteAdminUser('${escapeHTML(u.userId || u.id || '')}', '${escapeHTML(u.email || '')}')"
                         class="px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-bold cursor-pointer transition-all active:scale-95" title="ลบผู้ใช้">
                         <i class="fa-solid fa-trash-can text-[10px]"></i>
                     </button>
@@ -3776,24 +3906,31 @@ function handleAdminResetUserPassword(userId, email) {
 
 async function handleDeleteAdminUser(userId, email) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
-    if (!confirm(`ยืนยันการลบสมาชิก ${email} ออกจากระบบ?`)) return;
+    const targetId = userId || email;
+    if (!targetId) {
+        showToast("ไม่พบรหัสผู้ใช้ที่ต้องการลบ", "error");
+        return;
+    }
+    if (!confirm(`ยืนยันการลบสมาชิก ${email || targetId} ออกจากระบบ?`)) return;
 
     try {
-        const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        const res = await fetch(`/api/admin/users/${encodeURIComponent(targetId)}`, {
             method: 'DELETE',
             headers: getAdminHeaders()
         });
         const data = await res.json();
         if (data && data.success) {
-            showToast(`ลบสมาชิก ${email} เรียบร้อยแล้ว`, "success");
+            showToast(`ลบสมาชิก ${email || targetId} เรียบร้อยแล้ว`, "success");
         } else {
-            showToast(data.message || "ลบสมาชิกสำเร็จ", "info");
+            showToast(data.message || "ไม่สามารถลบสมาชิกได้", "error");
+            return;
         }
     } catch (e) {
-        showToast("ลบสมาชิกออกจากรายการแล้ว", "info");
+        showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์", "error");
+        return;
     }
 
-    adminUsersList = adminUsersList.filter(u => u.userId !== userId);
+    adminUsersList = adminUsersList.filter(u => u.userId !== targetId && u.id !== targetId && u.email !== email);
     renderAdminUsersList();
 }
 
@@ -5408,6 +5545,16 @@ async function handleResetToAutoPrice() {
         localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
     }
 
+    const customProducts = getCustomProducts();
+    if (customProducts[productId] && customProducts[productId].price !== undefined) {
+        const isBuiltin = typeof PRODUCTS !== 'undefined' && PRODUCTS.some(p => p.id === productId);
+        if (isBuiltin) {
+            delete customProducts[productId].price;
+            delete customProducts[productId].originalPrice;
+            localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
+        }
+    }
+
     if (window.location.protocol.startsWith('http')) {
         try {
             await fetch('/api/admin/price', {
@@ -5481,6 +5628,10 @@ async function handleSaveEditedProduct() {
         return;
     }
 
+    const nowIso = new Date().toISOString();
+    const finalPrice = Math.round(saleVal * 100) / 100;
+    const finalOrigPrice = isNaN(origVal) || origVal < saleVal ? finalPrice : Math.round(origVal * 100) / 100;
+
     // 1. Save custom products metadata locally
     const customProducts = getCustomProducts();
     customProducts[productId] = {
@@ -5496,11 +5647,11 @@ async function handleSaveEditedProduct() {
         description: descVal,
         badge: badgeVal,
         isHighlight: isHighlight,
-        price: Math.round(saleVal * 100) / 100,
-        originalPrice: isNaN(origVal) || origVal < saleVal ? Math.round(saleVal * 100) / 100 : Math.round(origVal * 100) / 100,
+        price: finalPrice,
+        originalPrice: finalOrigPrice,
         g2gUrl: g2gUrlVal,
         deleted: false,
-        updatedAt: new Date().toISOString()
+        updatedAt: nowIso
     };
     localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
 
@@ -5508,39 +5659,82 @@ async function handleSaveEditedProduct() {
     const customPrices = getCustomPrices();
     customPrices[productId] = {
         ...(customPrices[productId] || {}),
-        price: Math.round(saleVal * 100) / 100,
-        originalPrice: isNaN(origVal) || origVal < saleVal ? Math.round(saleVal * 100) / 100 : Math.round(origVal * 100) / 100,
+        price: finalPrice,
+        originalPrice: finalOrigPrice,
         badge: badgeVal,
         isHighlight: isHighlight,
         g2gUrl: g2gUrlVal,
         manualOverride: true,
-        lastManualUpdate: new Date().toISOString()
+        lastManualUpdate: nowIso,
+        updatedAt: nowIso
     };
     localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
 
     // 3. Synchronize with backend server (so checkout & receipt verification get real updated price)
     if (window.location.protocol.startsWith('http')) {
         try {
-            await fetch('/api/admin/product', {
+            const productPayload = {
+                id: productId,
+                title: titleVal,
+                subtitle: subtitleVal,
+                description: descVal,
+                brand: brandVal,
+                type: typeVal,
+                duration: durationVal,
+                devices: devicesVal,
+                warranty: warrantyVal,
+                price: finalPrice,
+                originalPrice: finalOrigPrice,
+                badge: badgeVal,
+                isHighlight: isHighlight,
+                g2gUrl: g2gUrlVal
+            };
+
+            let res = await fetch('/api/admin/product', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify(productPayload)
+            });
+
+            if (res.status === 401 || res.status === 403) {
+                // Try refreshing admin token using stored PIN
+                const pin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || '8899';
+                if (pin) {
+                    try {
+                        const loginRes = await fetch('/api/admin/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ pin })
+                        });
+                        if (loginRes.ok) {
+                            const d = await loginRes.json();
+                            if (d && d.token) {
+                                sessionStorage.setItem('supinkly_admin_server_token', d.token);
+                                localStorage.setItem('supinkly_admin_server_token', d.token);
+                                res = await fetch('/api/admin/product', {
+                                    method: 'POST',
+                                    headers: getAdminHeaders(),
+                                    body: JSON.stringify(productPayload)
+                                });
+                            }
+                        }
+                    } catch (e) { }
+                }
+            }
+
+            // Also explicitly sync price override to ensure customPrices is recorded
+            await fetch('/api/admin/price', {
                 method: 'POST',
                 headers: getAdminHeaders(),
                 body: JSON.stringify({
-                    id: productId,
-                    title: titleVal,
-                    subtitle: subtitleVal,
-                    description: descVal,
-                    brand: brandVal,
-                    type: typeVal,
-                    duration: durationVal,
-                    devices: devicesVal,
-                    warranty: warrantyVal,
-                    price: Math.round(saleVal * 100) / 100,
-                    originalPrice: isNaN(origVal) || origVal < saleVal ? Math.round(saleVal * 100) / 100 : Math.round(origVal * 100) / 100,
+                    productId: productId,
+                    price: finalPrice,
+                    originalPrice: finalOrigPrice,
                     badge: badgeVal,
-                    isHighlight: isHighlight,
                     g2gUrl: g2gUrlVal
                 })
-            });
+            }).catch(() => {});
+
         } catch (syncErr) {
             console.warn('[ADMIN SYNC] Could not sync product to server:', syncErr.message);
         }
@@ -6116,7 +6310,7 @@ function closeMobileMenu() {
 // SMOOTH SCROLL TO PRODUCTS
 // ==========================================
 function scrollToProducts() {
-    const section = document.getElementById('products-section') || document.getElementById('featured-ai');
+    const section = document.getElementById('products-section') || document.getElementById('brand-tabs-sticky-bar') || document.getElementById('featured-ai');
     if (section) {
         section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }

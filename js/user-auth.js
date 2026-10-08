@@ -9,23 +9,48 @@ const USER_AUTH = (() => {
     const EXPIRY_KEY  = 'supinkly_user_expiry';
 
     // ── Helpers ────────────────────────────────────────────────
-    function getToken()   { return localStorage.getItem(TOKEN_KEY); }
-    function getUser()    {
-        try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch { return null; }
+    function getToken()   { 
+        return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || null; 
     }
+    
+    function getUser()    {
+        try { 
+            const raw = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+            return raw ? JSON.parse(raw) : null; 
+        } catch { return null; }
+    }
+    
     function getHeaders() {
         const t = getToken();
         return t ? { 'Content-Type': 'application/json', 'x-user-token': t } : { 'Content-Type': 'application/json' };
     }
+    
     function isLoggedIn() {
-        const expiry = parseInt(localStorage.getItem(EXPIRY_KEY) || '0', 10);
-        return !!getToken() && Date.now() < expiry;
+        const token = getToken();
+        if (!token) return false;
+        const expiryStr = localStorage.getItem(EXPIRY_KEY) || sessionStorage.getItem(EXPIRY_KEY);
+        const expiry = parseInt(expiryStr || '0', 10);
+        if (expiry > 0 && Date.now() >= expiry) {
+            clearSession();
+            return false;
+        }
+        return true;
     }
 
     function saveSession(token, expiresAt, user) {
+        if (!token) return;
+        const normalizedUser = user ? { ...user, userId: user.userId || user.id, id: user.id || user.userId } : null;
+        const exp = expiresAt || (Date.now() + 30 * 24 * 60 * 60 * 1000);
         localStorage.setItem(TOKEN_KEY,  token);
-        localStorage.setItem(EXPIRY_KEY, String(expiresAt));
-        localStorage.setItem(USER_KEY,   JSON.stringify(user));
+        localStorage.setItem(EXPIRY_KEY, String(exp));
+        if (normalizedUser) {
+            localStorage.setItem(USER_KEY, JSON.stringify(normalizedUser));
+        }
+        try {
+            sessionStorage.setItem(TOKEN_KEY, token);
+            sessionStorage.setItem(EXPIRY_KEY, String(exp));
+            if (normalizedUser) sessionStorage.setItem(USER_KEY, JSON.stringify(normalizedUser));
+        } catch {}
     }
 
     function clearSession() {
@@ -33,6 +58,11 @@ const USER_AUTH = (() => {
         localStorage.removeItem(EXPIRY_KEY);
         localStorage.removeItem(USER_KEY);
         localStorage.removeItem('supinkly_user');
+        try {
+            sessionStorage.removeItem(TOKEN_KEY);
+            sessionStorage.removeItem(EXPIRY_KEY);
+            sessionStorage.removeItem(USER_KEY);
+        } catch {}
     }
 
     // ── Register ───────────────────────────────────────────────
@@ -141,14 +171,25 @@ const USER_AUTH = (() => {
         if (!isLoggedIn()) return false;
         try {
             const res  = await fetch('/api/auth/verify-session', { method: 'POST', headers: getHeaders() });
-            const data = await res.json();
-            if (data.success && data.user) {
-                localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-                return true;
+            if (res.status === 401) {
+                // Token is genuinely invalid/revoked by server
+                clearSession();
+                return false;
             }
-        } catch {}
-        clearSession();
-        return false;
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.user) {
+                    const normalizedUser = { ...data.user, userId: data.user.userId || data.user.id, id: data.user.id || data.user.userId };
+                    localStorage.setItem(USER_KEY, JSON.stringify(normalizedUser));
+                    try { sessionStorage.setItem(USER_KEY, JSON.stringify(normalizedUser)); } catch {}
+                    return true;
+                }
+            }
+        } catch {
+            // Network error or server restart: keep existing session valid!
+            return isLoggedIn();
+        }
+        return isLoggedIn();
     }
 
     // ── Link local orders to account ───────────────────────────
@@ -170,8 +211,9 @@ const USER_AUTH = (() => {
         if (!isLoggedIn()) return [];
         try {
             const res  = await fetch('/api/auth/my-orders', { headers: getHeaders() });
+            if (!res.ok) return [];
             const data = await res.json();
-            return data.success ? data.orders : [];
+            return (data.success && Array.isArray(data.orders)) ? data.orders : [];
         } catch { return []; }
     }
 
@@ -180,6 +222,7 @@ const USER_AUTH = (() => {
         getUser, 
         getHeaders, 
         isLoggedIn, 
+        saveSession,
         clearSession,
         register, 
         verifyOtp, 

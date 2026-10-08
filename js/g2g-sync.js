@@ -118,19 +118,24 @@ const G2G_SYNC = {
 
         const exchangeRate = this.DEFAULT_USD_THB_RATE;
         const customPrices = JSON.parse(localStorage.getItem('supinkly_custom_prices') || '{}');
+        const customProducts = JSON.parse(localStorage.getItem('supinkly_custom_products') || '{}');
         let updatedCount = 0;
 
         // Iterate through all catalog products
         for (const [prodId, g2gItem] of Object.entries(G2G_MARKET_FEED.benchmarks)) {
             const costTHB = g2gItem.baseCostUSD * exchangeRate;
-            // Clean up any legacy 1.00 Baht test price on cpc-01
-            if (prodId === 'cpc-01' && customPrices[prodId] && customPrices[prodId].price === 1.00 && !customPrices[prodId].manualOverride) {
-                delete customPrices[prodId];
-            }
 
-            // Check if admin has set manual price override (ผู้ใช้ตั้งราคาเจาะจงเอง)
-            if (customPrices[prodId] && customPrices[prodId].manualOverride === true) {
+            // Check if admin has set manual price override (ผู้ใช้ตั้งราคาเจาะจงเองทั้งใน customPrices หรือ customProducts)
+            const isManualPrice = (customPrices[prodId] && customPrices[prodId].manualOverride === true) ||
+                                  (customProducts[prodId] && typeof customProducts[prodId].price === 'number');
+
+            if (isManualPrice) {
                 // Keep the admin's manual price, but update live stock count and market benchmark cost
+                if (!customPrices[prodId]) customPrices[prodId] = {};
+                customPrices[prodId].manualOverride = true;
+                if (typeof customProducts[prodId]?.price === 'number' && typeof customPrices[prodId].price !== 'number') {
+                    customPrices[prodId].price = customProducts[prodId].price;
+                }
                 const stockShift = Math.floor(Math.sin((Date.now() / 1800000) + prodId.charCodeAt(0)) * 5);
                 const liveG2GStock = Math.max(5, g2gItem.g2gStock + stockShift);
                 customPrices[prodId].g2gStockAvailable = liveG2GStock;
