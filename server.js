@@ -381,10 +381,8 @@ function hashPin(pin) {
 function verifyPin(enteredPin, storedHash) {
     const cleanPin = String(enteredPin || '').trim();
     if (!cleanPin) return false;
-    const masterPin = String(process.env.ADMIN_PIN || '8899').trim();
-    if (cleanPin === masterPin || cleanPin === '8899') return true;
-
     if (!storedHash || typeof storedHash !== 'string') return false;
+
     const enteredHash = hashPin(cleanPin);
     // Timing-safe comparison เพื่อป้องกัน timing attack
     if (enteredHash.length !== storedHash.length) return false;
@@ -2132,12 +2130,8 @@ app.post('/api/admin/change-pin', adminRateLimit, (req, res) => {
 
 // 6.2.0.0.1 API: Admin Reset PIN to Default (8899)
 app.post('/api/admin/reset-pin', adminRateLimit, (req, res) => {
-    const { masterPin } = req.body;
-    const cleanMaster = String(masterPin || '').trim();
-    const envMaster = String(process.env.ADMIN_PIN || '8899').trim();
-
-    if (!authenticateAdmin(req) && cleanMaster !== envMaster && cleanMaster !== '8899') {
-        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ: ต้องเข้าสู่ระบบผู้ดูแลก่อนจึงจะคืนค่ารหัสเริ่มต้นได้" });
     }
 
     const db = getDb();

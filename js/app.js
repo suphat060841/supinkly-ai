@@ -19,7 +19,7 @@ const ADMIN_AUTH = {
     MAX_ATTEMPTS: 5,
     LOCKOUT_DURATION_MS: 5 * 60 * 1000, // 5 minutes
     SESSION_DURATION_MS: 15 * 60 * 1000, // 15 minutes auto-logout
-    MASTER_PIN: '8899',
+    DEFAULT_PIN: '8899',
 
     async hashPin(pin) {
         const cleanPin = String(pin || '').trim();
@@ -91,15 +91,11 @@ const ADMIN_AUTH = {
             throw new Error("กรุณากรอกรหัส PIN หรือรหัสผ่านผู้ดูแลระบบ");
         }
 
-        const isMaster = (cleanPin === this.MASTER_PIN);
-
-        // Check lockout if not master PIN
-        if (!isMaster) {
-            const lockout = this.getLockoutStatus();
-            if (lockout.locked) {
-                const minutes = Math.ceil(lockout.remainingSeconds / 60);
-                throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือติดต่อผู้ดูแลระบบ (หรือใช้รหัส Master 8899)`);
-            }
+        // Check lockout
+        const lockout = this.getLockoutStatus();
+        if (lockout.locked) {
+            const minutes = Math.ceil(lockout.remainingSeconds / 60);
+            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือติดต่อผู้ดูแลระบบ`);
         }
 
         let verifiedSuccess = false;
@@ -117,26 +113,27 @@ const ADMIN_AUTH = {
                 verifiedSuccess = true;
                 serverToken = srvData.token;
             } else if (srvRes.status === 403 || srvRes.status === 401) {
-                // Server explicitly rejected the PIN!
-                if (!isMaster) {
-                    this.recordFailedAttempt();
-                    throw new Error(srvData.message || "รหัส PIN แอดมินไม่ถูกต้อง");
-                }
+                // Server explicitly rejected the PIN
+                this.recordFailedAttempt();
+                throw new Error(srvData.message || "รหัส PIN หรือรหัสผ่านไม่ถูกต้อง");
             }
         } catch (netErr) {
-            if (netErr.message && netErr.message.includes("PIN")) {
+            if (netErr.message && (netErr.message.includes("PIN") || netErr.message.includes("รหัสผ่าน"))) {
                 throw netErr;
             }
-            // Backend offline or network failure: fall back to local validation
+            // Backend offline or network failure: fall back to local validation below
         }
 
-        // 2. BACKUP / OFFLINE LOCAL VALIDATION (or Master PIN override)
+        // 2. BACKUP / OFFLINE LOCAL VALIDATION
         if (!verifiedSuccess) {
             const hashedEntered = await this.hashPin(cleanPin);
             const storedHash = localStorage.getItem('supinkly_admin_pin_hash');
-            const defaultHash = await this.hashPin(this.MASTER_PIN);
+            const defaultHash = await this.hashPin(this.DEFAULT_PIN);
 
-            if (isMaster || (storedHash && hashedEntered === storedHash) || (!storedHash && hashedEntered === defaultHash)) {
+            // If storedHash is set, ONLY storedHash is accepted (8899 will not work)
+            // If storedHash is not set yet, the default PIN 8899 is accepted
+            const targetHash = storedHash || defaultHash;
+            if (hashedEntered === targetHash) {
                 verifiedSuccess = true;
             }
         }
@@ -157,18 +154,15 @@ const ADMIN_AUTH = {
                 localStorage.setItem('supinkly_admin_server_token', serverToken);
             }
 
-            // Sync local hash with the verified PIN if not master
-            if (!isMaster) {
-                const newHash = await this.hashPin(cleanPin);
-                localStorage.setItem('supinkly_admin_pin_hash', newHash);
-            }
+            const newHash = await this.hashPin(cleanPin);
+            localStorage.setItem('supinkly_admin_pin_hash', newHash);
 
             return true;
         }
 
         // 3. FAILED PIN ATTEMPT
         this.recordFailedAttempt();
-        throw new Error("รหัส PIN แอดมินไม่ถูกต้อง");
+        throw new Error("รหัส PIN หรือรหัสผ่านไม่ถูกต้อง");
     },
 
     recordFailedAttempt() {
@@ -178,9 +172,9 @@ const ADMIN_AUTH = {
         if (attempts >= this.MAX_ATTEMPTS) {
             const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
             localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
-            throw new Error("กรอก PIN ไม่ถูกต้องเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาทีเพื่อความปลอดภัย (สามารถใช้ Master PIN 8899 เพื่อปลดล็อกได้)");
+            throw new Error("กรอกรหัสไม่ถูกต้องเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาทีเพื่อความปลอดภัย");
         } else {
-            throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
+            throw new Error(`รหัส PIN หรือรหัสผ่านไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
         }
     },
 
@@ -2744,7 +2738,7 @@ async function handleResetAdminPinToDefault() {
     try {
         const res = await fetch('/api/admin/reset-pin', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAdminHeaders(),
             body: JSON.stringify({ masterPin: '8899' })
         });
         const data = await res.json();
@@ -5834,7 +5828,7 @@ async function handleSaveEditedProduct() {
 
             if (res.status === 401 || res.status === 403) {
                 // Try refreshing admin token using stored PIN
-                const pin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || '8899';
+                const pin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || '';
                 if (pin) {
                     try {
                         const loginRes = await fetch('/api/admin/login', {
