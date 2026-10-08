@@ -526,8 +526,12 @@ function getMasterProduct(productId) {
             stock = benchmark.g2gStock;
         }
         if (typeof benchmark.baseCostUSD === 'number') {
-            marketCostTHB = Math.round(benchmark.baseCostUSD * 36.50 * 100) / 100;
+            const fxRate = (typeof G2G_SYNC !== 'undefined' && G2G_SYNC.currentExchangeRate) ? G2G_SYNC.currentExchangeRate : 36.50;
+            marketCostTHB = Math.round(benchmark.baseCostUSD * fxRate * 100) / 100;
         }
+    }
+    if (!g2gUrl) {
+        g2gUrl = `https://www.g2g.com/categories?q=${encodeURIComponent(g2gRawTitle || title)}`;
     }
 
     // Apply customProducts overrides (Title, Subtitle, Description, Brand, Type, Duration, Warranty, Devices, Delete)

@@ -5,34 +5,128 @@
  */
 
 const G2G_MARKET_FEED = {
-    // 19 Master Products mapped to G2G Market Category & Benchmark Cost (USD)
+    // 19 Master Products mapped to G2G Market Category, Direct Sourcing URL & Benchmark Cost (USD)
     benchmarks: {
-        "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro Subscription 1 Month - Account (Global)", baseCostUSD: 1.25, g2gStock: 142 },
-        "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 0.85, g2gStock: 89 },
-        "cpc-03": { serviceId: "G2G-CPC-TEAM",     title: "CapCut Team Subscription 1 Month - Workspace (Global)", baseCostUSD: 1.95, g2gStock: 64 },
-        "cpc-04": { serviceId: "G2G-CPC-VIP",      title: "CapCut VIP / SVIP Subscription 1 Month (Global)", baseCostUSD: 3.10, g2gStock: 35 },
-        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google AI Pro Subscription 1 Month - Activation Link (Global)", baseCostUSD: 0.94, g2gStock: 73 },
-        "goo-ai-02": { serviceId: "G2G-GOO-AI-ULT", title: "Google AI Ultra Subscription 1 Month - Account (Global)", baseCostUSD: 49.50, g2gStock: 12 },
-        "goo-ai-03": { serviceId: "G2G-GOO-AI-SHR", title: "Google AI Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 0.85, g2gStock: 78 },
-        "goo-01":    { serviceId: "G2G-GOO-5TB-PV", title: "Google Drive 5TB Storage + Google AI Pro 1 Month (Global)", baseCostUSD: 2.15, g2gStock: 95 },
-        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google AI Pro Subscription 1 Month - Activation Link (Global)", baseCostUSD: 0.94, g2gStock: 73 },
-        "grk-01":    { serviceId: "G2G-GRK-7D-PV",  title: "xAI Grok Subscription 7 Days - Account (Global)", baseCostUSD: 3.80, g2gStock: 45 },
-        "grk-02":    { serviceId: "G2G-GRK-30D-PV", title: "xAI Grok Subscription 1 Month - Account (Global)", baseCostUSD: 14.20, g2gStock: 52 },
-        "grk-03":    { serviceId: "G2G-GRK-HEAVY",  title: "xAI SuperGrok Heavy Subscription 1 Month - Account (Global)", baseCostUSD: 95.00, g2gStock: 8 },
-        "cld-01":    { serviceId: "G2G-CLD-PRO-PV", title: "Claude Pro Subscription 1 Month - Account (Global)", baseCostUSD: 13.80, g2gStock: 67 },
-        "cld-02":    { serviceId: "G2G-CLD-PRO-SH", title: "Claude Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 3.60, g2gStock: 120 },
-        "adb-01":    { serviceId: "G2G-ADB-ACRO",   title: "Adobe Acrobat Pro DC Subscription 1 Month (Global)", baseCostUSD: 6.50, g2gStock: 41 },
-        "adb-02":    { serviceId: "G2G-ADB-CC-ALL", title: "Adobe Creative Cloud All Apps Subscription 1 Month (Global)", baseCostUSD: 10.80, g2gStock: 83 },
-        "ms-01":     { serviceId: "G2G-MS-W11-OEM", title: "Windows 11 Professional OEM Key (Global)", baseCostUSD: 2.20, g2gStock: 350 },
-        "ms-02":     { serviceId: "G2G-MS-365-FAM", title: "Microsoft 365 Personal Subscription 1 Month 1TB OneDrive (Global)", baseCostUSD: 2.80, g2gStock: 115 },
-        "ms-03":     { serviceId: "G2G-MS-COPILOT", title: "Microsoft Copilot Pro Subscription 1 Month - Account (Global)", baseCostUSD: 7.90, g2gStock: 58 }
+        "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro Subscription 1 Month - Account (Global)", baseCostUSD: 1.25, g2gStock: 142, g2gUrl: "https://www.g2g.com/categories?q=CapCut+Pro+Subscription+1+Month" },
+        "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 0.85, g2gStock: 89, g2gUrl: "https://www.g2g.com/categories?q=CapCut+Pro+Shared+1+Month" },
+        "cpc-03": { serviceId: "G2G-CPC-TEAM",     title: "CapCut Team Subscription 1 Month - Workspace (Global)", baseCostUSD: 1.95, g2gStock: 64, g2gUrl: "https://www.g2g.com/categories?q=CapCut+Team+Subscription" },
+        "cpc-04": { serviceId: "G2G-CPC-VIP",      title: "CapCut VIP / SVIP Subscription 1 Month (Global)", baseCostUSD: 3.10, g2gStock: 35, g2gUrl: "https://www.g2g.com/categories?q=CapCut+VIP+Subscription" },
+        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google AI Pro Subscription 1 Month - Activation Link (Global)", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.g2g.com/categories?q=Google+AI+Pro+Subscription" },
+        "goo-ai-02": { serviceId: "G2G-GOO-AI-ULT", title: "Google AI Ultra Subscription 1 Month - Account (Global)", baseCostUSD: 49.50, g2gStock: 12, g2gUrl: "https://www.g2g.com/categories?q=Google+AI+Ultra+Subscription" },
+        "goo-ai-03": { serviceId: "G2G-GOO-AI-SHR", title: "Google AI Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 0.85, g2gStock: 78, g2gUrl: "https://www.g2g.com/categories?q=Google+AI+Shared" },
+        "goo-01":    { serviceId: "G2G-GOO-5TB-PV", title: "Google Drive 5TB Storage + Google AI Pro 1 Month (Global)", baseCostUSD: 2.15, g2gStock: 95, g2gUrl: "https://www.g2g.com/categories?q=Google+Drive+5TB" },
+        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google AI Pro Subscription 1 Month - Activation Link (Global)", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.g2g.com/categories?q=Google+AI+Pro+Activation+Link" },
+        "grk-01":    { serviceId: "G2G-GRK-7D-PV",  title: "xAI Grok Subscription 7 Days - Account (Global)", baseCostUSD: 3.80, g2gStock: 45, g2gUrl: "https://www.g2g.com/categories?q=xAI+Grok+Subscription+7+Days" },
+        "grk-02":    { serviceId: "G2G-GRK-30D-PV", title: "xAI Grok Subscription 1 Month - Account (Global)", baseCostUSD: 14.20, g2gStock: 52, g2gUrl: "https://www.g2g.com/categories?q=xAI+Grok+Subscription+1+Month" },
+        "grk-03":    { serviceId: "G2G-GRK-HEAVY",  title: "xAI SuperGrok Heavy Subscription 1 Month - Account (Global)", baseCostUSD: 95.00, g2gStock: 8, g2gUrl: "https://www.g2g.com/categories?q=xAI+SuperGrok+Heavy" },
+        "cld-01":    { serviceId: "G2G-CLD-PRO-PV", title: "Claude Pro Subscription 1 Month - Account (Global)", baseCostUSD: 13.80, g2gStock: 67, g2gUrl: "https://www.g2g.com/categories?q=Claude+Pro+Subscription+1+Month" },
+        "cld-02":    { serviceId: "G2G-CLD-PRO-SH", title: "Claude Pro Subscription 1 Month - Shared Account (Global)", baseCostUSD: 3.60, g2gStock: 120, g2gUrl: "https://www.g2g.com/categories?q=Claude+Pro+Shared" },
+        "adb-01":    { serviceId: "G2G-ADB-ACRO",   title: "Adobe Acrobat Pro DC Subscription 1 Month (Global)", baseCostUSD: 6.50, g2gStock: 41, g2gUrl: "https://www.g2g.com/categories?q=Adobe+Acrobat+Pro+DC" },
+        "adb-02":    { serviceId: "G2G-ADB-CC-ALL", title: "Adobe Creative Cloud All Apps Subscription 1 Month (Global)", baseCostUSD: 10.80, g2gStock: 83, g2gUrl: "https://www.g2g.com/categories?q=Adobe+Creative+Cloud+All+Apps" },
+        "ms-01":     { serviceId: "G2G-MS-W11-OEM", title: "Windows 11 Professional OEM Key (Global)", baseCostUSD: 2.20, g2gStock: 350, g2gUrl: "https://www.g2g.com/categories?q=Windows+11+Professional+OEM+Key" },
+        "ms-02":     { serviceId: "G2G-MS-365-FAM", title: "Microsoft 365 Personal Subscription 1 Month 1TB OneDrive (Global)", baseCostUSD: 2.80, g2gStock: 115, g2gUrl: "https://www.g2g.com/categories?q=Microsoft+365+Personal" },
+        "ms-03":     { serviceId: "G2G-MS-COPILOT", title: "Microsoft Copilot Pro Subscription 1 Month - Account (Global)", baseCostUSD: 7.90, g2gStock: 58, g2gUrl: "https://www.g2g.com/categories?q=Microsoft+Copilot+Pro" }
     }
 };
 
 const G2G_SYNC = {
     DEFAULT_USD_THB_RATE: 36.50,
+    currentExchangeRate: 36.50,
+    rateLastFetched: 0,
+    rateSource: 'Default',
     SYNC_INTERVAL_MS: 15 * 60 * 1000, // Sync every 15 minutes automatically
     timerId: null,
+
+    // Free Live USD/THB Exchange Rate Fetcher (Zero API Key required)
+    async fetchLiveExchangeRate() {
+        const now = Date.now();
+        // Return cached rate if refreshed within 30 minutes
+        if (this.rateLastFetched && (now - this.rateLastFetched < 30 * 60 * 1000) && this.currentExchangeRate > 20) {
+            return this.currentExchangeRate;
+        }
+
+        try {
+            const stored = localStorage.getItem('supinkly_live_fx');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed.rate && (now - parsed.timestamp < 30 * 60 * 1000)) {
+                    this.currentExchangeRate = parsed.rate;
+                    this.rateLastFetched = parsed.timestamp;
+                    this.rateSource = parsed.source || 'Cache';
+                    this.updateFxRateUI();
+                    return this.currentExchangeRate;
+                }
+            }
+        } catch (e) {}
+
+        // 1. Try local server backend proxy (safest, no CORS)
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const res = await fetch('/api/public/exchange-rate', { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && typeof data.rate === 'number' && data.rate > 20 && data.rate < 60) {
+                    this.currentExchangeRate = Math.round(data.rate * 100) / 100;
+                    this.rateLastFetched = now;
+                    this.rateSource = data.source || 'Server FX';
+                    this.saveFxCache();
+                    this.updateFxRateUI();
+                    return this.currentExchangeRate;
+                }
+            }
+        } catch (e) {}
+
+        // 2. Direct client-side fetch from open public FX endpoint (open.er-api.com - Free, No Key, CORS open)
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const res = await fetch('https://open.er-api.com/v6/latest/USD', { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+                const data = await res.json();
+                const thb = data?.rates?.THB;
+                if (typeof thb === 'number' && thb > 20 && thb < 60) {
+                    this.currentExchangeRate = Math.round(thb * 100) / 100;
+                    this.rateLastFetched = now;
+                    this.rateSource = 'Open ER-API';
+                    this.saveFxCache();
+                    this.updateFxRateUI();
+                    return this.currentExchangeRate;
+                }
+            }
+        } catch (e) {}
+
+        // 3. Fallback: keep current rate or default
+        if (!this.currentExchangeRate || this.currentExchangeRate <= 0) {
+            this.currentExchangeRate = this.DEFAULT_USD_THB_RATE;
+        }
+        this.updateFxRateUI();
+        return this.currentExchangeRate;
+    },
+
+    saveFxCache() {
+        try {
+            localStorage.setItem('supinkly_live_fx', JSON.stringify({
+                rate: this.currentExchangeRate,
+                source: this.rateSource,
+                timestamp: this.rateLastFetched
+            }));
+        } catch (e) {}
+    },
+
+    updateFxRateUI() {
+        const valEl = document.getElementById('admin-live-fx-val');
+        if (valEl) {
+            valEl.textContent = `฿${this.currentExchangeRate.toFixed(2)}`;
+            valEl.title = `อัตราแลกเปลี่ยนสดจากตลาด: 1 USD = ${this.currentExchangeRate} THB (${this.rateSource})`;
+        }
+        const chipEl = document.getElementById('admin-live-fx-chip');
+        if (chipEl) {
+            chipEl.title = `1 USD = ${this.currentExchangeRate} บาท (อัปเดตอัตโนมัติ)`;
+        }
+    },
 
     getConfig() {
         let cfg = {
@@ -96,11 +190,12 @@ const G2G_SYNC = {
         return finalPrice;
     },
 
-    // Helper to get raw benchmark cost in THB
+    // Helper to get raw benchmark cost in THB (with Live FX Rate)
     getBenchmarkCostTHB(prodId) {
         const item = G2G_MARKET_FEED.benchmarks[prodId];
         if (!item) return 0;
-        return Math.round(item.baseCostUSD * this.DEFAULT_USD_THB_RATE * 100) / 100;
+        const rate = this.currentExchangeRate || this.DEFAULT_USD_THB_RATE;
+        return Math.round(item.baseCostUSD * rate * 100) / 100;
     },
 
     // Helper to calculate recommended dynamic Auto-Sync price
@@ -116,7 +211,9 @@ const G2G_SYNC = {
         const config = this.getConfig();
         if (!config.autoSyncEnabled) return;
 
-        const exchangeRate = this.DEFAULT_USD_THB_RATE;
+        // Fetch Live FX rate first
+        await this.fetchLiveExchangeRate();
+        const exchangeRate = this.currentExchangeRate || this.DEFAULT_USD_THB_RATE;
         const customPrices = JSON.parse(localStorage.getItem('supinkly_custom_prices') || '{}');
         const customProducts = JSON.parse(localStorage.getItem('supinkly_custom_products') || '{}');
         let updatedCount = 0;
@@ -213,6 +310,9 @@ const G2G_SYNC = {
 
     // Initialize Auto-Sync Service
     init() {
+        // Pre-fetch live exchange rate immediately
+        this.fetchLiveExchangeRate();
+
         // 1. Initial Auto-Sync immediately upon page load (Zero button clicks required)
         setTimeout(() => {
             this.performAutoSync();

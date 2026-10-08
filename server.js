@@ -105,6 +105,51 @@ app.use((req, res, next) => {
 // Health check endpoint for Render monitoring
 app.get('/healthz', (req, res) => res.status(200).send('OK'));
 
+// ─── Free Public USD/THB Exchange Rate (Cached in-memory 30m) ───────────────
+let cachedFxRate = { rate: 36.50, updatedAt: 0, source: 'default' };
+app.get('/api/public/exchange-rate', async (req, res) => {
+    const now = Date.now();
+    // Cache for 30 minutes
+    if (cachedFxRate.updatedAt && (now - cachedFxRate.updatedAt < 30 * 60 * 1000)) {
+        return res.json({ success: true, rate: cachedFxRate.rate, source: cachedFxRate.source, cached: true });
+    }
+
+    try {
+        const https = require('https');
+        const fetchRate = (url) => new Promise((resolve, reject) => {
+            const request = https.get(url, { timeout: 4000, headers: { 'User-Agent': 'Mozilla/5.0' } }, (r) => {
+                let d = '';
+                r.on('data', c => d += c);
+                r.on('end', () => {
+                    try { resolve(JSON.parse(d)); } catch(e) { reject(e); }
+                });
+            });
+            request.on('timeout', () => { request.destroy(); reject(new Error('timeout')); });
+            request.on('error', reject);
+        });
+
+        let data = null;
+        try {
+            data = await fetchRate('https://open.er-api.com/v6/latest/USD');
+        } catch(e) {
+            data = await fetchRate('https://api.exchangerate-api.com/v4/latest/USD');
+        }
+
+        const thbRate = data && data.rates && data.rates.THB;
+        if (typeof thbRate === 'number' && thbRate > 20 && thbRate < 60) {
+            cachedFxRate = {
+                rate: Math.round(thbRate * 100) / 100,
+                updatedAt: now,
+                source: 'open.er-api.com'
+            };
+        }
+    } catch (err) {
+        console.warn('[FX] Could not fetch live rate, using fallback:', err.message);
+    }
+
+    res.json({ success: true, rate: cachedFxRate.rate, source: cachedFxRate.source, cached: false });
+});
+
 // ─── [FIX #1] CORS Whitelist ────────────────────────────────────────────────
 // รองรับ localhost, onrender.com และ domain ที่กำหนดใน ALLOWED_ORIGINS
 const rawOrigins = process.env.ALLOWED_ORIGINS || '*';

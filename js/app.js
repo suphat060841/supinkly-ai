@@ -5779,16 +5779,17 @@ function renderAdminStockList() {
                 <td class="py-3 px-3 text-center">
                     <div class="font-bold text-slate-700 text-xs font-mono">฿${costTHB.toFixed(2)}</div>
                     <div class="flex items-center justify-center gap-1 mt-1">
-                        ${master.g2gUrl ? `
-                        <a href="${sanitizeUrl(master.g2gUrl)}" target="_blank" rel="noopener noreferrer"
-                           class="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold transition-all flex items-center gap-1 shadow-2xs"
-                           title="เปิดลิงก์สินค้าบน G2G">
-                            <i class="fa-solid fa-cart-shopping text-[9px] text-amber-600"></i>
-                            <span>ซื้อ G2G ↗</span>
-                        </a>
-                        ` : `
-                        <span class="text-[10px] text-slate-400">ไม่มีลิงก์</span>
-                        `}
+                        ${(() => {
+                            const effectiveG2GUrl = master.g2gUrl || (g2gBenchmark && g2gBenchmark.g2gUrl) || getG2GMarketLink(p.id);
+                            return `
+                            <a href="${sanitizeUrl(effectiveG2GUrl)}" target="_blank" rel="noopener noreferrer"
+                               class="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold transition-all flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
+                               title="เปิดดูแหล่งต้นทุนและสั่งซื้อบน G2G">
+                                <i class="fa-solid fa-cart-shopping text-[9px] text-amber-600"></i>
+                                <span>ซื้อ G2G ↗</span>
+                            </a>
+                            `;
+                        })()}
                         <button type="button" 
                                 onclick="navigator.clipboard.writeText('${escapeHTML(master.g2gRawTitle || master.title)}'); showToast('คัดลอกชื่อสินค้าแล้ว', 'info');"
                                 class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 border border-slate-200 text-[10px] cursor-pointer"
@@ -6433,11 +6434,71 @@ function openAddStockModal(productId) {
     const modal = document.getElementById('add-stock-modal');
     if (!modal) return;
 
+    const pool = state.inventory[productId] || [];
     document.getElementById('add-stock-product-id').value = productId;
-    document.getElementById('add-stock-product-title').textContent = master.title;
+    document.getElementById('add-stock-product-title').textContent = `${master.title} (คลังปัจจุบัน: ${pool.length} ชิ้น)`;
     document.getElementById('add-stock-textarea').value = '';
+    updateStockTextCounter();
 
     modal.classList.remove('hidden');
+}
+
+function updateStockTextCounter() {
+    const text = (document.getElementById('add-stock-textarea')?.value || '').trim();
+    const badge = document.getElementById('add-stock-counter-badge');
+    if (!badge) return;
+    if (!text) {
+        badge.innerHTML = `<i class="fa-solid fa-barcode text-slate-400"></i><span>ยังไม่มีข้อมูล (0 ชิ้น)</span>`;
+        return;
+    }
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let accounts = 0, links = 0, keys = 0;
+    lines.forEach(l => {
+        if (l.includes(':')) accounts++;
+        else if (l.startsWith('http')) links++;
+        else keys++;
+    });
+    badge.innerHTML = `<i class="fa-solid fa-check text-emerald-600"></i><span class="text-emerald-700 font-bold">ตรวจพบ ${lines.length} ชิ้น</span> <span class="text-slate-500 font-normal">(${accounts ? `บัญชี: ${accounts} ` : ''}${keys ? `คีย์: ${keys} ` : ''}${links ? `ลิงก์: ${links}` : ''})</span>`;
+}
+
+function clearStockTextarea() {
+    const textarea = document.getElementById('add-stock-textarea');
+    if (textarea) {
+        textarea.value = '';
+        updateStockTextCounter();
+    }
+}
+
+function insertStockSampleFormat(type) {
+    const textarea = document.getElementById('add-stock-textarea');
+    if (!textarea) return;
+    let sample = '';
+    if (type === 'account') {
+        sample = `user_${Date.now().toString().slice(-4)}@domain.com:Pass_${Math.random().toString(36).slice(-6)}`;
+    } else if (type === 'key') {
+        sample = `KEY-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    } else if (type === 'link') {
+        sample = `https://invite.example.com/join/${Math.random().toString(36).substring(2, 10)}`;
+    }
+    textarea.value = (textarea.value.trim() ? textarea.value.trim() + '\n' : '') + sample;
+    updateStockTextCounter();
+}
+
+function handleStockFileUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const content = e.target.result || '';
+        const textarea = document.getElementById('add-stock-textarea');
+        if (textarea) {
+            textarea.value = (textarea.value.trim() ? textarea.value.trim() + '\n' : '') + content.trim();
+            updateStockTextCounter();
+            showToast(`นำเข้าสำเร็จจากไฟล์ "${file.name}"`, "success");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
 }
 
 function closeAddStockModal() {
@@ -7756,6 +7817,10 @@ window.triggerManualAutoSync = triggerManualAutoSync;
 window.openAddStockModal = openAddStockModal;
 window.closeAddStockModal = closeAddStockModal;
 window.handleSaveAddedStock = handleSaveAddedStock;
+window.updateStockTextCounter = updateStockTextCounter;
+window.clearStockTextarea = clearStockTextarea;
+window.insertStockSampleFormat = insertStockSampleFormat;
+window.handleStockFileUpload = handleStockFileUpload;
 
 // Admin Navigation & Orders Management Controllers
 window.switchAdminTab = switchAdminTab;
