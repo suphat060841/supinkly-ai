@@ -439,12 +439,32 @@ async function syncCatalogWithServer() {
                         const srvTime = new Date(srvItem.updatedAt || srvItem.lastManualUpdate || 0).getTime();
                         const locTime = new Date(locItem.updatedAt || locItem.lastManualUpdate || 0).getTime();
 
-                        // If local has manual override and local timestamp is newer or equal, NEVER overwrite with server!
-                        if (locItem.manualOverride && locTime >= srvTime) {
-                            if (locTime > srvTime) needsServerPush = true;
-                        } else if (srvTime > locTime) {
+                        // 1. If server has admin manual override and local does not: Server ALWAYS wins!
+                        if (srvItem.manualOverride && !locItem.manualOverride) {
                             mergedPrices[pid] = { ...locItem, ...srvItem };
                             updated = true;
+                        }
+                        // 2. If local has manual override and server does not: Local wins and push to server
+                        else if (locItem.manualOverride && !srvItem.manualOverride) {
+                            needsServerPush = true;
+                        }
+                        // 3. Both have manual override: compare timestamps
+                        else if (locItem.manualOverride && srvItem.manualOverride) {
+                            if (locTime > srvTime) {
+                                needsServerPush = true;
+                            } else {
+                                mergedPrices[pid] = { ...locItem, ...srvItem };
+                                if (locItem.price !== srvItem.price || locItem.originalPrice !== srvItem.originalPrice || locItem.badge !== srvItem.badge) {
+                                    updated = true;
+                                }
+                            }
+                        }
+                        // 4. Neither has manual override: newer or equal server wins
+                        else if (srvTime >= locTime) {
+                            mergedPrices[pid] = { ...locItem, ...srvItem };
+                            if (locItem.price !== srvItem.price || locItem.originalPrice !== srvItem.originalPrice) {
+                                updated = true;
+                            }
                         }
                     }
                 }
@@ -2294,6 +2314,9 @@ function renderOrdersHistory() {
         const badgeTotal = document.getElementById('customer-keys-count-badge');
         if (badgeTotal) badgeTotal.textContent = `0 รายการ`;
 
+        const profileCard = document.getElementById('customer-profile-card');
+        if (profileCard) profileCard.innerHTML = '';
+
         list.innerHTML = `
             <div class="py-12 text-center bg-slate-50/60 rounded-2xl border-2 border-dashed border-slate-200 p-6">
                 <div class="w-16 h-16 mx-auto mb-3 rounded-3xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-600 text-2xl shadow-inner">
@@ -2307,6 +2330,55 @@ function renderOrdersHistory() {
             </div>
         `;
         return;
+    }
+
+    // Update Customer Profile Card in orders-modal
+    const profileCard = document.getElementById('customer-profile-card');
+    if (profileCard) {
+        const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+        if (isLoggedIn && user) {
+            profileCard.innerHTML = `
+                <div class="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-pink-50/90 via-purple-50/70 to-pink-50/90 border-2 border-pink-200/90 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-pink-500/20 shrink-0">
+                            <i class="fa-solid fa-user-check"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">คุณ ${escapeHTML(user.displayName || user.name || 'สมาชิก Supinkly')}</span>
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
+                                    <i class="fa-solid fa-circle-check text-emerald-600"></i> สมาชิกเข้าสู่ระบบแล้ว
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-500 font-medium truncate flex items-center gap-1.5 mt-0.5">
+                                <i class="fa-regular fa-envelope text-slate-400"></i>
+                                <span>${escapeHTML(user.email || '')}</span>
+                                <span class="text-slate-300">•</span>
+                                <span class="text-pink-600 font-bold">บันทึกข้อมูลและคีย์ถาวร</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" onclick="handleUserLogout(); closeOrdersModal();" class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-300 text-xs font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer" title="ออกจากระบบ">
+                            <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                            <span>ออกจากระบบ</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            profileCard.innerHTML = `
+                <div class="p-3 rounded-2xl bg-amber-50/80 border-2 border-amber-200/90 shadow-xs flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 text-xs text-amber-900 font-medium">
+                        <i class="fa-solid fa-circle-exclamation text-amber-600 shrink-0"></i>
+                        <span>คุณกำลังเปิดดูในโหมดผู้เยี่ยมชม เข้าสู่ระบบเพื่อซิงค์คีย์และบันทึกข้อมูลถาวร</span>
+                    </div>
+                    <button type="button" onclick="closeOrdersModal(); openAuthModal('login');" class="px-3 py-1.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer">
+                        <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ / สมัครสมาชิก
+                    </button>
+                </div>
+            `;
+        }
     }
 
     const totalOrders = (state.orders || []).length;

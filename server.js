@@ -3000,8 +3000,8 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
         const mailResult = await mailService.sendOtpEmail(normalEmail, otp, cleanDisplayName, db);
         const isDevLocal = isLocalRequest(req) && process.env.NODE_ENV !== 'production';
 
-        // If SMTP is unconfigured, auto-complete registration immediately so customers are never blocked or lost!
-        if (!isSmtpConfigured && !mailResult.delivered) {
+        // If SMTP is unconfigured or email failed to deliver, auto-complete registration immediately so customers are never blocked or lost!
+        if (!isSmtpConfigured || !mailResult.delivered) {
             const user = {
                 id: pendingUserId,
                 email: normalEmail,
@@ -3207,7 +3207,26 @@ app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
     const db = getDb();
     if (!db.users) db.users = [];
     const normalEmail = email.trim().toLowerCase();
-    const user = db.users.find(u => (u.email || '').toLowerCase() === normalEmail);
+    let user = db.users.find(u => (u.email || '').toLowerCase() === normalEmail);
+
+    // If user is not yet finalized, check if there is a pending registration with valid password
+    if (!user && db.pendingRegistrations && db.pendingRegistrations[normalEmail]) {
+        const pending = db.pendingRegistrations[normalEmail];
+        if (verifyPassword(String(password).trim(), pending.passwordHash, pending.userId)) {
+            user = {
+                id: pending.userId,
+                email: pending.email,
+                displayName: pending.displayName || 'สมาชิก Supinkly',
+                passwordHash: pending.passwordHash,
+                tokenVersion: 1,
+                emailVerified: true,
+                createdAt: new Date().toISOString()
+            };
+            db.users.push(user);
+            delete db.pendingRegistrations[normalEmail];
+            saveDb(db);
+        }
+    }
 
     // [SECURITY] Always run verifyPassword in constant time to prevent timing-based user enumeration
     const DUMMY_HASH = hashPassword('dummy_check_supinkly', 'DUMMY_USER_ID_0000');
