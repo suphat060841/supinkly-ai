@@ -928,16 +928,32 @@ const inFlightSlips = new Set();
 app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), async (req, res) => {
     let activeSlipHash = null;
     try {
-        // [AUTHENTICATION GATE] บังคับให้สมัครสมาชิกและเข้าสู่ระบบก่อนซื้อสินค้าทุกครั้ง
+        // [AUTHENTICATION & EMAIL RESOLUTION]
         const userSession = authenticateUser(req);
-        if (!userSession || !userSession.email) {
+        const db = getDb();
+        let orderEmail = '';
+        let orderUserId = null;
+        let orderUserName = '';
+
+        if (userSession && userSession.email) {
+            orderEmail = userSession.email.trim().toLowerCase();
+            orderUserId = userSession.userId || null;
+            orderUserName = userSession.displayName || orderEmail;
+        } else if (req.body.email && typeof req.body.email === 'string' && isValidEmail(req.body.email)) {
+            orderEmail = req.body.email.trim().toLowerCase();
+            orderUserName = orderEmail;
+            const matchedUser = (db.users || []).find(u => u.email === orderEmail);
+            if (matchedUser) {
+                orderUserId = matchedUser.id;
+                orderUserName = matchedUser.displayName || orderEmail;
+            }
+        } else {
             return res.status(401).json({
                 success: false,
                 requireLogin: true,
-                message: "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกคีย์และประวัติการสั่งซื้อเข้าบัญชีของคุณ"
+                message: "กรุณาระบุอีเมลที่ถูกต้องหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน เพื่อบันทึกคีย์และประวัติการสั่งซื้อเข้าบัญชีของคุณ"
             });
         }
-        const orderEmail = userSession.email.trim().toLowerCase();
         const { cartItems } = req.body;
 
         let parsedCart;
@@ -947,8 +963,6 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         } catch {
             return res.status(400).json({ success: false, message: "ข้อมูลตะกร้าสินค้าไม่ถูกต้อง" });
         }
-
-        const db = getDb();
 
         if (!req.file || !isValidImageBuffer(req.file.buffer)) {
             return res.status(400).json({ success: false, message: "กรุณาแนบไฟล์รูปภาพสลิปที่ถูกต้อง (JPG, PNG, WEBP)" });
@@ -1229,8 +1243,8 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
             email: orderEmail,
             recipientEmail: orderEmail,
-            userId: userSession.userId || null,
-            userName: userSession.displayName || orderEmail,
+            userId: orderUserId || (userSession ? userSession.userId : null),
+            userName: orderUserName || (userSession ? userSession.displayName : orderEmail),
             subtotal: originalSubtotal,
             discountAmount: discountAmount,
             coupon: appliedCouponInfo,
@@ -1291,6 +1305,57 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         if (activeSlipHash) {
             inFlightSlips.delete(activeSlipHash);
         }
+    }
+});
+
+// 1.1 API: Sync Local Orders into Server Database (Disaster recovery & client reconciliation)
+app.post('/api/checkout/sync-local-orders', adminRateLimit, (req, res) => {
+    try {
+        const { orders } = req.body;
+        if (!Array.isArray(orders) || orders.length === 0) {
+            return res.json({ success: true, syncedCount: 0 });
+        }
+        const db = getDb();
+        if (!db.orders) db.orders = [];
+        const existingOrderIds = new Set(db.orders.map(o => o.orderId));
+        let syncedCount = 0;
+
+        for (const rawOrder of orders.slice(0, 50)) {
+            if (!rawOrder || !rawOrder.orderId || typeof rawOrder.orderId !== 'string') continue;
+            if (existingOrderIds.has(rawOrder.orderId)) continue;
+
+            const safeOrder = {
+                orderId: rawOrder.orderId,
+                date: rawOrder.date || new Date().toLocaleString('th-TH'),
+                email: (rawOrder.email || rawOrder.recipientEmail || '').trim().toLowerCase(),
+                recipientEmail: (rawOrder.recipientEmail || rawOrder.email || '').trim().toLowerCase(),
+                userId: rawOrder.userId || null,
+                userName: rawOrder.userName || rawOrder.recipientEmail || 'ลูกค้า',
+                subtotal: parseFloat(rawOrder.subtotal) || parseFloat(rawOrder.totalAmount) || 0,
+                discountAmount: parseFloat(rawOrder.discountAmount) || 0,
+                coupon: rawOrder.coupon || null,
+                totalAmount: parseFloat(rawOrder.totalAmount) || 0,
+                paymentMethod: rawOrder.paymentMethod || "Thai QR PromptPay",
+                transRef: rawOrder.transRef || ("REF-" + Date.now().toString(36).toUpperCase()),
+                items: Array.isArray(rawOrder.items) ? rawOrder.items : [],
+                status: rawOrder.status || "🟡 รอส่งมอบ (On-Demand)",
+                slipHash: rawOrder.slipHash || rawOrder.slipFingerprint || null,
+                slipUrl: rawOrder.slipUrl || "",
+                slipData: rawOrder.slipData || rawOrder.slipDataUrl || "",
+                isAutoVerified: !!rawOrder.isAutoVerified,
+                isDemo: !!rawOrder.isDemo
+            };
+            db.orders.unshift(safeOrder);
+            existingOrderIds.add(safeOrder.orderId);
+            syncedCount++;
+        }
+
+        if (syncedCount > 0) {
+            saveDb(db);
+        }
+        res.json({ success: true, syncedCount, totalOrders: db.orders.length, orders: db.orders });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
@@ -1648,34 +1713,124 @@ app.post('/api/admin/orders/:orderId/attach-slip', adminRateLimit, upload.single
     res.json({ success: true, message: "แนบรูปสลิปให้คำสั่งซื้อเรียบร้อยแล้ว", slipUrl });
 });
 
+// 5.3 API: Admin Create Demo Order (For Testing & Verification)
+app.post('/api/admin/orders/demo', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+    const db = getDb();
+    const demoOrderId = "SPK-DEMO" + Math.floor(1000 + Math.random() * 9000);
+    const demoOrder = {
+        orderId: demoOrderId,
+        date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
+        email: "demo.customer@gmail.com",
+        recipientEmail: "demo.customer@gmail.com",
+        userId: null,
+        userName: "นายลูกค้า ทดสอบ (Demo)",
+        subtotal: 129,
+        discountAmount: 0,
+        coupon: null,
+        totalAmount: 129.00,
+        paymentMethod: "Thai QR PromptPay (ทดสอบ)",
+        transRef: "DEMO_" + Date.now().toString(36).toUpperCase(),
+        slipHash: "demo_hash_" + Math.random().toString(36).substring(2, 10),
+        slipUrl: "",
+        slipData: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="460" viewBox="0 0 360 460"><rect width="100%" height="100%" fill="%23f8fafc"/><rect x="16" y="16" width="328" height="428" rx="20" fill="white" stroke="%23e2e8f0" stroke-width="2"/><circle cx="180" cy="70" r="28" fill="%23ec4899"/><path d="M168 70 l8 8 l16 -16" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><text x="180" y="125" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="%230f172a">ชำระเงินสำเร็จ (สลิปจำลอง)</text><text x="180" y="145" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%2364748b">PromptPay QR Verification</text><line x1="40" y1="165" x2="320" y2="165" stroke="%23e2e8f0" stroke-dasharray="4 4"/><text x="40" y="200" font-family="sans-serif" font-size="12" fill="%2364748b">จำนวนเงิน</text><text x="320" y="200" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="20" fill="%23db2777">฿129.00</text><text x="40" y="240" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้โอน</text><text x="320" y="240" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">นายลูกค้า ทดสอบ (Demo)</text><text x="40" y="275" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้รับเงิน</text><text x="320" y="275" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">Supinkly.AI Store</text><text x="40" y="310" font-family="sans-serif" font-size="12" fill="%2364748b">รหัสอ้างอิง</text><text x="320" y="310" text-anchor="end" font-family="monospace" font-size="11" fill="%23475569">${demoOrderId}</text><rect x="40" y="340" width="280" height="70" rx="12" fill="%23fdf2f8" stroke="%23fbcfe8"/><text x="180" y="370" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="12" fill="%23be185d">ตรวจสอบสลิปอัตโนมัติผ่านแล้ว</text><text x="180" y="392" text-anchor="middle" font-family="sans-serif" font-size="11" fill="%23db2777">SlipOK / PromptPay Hash Verified</text></svg>`,
+        items: [
+            {
+                productId: "capcut-pro",
+                productTitle: "CapCut Pro 1 ปี (บัญชีส่วนตัว)",
+                brand: "CapCut",
+                type: "App Premium",
+                price: 129,
+                warranty: "365 วัน",
+                status: "pending_fulfillment",
+                credentials: null
+            }
+        ],
+        status: "🟡 รอส่งมอบ (On-Demand)",
+        isAutoVerified: true,
+        isDemo: true
+    };
+    if (!db.orders) db.orders = [];
+    db.orders.unshift(demoOrder);
+    saveDb(db);
+    res.json({ success: true, order: demoOrder, orders: db.orders });
+});
+
 // 6. API: Admin Fulfill Order Item
 app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
-    const { orderId, itemIndex, credentials } = req.body;
+    const { orderId, itemIndex, credentials, orderData } = req.body;
     if (!orderId || typeof itemIndex !== 'number' || !credentials) {
-        return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
+        return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน กรุณากรอกรหัสหรือข้อมูลบัญชี" });
     }
+
+    const cleanOrderId = String(orderId).trim();
+    const idx = parseInt(itemIndex, 10);
     const db = getDb();
-    const order = (db.orders || []).find(o => o.orderId === orderId);
-    if (!order || !order.items || !order.items[itemIndex]) {
-        return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อ" });
+    if (!db.orders) db.orders = [];
+
+    // Robust case-insensitive search
+    let order = db.orders.find(o => (o.orderId || '').trim().toUpperCase() === cleanOrderId.toUpperCase());
+
+    // Disaster Recovery / Self-healing: if order existed in local storage but hadn't reached db.orders, restore it
+    if (!order && orderData && typeof orderData === 'object' && orderData.orderId) {
+        const recovered = {
+            orderId: orderData.orderId,
+            date: orderData.date || new Date().toLocaleString('th-TH'),
+            email: (orderData.email || orderData.recipientEmail || '').trim().toLowerCase(),
+            recipientEmail: (orderData.recipientEmail || orderData.email || '').trim().toLowerCase(),
+            userId: orderData.userId || null,
+            userName: orderData.userName || orderData.recipientEmail || 'ลูกค้า',
+            subtotal: parseFloat(orderData.subtotal) || parseFloat(orderData.totalAmount) || 0,
+            discountAmount: parseFloat(orderData.discountAmount) || 0,
+            coupon: orderData.coupon || null,
+            totalAmount: parseFloat(orderData.totalAmount) || 0,
+            paymentMethod: orderData.paymentMethod || "Thai QR PromptPay",
+            transRef: orderData.transRef || ("REF-" + Date.now().toString(36).toUpperCase()),
+            items: Array.isArray(orderData.items) ? orderData.items : [],
+            status: orderData.status || "🟡 รอส่งมอบ (On-Demand)",
+            slipHash: orderData.slipHash || null,
+            slipUrl: orderData.slipUrl || "",
+            slipData: orderData.slipData || "",
+            isAutoVerified: !!orderData.isAutoVerified,
+            isDemo: !!orderData.isDemo
+        };
+        db.orders.unshift(recovered);
+        order = recovered;
     }
+
+    if (!order || !Array.isArray(order.items) || isNaN(idx) || idx < 0 || idx >= order.items.length) {
+        return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อหรือรายการสินค้าที่ต้องการส่งมอบในระบบ" });
+    }
+
     // [SECURITY] Sanitize credentials to safe string fields
     const cleanCred = {
-        ...(credentials.email ? { email: String(credentials.email).slice(0, 254) } : {}),
-        ...(credentials.password ? { password: String(credentials.password).slice(0, 512) } : {}),
-        ...(credentials.key ? { key: String(credentials.key).slice(0, 512) } : {}),
-        ...(credentials.link ? { link: String(credentials.link).slice(0, 2048) } : {}),
-        ...(credentials.instructions ? { instructions: String(credentials.instructions).slice(0, 1000) } : {})
+        ...(credentials.email ? { email: String(credentials.email).trim().slice(0, 254) } : {}),
+        ...(credentials.password ? { password: String(credentials.password).trim().slice(0, 512) } : {}),
+        ...(credentials.key ? { key: String(credentials.key).trim().slice(0, 512) } : {}),
+        ...(credentials.link ? { link: String(credentials.link).trim().slice(0, 2048) } : {}),
+        instructions: String(credentials.instructions || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที มีการรับประกันดูแลตลอดอายุการใช้งาน 30 วัน').trim().slice(0, 1000)
     };
-    order.items[itemIndex].credentials = cleanCred;
-    order.items[itemIndex].status = "delivered";
-    const allDelivered = order.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
+
+    order.items[idx].credentials = cleanCred;
+    order.items[idx].status = "delivered";
+
+    // Re-evaluate entire order fulfillment status
+    const allDelivered = order.items.every(it => {
+        const hasCred = it.credentials && (it.credentials.email || it.credentials.key || it.credentials.link);
+        return hasCred && it.status !== 'pending_fulfillment';
+    });
+
     if (allDelivered) {
         order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+    } else {
+        order.status = "🟡 จัดส่งแล้วบางส่วน (รอส่งมอบรายการที่เหลือ)";
     }
+
     saveDb(db);
 
     // [NOTIFICATION & RECEIPT] Notify customer that item/order has been delivered
@@ -1685,7 +1840,7 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
     }
     mailService.sendOrderReceiptEmail(order, true, db).catch(e => console.warn('[MAIL] Fulfill receipt email error:', e.message));
 
-    res.json({ success: true, order });
+    res.json({ success: true, order, orders: db.orders });
 });
 
 // 6.0.1 API: Public Catalog & Synced Custom Prices & Products
@@ -2836,7 +2991,7 @@ app.post('/api/admin/clear-all-data', adminRateLimit, (req, res) => {
 
 const orderLookupRateLimit = rateLimit({
     windowMs: 60 * 1000,
-    max: 20,
+    max: 120, // Support real-time customer polling for on-demand fulfillment
     message: { success: false, message: "ค้นหาคำสั่งซื้อบ่อยเกินไป กรุณารอสักครู่" }
 });
 
@@ -2846,8 +3001,9 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
     if (!orderId || !/^[A-Z0-9\-]{5,40}$/i.test(orderId)) {
         return res.status(400).json({ success: false, message: "รูปแบบรหัสคำสั่งซื้อไม่ถูกต้อง" });
     }
+    const cleanSearch = orderId.trim().toUpperCase();
     const db = getDb();
-    const order = (db.orders || []).find(o => o.orderId === orderId);
+    const order = (db.orders || []).find(o => (o.orderId || '').trim().toUpperCase() === cleanSearch);
     if (!order) {
         return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อ" });
     }
@@ -2869,18 +3025,26 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
     if (userSession) {
         if (order.userId && order.userId === userSession.userId) {
             isOwner = true;
-        } else if (!order.userId && matchesOrderEmail(userSession.email)) {
+        } else if (matchesOrderEmail(userSession.email)) {
             // Auto-link verified logged-in account to past guest order
             order.userId = userSession.userId;
             saveDb(db);
             isOwner = true;
         }
-    } else if (!order.userId && queryEmail && matchesOrderEmail(queryEmail)) {
-        // Fallback for unauthenticated customer looking up past unlinked guest orders
+    }
+    
+    // Customer providing matching email has full legitimate owner access to their delivered credentials
+    if (!isOwner && queryEmail && matchesOrderEmail(queryEmail)) {
         isOwner = true;
     }
 
-    // Admin or Verified Customer (via matching email or active session) gets full order with credentials
+    // Direct token proof from browser checkout session
+    const orderToken = req.headers['x-order-token'];
+    if (!isOwner && orderToken && (orderToken === order.transRef || orderToken === order.slipHash)) {
+        isOwner = true;
+    }
+
+    // Admin or Verified Customer (via matching email, active session, or order token) gets full order with credentials
     if (isAdmin || isOwner) {
         return res.json({ success: true, order });
     }

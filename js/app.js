@@ -294,7 +294,13 @@ const state = {
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
     user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
-    orders: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? JSON.parse(localStorage.getItem('supinkly_orders') || '[]') : [],
+    orders: (() => {
+        try {
+            return JSON.parse(localStorage.getItem('supinkly_orders') || '[]');
+        } catch {
+            return [];
+        }
+    })(),
     filterBrand: 'all',
     filterType: 'all',
     searchQuery: '',
@@ -545,36 +551,68 @@ function updateNavOrdersCount() {
 }
 
 async function refreshUserOrders() {
-    if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) {
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+
+    if (isLoggedIn) {
+        try {
+            // Claim any local unlinked orders under this account
+            const localOrderIds = (state.orders || []).map(o => o.orderId).filter(Boolean);
+            if (localOrderIds.length > 0) {
+                try { await USER_AUTH.linkLocalOrders(localOrderIds); } catch {}
+            }
+
+            const serverOrders = await USER_AUTH.fetchMyOrders();
+            if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+                const serverIds = new Set(serverOrders.map(o => o.orderId));
+                const existingLocal = (state.orders || []).filter(o => o.orderId && !serverIds.has(o.orderId));
+                const merged = [...serverOrders, ...existingLocal].sort((a, b) => {
+                    const timeA = new Date(a.date || 0).getTime() || 0;
+                    const timeB = new Date(b.date || 0).getTime() || 0;
+                    return timeB - timeA;
+                });
+                state.orders = merged;
+                localStorage.setItem('supinkly_orders', JSON.stringify(merged));
+            }
+        } catch (e) {
+            console.warn("Could not fetch user orders from account:", e);
+        }
+    } else {
         try {
             const stored = localStorage.getItem('supinkly_orders');
             if (stored) state.orders = JSON.parse(stored) || [];
         } catch {}
-        updateNavOrdersCount();
-        updateUserHeaderUI();
-        return state.orders || [];
     }
-    try {
-        // Claim any local unlinked orders under this account
-        const localOrderIds = (state.orders || []).map(o => o.orderId).filter(Boolean);
-        if (localOrderIds.length > 0) {
-            try { await USER_AUTH.linkLocalOrders(localOrderIds); } catch {}
-        }
 
-        const serverOrders = await USER_AUTH.fetchMyOrders();
-        if (Array.isArray(serverOrders)) {
-            const serverIds = new Set(serverOrders.map(o => o.orderId));
-            const existingLocal = (state.orders || []).filter(o => o.orderId && !serverIds.has(o.orderId));
-            const merged = [...serverOrders, ...existingLocal];
-            state.orders = merged;
-            localStorage.setItem('supinkly_orders', JSON.stringify(merged));
-            updateNavOrdersCount();
-            updateUserHeaderUI();
-            return merged;
+    // Actively refresh any pending orders from server (works for both guests & members)
+    const pendingOrders = (state.orders || []).filter(o => {
+        if (!o || !o.orderId) return false;
+        return (o.status && (o.status.includes('รอส่งมอบ') || o.status.includes('รอจัดส่ง') || o.status.includes('pending')))
+            || ((o.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment'));
+    });
+
+    if (pendingOrders.length > 0) {
+        for (const po of pendingOrders.slice(0, 10)) {
+            try {
+                const customerEmail = po.recipientEmail || po.email || (state.user && state.user.email) || '';
+                const queryParam = customerEmail ? `?email=${encodeURIComponent(customerEmail)}` : '';
+                const res = await fetch(`/api/orders/${encodeURIComponent(po.orderId)}${queryParam}`, {
+                    headers: customerEmail ? { 'x-order-email': customerEmail } : {}
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.order) {
+                        const updated = data.order;
+                        const idx = state.orders.findIndex(o => o.orderId === po.orderId);
+                        if (idx !== -1) {
+                            state.orders[idx] = updated;
+                            localStorage.setItem('supinkly_orders', JSON.stringify(state.orders));
+                        }
+                    }
+                }
+            } catch {}
         }
-    } catch (e) {
-        console.warn("Could not fetch user orders:", e);
     }
+
     updateNavOrdersCount();
     updateUserHeaderUI();
     return state.orders || [];
@@ -593,6 +631,41 @@ function saveOrders() {
     }
     updateNavOrdersCount();
     updateUserHeaderUI();
+}
+
+// Reconcile and push local client orders to server database
+async function syncLocalOrdersToServer(ordersToSync = null) {
+    if (!window.location.protocol.startsWith('http')) return;
+    const list = ordersToSync || state.orders || [];
+    if (!Array.isArray(list) || list.length === 0) return;
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        const token = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getToken) ? USER_AUTH.getToken() : null;
+        if (token) {
+            headers['x-user-token'] = token;
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch('/api/checkout/sync-local-orders', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ orders: list })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && data.syncedCount > 0) {
+                console.log(`[SYNC] Synced ${data.syncedCount} orders to backend database.`);
+                if (typeof adminOrdersList !== 'undefined' && Array.isArray(adminOrdersList) && Array.isArray(data.orders)) {
+                    data.orders.forEach(o => {
+                        if (!adminOrdersList.some(ao => ao.orderId === o.orderId)) {
+                            adminOrdersList.unshift(o);
+                        }
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        // silent fallback on network errors
+    }
 }
 
 // Header & User Actions
@@ -1873,6 +1946,11 @@ async function submitSlipVerification() {
                     state.orders.unshift(serverOrder);
                     saveOrders();
                 }
+                if (typeof adminOrdersList !== 'undefined' && Array.isArray(adminOrdersList)) {
+                    if (!adminOrdersList.some(o => o.orderId === serverOrder.orderId)) {
+                        adminOrdersList.unshift(serverOrder);
+                    }
+                }
                 state.cart = [];
                 state.appliedCoupon = null;
                 saveCart();
@@ -1963,6 +2041,14 @@ async function submitSlipVerification() {
 
             state.orders.unshift(newOrder);
             saveOrders();
+            if (typeof adminOrdersList !== 'undefined' && Array.isArray(adminOrdersList)) {
+                if (!adminOrdersList.some(o => o.orderId === newOrder.orderId)) {
+                    adminOrdersList.unshift(newOrder);
+                }
+            }
+            if (typeof syncLocalOrdersToServer === 'function') {
+                syncLocalOrdersToServer([newOrder]);
+            }
 
             state.cart = [];
             state.appliedCoupon = null;
@@ -2003,7 +2089,9 @@ function openVaultModal(order) {
     if (totalEl) totalEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
 
     // Check if order has items pending fulfillment
-    const isPending = order.items.some(item => !item.credentials || item.status === 'pending_fulfillment');
+    const isPending = (typeof isOrderPending === 'function') 
+        ? isOrderPending(order) 
+        : (order.items || []).some(item => !item.credentials || item.status === 'pending_fulfillment');
     modal.setAttribute('data-is-pending', isPending ? 'true' : 'false');
 
     const statusIconEl = document.getElementById('vault-status-icon');
@@ -2184,28 +2272,78 @@ function closeVaultModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-// Background poller for Vault modal & Orders modal (auto-updates when admin fulfills order)
-if (!window.vaultPollTimer) {
-    window.vaultPollTimer = setInterval(() => {
-        const modal = document.getElementById('vault-modal');
-        if (modal && !modal.classList.contains('hidden') && state.currentVaultOrderId) {
-            const currentOrder = state.orders.find(o => o.orderId === state.currentVaultOrderId);
-            if (currentOrder) {
-                const wasPending = modal.getAttribute('data-is-pending') === 'true';
-                const isNowDelivered = currentOrder.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
-                if (wasPending && isNowDelivered) {
-                    showToast("🎉 ร้านค้าส่งมอบรหัสให้คุณเรียบร้อยแล้ว!", "success");
-                    openVaultModal(currentOrder);
+// Real-time server poller for Vault modal & Orders modal (auto-syncs when admin fulfills on server)
+let isVaultPollingRunning = false;
+
+async function checkCustomerVaultServerStatus() {
+    if (isVaultPollingRunning) return;
+    const vaultModal = document.getElementById('vault-modal');
+    const ordersModal = document.getElementById('orders-modal');
+    const isVaultOpen = vaultModal && !vaultModal.classList.contains('hidden');
+    const isOrdersOpen = ordersModal && !ordersModal.classList.contains('hidden');
+
+    if (!isVaultOpen && !isOrdersOpen) return;
+
+    isVaultPollingRunning = true;
+    try {
+        // 1. Live Poll Vault Modal for current order
+        if (isVaultOpen && state.currentVaultOrderId) {
+            const localOrder = (state.orders || []).find(o => o.orderId === state.currentVaultOrderId);
+            const customerEmail = (localOrder && (localOrder.recipientEmail || localOrder.email)) 
+                || (state.user && state.user.email) 
+                || '';
+            const queryParam = customerEmail ? `?email=${encodeURIComponent(customerEmail)}` : '';
+
+            const res = await fetch(`/api/orders/${encodeURIComponent(state.currentVaultOrderId)}${queryParam}`, {
+                headers: {
+                    ...(customerEmail ? { 'x-order-email': customerEmail } : {})
+                }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.success && data.order) {
+                    const serverOrder = data.order;
+                    const wasPending = vaultModal.getAttribute('data-is-pending') === 'true';
+                    
+                    const isNowDelivered = (serverOrder.status && (serverOrder.status.includes('จัดส่งสำเร็จ') || serverOrder.status.includes('delivered')))
+                        || ((serverOrder.items || []).length > 0 && (serverOrder.items || []).every(it => (it.status === 'delivered' || it.credentials) && it.status !== 'pending_fulfillment'));
+
+                    const serverHasCreds = (serverOrder.items || []).some(it => it.credentials && (it.credentials.email || it.credentials.key || it.credentials.link));
+
+                    if (wasPending && (isNowDelivered || serverHasCreds)) {
+                        // Merge into local state
+                        const idx = (state.orders || []).findIndex(o => o.orderId === serverOrder.orderId);
+                        if (idx !== -1) state.orders[idx] = serverOrder;
+                        else state.orders.unshift(serverOrder);
+                        saveOrders();
+
+                        // Visual & audible alert to customer
+                        playNotificationSound();
+                        showToast("🎉 ร้านค้าส่งมอบรหัสให้คุณเรียบร้อยแล้ว!", "success");
+                        openVaultModal(serverOrder);
+
+                        if (isOrdersOpen) renderOrdersHistory();
+                        updateNavOrdersCount();
+                        updateUserHeaderUI();
+                    }
                 }
             }
         }
 
-        // Also live update Orders Modal ("คีย์ของฉัน") if open
-        const ordersModal = document.getElementById('orders-modal');
-        if (ordersModal && !ordersModal.classList.contains('hidden')) {
+        // 2. Live update Orders Modal ("คีย์ของฉัน") if open
+        if (isOrdersOpen) {
             renderOrdersHistory();
         }
-    }, 2000);
+    } catch (e) {
+        // Silent catch for network drops
+    } finally {
+        isVaultPollingRunning = false;
+    }
+}
+
+if (!window.vaultPollTimer) {
+    window.vaultPollTimer = setInterval(checkCustomerVaultServerStatus, 2500);
 }
 
 function copyToClipboard(text, successMsg = "คัดลอกสำเร็จ") {
@@ -2383,8 +2521,8 @@ function renderOrdersHistory() {
     }
 
     const totalOrders = (state.orders || []).length;
-    const deliveredOrders = (state.orders || []).filter(o => o.items && o.items.every(it => it.credentials && it.status !== 'pending_fulfillment')).length;
-    const pendingOrders = totalOrders - deliveredOrders;
+    const deliveredOrders = (state.orders || []).filter(isOrderDelivered).length;
+    const pendingOrders = (state.orders || []).filter(isOrderPending).length;
 
     // Update filter counts & badges
     const cntAll = document.getElementById('ck-cnt-all');
@@ -2419,9 +2557,9 @@ function renderOrdersHistory() {
     // Filter by delivery status
     let filtered = state.orders;
     if (customerKeysFilter === 'delivered') {
-        filtered = filtered.filter(o => o.items && o.items.every(it => it.credentials && it.status !== 'pending_fulfillment'));
+        filtered = filtered.filter(isOrderDelivered);
     } else if (customerKeysFilter === 'pending') {
-        filtered = filtered.filter(o => o.items && o.items.some(it => !it.credentials || it.status === 'pending_fulfillment'));
+        filtered = filtered.filter(isOrderPending);
     }
 
     // Filter by search query
@@ -2457,10 +2595,11 @@ function renderOrdersHistory() {
     }
 
     list.innerHTML = filtered.map((order) => {
-        const isOrderPending = (order.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment');
+        // [FIX] ใช้ชื่อต่างออกไปเพื่อหลีกเลี่ยง variable shadowing กับ function isOrderPending() ใน outer scope
+        const isThisOrderPending = !isOrderDelivered(order);
 
         return `
-            <div class="p-4 sm:p-5 rounded-2xl bg-white border-2 ${isOrderPending ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} mb-3.5 hover:border-pink-300 transition-all shadow-sm">
+            <div class="p-4 sm:p-5 rounded-2xl bg-white border-2 ${isThisOrderPending ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} mb-3.5 hover:border-pink-300 transition-all shadow-sm">
                 <!-- Order Header -->
                 <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <div class="flex items-center gap-2">
@@ -2475,12 +2614,12 @@ function renderOrdersHistory() {
                             <i class="fa-regular fa-calendar text-[11px]"></i> ${escapeHTML(order.date || '-')}
                         </span>
                     </div>
-                    <span class="px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 shadow-xs ${isOrderPending
+                    <span class="px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 shadow-xs ${isThisOrderPending
                 ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
                 : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
             }">
-                        <i class="fa-solid ${isOrderPending ? 'fa-spinner fa-spin' : 'fa-circle-check'} text-xs"></i>
-                        <span>${isOrderPending ? 'กำลังจัดเตรียมรหัส (5-15 นาที)' : 'จัดส่งแล้ว (พร้อมใช้งาน)'}</span>
+                        <i class="fa-solid ${isThisOrderPending ? 'fa-spinner fa-spin' : 'fa-circle-check'} text-xs"></i>
+                        <span>${isThisOrderPending ? 'กำลังจัดเตรียมรหัส (5-15 นาที)' : 'จัดส่งแล้ว (พร้อมใช้งาน)'}</span>
                     </span>
                 </div>
 
@@ -2880,6 +3019,133 @@ let adminOrderSearchQuery = '';
 let adminStockSearchQuery = '';
 let adminStockBrandFilter = 'all';
 
+// ── Admin Orders State & Remote Sync Helpers ─────────────────────────
+let adminOrdersList = [];
+let adminOrdersLastFetch = 0;
+let adminOrdersPollTimer = null;
+
+function isOrderDelivered(order) {
+    if (!order) return false;
+    const isStatusDelivered = typeof order.status === 'string' && (order.status.includes('จัดส่งสำเร็จ') || order.status.includes('delivered'));
+    const isItemsDelivered = Array.isArray(order.items) && order.items.length > 0 && order.items.every(it => {
+        // [FIX] ตรวจสอบเฉพาะ credentials จริง (email/key/link) ไม่รวม instructions เพียงอย่างเดียว
+        const hasCred = it.credentials && (it.credentials.email || it.credentials.key || it.credentials.link);
+        return (it.status === 'delivered' || hasCred) && it.status !== 'pending_fulfillment';
+    });
+    return isStatusDelivered || isItemsDelivered;
+}
+
+function isOrderPending(order) {
+    if (!order) return false;
+    return !isOrderDelivered(order);
+}
+
+function getAdminOrders() {
+    return (Array.isArray(adminOrdersList) && adminOrdersList.length > 0) ? adminOrdersList : (state.orders || []);
+}
+
+// Fetch all orders from backend server (/api/admin/orders)
+async function fetchAdminOrders(forceRefresh = false) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        return state.orders || [];
+    }
+
+    const now = Date.now();
+    if (!forceRefresh && (now - adminOrdersLastFetch < 2500) && adminOrdersList.length > 0) {
+        return adminOrdersList;
+    }
+
+    try {
+        const res = await fetch('/api/admin/orders', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.orders)) {
+                adminOrdersList = data.orders;
+                adminOrdersLastFetch = now;
+
+                // Merge server orders into state.orders so vault & history also stay updated
+                const orderMap = new Map();
+                adminOrdersList.forEach(o => { if (o && o.orderId) orderMap.set(o.orderId, o); });
+                (state.orders || []).forEach(o => {
+                    if (o && o.orderId && !orderMap.has(o.orderId)) {
+                        orderMap.set(o.orderId, o);
+                    }
+                });
+                state.orders = Array.from(orderMap.values()).sort((a, b) => {
+                    const timeA = new Date(a.date || 0).getTime() || 0;
+                    const timeB = new Date(b.date || 0).getTime() || 0;
+                    return timeB - timeA;
+                });
+
+                updateAdminNavBadges();
+                return adminOrdersList;
+            }
+        }
+    } catch (e) {
+        console.warn("[ADMIN] Could not fetch orders from server:", e);
+    }
+
+    adminOrdersList = state.orders || [];
+    return adminOrdersList;
+}
+
+function startAdminOrdersAutoRefresh() {
+    stopAdminOrdersAutoRefresh();
+    adminOrdersPollTimer = setInterval(async () => {
+        const modal = document.getElementById('admin-modal');
+        if (!modal || modal.classList.contains('hidden')) {
+            stopAdminOrdersAutoRefresh();
+            return;
+        }
+
+        const prevPending = (getAdminOrders()).filter(isOrderPending).length;
+
+        await fetchAdminOrders(true);
+
+        const currentOrders = getAdminOrders();
+        const newPending = currentOrders.filter(isOrderPending).length;
+
+        if (newPending > prevPending) {
+            showToast(`🔔 มีคำสั่งซื้อใหม่เข้ามาในระบบ! (${newPending} รอส่งมอบ)`, "info");
+            playNotificationSound();
+        }
+
+        const ordersTab = document.getElementById('admin-tab-orders');
+        if (ordersTab && !ordersTab.classList.contains('hidden')) {
+            renderAdminOrdersList(false);
+        }
+    }, 15000);
+}
+
+function stopAdminOrdersAutoRefresh() {
+    if (adminOrdersPollTimer) {
+        clearInterval(adminOrdersPollTimer);
+        adminOrdersPollTimer = null;
+    }
+}
+
+function playNotificationSound() {
+    try {
+        if (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+        }
+    } catch (e) {}
+}
+
 // Helper: Get authenticated headers for Admin API requests
 function getAdminHeaders() {
     const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
@@ -2897,13 +3163,9 @@ function getAdminHeaders() {
 
 // Update Admin Nav Badges (Pending orders, coupons, users & KPI stat cards)
 function updateAdminNavBadges() {
-    const orders = state.orders || [];
-    const pendingCount = orders.filter(o => 
-        (o.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment')
-    ).length;
-    const deliveredCount = orders.filter(o => 
-        (o.items || []).every(it => it.credentials && it.status !== 'pending_fulfillment')
-    ).length;
+    const orders = getAdminOrders();
+    const pendingCount = orders.filter(isOrderPending).length;
+    const deliveredCount = orders.filter(isOrderDelivered).length;
     const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
     const salesEl = document.getElementById('admin-stat-sales');
@@ -2982,9 +3244,10 @@ function quickAdminNavigate(tab, subFilter = null) {
         }
 
         // Calculate count feedback
-        const total = (state.orders || []).length;
-        const pending = (state.orders || []).filter(o => o.items?.some(it => !it.credentials || it.status === 'pending_fulfillment')).length;
-        const delivered = (state.orders || []).filter(o => o.items?.every(it => it.credentials && it.status !== 'pending_fulfillment')).length;
+        const allAdminOrders = getAdminOrders();
+        const total = allAdminOrders.length;
+        const pending = allAdminOrders.filter(isOrderPending).length;
+        const delivered = allAdminOrders.filter(isOrderDelivered).length;
 
         let msg = "";
         if (filterKey === 'pending') {
@@ -3011,10 +3274,35 @@ function quickAdminNavigate(tab, subFilter = null) {
 }
 
 // Create a realistic demo order for testing fulfillment and slip verification
-function createDemoOrder() {
+async function createDemoOrder() {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
         promptAdminLogin();
         return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/orders/demo', {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (data && data.success && data.order) {
+            const demoOrder = data.order;
+            if (!Array.isArray(adminOrdersList)) adminOrdersList = [];
+            adminOrdersList.unshift(demoOrder);
+            if (!Array.isArray(state.orders)) state.orders = [];
+            state.orders.unshift(demoOrder);
+            saveOrders();
+            renderAdminOrdersList();
+            updateAdminNavBadges();
+            if (typeof filterAdminOrders === 'function') filterAdminOrders('all');
+            showToast(`🎉 สร้างออเดอร์ทดสอบ ${demoOrder.orderId} ในเซิร์ฟเวอร์สำเร็จ!`, "success");
+            const listEl = document.getElementById('admin-orders-list');
+            if (listEl) listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+    } catch (e) {
+        console.warn("[DEMO] Server demo creation failed, using local fallback:", e);
     }
 
     const demoOrderId = "SPK-DEMO" + Math.floor(1000 + Math.random() * 9000);
@@ -3041,14 +3329,17 @@ function createDemoOrder() {
         slipFingerprint: "demo_slip_" + Math.random().toString(36).substring(2, 8),
         slipDataUrl: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="460" viewBox="0 0 360 460"><rect width="100%" height="100%" fill="%23f8fafc"/><rect x="16" y="16" width="328" height="428" rx="20" fill="white" stroke="%23e2e8f0" stroke-width="2"/><circle cx="180" cy="70" r="28" fill="%23ec4899"/><path d="M168 70 l8 8 l16 -16" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><text x="180" y="125" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="%230f172a">ชำระเงินสำเร็จ (สลิปจำลอง)</text><text x="180" y="145" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%2364748b">PromptPay QR Verification</text><line x1="40" y1="165" x2="320" y2="165" stroke="%23e2e8f0" stroke-dasharray="4 4"/><text x="40" y="200" font-family="sans-serif" font-size="12" fill="%2364748b">จำนวนเงิน</text><text x="320" y="200" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="20" fill="%23db2777">฿129.00</text><text x="40" y="240" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้โอน</text><text x="320" y="240" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">นายลูกค้า ทดสอบ (Demo)</text><text x="40" y="275" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้รับเงิน</text><text x="320" y="275" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">Supinkly.AI Store</text><text x="40" y="310" font-family="sans-serif" font-size="12" fill="%2364748b">รหัสอ้างอิง</text><text x="320" y="310" text-anchor="end" font-family="monospace" font-size="11" fill="%23475569">${demoOrderId}</text><rect x="40" y="340" width="280" height="70" rx="12" fill="%23fdf2f8" stroke="%23fbcfe8"/><text x="180" y="370" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="12" fill="%23be185d">ตรวจสอบสลิปอัตโนมัติผ่านแล้ว</text><text x="180" y="392" text-anchor="middle" font-family="sans-serif" font-size="11" fill="%23db2777">SlipOK / PromptPay Hash Verified</text></svg>`,
         items: demoItems,
-        status: "🟡 รอจัดส่งสินค้า (5-15 นาที)",
+        status: "🟡 รอส่งมอบ (On-Demand)",
         isDemo: true
     };
 
+    if (!Array.isArray(adminOrdersList)) adminOrdersList = [];
+    adminOrdersList.unshift(demoOrder);
     if (!Array.isArray(state.orders)) state.orders = [];
     state.orders.unshift(demoOrder);
     saveOrders();
     renderAdminOrdersList();
+    updateAdminNavBadges();
 
     if (typeof filterAdminOrders === 'function') {
         filterAdminOrders('all');
@@ -4613,19 +4904,20 @@ function exportOrdersToCSV() {
         return;
     }
 
-    if (!state.orders || state.orders.length === 0) {
+    const ordersToExport = getAdminOrders();
+    if (!ordersToExport || ordersToExport.length === 0) {
         showToast("ยังไม่มีข้อมูลคำสั่งซื้อสำหรับส่งออก", "info");
         return;
     }
 
     const headers = ["Order ID", "Date", "Customer Email", "Total Amount (THB)", "Payment Method", "TransRef", "Status", "Items"];
-    const rows = state.orders.map(o => {
+    const rows = ordersToExport.map(o => {
         const itemNames = (o.items || []).map(i => `${i.productTitle} (x1)`).join(' | ');
         const cleanStatus = (o.status || '').replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
         return [
             o.orderId,
             `"${o.date || ''}"`,
-            `"${o.recipientEmail || ''}"`,
+            `"${o.recipientEmail || o.email || ''}"`,
             (o.totalAmount || 0).toFixed(2),
             `"${o.paymentMethod || 'PromptPay'}"`,
             `"${o.transRef || ''}"`,
@@ -4647,19 +4939,43 @@ function exportOrdersToCSV() {
     showToast("ส่งออกไฟล์ CSV คำสั่งซื้อเรียบร้อยแล้ว", "success");
 }
 
-function handleClearAllAdminOrders() {
+async function handleClearAllAdminOrders() {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
         showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
         promptAdminLogin();
         return;
     }
-    if (!state.orders || state.orders.length === 0) {
+    const orders = getAdminOrders();
+    if (!orders || orders.length === 0) {
         showToast("ไม่มีคำสั่งซื้อในระบบให้ล้าง", "info");
         return;
     }
-    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้างข้อมูลคำสั่งซื้อทั้งหมด ${state.orders.length} รายการ?\n\nการกระทำนี้ไม่สามารถย้อนกลับได้!`)) {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้างข้อมูลคำสั่งซื้อทั้งหมด ${orders.length} รายการ?\n\nการกระทำนี้จะลบออกจากฐานข้อมูลเซิร์ฟเวอร์ถาวรและไม่สามารถย้อนกลับได้!`)) {
         return;
     }
+
+    try {
+        const res = await fetch('/api/admin/orders/clear-all', {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                adminOrdersList = [];
+                state.orders = [];
+                saveOrders();
+                renderAdminOrdersList();
+                if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+                showToast("ล้างข้อมูลคำสั่งซื้อทั้งหมดจากเซิร์ฟเวอร์เรียบร้อยแล้ว", "success");
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn("[ADMIN] Clear orders server error, falling back locally:", e);
+    }
+
+    adminOrdersList = [];
     state.orders = [];
     saveOrders();
     renderAdminOrdersList();
@@ -4667,17 +4983,57 @@ function handleClearAllAdminOrders() {
     showToast("ล้างข้อมูลคำสั่งซื้อทั้งหมดเรียบร้อยแล้ว", "success");
 }
 
+async function deleteAdminOrder(orderId) {
+    if (!orderId) return;
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบคำสั่งซื้อ ${orderId} ออกจากระบบ?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+            method: 'DELETE',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                adminOrdersList = adminOrdersList.filter(o => o.orderId !== orderId);
+                state.orders = (state.orders || []).filter(o => o.orderId !== orderId);
+                saveOrders();
+                renderAdminOrdersList();
+                if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+                showToast(`ลบคำสั่งซื้อ ${orderId} สำเร็จแล้ว`, "success");
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn("[ADMIN] Delete order server error:", e);
+    }
+
+    adminOrdersList = adminOrdersList.filter(o => o.orderId !== orderId);
+    state.orders = (state.orders || []).filter(o => o.orderId !== orderId);
+    saveOrders();
+    renderAdminOrdersList();
+    if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+    showToast(`ลบคำสั่งซื้อ ${orderId} เรียบร้อยแล้ว`, "success");
+}
+
 function copyOrderCustomerReceipt(orderId) {
-    const order = state.orders.find(o => o.orderId === orderId);
+    const order = (adminOrdersList && adminOrdersList.find(o => o.orderId === orderId)) || (state.orders || []).find(o => o.orderId === orderId);
     if (!order) return;
 
     let text = `📦 ข้อมูลคำสั่งซื้อ Supinkly.AI\n`;
     text += `เลขออเดอร์: ${order.orderId}\n`;
-    text += `วันที่สั่งซื้อ: ${order.date}\n`;
+    text += `วันที่สั่งซื้อ: ${order.date || ''}\n`;
     text += `ยอดชำระ: ฿${(order.totalAmount || 0).toFixed(2)}\n\n`;
     text += `รายการสินค้าและรหัสเข้าใช้งาน:\n`;
 
-    order.items.forEach((it, idx) => {
+    (order.items || []).forEach((it, idx) => {
         text += `\n${idx + 1}. ${it.productTitle}\n`;
         const cred = it.credentials;
         if (cred) {
@@ -4697,7 +5053,7 @@ function copyOrderCustomerReceipt(orderId) {
     copyToClipboard(text, "คัดลอกข้อความแจ้งลูกค้าเรียบร้อยแล้ว นำไปส่งในแชทได้ทันที!");
 }
 
-function renderAdminOrdersList() {
+async function renderAdminOrdersList(forceFetch = false) {
     const container = document.getElementById('admin-orders-list');
     const badge = document.getElementById('admin-pending-badge');
     const countLabel = document.getElementById('admin-orders-count-label');
@@ -4712,15 +5068,20 @@ function renderAdminOrdersList() {
         return;
     }
 
+    if (forceFetch || adminOrdersList.length === 0) {
+        await fetchAdminOrders(forceFetch);
+    }
+
+    const allOrders = getAdminOrders();
+
     // Update KPI stats
     let totalSales = 0;
     let pendingCount = 0;
     let deliveredCount = 0;
 
-    state.orders.forEach(order => {
+    allOrders.forEach(order => {
         totalSales += (order.totalAmount || 0);
-        const hasPending = order.items.some(it => !it.credentials || it.status === 'pending_fulfillment');
-        if (hasPending) {
+        if (isOrderPending(order)) {
             pendingCount++;
         } else {
             deliveredCount++;
@@ -4741,7 +5102,7 @@ function renderAdminOrdersList() {
     const deliveredEl = document.getElementById('admin-stat-delivered');
     if (deliveredEl) deliveredEl.textContent = `${deliveredCount} รายการ`;
     const totalOrdersEl = document.getElementById('admin-stat-total-orders');
-    if (totalOrdersEl) totalOrdersEl.textContent = `${state.orders.length} รายการ`;
+    if (totalOrdersEl) totalOrdersEl.textContent = `${allOrders.length} รายการ`;
 
     if (badge) {
         badge.textContent = pendingCount;
@@ -4753,18 +5114,18 @@ function renderAdminOrdersList() {
     }
 
     // Filter by tab
-    let filteredOrders = state.orders;
+    let filteredOrders = allOrders;
     if (currentAdminOrderFilter === 'pending') {
-        filteredOrders = filteredOrders.filter(o => o.items.some(it => !it.credentials || it.status === 'pending_fulfillment'));
+        filteredOrders = filteredOrders.filter(isOrderPending);
     } else if (currentAdminOrderFilter === 'delivered') {
-        filteredOrders = filteredOrders.filter(o => o.items.every(it => it.credentials && it.status !== 'pending_fulfillment'));
+        filteredOrders = filteredOrders.filter(isOrderDelivered);
     }
 
     // Filter by search query
     if (adminOrderSearchQuery) {
         filteredOrders = filteredOrders.filter(o => {
             const idMatch = (o.orderId || '').toLowerCase().includes(adminOrderSearchQuery);
-            const emailMatch = (o.recipientEmail || '').toLowerCase().includes(adminOrderSearchQuery);
+            const emailMatch = (o.recipientEmail || o.email || '').toLowerCase().includes(adminOrderSearchQuery);
             const refMatch = (o.transRef || '').toLowerCase().includes(adminOrderSearchQuery);
             const itemMatch = (o.items || []).some(it => (it.productTitle || '').toLowerCase().includes(adminOrderSearchQuery));
             return idMatch || emailMatch || refMatch || itemMatch;
@@ -4772,7 +5133,7 @@ function renderAdminOrdersList() {
     }
 
     if (countLabel) {
-        countLabel.textContent = `แสดง ${filteredOrders.length} จากทั้งหมด ${state.orders.length} รายการ`;
+        countLabel.textContent = `แสดง ${filteredOrders.length} จากทั้งหมด ${allOrders.length} รายการ`;
     }
 
     if (filteredOrders.length === 0) {
@@ -4788,16 +5149,16 @@ function renderAdminOrdersList() {
                 <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
                     ${isFilterActive 
                         ? 'ลองเปลี่ยนตัวกรองเป็น "ทั้งหมด" หรือล้างคำค้นหาเพื่อดูรายการอื่นๆ' 
-                        : 'เมื่อลูกค้าชำระเงินเข้ามา รายการจะแสดงที่นี่โดยอัตโนมัติ หรือกดปุ่มด้านล่างเพื่อทดลองสร้างออเดอร์จำลอง'}
+                        : 'เมื่อลูกค้าชำระเงินเข้ามา รายการจะบันทึกเข้าเซิร์ฟเวอร์และแสดงที่นี่โดยอัตโนมัติ หรือกดปุ่มด้านล่างเพื่อทดลองสร้างออเดอร์จำลอง'}
                 </p>
                 <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
                     <button onclick="createDemoOrder()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
                         <span>สร้างออเดอร์ทดสอบระบบ (Demo Order)</span>
                     </button>
-                    ${state.orders.length > 0 ? `
+                    ${allOrders.length > 0 ? `
                         <button onclick="filterAdminOrders('all')" class="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all cursor-pointer">
-                            ดูออเดอร์ทั้งหมด (${state.orders.length} รายการ)
+                            ดูออเดอร์ทั้งหมด (${allOrders.length} รายการ)
                         </button>
                     ` : ''}
                 </div>
@@ -4807,7 +5168,7 @@ function renderAdminOrdersList() {
     }
 
     container.innerHTML = filteredOrders.map(order => {
-        const hasPending = order.items.some(it => !it.credentials || it.status === 'pending_fulfillment');
+        const hasPending = isOrderPending(order);
 
         return `
             <div class="p-4 rounded-2xl bg-white border-2 ${hasPending ? 'border-amber-300 shadow-sm' : 'border-slate-200'} space-y-3">
@@ -4815,11 +5176,11 @@ function renderAdminOrdersList() {
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="font-mono font-black text-pink-600 text-sm">${escapeHTML(order.orderId)}</span>
                         <span class="text-slate-400">•</span>
-                        <span class="text-slate-500 font-medium">${escapeHTML(order.date)}</span>
+                        <span class="text-slate-500 font-medium">${escapeHTML(order.date || '')}</span>
                         <span class="text-slate-400">•</span>
-                        <span class="font-bold text-slate-800">ลูกค้า: ${escapeHTML(order.recipientEmail || 'ไม่ระบุ')}</span>
-                        <button onclick="copyFromData(this)" data-copy="${escapeHTML(order.recipientEmail || '')}" data-msg="คัดลอกอีเมลลูกค้าแล้ว" 
-                                title="คัดลอกอีเมลลูกค้า" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] transition-all">
+                        <span class="font-bold text-slate-800">ลูกค้า: ${escapeHTML(order.recipientEmail || order.email || 'ไม่ระบุ')}</span>
+                        <button onclick="copyFromData(this)" data-copy="${escapeHTML(order.recipientEmail || order.email || '')}" data-msg="คัดลอกอีเมลลูกค้าแล้ว" 
+                                title="คัดลอกอีเมลลูกค้า" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] transition-all cursor-pointer">
                             <i class="fa-regular fa-copy"></i>
                         </button>
                     </div>
@@ -4830,9 +5191,14 @@ function renderAdminOrdersList() {
                             <span>ดูสลิป</span>
                         </button>
                         <button onclick="copyOrderCustomerReceipt('${escapeHTML(order.orderId)}')" 
-                                class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold transition-all flex items-center gap-1 border border-pink-200 shadow-2xs">
+                                class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold transition-all flex items-center gap-1 border border-pink-200 shadow-2xs cursor-pointer">
                             <i class="fa-regular fa-message text-[11px]"></i>
                             <span>ข้อความส่งลูกค้า</span>
+                        </button>
+                        <button onclick="deleteAdminOrder('${escapeHTML(order.orderId)}')" 
+                                class="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center gap-1 border border-rose-200 shadow-2xs cursor-pointer" title="ลบคำสั่งซื้อนี้">
+                            <i class="fa-regular fa-trash-can text-[11px]"></i>
+                            <span>ลบ</span>
                         </button>
                         <span class="px-2.5 py-1 rounded-full text-xs font-bold ${hasPending ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}">
                             ${hasPending ? '🟡 รอส่งมอบ (On-Demand)' : '🟢 จัดส่งสำเร็จ'}
@@ -4843,7 +5209,7 @@ function renderAdminOrdersList() {
 
                 <!-- Items in this order -->
                 <div class="space-y-2">
-                    ${order.items.map((item, itemIdx) => {
+                    ${(order.items || []).map((item, itemIdx) => {
             const isItemPending = !item.credentials || item.status === 'pending_fulfillment';
             const cred = item.credentials || {};
 
@@ -4940,8 +5306,8 @@ function openFulfillModal(orderId, itemIndex) {
         return;
     }
 
-    const order = state.orders.find(o => o.orderId === orderId);
-    if (!order || !order.items[itemIndex]) {
+    const order = (adminOrdersList && adminOrdersList.find(o => o.orderId === orderId)) || (state.orders || []).find(o => o.orderId === orderId);
+    if (!order || !order.items || !order.items[itemIndex]) {
         showToast("ไม่พบข้อมูลคำสั่งซื้อ", "warning");
         return;
     }
@@ -4953,7 +5319,7 @@ function openFulfillModal(orderId, itemIndex) {
     document.getElementById('fulfill-order-id').value = orderId;
     document.getElementById('fulfill-item-index').value = itemIndex;
     document.getElementById('fulfill-order-id-label').textContent = orderId;
-    document.getElementById('fulfill-customer-email-label').textContent = order.recipientEmail || 'ลูกค้าหน้าร้าน';
+    document.getElementById('fulfill-customer-email-label').textContent = order.recipientEmail || order.email || 'ลูกค้าหน้าร้าน';
     document.getElementById('fulfill-product-title-label').textContent = item.productTitle;
 
     const master = getMasterProduct(item.productId);
@@ -5032,7 +5398,7 @@ function handleFulfillQuickPaste(val) {
     }
 }
 
-function handleFulfillSubmit(e) {
+async function handleFulfillSubmit(e) {
     e.preventDefault();
 
     if (!ADMIN_AUTH.checkSession()) {
@@ -5047,7 +5413,7 @@ function handleFulfillSubmit(e) {
     const email = document.getElementById('fulfill-email').value.trim();
     const password = document.getElementById('fulfill-password').value.trim();
     const key = document.getElementById('fulfill-key').value.trim();
-    const instructions = document.getElementById('fulfill-instructions').value.trim() || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที';
+    const instructions = document.getElementById('fulfill-instructions').value.trim() || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที รับประกัน 30 วัน';
 
     if (email && !password) {
         showToast("กรุณากรอกรหัสผ่าน (Password) ควบคู่กับ Email", "warning");
@@ -5062,13 +5428,14 @@ function handleFulfillSubmit(e) {
         return;
     }
 
-    const order = state.orders.find(o => o.orderId === orderId);
-    if (!order || !order.items[itemIndex]) {
-        showToast("ไม่พบคำสั่งซื้อ", "warning");
+    const order = (adminOrdersList && adminOrdersList.find(o => (o.orderId || '').trim().toUpperCase() === orderId.trim().toUpperCase())) 
+        || (state.orders || []).find(o => (o.orderId || '').trim().toUpperCase() === orderId.trim().toUpperCase());
+        
+    if (!order || !order.items || !order.items[itemIndex]) {
+        showToast("ไม่พบคำสั่งซื้อหรือรายการสินค้า", "warning");
         return;
     }
 
-    const item = order.items[itemIndex];
     let cred = {};
     if (email && password) {
         cred = { email, password, instructions };
@@ -5081,32 +5448,89 @@ function handleFulfillSubmit(e) {
         return;
     }
 
-    item.credentials = cred;
-    item.status = 'delivered';
-
-    // If all items are delivered, set order status
-    const allDelivered = order.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
-    if (allDelivered) {
-        order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const origBtnText = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังบันทึกและส่งมอบ...`;
     }
 
-    saveOrders();
-    closeFulfillModal();
-    renderAdminOrdersList();
+    // 1. Call backend fulfillment endpoint POST /api/admin/fulfill
+    try {
+        const res = await fetch('/api/admin/fulfill', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({
+                orderId,
+                itemIndex,
+                credentials: cred,
+                orderData: order // Supply local order data for server recovery if needed
+            })
+        });
 
-    // If the customer has vault modal open for this order, re-render it
-    if (state.currentVaultOrderId === orderId) {
-        openVaultModal(order);
-    }
-    const ordersModal = document.getElementById('orders-modal');
-    if (ordersModal && !ordersModal.classList.contains('hidden')) {
-        renderOrdersHistory();
-    }
+        const data = await res.json().catch(() => null);
 
-    showToast(`ส่งมอบรหัสให้คำสั่งซื้อ ${orderId} สำเร็จแล้ว!`, "success");
+        if (res.ok && data && data.success && data.order) {
+            const updatedOrder = data.order;
+            
+            // Update in adminOrdersList
+            const aIdx = (adminOrdersList || []).findIndex(o => (o.orderId || '').toUpperCase() === orderId.toUpperCase());
+            if (aIdx !== -1) adminOrdersList[aIdx] = updatedOrder;
+            else adminOrdersList.unshift(updatedOrder);
+
+            // Update in state.orders
+            const sIdx = (state.orders || []).findIndex(o => (o.orderId || '').toUpperCase() === orderId.toUpperCase());
+            if (sIdx !== -1) state.orders[sIdx] = updatedOrder;
+            else (state.orders || []).unshift(updatedOrder);
+            saveOrders();
+
+            closeFulfillModal();
+            renderAdminOrdersList();
+            if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+
+            if (state.currentVaultOrderId === orderId) {
+                openVaultModal(updatedOrder);
+            }
+            const ordersModal = document.getElementById('orders-modal');
+            if (ordersModal && !ordersModal.classList.contains('hidden')) {
+                renderOrdersHistory();
+            }
+
+            showToast(`ส่งมอบรหัสให้คำสั่งซื้อ ${orderId} สำเร็จเรียบร้อย! (บันทึกเข้าระบบ & ส่งใบเสร็จแล้ว)`, "success");
+            return;
+        } else {
+            console.error("[ADMIN] Fulfill server rejected request:", data);
+            showToast(data?.message || "ไม่สามารถส่งมอบรหัสได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงหรือข้อมูลคำสั่งซื้อ", "error");
+            return;
+        }
+    } catch (apiErr) {
+        console.warn("[ADMIN] Fulfill network error:", apiErr);
+        // Offline / emergency local update
+        const item = order.items[itemIndex];
+        item.credentials = cred;
+        item.status = 'delivered';
+        const allDelivered = order.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
+        if (allDelivered) {
+            order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+        }
+        const aIdx = adminOrdersList.findIndex(o => o.orderId === orderId);
+        if (aIdx !== -1) adminOrdersList[aIdx] = order;
+        const sIdx = (state.orders || []).findIndex(o => o.orderId === orderId);
+        if (sIdx !== -1) state.orders[sIdx] = order;
+        saveOrders();
+        closeFulfillModal();
+        renderAdminOrdersList();
+        if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+        showToast(`บันทึกการส่งมอบในโหมดออฟไลน์แล้ว (จะซิงค์เมื่อเชื่อมต่อเซิร์ฟเวอร์)`, "warning");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnText;
+        }
+    }
 }
 
-function openAdminModal() {
+async function openAdminModal() {
     if (!ADMIN_AUTH.checkSession()) {
         promptAdminLogin();
         return;
@@ -5139,15 +5563,19 @@ function openAdminModal() {
         updateAdminNavBadges();
     }
 
-    renderAdminOrdersList();
     renderAdminStockList();
     switchAdminTab('orders');
     modal.classList.remove('hidden');
+
+    // Fetch orders from server and start live auto-refresh
+    await renderAdminOrdersList(true);
+    startAdminOrdersAutoRefresh();
 }
 
 function closeAdminModal() {
     const modal = document.getElementById('admin-modal');
     if (modal) modal.classList.add('hidden');
+    stopAdminOrdersAutoRefresh();
     if (typeof stopAdminAnalyticsAutoRefresh === 'function') {
         stopAdminAnalyticsAutoRefresh();
     }
@@ -6557,7 +6985,7 @@ function openSlipViewModal(orderId) {
         return;
     }
 
-    const order = (state.orders || []).find(o => o.orderId === orderId);
+    const order = (adminOrdersList && adminOrdersList.find(o => o.orderId === orderId)) || (state.orders || []).find(o => o.orderId === orderId);
     if (!order) {
         showToast("ไม่พบข้อมูลคำสั่งซื้อ", "warning");
         return;
@@ -7326,6 +7754,8 @@ window.clearAdminOrderSearch = clearAdminOrderSearch;
 window.filterAdminOrders = filterAdminOrders;
 window.exportOrdersToCSV = exportOrdersToCSV;
 window.handleClearAllAdminOrders = handleClearAllAdminOrders;
+window.deleteAdminOrder = deleteAdminOrder;
+window.syncLocalOrdersToServer = syncLocalOrdersToServer;
 window.createDemoOrder = createDemoOrder;
 window.openFulfillModal = openFulfillModal;
 window.closeFulfillModal = closeFulfillModal;
@@ -7489,4 +7919,13 @@ if (typeof document !== 'undefined' && (document.readyState === 'complete' || do
     if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.init === 'function') {
         TELEMETRY.init();
     }
+}
+
+// Background sync any pending local orders to server database
+if (typeof window !== 'undefined') {
+    setTimeout(() => {
+        if (typeof syncLocalOrdersToServer === 'function') {
+            syncLocalOrdersToServer();
+        }
+    }, 1500);
 }
