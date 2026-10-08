@@ -14,6 +14,16 @@ function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
+// [SECURITY] Strict URL sanitizer to prevent javascript:, data:, and vbscript: XSS in dynamic links
+function sanitizeUrl(url) {
+    if (!url || typeof url !== 'string') return '#';
+    const clean = url.trim();
+    if (/^https?:\/\//i.test(clean)) {
+        return escapeHTML(clean);
+    }
+    return '#';
+}
+
 // Hardened Admin Authentication (Brute-Force Rate Limiting & Session Token)
 const ADMIN_AUTH = {
     MAX_ATTEMPTS: 5,
@@ -633,18 +643,21 @@ function saveOrders() {
     updateUserHeaderUI();
 }
 
-// Reconcile and push local client orders to server database
+// Reconcile and push local client orders to server database (Admin-only disaster recovery)
 async function syncLocalOrdersToServer(ordersToSync = null) {
     if (!window.location.protocol.startsWith('http')) return;
+    const adminToken = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+    const adminPin = sessionStorage.getItem('supinkly_admin_pin');
+    // Security Guard: Only authenticated administrators may sync orders to the server
+    if (!adminToken && !adminPin) return;
+
     const list = ordersToSync || state.orders || [];
     if (!Array.isArray(list) || list.length === 0) return;
     try {
         const headers = { 'Content-Type': 'application/json' };
-        const token = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getToken) ? USER_AUTH.getToken() : null;
-        if (token) {
-            headers['x-user-token'] = token;
-            headers['Authorization'] = `Bearer ${token}`;
-        }
+        if (adminToken) headers['x-admin-token'] = adminToken;
+        if (adminPin) headers['x-admin-pin'] = adminPin;
+
         const res = await fetch('/api/checkout/sync-local-orders', {
             method: 'POST',
             headers,
@@ -2212,7 +2225,7 @@ function openVaultModal(order) {
                             <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.link)}" data-msg="คัดลอกลิงก์แล้ว" class="px-3 py-1.5 rounded-xl bg-cyan-100 text-cyan-800 hover:bg-cyan-200 text-xs font-bold">
                                 <i class="fa-regular fa-copy"></i> คัดลอก
                             </button>
-                            <a href="${escapeHTML(cred.link)}" target="_blank" class="px-3 py-1.5 rounded-xl gradient-btn text-white text-xs font-bold flex items-center gap-1">
+                            <a href="${sanitizeUrl(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl gradient-btn text-white text-xs font-bold flex items-center gap-1">
                                 <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิด
                             </a>
                         </div>
@@ -2705,7 +2718,7 @@ function renderOrdersHistory() {
                                         <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.link)}" data-msg="คัดลอกลิงก์แล้ว" class="px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 text-xs font-bold transition-all">
                                             <i class="fa-regular fa-copy"></i> คัดลอก
                                         </button>
-                                        <a href="${escapeHTML(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg gradient-btn text-white text-xs font-bold flex items-center gap-1">
+                                        <a href="${sanitizeUrl(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg gradient-btn text-white text-xs font-bold flex items-center gap-1">
                                             <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิด
                                         </a>
                                     </div>
@@ -5767,7 +5780,7 @@ function renderAdminStockList() {
                     <div class="font-bold text-slate-700 text-xs font-mono">฿${costTHB.toFixed(2)}</div>
                     <div class="flex items-center justify-center gap-1 mt-1">
                         ${master.g2gUrl ? `
-                        <a href="${escapeHTML(master.g2gUrl)}" target="_blank" rel="noopener noreferrer"
+                        <a href="${sanitizeUrl(master.g2gUrl)}" target="_blank" rel="noopener noreferrer"
                            class="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold transition-all flex items-center gap-1 shadow-2xs"
                            title="เปิดลิงก์สินค้าบน G2G">
                             <i class="fa-solid fa-cart-shopping text-[9px] text-amber-600"></i>

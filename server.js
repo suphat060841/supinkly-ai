@@ -45,6 +45,14 @@ function isValidImageBuffer(buffer) {
         buffer.length >= 12 && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) return true;
     return false;
 }
+
+// [SECURITY] Strict URL sanitizer to prevent javascript:, data:, and vbscript: XSS in links
+function sanitizeWebUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const clean = url.trim();
+    if (/^https?:\/\//i.test(clean)) return clean;
+    return '';
+}
 const rateLimit = require('express-rate-limit');
 
 const app = express();
@@ -120,7 +128,10 @@ app.use(express.json({ limit: '1mb' }));
 // ป้องกันการเข้าถึงไฟล์ secure_database.json, .env, server.js, package.json ผ่านหน้าเว็บ
 app.use((req, res, next) => {
     let cleanPath = req.path;
-    try { cleanPath = decodeURIComponent(req.path); } catch { }
+    try { 
+        cleanPath = decodeURIComponent(req.path);
+        cleanPath = path.posix.normalize(cleanPath.replace(/\0/g, ''));
+    } catch { }
     const forbidden = [
         /(^|\/)secure_database/i,
         /(^|\/)database\.json/i,
@@ -591,6 +602,13 @@ function getDb() {
             if (!data.analytics) data.analytics = {};
             if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
                 data.coupons = DEFAULT_SERVER_COUPONS;
+            }
+            if (!data.adminPinHash) {
+                data.adminPinHash = hashPin(data.adminPin || process.env.ADMIN_PIN || '8899');
+            }
+            if (data.adminPin) {
+                delete data.adminPin;
+                try { fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)); } catch {}
             }
             if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
                 data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
@@ -1310,6 +1328,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
 
 // 1.1 API: Sync Local Orders into Server Database (Disaster recovery & client reconciliation)
 app.post('/api/checkout/sync-local-orders', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ: ต้องใช้สิทธิ์ผู้ดูแลระบบเท่านั้น" });
+    }
     try {
         const { orders } = req.body;
         if (!Array.isArray(orders) || orders.length === 0) {
@@ -1573,7 +1594,7 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
                 ...(cred.email ? { email: String(cred.email).slice(0, 254) } : {}),
                 ...(cred.password ? { password: String(cred.password).slice(0, 512) } : {}),
                 ...(cred.key ? { key: String(cred.key).slice(0, 512) } : {}),
-                ...(cred.link ? { link: String(cred.link).slice(0, 2048) } : {}),
+                ...(cred.link ? { link: sanitizeWebUrl(cred.link) } : {}),
                 ...(cred.instructions ? { instructions: String(cred.instructions).slice(0, 1000) } : {}),
             };
         }).filter(c => c !== null && (c.email || c.key || c.link));
@@ -1812,7 +1833,7 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
         ...(credentials.email ? { email: String(credentials.email).trim().slice(0, 254) } : {}),
         ...(credentials.password ? { password: String(credentials.password).trim().slice(0, 512) } : {}),
         ...(credentials.key ? { key: String(credentials.key).trim().slice(0, 512) } : {}),
-        ...(credentials.link ? { link: String(credentials.link).trim().slice(0, 2048) } : {}),
+        ...(credentials.link ? { link: sanitizeWebUrl(credentials.link) } : {}),
         instructions: String(credentials.instructions || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที มีการรับประกันดูแลตลอดอายุการใช้งาน 30 วัน').trim().slice(0, 1000)
     };
 
@@ -1899,7 +1920,7 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
         price: Math.round(numPrice * 100) / 100,
         originalPrice: Math.round(numOrig * 100) / 100,
         badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : (existing.badge || ''),
-        g2gUrl: typeof g2gUrl === 'string' ? g2gUrl.trim() : (existing.g2gUrl || ''),
+        g2gUrl: typeof g2gUrl === 'string' ? sanitizeWebUrl(g2gUrl) : (existing.g2gUrl || ''),
         manualOverride: true,
         lastManualUpdate: nowIso,
         updatedAt: nowIso
@@ -1949,7 +1970,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
         originalPrice: Math.round(numOrig * 100) / 100,
         badge: typeof badge === 'string' ? badge.slice(0, 50).trim() : (existing.badge || ''),
         isHighlight: isHighlight !== undefined ? !!isHighlight : (existing.isHighlight !== undefined ? existing.isHighlight : false),
-        g2gUrl: typeof g2gUrl === 'string' ? g2gUrl.trim() : (existing.g2gUrl || ''),
+        g2gUrl: typeof g2gUrl === 'string' ? sanitizeWebUrl(g2gUrl) : (existing.g2gUrl || ''),
         deleted: false,
         updatedAt: nowIso
     };
@@ -2167,7 +2188,7 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
         const pinClean = newPin.trim();
         if (pinClean.length >= 4 && pinClean.length <= 32) {
             db.adminPinHash = hashPin(pinClean);
-            db.adminPin = pinClean;
+            delete db.adminPin;
             // Generate a fresh session token with the new PIN hash so current admin session continues seamlessly
             const tokenData = generateAdminToken();
             freshAdminToken = tokenData.token;
@@ -2269,7 +2290,7 @@ app.post('/api/admin/change-pin', adminRateLimit, (req, res) => {
 
     const db = getDb();
     db.adminPinHash = hashPin(pinClean);
-    db.adminPin = pinClean;
+    delete db.adminPin;
     saveDb(db);
 
     const { token, expiresAt } = generateAdminToken();
@@ -2292,7 +2313,7 @@ app.post('/api/admin/reset-pin', adminRateLimit, (req, res) => {
     const db = getDb();
     const defaultPin = '8899';
     db.adminPinHash = hashPin(defaultPin);
-    db.adminPin = defaultPin;
+    delete db.adminPin;
     saveDb(db);
 
     const { token, expiresAt } = generateAdminToken();
@@ -2533,6 +2554,7 @@ app.get('/api/admin/backup-db', adminRateLimit, (req, res) => {
         geminiApiKey: effectiveGeminiKey,
         discordWebhookUrl: effectiveDiscordUrl
     };
+    delete exportDb.adminPin; // Ensure plaintext PIN is never exposed in backup export
 
     if (exportDb.smtpConfig) {
         exportDb.smtpConfig = {
@@ -3034,7 +3056,9 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
     }
     
     // Customer providing matching email has full legitimate owner access to their delivered credentials
-    if (!isOwner && queryEmail && matchesOrderEmail(queryEmail)) {
+    // [SECURITY FIX] Only allow email-based lookup if this is an unlinked guest order (!order.userId).
+    // If order is bound to a registered member, they MUST authenticate with their account to view credentials.
+    if (!isOwner && !order.userId && queryEmail && matchesOrderEmail(queryEmail)) {
         isOwner = true;
     }
 
@@ -4369,11 +4393,21 @@ const wsHeartbeat = setInterval(() => {
 }, 35000);
 
 wss.on('connection', (ws, req) => {
-    // ── [SECURITY FIX] CSWSH Origin Verification ──
+    // ── [SECURITY FIX] CSWSH Origin Verification (Strict Hostname Matching) ──
     const origin = req.headers.origin;
-    if (origin && rawOrigins !== '*' && !ALLOWED_ORIGINS.includes(origin) && !origin.endsWith('.onrender.com') && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-        ws.close(1008, 'Origin not allowed');
-        return;
+    if (origin && rawOrigins !== '*') {
+        let isOriginValid = false;
+        try {
+            const parsed = new URL(origin);
+            const host = parsed.hostname.toLowerCase();
+            if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.onrender.com') || ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes(host)) {
+                isOriginValid = true;
+            }
+        } catch {}
+        if (!isOriginValid) {
+            ws.close(1008, 'Origin not allowed');
+            return;
+        }
     }
 
     ws.isAlive = true;
@@ -4383,6 +4417,7 @@ wss.on('connection', (ws, req) => {
     let clientInfo = { ws, role: null, name: 'ลูกค้า', sessionId };
     clients.set(sessionId, clientInfo);
 
+    let failedAuthAttempts = 0;
     let msgCount = 0;
     let windowStart = Date.now();
 
@@ -4436,6 +4471,12 @@ wss.on('connection', (ws, req) => {
                     }
                     ws.send(JSON.stringify({ type: 'room_list', rooms: Object.values(rooms) }));
                 } else {
+                    failedAuthAttempts++;
+                    if (failedAuthAttempts >= 3) {
+                        ws.send(JSON.stringify({ type: 'auth_fail', message: 'คุณระบุรหัสยืนยันตัวตนผิดเกินจำนวนที่กำหนด' }));
+                        ws.close(1008, 'Too many failed auth attempts');
+                        return;
+                    }
                     ws.send(JSON.stringify({ type: 'auth_fail', message: 'กรุณาเข้าสู่ระบบผ่าน /api/admin/login ก่อน' }));
                 }
             } else if (data.role === 'customer') {
