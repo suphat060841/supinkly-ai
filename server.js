@@ -4132,62 +4132,62 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 
     for (const model of modelsToTry) {
         try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-            const contents = [
-                ...history.slice(-4),
-                { role: 'user', parts: [{ text: userMsg }] }
-            ];
+            // Match Google AI Studio curl endpoint strictly (No ?key= in query string)
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+            
+            const reqHeaders = {
+                'Content-Type': 'application/json',
+                'X-goog-api-key': apiKey
+            };
+
+            const fullPromptText = `[คำสั่งระบบ: คุณคือ "น้องพิงกี้" Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" ลงท้าย "ครับ/ผม" เสมอ ตอบคำถามได้ทุกเรื่องอย่างชาญฉลาดและถูกต้อง ทั้งเรื่องสินค้าในร้าน, การใช้งาน AI, การเขียนโปรแกรม (Programming/Coding), เทคโนโลยี และคำถามทั่วไป]\n\nคำถามจากลูกค้า: ${userMsg}`;
+
+            // Build conversation history
+            const contents = [];
+            if (history && history.length > 0) {
+                contents.push(...history.slice(-4));
+            }
+            contents.push({
+                role: 'user',
+                parts: [{ text: fullPromptText }]
+            });
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 7000);
+            const timeoutId = setTimeout(() => controller.abort(), 9000);
 
-            const res = await fetch(url, {
+            let res = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-goog-api-key': apiKey
-                },
-                body: JSON.stringify({
-                    systemInstruction: { parts: [{ text: systemInstruction }] },
-                    contents,
-                    generationConfig: {
-                        temperature: 0.6,
-                        maxOutputTokens: 600
-                    }
-                }),
+                headers: reqHeaders,
+                body: JSON.stringify({ contents }),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
 
+            // If multi-turn fails, fallback to exact curl single-turn payload
+            if (!res.ok) {
+                const errSnippet = await res.text().catch(() => '');
+                console.warn(`[GEMINI-AI] ${model} attempt 1 failed (${res.status}): ${errSnippet.slice(0, 120)}`);
+                
+                const fallbackCtrl = new AbortController();
+                const fbTimeout = setTimeout(() => fallbackCtrl.abort(), 9000);
+                res = await fetch(url, {
+                    method: 'POST',
+                    headers: reqHeaders,
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                parts: [{ text: fullPromptText }]
+                            }
+                        ]
+                    }),
+                    signal: fallbackCtrl.signal
+                });
+                clearTimeout(fbTimeout);
+            }
+
             if (!res.ok) {
                 const errBody = await res.text().catch(() => '');
-                console.warn(`[GEMINI-AI] ${model} failed with status ${res.status}: ${errBody.slice(0, 150)}`);
-                // Fallback attempt without systemInstruction in case endpoint prefers pure contents
-                try {
-                    const fallbackRes = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-goog-api-key': apiKey
-                        },
-                        body: JSON.stringify({
-                            contents: [
-                                { role: 'user', parts: [{ text: `[คำสั่งระบบ: ${systemInstruction}]\n\nคำถามจากลูกค้า: ${userMsg}` }] }
-                            ]
-                        })
-                    });
-                    if (fallbackRes.ok) {
-                        const fbData = await fallbackRes.json();
-                        const fbReply = fbData.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (fbReply) {
-                            history.push({ role: 'user', parts: [{ text: userMsg }] });
-                            history.push({ role: 'model', parts: [{ text: fbReply }] });
-                            if (history.length > 8) history.splice(0, history.length - 8);
-                            chatHistoryPerSession.set(sessionId, history);
-                            return fbReply.trim();
-                        }
-                    }
-                } catch {}
+                console.warn(`[GEMINI-AI] ${model} attempt 2 failed (${res.status}): ${errBody.slice(0, 120)}`);
                 continue;
             }
 
@@ -4201,7 +4201,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
                 return reply.trim();
             }
         } catch (e) {
-            // continue to next model
+            console.warn(`[GEMINI-AI] ${model} network error:`, e.message);
         }
     }
     return null;
