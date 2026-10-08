@@ -4128,16 +4128,19 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 - หากลูกค้าถามเรื่องสถานะคำสั่งซื้อ ให้แนะนำให้แจ้งเลขออเดอร์ SPK-xxxxxx
 - ห้ามให้ข้อมูลเท็จ หากไม่แน่ใจให้แนะนำให้ติดต่อแอดมินคนจริงในแชทนี้`;
 
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) return null;
+    const cleanKey = apiKey.trim();
+
     const modelsToTry = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
     for (const model of modelsToTry) {
         try {
-            // Match Google AI Studio curl endpoint strictly (No ?key= in query string)
+            // Strictly match Google AI Studio curl format
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
             
             const reqHeaders = {
                 'Content-Type': 'application/json',
-                'X-goog-api-key': apiKey
+                'X-goog-api-key': cleanKey
             };
 
             const fullPromptText = `[คำสั่งระบบ: คุณคือ "น้องพิงกี้" Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" ลงท้าย "ครับ/ผม" เสมอ ตอบคำถามได้ทุกเรื่องอย่างชาญฉลาดและถูกต้อง ทั้งเรื่องสินค้าในร้าน, การใช้งาน AI, การเขียนโปรแกรม (Programming/Coding), เทคโนโลยี และคำถามทั่วไป]\n\nคำถามจากลูกค้า: ${userMsg}`;
@@ -4330,6 +4333,57 @@ async function getBotResponse(userMsg, sessionId) {
             `🛡️ รับประกันตลอดอายุแพ็กเกจ สั่งซื้อได้ตลอด 24 ชม. ครับ!`;
     }
 
+    // ── PROGRAM & SOFTWARE DETAILS (รายละเอียดโปรแกรม & ซอฟต์แวร์ทั้งหมด) ──
+    if (/รายละเอียดโปรแกรม|เกี่ยวกับโปรแกรม|ข้อมูลโปรแกรม|มีโปรแกรม|โปรแกรมอะไร|แนะนำโปรแกรม|โปรแกรม|ซอฟต์แวร์|software|แอป|แอพ|app/i.test(q)) {
+        const pWin = getProductLivePrice('ms-01', 290);
+        const pOff = getProductLivePrice('ms-02', 259);
+        const pCop = getProductLivePrice('ms-03', 590);
+        const pAdb1 = getProductLivePrice('adb-01', 490);
+        const pAdb2 = getProductLivePrice('adb-02', 790);
+        const pCap1 = getProductLivePrice('cpc-01', 129);
+        const pCld1 = getProductLivePrice('cld-01', 850);
+        return `💻 **รายละเอียดโปรแกรม & ซอฟต์แวร์ลิขสิทธิ์แท้ในร้าน Supinkly.AI:**\n\n` +
+            `1️⃣ **🎬 CapCut Pro (โปรแกรมตัดต่อวิดีโอยอดนิยม):**\n` +
+            `• ปลดล็อกทุกฟีเจอร์ Pro, เอฟเฟกต์/เสียงเพลงไม่จำกัด, เรนเดอร์ 4K 60fps ไม่มีลายน้ำ (เริ่มต้นเพียง **฿79 - ฿129**)\n\n` +
+            `2️⃣ **🎨 Adobe Creative Cloud & Acrobat Pro (ชุดโปรแกรมสร้างสรรค์):**\n` +
+            `• **Adobe CC All Apps:** **฿${pAdb2.toFixed(2)}**/ด. (ครบ 20+ โปรแกรม Photoshop, Premiere Pro, Illustrator, After Effects + 100GB Cloud + Firefly AI)\n` +
+            `• **Adobe Acrobat Pro DC:** **฿${pAdb1.toFixed(2)}**/ด. (แก้ไข จัดการ แปลงไฟล์ และเซ็นเอกสาร PDF ดิจิทัล)\n\n` +
+            `3️⃣ **🪟 Windows 11 Pro / Home (ระบบปฏิบัติการแท้):**\n` +
+            `• **OEM License Key:** **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก เปิดสิทธิ์ถาวรตลอดชีพ ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ได้ตลอดชีพ 🛡️ ตลอดชีพ)\n\n` +
+            `4️⃣ **📄 Microsoft 365 Personal (ชุดโปรแกรมทำงาน Office):**\n` +
+            `• **฿${pOff.toFixed(2)}**/ด. (Word, Excel, PowerPoint, Outlook + คลาวด์ OneDrive จุใจ 1TB ใช้งานได้ 5 เครื่อง)\n\n` +
+            `5️⃣ **🤖 ซอฟต์แวร์ AI ผู้ช่วย & เขียนโปรแกรม (Programming):**\n` +
+            `• **Claude Pro:** **฿${pCld1.toFixed(2)}** (สุดยอดโมเดล AI เขียนโค้ดและวิเคราะห์ไฟล์อันดับ 1)\n` +
+            `• **Microsoft Copilot Pro:** **฿${pCop.toFixed(2)}** (AI ฝังใน Word, Excel, PowerPoint ช่วยร่างงานและเขียนโค้ด)\n` +
+            `• **xAI Grok / SuperGrok:** ฿290–฿4,990 (ข้อมูลเรียลไทม์บน X + เจนภาพ AI)\n\n` +
+            `🛡️ ทุกรายการมีรับประกันการใช้งาน พร้อมจัดส่งอัตโนมัติใน 5-15 นาทีครับ สนใจโปรแกรมตัวไหนพิมพ์ชื่อสอบถามได้เลยครับ!`;
+    }
+
+    // ── CODING & PROGRAMMING AI (เขียนโปรแกรม / พัฒนาซอฟต์แวร์ / Developer) ──
+    if (/เขียนโปรแกรม|เขียนโค้ด|coding|โค้ด|code|developer|โปรแกรมเมอร์|python|javascript|ช่วยเขียน|ทำเว็บ|สร้างแอป|เขียนเว็ป|เขียนแอป/i.test(q)) {
+        const pCldPriv = getProductLivePrice('cld-01', 850);
+        const pCldShared = getProductLivePrice('cld-02', 290);
+        const pCop = getProductLivePrice('ms-03', 590);
+        const pGrk = getProductLivePrice('grk-02', 950);
+        const pGoo = getProductLivePrice('goo-ai-01', 150);
+        return `👨‍💻 **สุดยอด AI สำหรับเขียนโปรแกรม & พัฒนาโค้ด (แนะนำโดยน้องพิงกี้):**\n\n` +
+            `หากคุณลูกค้าต้องการผู้ช่วยเขียนโปรแกรม เขียนโค้ด ดีบักบั๊ก หรือสร้างเว็บไซต์/แอปพลิเคชัน ทางร้านขอแนะนำตัวท็อปดังนี้ครับ:\n\n` +
+            `1️⃣ 🧠 **Claude Pro (แนะนำอันดับ 1 สำหรับ Developer ⭐):**\n` +
+            `• ใช้โมเดล **Claude 3.7 / 3.5 Sonnet** ที่ฉลาดและแม่นยำที่สุดในโลกด้านการเขียนโค้ด เข้าใจโครงสร้างโปรเจกต์ขนาดใหญ่\n` +
+            `• มีฟีเจอร์ **Artifacts** พรีวิวหน้าเว็บ/โค้ดสดได้ทันที และระบบ **Projects** บริหารไฟล์โค้ด\n` +
+            `• 👤 บัญชีส่วนตัว (Private): **฿${pCldPriv.toFixed(2)}** | 👥 บัญชีหาร (Shared): **฿${pCldShared.toFixed(2)}**\n\n` +
+            `2️⃣ 🤖 **Microsoft Copilot Pro (สำหรับงานออฟฟิศ & โค้ด):**\n` +
+            `• เชื่อมต่อโมเดล GPT-4o ความเร็วสูง ช่วยเขียนโค้ดและสร้างสูตร Excel อัตโนมัติ\n` +
+            `• ราคา: บัญชีส่วนตัว **฿${pCop.toFixed(2)}** / เดือน\n\n` +
+            `3️⃣ ⚡ **xAI Grok & SuperGrok Heavy:**\n` +
+            `• โมเดลพลังสูงด้าน Logic และคณิตศาสตร์ พร้อมโควต้าคำนวณ Heavy Capacity รองรับงานหนัก\n` +
+            `• ราคา: 1 เดือน **฿${pGrk.toFixed(2)}**\n\n` +
+            `4️⃣ 🌐 **Google AI Pro (Gemini Advanced):**\n` +
+            `• รองรับบริบทมหาศาลกว่า 1 ล้านโทเค็น วิเคราะห์ซอร์สโค้ดทั้งโปรเจกต์พร้อมกันได้สบาย\n` +
+            `• ราคา: ลิงก์ Invite เข้า Gmail **฿${pGoo.toFixed(2)}**\n\n` +
+            `🛡️ ทุกตัวพร้อมส่งมอบใช้งานได้ทันที มีรับประกัน 30 วันเต็ม สนใจตัวไหนพิมพ์ชื่อสอบถามได้เลยครับ! 🚀`;
+    }
+
     if (/windows|วินโดว์|office|ออฟฟิศ|adobe|photoshop|acrobat|copilot|ไมโครซอฟท์|word|excel/i.test(q)) {
         const pWin = getProductLivePrice('ms-01', 290);
         const pOff = getProductLivePrice('ms-02', 259);
@@ -4408,7 +4462,24 @@ async function getBotResponse(userMsg, sessionId) {
             `• 🔑 **License Key:** รหัสคีย์แท้สำหรับนำไปกรอกเปิดสิทธิ์ในซอฟต์แวร์โดยตรง (เช่น Windows 11 OEM ผูกติดเครื่องตลอดชีพ)`;
     }
 
-    // ── 7. HUMAN HANDOVER (ติดต่อแอดมินคนจริง) ──
+    // ── 7. TRUST & OPERATING HOURS ──
+    if (/ของแท้ไหม|แท้ไหม|ปลอดภัยไหม|โกงไหม|เชื่อถือได้ไหม|มีเครดิตไหม|รีวิว|ไว้ใจได้ไหม/i.test(q)) {
+        return `🛡️ **ความน่าเชื่อถือและความปลอดภัยที่ Supinkly.AI:**\n\n` +
+            `1. **ของแท้ 100%:** สินค้าซอฟต์แวร์ คีย์แท้ OEM และบัญชีพรีเมียมถูกลิขสิทธิ์ ได้รับการตรวจสอบก่อนส่งมอบ\n` +
+            `2. **ระบบจัดส่งคลังอัตโนมัติ (On-Demand Vault):** ส่งมอบรหัสเข้าเมนู "คีย์ของฉัน" และส่งสำเนาเข้าอีเมลของคุณทันทีใน 5-15 นาที\n` +
+            `3. **รับประกัน 30 วันเต็ม & Windows 11 ตลอดชีพ:** มีปัญหาเปลี่ยนชุดใหม่ให้ทันที ดูแลตลอดอายุการใช้งาน\n` +
+            `4. **ตรวจสอบสลิปด้วย AI:** แม่นยำ ปลอดภัย ฟรีค่าธรรมเนียม\n` +
+            `5. **มีช่องทางติดต่อชัดเจน:** เพจ Facebook ทางการ และ Live Chat ตลอด 24 ชม. ครับ 💖`;
+    }
+
+    if (/เปิดกี่โมง|ปิดกี่โมง|เวลาทำการ|ส่งตอนไหน|กลางคืนส่งไหม|ดึกๆ ส่งไหม|24 ชม|ส่งกี่นาที|ได้ตอนไหน|รอนานไหม/i.test(q)) {
+        return `⏰ **เวลาทำการและระยะเวลาจัดส่งของ Supinkly.AI:**\n\n` +
+            `• **เปิดให้บริการ 24 ชั่วโมง ทุกวัน ไม่มีวันหยุดครับ!** 🌙✨\n` +
+            `• **ระบบจัดส่ง:** ทำงานอัตโนมัติ 24 ชม. หลังจากสแกนชำระเงินและแนบสลิปถูกต้อง รหัสจะถูกส่งมอบเข้าเมนู **"คีย์ของฉัน"** ภายใน **5–15 นาที** ครับ\n` +
+            `• **แอดมินคนจริง:** สแตนด์บายคอยตอบแชทและดูแลเคสเร่งด่วนตลอดเวลาครับ`;
+    }
+
+    // ── 8. HUMAN HANDOVER (ติดต่อแอดมินคนจริง) ──
     if (/แอดมิน|คนจริง|เจ้าหน้าที่|มนุษย์|ติดต่อ|เบอร์|โทร|โทรศัพท์|admin/i.test(q)) {
         return `🔔 **น้องพิงกี้ส่งสัญญาณแจ้งเตือนแอดมินคนจริงให้แล้วครับ!**\n\n` +
             `ขณะนี้ระบบได้ส่งแจ้งเตือนไปยังแอดมินเรียบร้อยแล้ว แอดมินจะรีบเข้ามาตอบในแชทนี้โดยเร็วที่สุดครับ (คุณลูกค้าสามารถพิมพ์รายละเอียดหรือคำถามทิ้งไว้ได้เลยครับ)\n\n` +
@@ -4416,7 +4487,7 @@ async function getBotResponse(userMsg, sessionId) {
             `👉 https://www.facebook.com/profile.php?id=61594837747580`;
     }
 
-    // ── 8. GREETINGS & POLITE SMALL TALK ──
+    // ── 9. GREETINGS & POLITE SMALL TALK ──
     if (/^(สวัสดี|หวัดดี|ดีครับ|ดีค่ะ|hello|hi|hey|ดีจ้า|สอบถาม|รบกวน|มีใครอยู่ไหม)/i.test(q) || q === 'สวัสดี' || q === 'ดีครับ' || q === 'ดีค่ะ') {
         return `👋 สวัสดีครับ! น้องพิงกี้ AI ผู้ช่วยประจำร้าน Supinkly.AI ยินดีให้บริการครับ 💖\n\n` +
             `คุณลูกค้าสามารถสอบถามข้อมูลสินค้า วิธีสั่งซื้อ รับประกัน ตรวจสอบเลขออเดอร์ หรือขอโค้ดส่วนลดได้เลยนะครับ หรือสามารถกดปุ่มลัดด้านล่างเพื่อเริ่มสอบถามได้เลยครับ ✨`;
@@ -4426,7 +4497,7 @@ async function getBotResponse(userMsg, sessionId) {
         return `ยินดีเป็นอย่างยิ่งเลยครับ! หากมีข้อสงสัยหรือต้องการความช่วยเหลือเพิ่มเติม ทักหาน้องพิงกี้หรือแอดมินได้ตลอด 24 ชม. เลยนะครับ ขอให้มีความสุขกับการใช้งานครับ 💖✨`;
     }
 
-    // ── 9. GOOGLE GEMINI AI CALL (หากมี GEMINI_API_KEY) ──
+    // ── 10. GOOGLE GEMINI AI CALL (หากมี GEMINI_API_KEY) ──
     const geminiKey = (process.env.GEMINI_API_KEY || db.geminiApiKey || "").trim();
     if (geminiKey) {
         try {
@@ -4437,12 +4508,15 @@ async function getBotResponse(userMsg, sessionId) {
         }
     }
 
-    // ── 10. INTELLIGENT FALLBACK ──
-    return `ขอบคุณสำหรับข้อความครับ! น้องพิงกี้ได้รับเรื่องและแจ้งเตือนแอดมินเรียบร้อยแล้วครับ 📨\n\n` +
-        `ระหว่างรอแอดมินเข้ามาคุย คุณลูกค้าสามารถ:\n` +
-        `• พิมพ์รหัสคำสั่งซื้อ (เช่น \`SPK-123456\`) เพื่อให้น้องพิงกี้เช็คสถานะการจัดส่งให้ทันที\n` +
-        `• พิมพ์ชื่อสินค้าที่สนใจ (เช่น "CapCut", "Claude", "Google Drive", "Windows 11") เพื่อดูราคาและโปรโมชั่น\n` +
-        `• หรือติดต่อด่วนทางเพจ Facebook: https://www.facebook.com/profile.php?id=61594837747580 ได้เลยนะครับ!`;
+    // ── 11. INTELLIGENT COMPREHENSIVE FALLBACK ──
+    return `น้องพิงกี้ AI ผู้ช่วยร้าน Supinkly ยินดีให้บริการครับ! 💖\n\n` +
+        `สำหรับข้อความที่คุณลูกค้าสอบถามเข้ามา น้องพิงกี้ขอแนะนำเมนูด่วนที่คุณลูกค้าสามารถสอบถามได้ทันทีครับ:\n\n` +
+        `💻 **1. โปรแกรม & ซอฟต์แวร์:** พิมพ์ **"โปรแกรม"** เพื่อดูรายละเอียดซอฟต์แวร์ทั้งหมด (Windows 11, Office 365, Adobe CC, CapCut Pro)\n` +
+        `👨‍💻 **2. งานเขียนโปรแกรม:** พิมพ์ **"เขียนโค้ด"** เพื่อดู AI แนะนำสำหรับโปรแกรมเมอร์ (Claude Pro, Copilot, Grok)\n` +
+        `🛍️ **3. เช็คราคาสินค้า:** พิมพ์ชื่อสินค้า เช่น **CapCut**, **Claude**, **Google Drive** ได้ทันที\n` +
+        `📦 **4. ตรวจสอบสถานะออเดอร์:** พิมพ์รหัสคำสั่งซื้อ เช่น \`SPK-12345678\`\n` +
+        `🎟️ **5. โค้ดส่วนลด:** พิมพ์ **"ขอโค้ดส่วนลด"** เพื่อรับคูปองลด 10-20%\n` +
+        `👤 **6. คุยกับแอดมินคนจริง:** พิมพ์ **"ติดต่อแอดมิน"** ได้ตลอด 24 ชม. ครับ!`;
 }
 
 // ─── [GLOBAL EXPRESS ERROR HANDLER & RESILIENCE] ────────────────────────────
@@ -4533,21 +4607,41 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ type: 'session', sessionId }));
 
     ws.on('message', (raw) => {
-        // Message rate limiting (max 20 messages per 5s)
-        const now = Date.now();
-        if (now - windowStart > 5000) {
-            msgCount = 0;
-            windowStart = now;
-        }
-        msgCount++;
-        if (msgCount > 20) {
-            ws.send(JSON.stringify({ type: 'message', from: 'admin', name: 'ระบบ', text: 'คุณส่งข้อความเร็วเกินไป กรุณารอสักครู่' }));
-            return;
-        }
-
         let data;
         try { data = JSON.parse(raw); } catch { return; }
         if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+
+        // ── TYPING SIGNAL: Handle presence directly without consuming chat message limits ──
+        if (data.type === 'typing') {
+            if (clientInfo.role === 'customer') {
+                broadcast({ type: 'typing', sessionId, name: clientInfo.name }, c => c.role === 'admin');
+            } else if (clientInfo.role === 'admin') {
+                const targetSid = (typeof data.targetSessionId === 'string' && /^[a-zA-Z0-9_\-]{6,48}$/.test(data.targetSessionId))
+                    ? data.targetSessionId
+                    : null;
+                if (targetSid) {
+                    const target = clients.get(targetSid);
+                    if (target && target.ws.readyState === 1) {
+                        target.ws.send(JSON.stringify({ type: 'typing', from: 'admin' }));
+                    }
+                }
+            }
+            return;
+        }
+
+        // ── MESSAGE RATE LIMITING (strictly for actual chat messages, max 25 msgs per 5s) ──
+        if (data.type === 'message') {
+            const now = Date.now();
+            if (now - windowStart > 5000) {
+                msgCount = 0;
+                windowStart = now;
+            }
+            msgCount++;
+            if (msgCount > 25) {
+                ws.send(JSON.stringify({ type: 'message', from: 'admin', name: 'ระบบ', text: 'คุณส่งข้อความเร็วเกินไป กรุณารอสัก 2-3 วินาทีแล้วลองใหม่อีกครั้งครับ' }));
+                return;
+            }
+        }
 
         // ── AUTH: ลงทะเบียน role ──────────────────────────────────
         if (data.type === 'auth') {
@@ -4690,23 +4784,6 @@ wss.on('connection', (ws, req) => {
                     target.ws.send(JSON.stringify({ ...payload, from: 'admin' }));
                 }
                 ws.send(JSON.stringify({ ...payload, own: true }));
-            }
-        }
-
-        // ── TYPING ────────────────────────────────────────────────
-        if (data.type === 'typing') {
-            if (clientInfo.role === 'customer') {
-                broadcast({ type: 'typing', sessionId, name: clientInfo.name }, c => c.role === 'admin');
-            } else if (clientInfo.role === 'admin') {
-                const targetSid = (typeof data.targetSessionId === 'string' && /^[a-zA-Z0-9_\-]{6,48}$/.test(data.targetSessionId))
-                    ? data.targetSessionId
-                    : null;
-                if (targetSid) {
-                    const target = clients.get(targetSid);
-                    if (target && target.ws.readyState === 1) {
-                        target.ws.send(JSON.stringify({ type: 'typing', from: 'admin' }));
-                    }
-                }
             }
         }
     });

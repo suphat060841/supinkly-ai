@@ -390,16 +390,19 @@ const CHAT = (() => {
             });
         });
 
-        // Auto-resize textarea
+        // Auto-resize textarea & throttled typing signal
         if (msgInp) {
+            let lastTypingSent = 0;
             msgInp.addEventListener('input', () => {
                 msgInp.style.height = '';
                 msgInp.style.height = Math.min(msgInp.scrollHeight, 100) + 'px';
-                // Typing signal
+                // Typing signal: Throttle to at most once every 3.5 seconds
                 if (ws && ws.readyState === 1) {
-                    clearTimeout(typingTimer);
-                    ws.send(JSON.stringify({ type: 'typing' }));
-                    typingTimer = setTimeout(() => {}, 2000);
+                    const now = Date.now();
+                    if (now - lastTypingSent > 3500) {
+                        lastTypingSent = now;
+                        ws.send(JSON.stringify({ type: 'typing' }));
+                    }
                 }
             });
 
