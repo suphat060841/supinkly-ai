@@ -2484,7 +2484,7 @@
 
             <form onsubmit="handleAdminPinSubmit(event)" class="space-y-3">
                 <div class="relative">
-                    <input type="password" id="admin-pin-input" maxlength="12" placeholder="กรอกรหัส PIN ความปลอดภัย"
+                    <input type="password" id="admin-pin-input" maxlength="32" placeholder="กรอกรหัส PIN หรือรหัสผ่าน"
                         required autofocus autocomplete="off"
                         class="w-full text-center tracking-widest text-xl font-mono px-3 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-pink-600 font-bold focus:border-pink-500 outline-none pr-10">
                     <button type="button" onclick="toggleAdminPinVisibility()"
@@ -3251,8 +3251,8 @@
                         </div>
                     </div>
 
-                    <!-- Security Admin PIN -->
-                    <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                    <!-- Security Admin PIN & Password Management -->
+                    <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3.5">
                         <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
                             <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
                                 <span
@@ -3261,15 +3261,62 @@
                                 </span>
                                 <span>ความปลอดภัย & เปลี่ยนรหัส PIN แอดมิน</span>
                             </h4>
-                            <span class="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full font-bold">PIN
-                                4-8 หลัก</span>
+                            <span class="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full font-bold">
+                                PIN หรือรหัสผ่าน 4-32 หลัก
+                            </span>
                         </div>
                         <p class="text-[11px] text-slate-500 leading-relaxed font-medium">
-                            ตั้งรหัส PIN ใหม่สำหรับเข้าสู่ระบบหลังบ้าน (เว้นว่างไว้หากไม่ต้องการเปลี่ยน)
+                            ตั้งรหัส PIN หรือรหัสผ่านใหม่สำหรับเข้าสู่ระบบหลังบ้าน (Admin Console) รองรับทั้งตัวเลขและตัวอักษร 4-32 หลัก
+                            <span class="text-pink-600 font-semibold">(สามารถกดปุ่มบันทึกเปลี่ยนรหัสได้ทันที หรือบันทึกรวมด้านล่าง)</span>
                         </p>
-                        <div>
-                            <input type="password" id="admin-new-pin" placeholder="กรอกรหัส PIN ใหม่ (4-8 ตัวเลข)"
-                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 mb-1">รหัส PIN / รหัสผ่านใหม่:</label>
+                                <div class="relative">
+                                    <input type="password" id="admin-new-pin" placeholder="กรอกรหัส PIN หรือรหัสผ่านใหม่ (4-32 หลัก)"
+                                        onkeydown="if(event.key==='Enter') handleChangeAdminPinOnly()"
+                                        class="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
+                                    <button type="button" onclick="toggleAdminNewPinVisibility()"
+                                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                        title="แสดง/ซ่อนรหัสผ่าน">
+                                        <i id="admin-new-pin-eye-icon" class="fa-solid fa-eye text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 mb-1">ยืนยันรหัส PIN / รหัสผ่านใหม่อีกครั้ง:</label>
+                                <div class="relative">
+                                    <input type="password" id="admin-confirm-new-pin" placeholder="ยืนยันรหัส PIN ใหม่อีกครั้ง"
+                                        onkeydown="if(event.key==='Enter') handleChangeAdminPinOnly()"
+                                        class="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 font-mono outline-none focus:bg-white focus:border-pink-500">
+                                    <button type="button" onclick="toggleAdminConfirmPinVisibility()"
+                                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                        title="แสดง/ซ่อนรหัสผ่าน">
+                                        <i id="admin-confirm-pin-eye-icon" class="fa-solid fa-eye text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Bar for Direct PIN Update -->
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+                            <div class="flex items-center gap-1.5 text-[11px] text-slate-500">
+                                <i class="fa-solid fa-circle-info text-pink-500"></i>
+                                <span>รหัส Master สำรองฉุกเฉินคือ <strong>8899</strong> (สามารถใช้เข้าสู่ระบบได้เสมอ)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="handleResetAdminPinToDefault()"
+                                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">
+                                    <i class="fa-solid fa-rotate-left text-xs"></i>
+                                    <span>คืนค่าเริ่มต้น (8899)</span>
+                                </button>
+                                <button type="button" id="admin-change-pin-btn" onclick="handleChangeAdminPinOnly()"
+                                    class="px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95">
+                                    <i class="fa-solid fa-floppy-disk text-xs"></i>
+                                    <span>บันทึกเปลี่ยนรหัส PIN ทันที</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

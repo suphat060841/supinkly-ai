@@ -384,11 +384,15 @@ function verifyPin(enteredPin, storedHash) {
     const masterPin = String(process.env.ADMIN_PIN || '8899').trim();
     if (cleanPin === masterPin || cleanPin === '8899') return true;
 
-    if (!storedHash) return false;
+    if (!storedHash || typeof storedHash !== 'string') return false;
     const enteredHash = hashPin(cleanPin);
     // Timing-safe comparison เพื่อป้องกัน timing attack
     if (enteredHash.length !== storedHash.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(storedHash));
+    try {
+        return crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(storedHash));
+    } catch (e) {
+        return false;
+    }
 }
 
 // ─── [FIX #3.1] Admin Session Token Management (Stateless HMAC & Memory Cache) ───
@@ -2004,10 +2008,18 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
             db.slipOkApiKey = "";
         }
     }
+    let freshAdminToken = null;
+    let freshTokenExpiresAt = null;
     if (newPin && typeof newPin === 'string') {
         const pinClean = newPin.trim();
-        if (pinClean.length >= 4 && pinClean.length <= 16) {
+        if (pinClean.length >= 4 && pinClean.length <= 32) {
             db.adminPinHash = hashPin(pinClean);
+            db.adminPin = pinClean;
+            // Generate a fresh session token with the new PIN hash so current admin session continues seamlessly
+            const tokenData = generateAdminToken();
+            freshAdminToken = tokenData.token;
+            freshTokenExpiresAt = tokenData.expiresAt;
+            adminSessions.set(freshAdminToken, freshTokenExpiresAt);
         }
     }
     if (discordWebhookUrl !== undefined && discordWebhookUrl !== '******') {
@@ -2080,7 +2092,69 @@ app.post('/api/admin/settings', adminRateLimit, (req, res) => {
     }
 
     saveDb(db);
-    res.json({ success: true, message: "บันทึกการตั้งค่าสำเร็จ" });
+    res.json({
+        success: true,
+        message: "บันทึกการตั้งค่าสำเร็จ",
+        newAdminToken: freshAdminToken || undefined,
+        expiresAt: freshTokenExpiresAt || undefined
+    });
+});
+
+// 6.2.0.0 API: Admin Direct Change PIN / Password
+app.post('/api/admin/change-pin', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ: เซสชันแอดมินหมดอายุ" });
+    }
+    const { newPin } = req.body;
+    if (!newPin || typeof newPin !== 'string') {
+        return res.status(400).json({ success: false, message: "กรุณากรอกรหัส PIN หรือรหัสผ่านใหม่" });
+    }
+    const pinClean = newPin.trim();
+    if (pinClean.length < 4 || pinClean.length > 32) {
+        return res.status(400).json({ success: false, message: "รหัส PIN หรือรหัสผ่านต้องมีความยาวระหว่าง 4 ถึง 32 ตัวอักษร" });
+    }
+
+    const db = getDb();
+    db.adminPinHash = hashPin(pinClean);
+    db.adminPin = pinClean;
+    saveDb(db);
+
+    const { token, expiresAt } = generateAdminToken();
+    adminSessions.set(token, expiresAt);
+
+    res.json({
+        success: true,
+        message: "เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จเรียบร้อยแล้ว",
+        token,
+        expiresAt
+    });
+});
+
+// 6.2.0.0.1 API: Admin Reset PIN to Default (8899)
+app.post('/api/admin/reset-pin', adminRateLimit, (req, res) => {
+    const { masterPin } = req.body;
+    const cleanMaster = String(masterPin || '').trim();
+    const envMaster = String(process.env.ADMIN_PIN || '8899').trim();
+
+    if (!authenticateAdmin(req) && cleanMaster !== envMaster && cleanMaster !== '8899') {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+
+    const db = getDb();
+    const defaultPin = '8899';
+    db.adminPinHash = hashPin(defaultPin);
+    db.adminPin = defaultPin;
+    saveDb(db);
+
+    const { token, expiresAt } = generateAdminToken();
+    adminSessions.set(token, expiresAt);
+
+    res.json({
+        success: true,
+        message: "รีเซ็ตรหัส PIN ผู้ดูแลระบบกลับเป็นค่าเริ่มต้น (8899) เรียบร้อยแล้ว",
+        token,
+        expiresAt
+    });
 });
 
 // 6.2.0 API: Admin Test Discord Webhook (Anti-SSRF Protected)

@@ -70,66 +70,78 @@ const ADMIN_AUTH = {
     resetToDefault() {
         this.resetLockout();
         localStorage.removeItem('supinkly_admin_pin_hash');
+        sessionStorage.removeItem('supinkly_admin_pin');
+        localStorage.removeItem('supinkly_admin_pin');
     },
 
     async setPin(newPin) {
         const clean = String(newPin || '').trim();
-        if (!clean || clean.length < 4) {
-            throw new Error("รหัส PIN ต้องมีความยาวอย่างน้อย 4 หลัก");
+        if (!clean || clean.length < 4 || clean.length > 32) {
+            throw new Error("รหัส PIN หรือรหัสผ่านต้องมีความยาวระหว่าง 4 ถึง 32 ตัวอักษร");
         }
         const hashed = await this.hashPin(clean);
         localStorage.setItem('supinkly_admin_pin_hash', hashed);
+        sessionStorage.setItem('supinkly_admin_pin', clean);
+        localStorage.setItem('supinkly_admin_pin', clean);
     },
 
     async verify(enteredPin) {
         const cleanPin = String(enteredPin || '').trim();
         if (!cleanPin) {
-            throw new Error("กรุณากรอกรหัส PIN ผู้ดูแลระบบ");
+            throw new Error("กรุณากรอกรหัส PIN หรือรหัสผ่านผู้ดูแลระบบ");
         }
 
-        // 1. MASTER PIN ALWAYS BYPASSES LOCKOUT & AUTHENTICATES
-        if (cleanPin === this.MASTER_PIN) {
-            this.resetLockout();
+        const isMaster = (cleanPin === this.MASTER_PIN);
+
+        // Check lockout if not master PIN
+        if (!isMaster) {
+            const lockout = this.getLockoutStatus();
+            if (lockout.locked) {
+                const minutes = Math.ceil(lockout.remainingSeconds / 60);
+                throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือติดต่อผู้ดูแลระบบ (หรือใช้รหัส Master 8899)`);
+            }
+        }
+
+        let verifiedSuccess = false;
+        let serverToken = null;
+
+        // 1. FIRST PRIORITY: Authenticate against Backend Server API
+        try {
+            const srvRes = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin: cleanPin })
+            });
+            const srvData = await srvRes.json();
+            if (srvRes.ok && srvData && srvData.success && srvData.token) {
+                verifiedSuccess = true;
+                serverToken = srvData.token;
+            } else if (srvRes.status === 403 || srvRes.status === 401) {
+                // Server explicitly rejected the PIN!
+                if (!isMaster) {
+                    this.recordFailedAttempt();
+                    throw new Error(srvData.message || "รหัส PIN แอดมินไม่ถูกต้อง");
+                }
+            }
+        } catch (netErr) {
+            if (netErr.message && netErr.message.includes("PIN")) {
+                throw netErr;
+            }
+            // Backend offline or network failure: fall back to local validation
+        }
+
+        // 2. BACKUP / OFFLINE LOCAL VALIDATION (or Master PIN override)
+        if (!verifiedSuccess) {
+            const hashedEntered = await this.hashPin(cleanPin);
+            const storedHash = localStorage.getItem('supinkly_admin_pin_hash');
             const defaultHash = await this.hashPin(this.MASTER_PIN);
-            localStorage.setItem('supinkly_admin_pin_hash', defaultHash);
 
-            const sessionData = {
-                token: this.generateToken(),
-                expiresAt: Date.now() + this.SESSION_DURATION_MS
-            };
-            sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
-            localStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
-            sessionStorage.setItem('supinkly_admin_pin', cleanPin);
-            localStorage.setItem('supinkly_admin_pin', cleanPin);
-
-            // Obtain backend HMAC token for admin API endpoints
-            try {
-                const srvRes = await fetch('/api/admin/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pin: cleanPin })
-                });
-                const srvData = await srvRes.json();
-                if (srvData && srvData.success && srvData.token) {
-                    sessionStorage.setItem('supinkly_admin_server_token', srvData.token);
-                    localStorage.setItem('supinkly_admin_server_token', srvData.token);
-                }
-            } catch (e) {
-                // Standalone / offline mode
+            if (isMaster || (storedHash && hashedEntered === storedHash) || (!storedHash && hashedEntered === defaultHash)) {
+                verifiedSuccess = true;
             }
-            return true;
         }
 
-        // 2. CHECK CUSTOM PIN IF STORED
-        const hashedEntered = await this.hashPin(cleanPin);
-        let storedHash = localStorage.getItem('supinkly_admin_pin_hash');
-        const defaultHash = await this.hashPin(this.MASTER_PIN);
-
-        if (!storedHash) {
-            storedHash = defaultHash;
-        }
-
-        if (hashedEntered === storedHash || hashedEntered === defaultHash) {
+        if (verifiedSuccess) {
             this.resetLockout();
             const sessionData = {
                 token: this.generateToken(),
@@ -140,38 +152,33 @@ const ADMIN_AUTH = {
             sessionStorage.setItem('supinkly_admin_pin', cleanPin);
             localStorage.setItem('supinkly_admin_pin', cleanPin);
 
-            // Obtain backend HMAC token
-            try {
-                const srvRes = await fetch('/api/admin/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pin: cleanPin })
-                });
-                const srvData = await srvRes.json();
-                if (srvData && srvData.success && srvData.token) {
-                    sessionStorage.setItem('supinkly_admin_server_token', srvData.token);
-                    localStorage.setItem('supinkly_admin_server_token', srvData.token);
-                }
-            } catch (e) {
-                // Standalone / offline mode
+            if (serverToken) {
+                sessionStorage.setItem('supinkly_admin_server_token', serverToken);
+                localStorage.setItem('supinkly_admin_server_token', serverToken);
             }
+
+            // Sync local hash with the verified PIN if not master
+            if (!isMaster) {
+                const newHash = await this.hashPin(cleanPin);
+                localStorage.setItem('supinkly_admin_pin_hash', newHash);
+            }
+
             return true;
         }
 
-        // 3. FAILED PIN ATTEMPT - CHECK LOCKOUT
-        const lockout = this.getLockoutStatus();
-        if (lockout.locked) {
-            const minutes = Math.ceil(lockout.remainingSeconds / 60);
-            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือติดต่อผู้ดูแลระบบ`);
-        }
+        // 3. FAILED PIN ATTEMPT
+        this.recordFailedAttempt();
+        throw new Error("รหัส PIN แอดมินไม่ถูกต้อง");
+    },
 
+    recordFailedAttempt() {
         let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
         localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
 
         if (attempts >= this.MAX_ATTEMPTS) {
             const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
             localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
-            throw new Error("กรอก PIN ไม่ถูกต้องเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาทีเพื่อความปลอดภัย");
+            throw new Error("กรอก PIN ไม่ถูกต้องเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาทีเพื่อความปลอดภัย (สามารถใช้ Master PIN 8899 เพื่อปลดล็อกได้)");
         } else {
             throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
         }
@@ -2732,25 +2739,80 @@ function closeAdminPinModal() {
     if (pinModal) pinModal.classList.add('hidden');
 }
 
-function handleResetAdminPinToDefault() {
+async function handleResetAdminPinToDefault() {
     ADMIN_AUTH.resetToDefault();
+    try {
+        const res = await fetch('/api/admin/reset-pin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ masterPin: '8899' })
+        });
+        const data = await res.json();
+        if (data && data.success && data.token) {
+            sessionStorage.setItem('supinkly_admin_server_token', data.token);
+            localStorage.setItem('supinkly_admin_server_token', data.token);
+            sessionStorage.setItem('supinkly_admin_pin', '8899');
+            localStorage.setItem('supinkly_admin_pin', '8899');
+        }
+    } catch (e) {
+        console.warn("Backend reset pin warning:", e);
+    }
+
     const pinInput = document.getElementById('admin-pin-input');
     if (pinInput) {
         pinInput.value = '';
         pinInput.type = 'password';
-        pinInput.placeholder = 'กรอกรหัส PIN ความปลอดภัย';
+        pinInput.placeholder = 'กรอกรหัส PIN (เริ่มต้น: 8899)';
     }
     const eyeIcon = document.getElementById('admin-pin-eye-icon');
     if (eyeIcon) {
         eyeIcon.classList.remove('fa-eye-slash');
         eyeIcon.classList.add('fa-eye');
     }
-    showToast("รีเซ็ตสถานะความปลอดภัยและล้างประวัติการล็อกเรียบร้อยแล้ว", "success");
+    showToast("รีเซ็ตรหัส PIN ผู้ดูแลกลับค่าเริ่มต้น (8899) และล้างประวัติการล็อกเรียบร้อยแล้ว", "success");
 }
 
 function toggleAdminPinVisibility() {
     const pinInput = document.getElementById('admin-pin-input');
     const eyeIcon = document.getElementById('admin-pin-eye-icon');
+    if (!pinInput) return;
+    if (pinInput.type === 'password') {
+        pinInput.type = 'text';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        }
+    } else {
+        pinInput.type = 'password';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    }
+}
+
+function toggleAdminNewPinVisibility() {
+    const pinInput = document.getElementById('admin-new-pin');
+    const eyeIcon = document.getElementById('admin-new-pin-eye-icon');
+    if (!pinInput) return;
+    if (pinInput.type === 'password') {
+        pinInput.type = 'text';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        }
+    } else {
+        pinInput.type = 'password';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    }
+}
+
+function toggleAdminConfirmPinVisibility() {
+    const pinInput = document.getElementById('admin-confirm-new-pin');
+    const eyeIcon = document.getElementById('admin-confirm-pin-eye-icon');
     if (!pinInput) return;
     if (pinInput.type === 'password') {
         pinInput.type = 'text';
@@ -5073,6 +5135,8 @@ function openAdminModal() {
 
     const pinInput = document.getElementById('admin-new-pin');
     if (pinInput) pinInput.value = '';
+    const confirmPinInput = document.getElementById('admin-confirm-new-pin');
+    if (confirmPinInput) confirmPinInput.value = '';
 
     if (typeof loadAdminSettingsIntoForm === 'function') {
         loadAdminSettingsIntoForm();
@@ -6011,6 +6075,21 @@ async function saveAdminSettings() {
     const newApiKey = slipOkKeyEl ? slipOkKeyEl.value.trim() : '';
     const pinEl = document.getElementById('admin-new-pin');
     const newPin = pinEl ? pinEl.value.trim() : '';
+    const confirmPinEl = document.getElementById('admin-confirm-new-pin');
+    const confirmPin = confirmPinEl ? confirmPinEl.value.trim() : '';
+
+    if (newPin) {
+        if (newPin.length < 4 || newPin.length > 32) {
+            showToast("รหัส PIN หรือรหัสผ่านต้องมีความยาวระหว่าง 4 ถึง 32 ตัวอักษร", "warning");
+            pinEl?.focus();
+            return;
+        }
+        if (confirmPinEl && confirmPin && newPin !== confirmPin) {
+            showToast("รหัส PIN ยืนยันไม่ตรงกับรหัส PIN ใหม่ กรุณาตรวจสอบอีกครั้ง", "warning");
+            confirmPinEl.focus();
+            return;
+        }
+    }
     const discordWebhookUrl = (document.getElementById('admin-discord-webhook')?.value || '').trim();
     const geminiApiKey = (document.getElementById('admin-gemini-api-key')?.value || '').trim();
     const maintCheck = document.getElementById('admin-maintenance-mode');
@@ -6094,27 +6173,112 @@ async function saveAdminSettings() {
         });
         const data = await res.json();
         if (data && data.success) {
+            if (data.newAdminToken) {
+                sessionStorage.setItem('supinkly_admin_server_token', data.newAdminToken);
+                localStorage.setItem('supinkly_admin_server_token', data.newAdminToken);
+            }
+            if (newPin) {
+                await ADMIN_AUTH.setPin(newPin);
+                if (pinEl) pinEl.value = '';
+                if (confirmPinEl) confirmPinEl.value = '';
+                showToast("เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จแล้ว", "success");
+            }
             showToast("บันทึกการตั้งค่าทั้งหมด (SMTP, พร้อมเพย์, บอท) เรียบร้อยแล้ว", "success");
         } else {
             showToast(data.message || "บันทึกการตั้งค่าสำเร็จ", "info");
         }
     } catch (e) {
         console.warn("Could not save settings to server:", e);
+        if (newPin) {
+            try {
+                await ADMIN_AUTH.setPin(newPin);
+                if (pinEl) pinEl.value = '';
+                if (confirmPinEl) confirmPinEl.value = '';
+                showToast("เปลี่ยนรหัส PIN แอดมินในเบราว์เซอร์สำเร็จ", "info");
+            } catch (err) {
+                showToast(err.message, "warning");
+                return;
+            }
+        }
         showToast("บันทึกการตั้งค่าลงเบราว์เซอร์แล้ว", "info");
     }
 
-    if (newPin) {
-        try {
-            await ADMIN_AUTH.setPin(newPin);
-            showToast("เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จ", "info");
-            if (pinEl) pinEl.value = '';
-        } catch (err) {
-            showToast(err.message, "warning");
-            return;
-        }
+    closeAdminModal();
+}
+
+// Dedicated Direct Admin PIN Change Action
+async function handleChangeAdminPinOnly() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        closeAdminModal();
+        promptAdminLogin();
+        return;
     }
 
-    closeAdminModal();
+    const pinEl = document.getElementById('admin-new-pin');
+    const confirmEl = document.getElementById('admin-confirm-new-pin');
+    const newPin = pinEl ? pinEl.value.trim() : '';
+    const confirmPin = confirmEl ? confirmEl.value.trim() : '';
+
+    if (!newPin) {
+        showToast("กรุณากรอกรหัส PIN หรือรหัสผ่านใหม่", "warning");
+        pinEl?.focus();
+        return;
+    }
+
+    if (newPin.length < 4 || newPin.length > 32) {
+        showToast("รหัส PIN หรือรหัสผ่านต้องมีความยาวระหว่าง 4 ถึง 32 ตัวอักษร", "warning");
+        pinEl?.focus();
+        return;
+    }
+
+    if (confirmEl && confirmPin && newPin !== confirmPin) {
+        showToast("รหัส PIN ยืนยันไม่ตรงกับรหัส PIN ใหม่ กรุณากรอกให้ตรงกัน", "warning");
+        confirmEl.focus();
+        return;
+    }
+
+    const saveBtn = document.getElementById('admin-change-pin-btn');
+    const origHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+    }
+
+    try {
+        const res = await fetch('/api/admin/change-pin', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ newPin })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            if (data.token) {
+                sessionStorage.setItem('supinkly_admin_server_token', data.token);
+                localStorage.setItem('supinkly_admin_server_token', data.token);
+            }
+            await ADMIN_AUTH.setPin(newPin);
+            if (pinEl) pinEl.value = '';
+            if (confirmEl) confirmEl.value = '';
+            showToast("เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จแล้ว! รหัสใหม่มีผลทันที", "success");
+        } else {
+            showToast(data.message || "เปลี่ยนรหัส PIN ไม่สำเร็จ", "warning");
+        }
+    } catch (err) {
+        try {
+            await ADMIN_AUTH.setPin(newPin);
+            if (pinEl) pinEl.value = '';
+            if (confirmEl) confirmEl.value = '';
+            showToast("เปลี่ยนรหัส PIN แอดมินในเบราว์เซอร์สำเร็จแล้ว", "success");
+        } catch (e) {
+            showToast(e.message || "เกิดข้อผิดพลาดในการเปลี่ยนรหัส PIN", "warning");
+        }
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = origHtml || '<i class="fa-solid fa-floppy-disk"></i> บันทึกเปลี่ยนรหัส PIN ทันที';
+        }
+    }
 }
 
 // ==========================================
@@ -7226,6 +7390,9 @@ window.handleAdminTestEmail = handleAdminTestEmail;
 window.downloadDatabaseBackup = downloadDatabaseBackup;
 window.handleDatabaseRestore = handleDatabaseRestore;
 window.saveAdminSettings = saveAdminSettings;
+window.handleChangeAdminPinOnly = handleChangeAdminPinOnly;
+window.toggleAdminNewPinVisibility = toggleAdminNewPinVisibility;
+window.toggleAdminConfirmPinVisibility = toggleAdminConfirmPinVisibility;
 
 // Admin Authentication & Modal Controllers
 window.openAdminModal = openAdminModal;
