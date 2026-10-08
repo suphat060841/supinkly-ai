@@ -444,6 +444,16 @@ const PRODUCTS = [
     }
 ];
 
+// Helper to detect broken or legacy 404 G2G URLs
+function isBrokenOrLegacyG2GUrl(url) {
+    if (!url || typeof url !== 'string') return true;
+    const clean = url.trim();
+    if (clean.includes('/categories?q=') || clean.includes('/search?q=') || /\/categories\/[a-z0-9\-]+-accounts\b/i.test(clean) || clean === 'https://www.g2g.com' || clean === 'https://www.g2g.com/') {
+        return true;
+    }
+    return false;
+}
+
 // Ensure every master product has raw G2G title, direct link, and guaranteed default stock (50 pcs minimum)
 PRODUCTS.forEach(p => {
     if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[p.id]) {
@@ -455,6 +465,34 @@ PRODUCTS.forEach(p => {
         p.stock = benchmarkStock || 50;
     }
 });
+
+// Auto-clean legacy broken G2G links from custom overrides in localStorage
+try {
+    const rawPrices = localStorage.getItem('supinkly_custom_prices');
+    if (rawPrices) {
+        const parsed = JSON.parse(rawPrices);
+        let updated = false;
+        for (const k in parsed) {
+            if (parsed[k] && parsed[k].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[k].g2gUrl)) {
+                delete parsed[k].g2gUrl;
+                updated = true;
+            }
+        }
+        if (updated) localStorage.setItem('supinkly_custom_prices', JSON.stringify(parsed));
+    }
+    const rawProds = localStorage.getItem('supinkly_custom_products');
+    if (rawProds) {
+        const parsed = JSON.parse(rawProds);
+        let updated = false;
+        for (const k in parsed) {
+            if (parsed[k] && parsed[k].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[k].g2gUrl)) {
+                delete parsed[k].g2gUrl;
+                updated = true;
+            }
+        }
+        if (updated) localStorage.setItem('supinkly_custom_products', JSON.stringify(parsed));
+    }
+} catch (e) {}
 
 function getCustomProducts() {
     try {
@@ -521,7 +559,9 @@ function getMasterProduct(productId) {
     if (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks && G2G_MARKET_FEED.benchmarks[productId]) {
         const benchmark = G2G_MARKET_FEED.benchmarks[productId];
         if (benchmark.title) g2gRawTitle = benchmark.title;
-        if (benchmark.g2gUrl) g2gUrl = benchmark.g2gUrl;
+        if (benchmark.g2gUrl && !isBrokenOrLegacyG2GUrl(benchmark.g2gUrl)) {
+            g2gUrl = benchmark.g2gUrl;
+        }
         if (typeof benchmark.g2gStock === 'number') {
             stock = benchmark.g2gStock;
         }
@@ -529,9 +569,6 @@ function getMasterProduct(productId) {
             const fxRate = (typeof G2G_SYNC !== 'undefined' && G2G_SYNC.currentExchangeRate) ? G2G_SYNC.currentExchangeRate : 36.50;
             marketCostTHB = Math.round(benchmark.baseCostUSD * fxRate * 100) / 100;
         }
-    }
-    if (!g2gUrl) {
-        g2gUrl = `https://www.g2g.com/categories?q=${encodeURIComponent(g2gRawTitle || title)}`;
     }
 
     // Apply customProducts overrides (Title, Subtitle, Description, Brand, Type, Duration, Warranty, Devices, Delete)
@@ -549,7 +586,9 @@ function getMasterProduct(productId) {
         if (typeof customProd.originalPrice === 'number') originalPrice = customProd.originalPrice;
         if (typeof customProd.badge === 'string') badge = customProd.badge;
         if (customProd.isHighlight !== undefined) isHighlight = !!customProd.isHighlight;
-        if (customProd.g2gUrl) g2gUrl = customProd.g2gUrl;
+        if (customProd.g2gUrl && !isBrokenOrLegacyG2GUrl(customProd.g2gUrl)) {
+            g2gUrl = customProd.g2gUrl;
+        }
         if (customProd.deleted === true) deleted = true;
     }
 
@@ -567,9 +606,19 @@ function getMasterProduct(productId) {
             if (custom.isHighlight !== undefined) isHighlight = !!custom.isHighlight;
             if (typeof custom.g2gStockAvailable === 'number' && custom.g2gStockAvailable > 0) stock = custom.g2gStockAvailable;
             if (typeof custom.marketCostTHB === 'number') marketCostTHB = custom.marketCostTHB;
-            if (typeof custom.g2gUrl === 'string' && custom.g2gUrl) g2gUrl = custom.g2gUrl;
+            if (typeof custom.g2gUrl === 'string' && custom.g2gUrl && !isBrokenOrLegacyG2GUrl(custom.g2gUrl)) {
+                g2gUrl = custom.g2gUrl;
+            }
         }
     } catch (e) {}
+
+    // Ensure valid, working G2G sourcing link (guaranteed 100% no 404)
+    if (!g2gUrl || isBrokenOrLegacyG2GUrl(g2gUrl)) {
+        const isCapcut = String(productId).startsWith('cpc-') || (brand || '').toLowerCase().includes('capcut');
+        g2gUrl = isCapcut 
+            ? 'https://www.g2g.com/categories/capcut' 
+            : `https://www.google.com/search?q=${encodeURIComponent('site:g2g.com ' + (g2gRawTitle || title))}`;
+    }
 
     return {
         ...product,

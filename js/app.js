@@ -3007,21 +3007,73 @@ async function handleAdminPinSubmit(e) {
 // G2G MARKET LINK HELPER (ADMIN ONLY)
 // ==========================================
 function getG2GMarketLink(productId) {
-    const master = getMasterProduct(productId);
-    if (!master) return "https://www.g2g.com";
-    const brand = (master.brand || '').toLowerCase();
-    if (brand.includes("capcut")) return "https://www.g2g.com/categories/capcut-accounts";
-    if (brand.includes("google")) return "https://www.g2g.com/categories/gemini-accounts";
-    if (brand.includes("grok")) return "https://www.g2g.com/categories/xai-accounts";
-    if (brand.includes("claude")) return "https://www.g2g.com/categories/claude-accounts";
-    if (brand.includes("adobe")) return "https://www.g2g.com/categories/adobe-accounts";
-    if (brand.includes("microsoft") || brand.includes("windows")) return "https://www.g2g.com/categories/microsoft-accounts";
-    return `https://www.g2g.com/search?q=${encodeURIComponent(master.brand + " " + master.type)}`;
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    
+    // 1. If admin provided a specific custom URL (and it's not a legacy broken format)
+    if (master && master.g2gUrl && typeof isBrokenOrLegacyG2GUrl === 'function' && !isBrokenOrLegacyG2GUrl(master.g2gUrl)) {
+        return master.g2gUrl;
+    }
+
+    // 2. Check market benchmark
+    const benchmark = (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks) ? G2G_MARKET_FEED.benchmarks[productId] : null;
+    if (benchmark && benchmark.g2gUrl && typeof isBrokenOrLegacyG2GUrl === 'function' && !isBrokenOrLegacyG2GUrl(benchmark.g2gUrl)) {
+        return benchmark.g2gUrl;
+    }
+
+    // 3. CapCut category direct on G2G
+    const brand = ((master && master.brand) || '').toLowerCase();
+    const id = String(productId || '').toLowerCase();
+    if (id.startsWith('cpc-') || brand.includes('capcut')) {
+        return 'https://www.g2g.com/categories/capcut';
+    }
+
+    // 4. Reliable Google site-search for live G2G listings (100% working, never 404)
+    const query = (master && (master.g2gRawTitle || master.title)) || (benchmark && benchmark.title) || (master && `${master.brand} ${master.type}`) || 'G2G marketplace';
+    return `https://www.google.com/search?q=${encodeURIComponent('site:g2g.com ' + query)}`;
+}
+
+function handleG2GSourcingClick(event, productId, targetUrl) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    const searchKeyword = (master && (master.g2gRawTitle || master.title)) || '';
+
+    // Copy product search keyword to clipboard so admin can easily paste into G2G if needed
+    if (searchKeyword && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(searchKeyword).catch(() => {});
+    }
+
+    const effectiveUrl = targetUrl || getG2GMarketLink(productId);
+    const shortTitle = searchKeyword ? ` ("${searchKeyword.slice(0, 24)}...")` : '';
+    showToast(`กำลังเปิดหน้ารายการสินค้า G2G${shortTitle} (คัดลอกคำค้นหาแล้ว)`, 'info');
+
+    // If anchor href is missing or invalid, trigger window.open
+    if (!targetUrl || targetUrl === '#' || targetUrl === 'about:blank#blocked') {
+        if (event) event.preventDefault();
+        openG2GMarketLink(productId);
+    }
 }
 
 function openG2GMarketLink(productId) {
     const link = getG2GMarketLink(productId);
-    window.open(link, '_blank');
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    const titleToCopy = (master && (master.g2gRawTitle || master.title)) || '';
+    if (titleToCopy && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(titleToCopy).catch(() => {});
+    }
+    if (link && link !== '#' && link !== 'about:blank#blocked') {
+        const win = window.open(link, '_blank', 'noopener,noreferrer');
+        if (!win || win.closed || typeof win.closed === 'undefined') {
+            const a = document.createElement('a');
+            a.href = link;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    }
 }
 
 // ==========================================
@@ -5780,9 +5832,10 @@ function renderAdminStockList() {
                     <div class="font-bold text-slate-700 text-xs font-mono">฿${costTHB.toFixed(2)}</div>
                     <div class="flex items-center justify-center gap-1 mt-1">
                         ${(() => {
-                            const effectiveG2GUrl = master.g2gUrl || (g2gBenchmark && g2gBenchmark.g2gUrl) || getG2GMarketLink(p.id);
+                            const effectiveG2GUrl = getG2GMarketLink(p.id);
                             return `
                             <a href="${sanitizeUrl(effectiveG2GUrl)}" target="_blank" rel="noopener noreferrer"
+                               onclick="handleG2GSourcingClick(event, '${escapeHTML(p.id)}', '${sanitizeUrl(effectiveG2GUrl)}')"
                                class="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold transition-all flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
                                title="เปิดดูแหล่งต้นทุนและสั่งซื้อบน G2G">
                                 <i class="fa-solid fa-cart-shopping text-[9px] text-amber-600"></i>
@@ -5791,7 +5844,7 @@ function renderAdminStockList() {
                             `;
                         })()}
                         <button type="button" 
-                                onclick="navigator.clipboard.writeText('${escapeHTML(master.g2gRawTitle || master.title)}'); showToast('คัดลอกชื่อสินค้าแล้ว', 'info');"
+                                onclick="navigator.clipboard.writeText('${escapeHTML(master.g2gRawTitle || master.title)}'); showToast('คัดลอกชื่อสินค้าสำหรับค้นหาใน G2G แล้ว', 'info');"
                                 class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 border border-slate-200 text-[10px] cursor-pointer"
                                 title="คัดลอกชื่อสินค้าบน G2G">
                             <i class="fa-regular fa-copy"></i>
@@ -5933,7 +5986,10 @@ function openEditPriceModal(productId, focusField = null) {
     if (g2gRawTitleEl) g2gRawTitleEl.textContent = master.g2gRawTitle || master.title;
 
     const g2gUrlInput = document.getElementById('edit-price-g2g-url');
-    if (g2gUrlInput) g2gUrlInput.value = master.g2gUrl || '';
+    if (g2gUrlInput) {
+        const rawUrl = master.g2gUrl || '';
+        g2gUrlInput.value = (typeof isBrokenOrLegacyG2GUrl === 'function' && isBrokenOrLegacyG2GUrl(rawUrl)) ? '' : rawUrl;
+    }
 
     // Price Inputs
     const saleInput = document.getElementById('edit-price-sale');
@@ -6187,7 +6243,8 @@ async function handleSaveEditedProduct() {
     const devicesVal = (document.getElementById('edit-product-devices-input')?.value || 'iOS • PC').trim();
     const warrantyVal = (document.getElementById('edit-product-warranty-input')?.value || '30 วัน').trim();
     const descVal = (document.getElementById('edit-product-desc-input')?.value || '').trim();
-    const g2gUrlVal = (document.getElementById('edit-price-g2g-url')?.value || '').trim();
+    const rawG2GUrlVal = (document.getElementById('edit-price-g2g-url')?.value || '').trim();
+    const g2gUrlVal = (typeof isBrokenOrLegacyG2GUrl === 'function' && isBrokenOrLegacyG2GUrl(rawG2GUrlVal)) ? '' : rawG2GUrlVal;
 
     const saleVal = parseFloat(document.getElementById('edit-price-sale').value);
     const origVal = parseFloat(document.getElementById('edit-price-original').value);
@@ -7979,6 +8036,8 @@ window.copyFromData = copyFromData;
 window.copyCombinedFromData = copyCombinedFromData;
 window.copyToClipboard = copyToClipboard;
 window.openG2GMarketLink = openG2GMarketLink;
+window.getG2GMarketLink = getG2GMarketLink;
+window.handleG2GSourcingClick = handleG2GSourcingClick;
 
 // Auto-check for ?admin=1 query parameter on page load
 if (typeof window !== 'undefined' && window.location && window.location.search) {
