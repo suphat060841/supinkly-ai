@@ -5647,17 +5647,27 @@ function closeAdminModal() {
 }
 
 
-function triggerManualAutoSync() {
-    if (typeof G2G_SYNC !== 'undefined' && typeof G2G_SYNC.performAutoSync === 'function') {
-        G2G_SYNC.performAutoSync();
-        renderAdminStockList();
-        renderProducts();
-        showToast("ซิงค์ราคาและสต็อกล่าสุดจากตลาด G2G สำเร็จแล้ว!", "success");
-    } else {
-        syncStockCount();
-        renderAdminStockList();
-        renderProducts();
-        showToast("รีเฟรชสต็อกสินค้าเรียบร้อยแล้ว", "info");
+async function triggerManualAutoSync() {
+    const syncBtn = document.querySelector('button[onclick="triggerManualAutoSync()"]');
+    if (syncBtn) {
+        syncBtn.classList.add('opacity-75', 'pointer-events-none');
+    }
+    try {
+        if (typeof G2G_SYNC !== 'undefined' && typeof G2G_SYNC.performAutoSync === 'function') {
+            await G2G_SYNC.performAutoSync();
+            renderAdminStockList();
+            renderProducts();
+            showToast("ซิงค์ราคา สต็อก และชื่อค้นหา G2G ล่าสุดสำเร็จแล้ว!", "success");
+        } else {
+            syncStockCount();
+            renderAdminStockList();
+            renderProducts();
+            showToast("รีเฟรชสต็อกสินค้าเรียบร้อยแล้ว", "info");
+        }
+    } finally {
+        if (syncBtn) {
+            syncBtn.classList.remove('opacity-75', 'pointer-events-none');
+        }
     }
 }
 
@@ -5844,9 +5854,9 @@ function renderAdminStockList() {
                             `;
                         })()}
                         <button type="button" 
-                                onclick="navigator.clipboard.writeText('${escapeHTML(master.g2gRawTitle || master.title)}'); showToast('คัดลอกชื่อสินค้าสำหรับค้นหาใน G2G แล้ว', 'info');"
+                                onclick="const t = '${escapeHTML(master.g2gRawTitle || master.title)}'; navigator.clipboard.writeText(t); showToast('คัดลอกชื่อภาษาอังกฤษสำหรับค้นหาใน G2G แล้ว: ' + t.slice(0, 32) + '...', 'info');"
                                 class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 border border-slate-200 text-[10px] cursor-pointer"
-                                title="คัดลอกชื่อสินค้าบน G2G">
+                                title="คัดลอกชื่อสินค้าภาษาอังกฤษของ G2G">
                             <i class="fa-regular fa-copy"></i>
                         </button>
                     </div>

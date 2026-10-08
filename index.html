@@ -4105,7 +4105,7 @@
                         <span class="truncate">📦 ชื่อบน G2G: <b id="edit-price-g2g-raw-title"
                                 class="text-pink-700"></b></span>
                         <button type="button"
-                            onclick="navigator.clipboard.writeText(document.getElementById('edit-price-g2g-raw-title').textContent); showToast('คัดลอกชื่อ G2G แล้ว', 'info');"
+                            onclick="const t = document.getElementById('edit-price-g2g-raw-title').textContent; navigator.clipboard.writeText(t); showToast('คัดลอกชื่อภาษาอังกฤษสำหรับค้นหาใน G2G แล้ว', 'info');"
                             class="ml-2 text-pink-600 hover:text-pink-700 font-bold shrink-0 cursor-pointer flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-amber-300 shadow-2xs active:scale-95">
                             <i class="fa-regular fa-copy"></i> คัดลอก
                         </button>

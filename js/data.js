@@ -606,6 +606,9 @@ function getMasterProduct(productId) {
             if (custom.isHighlight !== undefined) isHighlight = !!custom.isHighlight;
             if (typeof custom.g2gStockAvailable === 'number' && custom.g2gStockAvailable > 0) stock = custom.g2gStockAvailable;
             if (typeof custom.marketCostTHB === 'number') marketCostTHB = custom.marketCostTHB;
+            if (typeof custom.g2gRawTitle === 'string' && custom.g2gRawTitle.trim()) {
+                g2gRawTitle = custom.g2gRawTitle.trim();
+            }
             if (typeof custom.g2gUrl === 'string' && custom.g2gUrl && !isBrokenOrLegacyG2GUrl(custom.g2gUrl)) {
                 g2gUrl = custom.g2gUrl;
             }

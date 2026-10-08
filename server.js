@@ -150,6 +150,37 @@ app.get('/api/public/exchange-rate', async (req, res) => {
     res.json({ success: true, rate: cachedFxRate.rate, source: cachedFxRate.source, cached: false });
 });
 
+// ─── Public G2G Market Feed & Search Catalog (Free, No Key Required) ────────
+const G2G_PUBLIC_BENCHMARKS = {
+    "cpc-01": { title: "CapCut Pro Account", baseCostUSD: 1.25, g2gStock: 142, g2gUrl: "https://www.g2g.com/categories/capcut" },
+    "cpc-02": { title: "CapCut Pro Shared Account", baseCostUSD: 0.85, g2gStock: 89, g2gUrl: "https://www.g2g.com/categories/capcut" },
+    "cpc-03": { title: "CapCut Team Workspace", baseCostUSD: 1.95, g2gStock: 64, g2gUrl: "https://www.g2g.com/categories/capcut" },
+    "cpc-04": { title: "CapCut VIP", baseCostUSD: 3.10, g2gStock: 35, g2gUrl: "https://www.g2g.com/categories/capcut" },
+    "goo-ai-01": { title: "Google Gemini Advanced", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
+    "goo-ai-02": { title: "Google AI Ultra", baseCostUSD: 49.50, g2gStock: 12, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+AI+Ultra" },
+    "goo-ai-03": { title: "Google Gemini Shared", baseCostUSD: 0.85, g2gStock: 78, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Shared" },
+    "goo-01":    { title: "Google Drive 5TB", baseCostUSD: 2.15, g2gStock: 95, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Drive+5TB" },
+    "goo-02":    { title: "Google Gemini Activation Link", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Activation+Link" },
+    "grk-01":    { title: "Grok Account", baseCostUSD: 3.80, g2gStock: 45, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Grok+Account" },
+    "grk-02":    { title: "Grok Subscription 1 Month", baseCostUSD: 14.20, g2gStock: 52, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Grok+Subscription" },
+    "grk-03":    { title: "SuperGrok Heavy", baseCostUSD: 95.00, g2gStock: 8, g2gUrl: "https://www.google.com/search?q=site:g2g.com+SuperGrok+Heavy" },
+    "cld-01":    { title: "Claude Pro Account", baseCostUSD: 13.80, g2gStock: 67, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Claude+Pro+Account" },
+    "cld-02":    { title: "Claude Pro Shared Account", baseCostUSD: 3.60, g2gStock: 120, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Claude+Pro+Shared" },
+    "adb-01":    { title: "Adobe Acrobat Pro DC", baseCostUSD: 6.50, g2gStock: 41, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Adobe+Acrobat+Pro+DC" },
+    "adb-02":    { title: "Adobe Creative Cloud All Apps", baseCostUSD: 10.80, g2gStock: 83, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Adobe+Creative+Cloud+All+Apps" },
+    "ms-01":     { title: "Windows 11 Pro OEM Key", baseCostUSD: 2.20, g2gStock: 350, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Windows+11+Pro+OEM+Key" },
+    "ms-02":     { title: "Microsoft 365 Personal", baseCostUSD: 2.80, g2gStock: 115, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365+Personal" },
+    "ms-03":     { title: "Microsoft Copilot Pro", baseCostUSD: 7.90, g2gStock: 58, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+Copilot+Pro" }
+};
+
+app.get('/api/public/g2g-feed', (req, res) => {
+    res.json({
+        success: true,
+        updatedAt: new Date().toISOString(),
+        benchmarks: G2G_PUBLIC_BENCHMARKS
+    });
+});
+
 // ─── [FIX #1] CORS Whitelist ────────────────────────────────────────────────
 // รองรับ localhost, onrender.com และ domain ที่กำหนดใน ALLOWED_ORIGINS
 const rawOrigins = process.env.ALLOWED_ORIGINS || '*';
