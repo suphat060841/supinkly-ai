@@ -15,3 +15,11 @@ services:
         value: "*"
       - key: ADMIN_PIN
         value: "8899"
+      - key: PIN_SALT
+        generateValue: true
+      - key: ADMIN_TOKEN_SECRET
+        generateValue: true
+      - key: USER_TOKEN_SECRET
+        generateValue: true
+      - key: USER_SALT
+        generateValue: true

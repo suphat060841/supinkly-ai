@@ -119,8 +119,8 @@ const SlipVerifier = {
             return;
         }
 
-        // File size check: Slips should normally be between 10KB and 15MB
-        if (file.size < 12000) {
+        // File size check: Slips should normally be between 2KB and 15MB
+        if (file.size < 2048) {
             showToast("ไฟล์รูปภาพมีขนาดเล็กผิดปกติ กรุณาแนบสลิปจริงจากแอปธนาคาร", "warning");
             return;
         }
@@ -134,18 +134,18 @@ const SlipVerifier = {
         this.selectedFile = file;
         this.fileFingerprint = sha256;
 
-        // Verify Image Dimensions (Must be vertical mobile slip aspect ratio)
+        // Verify Image Dimensions (Supports mobile vertical, tablet, and desktop web banking receipts)
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                if (img.width < 250 || img.height < 320) {
+                if (img.width < 150 || img.height < 150) {
                     showToast("ความละเอียดรูปภาพต่ำเกินไป ไม่ใช่สลิปจากแอปธนาคาร", "warning");
                     this.clearSlip();
                     return;
                 }
-                if (img.height < img.width * 0.95) {
-                    showToast("สลิปโอนเงินต้องเป็นภาพแนวตั้งจากแอปธนาคาร กรุณาตรวจสอบรูปภาพ", "warning");
+                if (img.height < img.width * 0.35) {
+                    showToast("สัดส่วนรูปภาพไม่ถูกต้อง กรุณาแนบภาพสลิปการโอนเงินที่ชัดเจน", "warning");
                     this.clearSlip();
                     return;
                 }
@@ -182,7 +182,7 @@ const SlipVerifier = {
         if (input) input.value = '';
     },
 
-    async verifySlip(expectedAmount, expectedReceiver) {
+    async verifySlip(expectedAmount, expectedReceiver, cartItems = [], email = '', promoCode = '') {
         if (!this.selectedFile) {
             throw new Error("กรุณาเลือกไฟล์รูปภาพสลิปก่อนทำการตรวจสอบ");
         }
@@ -193,133 +193,83 @@ const SlipVerifier = {
 
         // Anti-Replay Check: Did this slip file get used before?
         if (isSlipAlreadyUsed(computedFingerprint, null)) {
-            throw new Error("สลิปใบนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้ (Anti-Replay Protection)");
+            throw new Error("สลิปใบนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้");
         }
 
-        // 1. Live SlipOK API verification if API key is provided
-        const apiKey = STORE_CONFIG.slipOkApiKey;
-        const branchId = STORE_CONFIG.slipOkBranchId;
+        // Resolve fallback values for cart, email, and coupon
+        const effectiveCart = (Array.isArray(cartItems) && cartItems.length > 0)
+            ? cartItems
+            : ((typeof state !== 'undefined' && Array.isArray(state.cart) && state.cart.length > 0) ? state.cart : []);
 
-        if (apiKey && apiKey.trim() !== '') {
+        const effectiveEmail = (email && typeof email === 'string' && email.trim())
+            ? email.trim()
+            : ((typeof state !== 'undefined' && state.user?.email) ? state.user.email : (document.getElementById('checkout-email-input')?.value || '').trim());
+
+        const effectivePromo = (promoCode && typeof promoCode === 'string' && promoCode.trim())
+            ? promoCode.trim().toUpperCase()
+            : (typeof state !== 'undefined' && state.appliedCoupon?.code ? state.appliedCoupon.code.toUpperCase() : '');
+
+        if (!effectiveCart || effectiveCart.length === 0) {
+            throw new Error("ข้อมูลตะกร้าสินค้าว่างเปล่า กรุณาเลือกสินค้าก่อนทำการชำระเงิน");
+        }
+
+        const cleanCart = effectiveCart.map(it => {
+            const master = typeof getMasterProduct === 'function' ? getMasterProduct(it.productId) : null;
+            return {
+                productId: it.productId,
+                quantity: Math.max(1, Math.min(50, parseInt(it.quantity, 10) || 1)),
+                price: master && typeof master.price === 'number' ? master.price : undefined
+            };
+        });
+
+        if (typeof USER_AUTH !== 'undefined' && !USER_AUTH.isLoggedIn()) {
+            if (typeof openAuthModal === 'function') openAuthModal('register');
+            throw new Error("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนชำระเงิน เพื่อบันทึกคีย์เข้าบัญชีของคุณ");
+        }
+
+        // 1. Production Web Server Verification (Node.js Backend)
+        if (window.location.protocol.startsWith('http')) {
+            const formData = new FormData();
+            formData.append('slip', this.selectedFile);
+            if (effectiveEmail) formData.append('email', effectiveEmail);
+            if (effectivePromo) formData.append('promoCode', effectivePromo);
+            formData.append('cartItems', JSON.stringify(cleanCart));
+
             try {
-                const result = await this.verifyWithSlipOk(this.selectedFile, expectedAmount, apiKey, branchId);
-                // Register used
-                registerUsedSlip(this.fileFingerprint, result.transRef);
-                return result;
-            } catch (err) {
-                // SECURITY FIX: Only allow local simulation fallback when explicitly running on file:// protocol for offline testing
-                // If on http/https web server, NEVER silently approve unverified slips when SlipOK fails!
-                if (window.location.protocol === 'file:') {
-                    console.warn("SlipOK Sandbox: ตรวจพบการเปิดผ่าน local file:// สลับไปใช้การจำลองสำหรับทดสอบออฟไลน์", err);
-                    const localResult = await this.verifyLocalStrict(expectedAmount, expectedReceiver);
-                    registerUsedSlip(this.fileFingerprint, localResult.transRef);
-                    return localResult;
+                const headers = {};
+                const token = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getToken) ? USER_AUTH.getToken() : null;
+                if (token) {
+                    headers['x-user-token'] = token;
+                    headers['Authorization'] = `Bearer ${token}`;
                 }
-                // On real web servers, fail securely
-                throw err;
-            }
-        } else {
-            // If running on web server without API key, do not approve payments silently
-            if (window.location.protocol !== 'file:') {
-                throw new Error("ระบบยังไม่ได้ตั้งค่า SlipOK API Key ในหลังบ้าน กรุณาติดต่อผู้ดูแลระบบ");
-            }
-            const result = await this.verifyLocalStrict(expectedAmount, expectedReceiver);
-            registerUsedSlip(this.fileFingerprint, result.transRef);
-            return result;
-        }
-    },
-
-    async verifyWithSlipOk(file, expectedAmount, apiKey, branchId) {
-        const cleanApiKey = (apiKey || '').trim();
-        const cleanBranchId = (branchId || '').trim() || '77491';
-
-        const formData = new FormData();
-        formData.append('files', file);
-        formData.append('log', 'true');
-        if (expectedAmount) {
-            formData.append('amount', expectedAmount);
-        }
-
-        const url = `https://api.slipok.com/api/line/apikey/${cleanBranchId}`;
-        
-        try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'x-authorization': cleanApiKey
-                },
-                body: formData
-            });
-
-            const data = await res.json();
-
-            if (data.success && data.data) {
-                const slipData = data.data;
-
-                // Check slip validity flag
-                if (slipData.success === false) {
-                    throw new Error(slipData.message || "สลิปนี้ไม่ผ่านการตรวจสอบจากระบบธนาคาร");
+                const res = await fetch('/api/checkout/verify-slip', {
+                    method: 'POST',
+                    headers,
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.requireLogin) {
+                    if (typeof openAuthModal === 'function') openAuthModal('register');
+                    throw new Error(data.message || "กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน");
                 }
-
-                // 1. Verify transRef anti-replay
-                if (slipData.transRef && isSlipAlreadyUsed(null, slipData.transRef)) {
-                    throw new Error(`สลิปใบนี้ (รหัสอ้างอิง: ${slipData.transRef}) เคยถูกใช้สั่งซื้อไปแล้ว`);
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || "สลิปไม่ผ่านการตรวจสอบจากระบบธนาคาร");
                 }
-
-                // 2. SECURITY FIX: Verify receiver identity (Ensure funds actually went to the merchant)
-                if (!slipData.receiver) {
-                    throw new Error("สลิปนี้ไม่มีข้อมูลผู้รับเงินที่ถูกต้อง ไม่สามารถยืนยันยอดเงินได้");
-                }
-
-                const receiverName = (slipData.receiver.name || slipData.receiver.displayName || '').trim();
-                const receiverAcc = (slipData.receiver.account?.value || slipData.receiver.proxy?.value || '').replace(/[^0-9]/g, '');
-                const merchantPhone = (STORE_CONFIG.promptPayNumber || '').replace(/[^0-9]/g, '');
-                const allowedKeywords = ['สุพัฒน์', 'SUPHAT', 'MEESOMBAT', 'มีสมบัติ'];
-
-                const nameMatches = allowedKeywords.some(kw => receiverName.toUpperCase().includes(kw.toUpperCase()));
-                const phoneMatches = merchantPhone && receiverAcc && (
-                    receiverAcc.endsWith(merchantPhone.slice(-4)) || 
-                    merchantPhone.endsWith(receiverAcc.slice(-4)) ||
-                    receiverAcc === merchantPhone
-                );
-
-                if (!nameMatches && !phoneMatches) {
-                    throw new Error(`บัญชีผู้รับเงินในสลิป (${receiverName || 'ไม่ระบุ'}) ไม่ตรงกับบัญชีของร้านค้า (คุณ สุพัฒน์ มีสมบัติ)`);
-                }
-
-                // 3. SECURITY FIX: Verify slip freshness (Cannot use slips older than 24 hours)
-                if (slipData.transTimestamp) {
-                    const slipTime = new Date(slipData.transTimestamp).getTime();
-                    if (!isNaN(slipTime) && Date.now() - slipTime > 24 * 60 * 60 * 1000) {
-                        throw new Error("สลิปนี้ทำรายการเกิน 24 ชั่วโมงแล้ว ไม่สามารถใช้สั่งซื้อได้");
-                    }
-                }
-
-                // 4. Verify amount (strictly enforce valid amount and allow ±0.05 floating point tolerance)
-                if (slipData.amount === undefined || slipData.amount === null || isNaN(parseFloat(slipData.amount))) {
-                    throw new Error("ไม่สามารถระบุยอดเงินจากสลิปนี้ได้ กรุณาใช้สลิปที่มีข้อมูลชัดเจน");
-                }
-                if (Math.abs(parseFloat(slipData.amount) - parseFloat(expectedAmount)) > 0.05) {
-                    throw new Error(`ยอดเงินในสลิป (${slipData.amount} บาท) ไม่ตรงกับยอดสั่งซื้อ (${expectedAmount} บาท)`);
-                }
-
+                registerUsedSlip(this.fileFingerprint, data.order?.transRef);
                 return {
                     success: true,
-                    transRef: slipData.transRef || ("TR" + Date.now().toString().slice(-8)),
-                    amount: slipData.amount !== undefined ? slipData.amount : expectedAmount,
-                    receiver: slipData.receiver ? (slipData.receiver.name || (slipData.receiver.account && slipData.receiver.account.value) || STORE_CONFIG.promptPayAccountName) : STORE_CONFIG.promptPayAccountName,
-                    sender: slipData.sender ? (slipData.sender.displayName || slipData.sender.name || '') : '',
-                    date: slipData.transDate || new Date().toLocaleString('th-TH')
+                    order: data.order,
+                    transRef: data.order?.transRef
                 };
-            } else {
-                const errMsg = (data.data && data.data.message) || data.message || "สลิปไม่ถูกต้อง หรือไม่พบข้อมูลในระบบธนาคาร";
-                throw new Error(errMsg);
+            } catch (err) {
+                throw new Error(err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อระบบตรวจสอบสลิป");
             }
-        } catch (err) {
-            if (err.name === 'TypeError' && err.message.toLowerCase().includes('fetch')) {
-                throw new Error("การเชื่อมต่อ SlipOK ขัดข้อง (CORS/Network): กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต");
-            }
-            throw new Error("SlipOK: " + (err.message || "เกิดข้อผิดพลาดในการตรวจสอบสลิป"));
+        } else {
+            // Local file:// protocol fallback for offline developer testing
+            console.warn("SlipVerifier: Running in offline local file mode. Simulating verification.");
+            const localResult = await this.verifyLocalStrict(expectedAmount, expectedReceiver);
+            registerUsedSlip(this.fileFingerprint, localResult.transRef);
+            return localResult;
         }
     },
 

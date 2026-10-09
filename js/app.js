@@ -14,17 +14,53 @@ function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
+// [SECURITY] Strict URL sanitizer to prevent javascript:, data:, and vbscript: XSS in dynamic links
+function sanitizeUrl(url) {
+    if (!url || typeof url !== 'string') return '#';
+    const clean = url.trim();
+    if (/^https?:\/\//i.test(clean)) {
+        return escapeHTML(clean);
+    }
+    return '#';
+}
+
 // Hardened Admin Authentication (Brute-Force Rate Limiting & Session Token)
 const ADMIN_AUTH = {
     MAX_ATTEMPTS: 5,
     LOCKOUT_DURATION_MS: 5 * 60 * 1000, // 5 minutes
     SESSION_DURATION_MS: 15 * 60 * 1000, // 15 minutes auto-logout
+    DEFAULT_PIN: '8899',
 
     async hashPin(pin) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode("supinkly_sec_salt_" + String(pin).trim());
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        const cleanPin = String(pin || '').trim();
+        const str = "supinkly_sec_salt_" + cleanPin;
+        try {
+            if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle && typeof window.crypto.subtle.digest === 'function') {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(str);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+        } catch (e) {
+            console.warn("crypto.subtle unavailable, fallback hashing:", e);
+        }
+        // Fallback hash implementation for non-secure / file / local contexts
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
+        }
+        return 'fallback_' + Math.abs(hash).toString(16);
+    },
+
+    generateToken() {
+        try {
+            if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.getRandomValues === 'function') {
+                return Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+        } catch (e) {}
+        return 'token_' + Date.now() + '_' + Math.random().toString(36).substring(2);
     },
 
     getLockoutStatus() {
@@ -33,78 +69,169 @@ const ADMIN_AUTH = {
             const remSeconds = Math.ceil((until - Date.now()) / 1000);
             return { locked: true, remainingSeconds: remSeconds };
         }
-        return { locked: false };
+        return { locked: false, remainingSeconds: 0 };
+    },
+
+    resetLockout() {
+        localStorage.removeItem('supinkly_admin_failed_attempts');
+        localStorage.removeItem('supinkly_admin_lockout_until');
+    },
+
+    resetToDefault() {
+        this.resetLockout();
+        localStorage.removeItem('supinkly_admin_pin_hash');
+        sessionStorage.removeItem('supinkly_admin_pin');
+        localStorage.removeItem('supinkly_admin_pin');
     },
 
     async setPin(newPin) {
-        if (!newPin || String(newPin).trim().length < 4) {
-            throw new Error("รหัส PIN ต้องมีความยาวอย่างน้อย 4 หลัก");
+        const clean = String(newPin || '').trim();
+        if (!clean || clean.length < 4 || clean.length > 32) {
+            throw new Error("รหัส PIN หรือรหัสผ่านต้องมีความยาวระหว่าง 4 ถึง 32 ตัวอักษร");
         }
-        const hashed = await this.hashPin(newPin);
+        const hashed = await this.hashPin(clean);
         localStorage.setItem('supinkly_admin_pin_hash', hashed);
+        sessionStorage.setItem('supinkly_admin_pin', clean);
+        localStorage.setItem('supinkly_admin_pin', clean);
     },
 
     async verify(enteredPin) {
+        const cleanPin = String(enteredPin || '').trim();
+        if (!cleanPin) {
+            throw new Error("กรุณากรอกรหัส PIN หรือรหัสผ่านผู้ดูแลระบบ");
+        }
+
+        // Check lockout
         const lockout = this.getLockoutStatus();
         if (lockout.locked) {
             const minutes = Math.ceil(lockout.remainingSeconds / 60);
-            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที`);
+            throw new Error(`ระบบถูกล็อกชั่วคราว กรุณารออีก ${minutes} นาที หรือติดต่อผู้ดูแลระบบ`);
         }
 
-        const hashedEntered = await this.hashPin(enteredPin);
-        let storedHash = localStorage.getItem('supinkly_admin_pin_hash');
-        
-        if (!storedHash) {
-            // Default PIN 8899
-            storedHash = await this.hashPin('8899');
+        let verifiedSuccess = false;
+        let serverToken = null;
+
+        // 1. FIRST PRIORITY: Authenticate against Backend Server API
+        try {
+            const srvRes = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin: cleanPin })
+            });
+            const srvData = await srvRes.json();
+            if (srvRes.ok && srvData && srvData.success && srvData.token) {
+                verifiedSuccess = true;
+                serverToken = srvData.token;
+            } else if (srvRes.status === 403 || srvRes.status === 401) {
+                // Server explicitly rejected the PIN
+                this.recordFailedAttempt();
+                throw new Error(srvData.message || "รหัส PIN หรือรหัสผ่านไม่ถูกต้อง");
+            }
+        } catch (netErr) {
+            if (netErr.message && (netErr.message.includes("PIN") || netErr.message.includes("รหัสผ่าน"))) {
+                throw netErr;
+            }
+            // Backend offline or network failure: fall back to local validation below
         }
 
-        if (hashedEntered === storedHash) {
-            // Reset attempts on success
-            localStorage.removeItem('supinkly_admin_failed_attempts');
-            localStorage.removeItem('supinkly_admin_lockout_until');
+        // 2. BACKUP / OFFLINE LOCAL VALIDATION
+        if (!verifiedSuccess) {
+            const hashedEntered = await this.hashPin(cleanPin);
+            const storedHash = localStorage.getItem('supinkly_admin_pin_hash');
+            const defaultHash = await this.hashPin(this.DEFAULT_PIN);
 
-            // Issue cryptographic session token
-            const sessionToken = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('');
+            // If storedHash is set, ONLY storedHash is accepted (8899 will not work)
+            // If storedHash is not set yet, the default PIN 8899 is accepted
+            const targetHash = storedHash || defaultHash;
+            if (hashedEntered === targetHash) {
+                verifiedSuccess = true;
+            }
+        }
+
+        if (verifiedSuccess) {
+            this.resetLockout();
             const sessionData = {
-                token: sessionToken,
+                token: this.generateToken(),
                 expiresAt: Date.now() + this.SESSION_DURATION_MS
             };
             sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
-            return true;
-        } else {
-            let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
-            localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
+            localStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
+            sessionStorage.setItem('supinkly_admin_pin', cleanPin);
+            localStorage.setItem('supinkly_admin_pin', cleanPin);
 
-            if (attempts >= this.MAX_ATTEMPTS) {
-                const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
-                localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
-                throw new Error("กรอก PIN ผิดเกิน 5 ครั้ง! ระบบล็อกการเข้าถึงชั่วคราว 5 นาที");
-            } else {
-                throw new Error(`รหัส PIN ไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
+            if (serverToken) {
+                sessionStorage.setItem('supinkly_admin_server_token', serverToken);
+                localStorage.setItem('supinkly_admin_server_token', serverToken);
             }
+
+            const newHash = await this.hashPin(cleanPin);
+            localStorage.setItem('supinkly_admin_pin_hash', newHash);
+
+            return true;
+        }
+
+        // 3. FAILED PIN ATTEMPT
+        this.recordFailedAttempt();
+        throw new Error("รหัส PIN หรือรหัสผ่านไม่ถูกต้อง");
+    },
+
+    recordFailedAttempt() {
+        let attempts = parseInt(localStorage.getItem('supinkly_admin_failed_attempts') || '0', 10) + 1;
+        localStorage.setItem('supinkly_admin_failed_attempts', String(attempts));
+
+        if (attempts >= this.MAX_ATTEMPTS) {
+            const lockoutUntil = Date.now() + this.LOCKOUT_DURATION_MS;
+            localStorage.setItem('supinkly_admin_lockout_until', String(lockoutUntil));
+            throw new Error("กรอกรหัสไม่ถูกต้องเกิน 5 ครั้ง! ระบบถูกล็อกชั่วคราว 5 นาทีเพื่อความปลอดภัย");
+        } else {
+            throw new Error(`รหัส PIN หรือรหัสผ่านไม่ถูกต้อง (เหลือโอกาสลองอีก ${this.MAX_ATTEMPTS - attempts} ครั้ง)`);
         }
     },
 
     checkSession() {
         try {
-            const raw = sessionStorage.getItem('supinkly_admin_session');
+            let raw = sessionStorage.getItem('supinkly_admin_session');
+            if (!raw) {
+                raw = localStorage.getItem('supinkly_admin_session');
+            }
             if (!raw) return false;
             const session = JSON.parse(raw);
             if (session && session.token && Date.now() < session.expiresAt) {
                 session.expiresAt = Date.now() + this.SESSION_DURATION_MS;
                 sessionStorage.setItem('supinkly_admin_session', JSON.stringify(session));
+                localStorage.setItem('supinkly_admin_session', JSON.stringify(session));
+
+                // Silent token refresh if server token is missing
+                const savedPin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin');
+                if (savedPin && (!sessionStorage.getItem('supinkly_admin_server_token') && !localStorage.getItem('supinkly_admin_server_token'))) {
+                    fetch('/api/admin/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pin: savedPin })
+                    }).then(r => r.json()).then(d => {
+                        if (d && d.success && d.token) {
+                            sessionStorage.setItem('supinkly_admin_server_token', d.token);
+                            localStorage.setItem('supinkly_admin_server_token', d.token);
+                        }
+                    }).catch(() => {});
+                }
+
                 return true;
             }
         } catch {
             // corrupt session
         }
-        sessionStorage.removeItem('supinkly_admin_session');
+        this.logout();
         return false;
     },
 
     logout() {
         sessionStorage.removeItem('supinkly_admin_session');
+        sessionStorage.removeItem('supinkly_admin_server_token');
+        sessionStorage.removeItem('supinkly_admin_pin');
+        localStorage.removeItem('supinkly_admin_session');
+        localStorage.removeItem('supinkly_admin_server_token');
+        localStorage.removeItem('supinkly_admin_pin');
     }
 };
 
@@ -172,18 +299,18 @@ function loadAndSanitizeCart() {
 
 // Application State
 const state = {
-    products: PRODUCTS.map(p => ({ ...p, stock: 0 })),
+    products: (typeof getAllMasterProducts === 'function' ? getAllMasterProducts(false) : PRODUCTS).map(p => ({ ...p, stock: 0 })),
     inventory: getSecureInventory(),
     filteredProducts: [],
     cart: loadAndSanitizeCart(),
-    user: JSON.parse(localStorage.getItem('supinkly_user') || JSON.stringify({
-        id: "USR-8821",
-        name: "Supinkly Member",
-        email: "member@supinkly.ai",
-        isLoggedIn: true,
-        points: 450
-    })),
-    orders: JSON.parse(localStorage.getItem('supinkly_orders') || '[]'),
+    user: (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) ? USER_AUTH.getUser() : null,
+    orders: (() => {
+        try {
+            return JSON.parse(localStorage.getItem('supinkly_orders') || '[]');
+        } catch {
+            return [];
+        }
+    })(),
     filterBrand: 'all',
     filterType: 'all',
     searchQuery: '',
@@ -203,32 +330,42 @@ function getCustomPrices() {
 
 function applyCustomPricesToProducts() {
     const customPrices = getCustomPrices();
-    // Clean up any legacy 1.00 Baht test price on cpc-01
-    if (customPrices['cpc-01'] && customPrices['cpc-01'].price === 1.00 && !customPrices['cpc-01'].manualOverride) {
-        delete customPrices['cpc-01'];
-        try {
-            localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
-        } catch (e) {}
-    }
 
     state.products.forEach(p => {
         if (customPrices[p.id]) {
             if (typeof customPrices[p.id].price === 'number') p.price = customPrices[p.id].price;
             if (typeof customPrices[p.id].originalPrice === 'number') p.originalPrice = customPrices[p.id].originalPrice;
+            if (typeof customPrices[p.id].badge === 'string') p.badge = customPrices[p.id].badge;
+            if (customPrices[p.id].isHighlight !== undefined) p.isHighlight = !!customPrices[p.id].isHighlight;
         }
     });
 }
 
 // Sync live stock count & custom prices (Referenced from G2G Market Auto-Sync)
 function syncStockCount() {
+    if (typeof getAllMasterProducts === 'function') {
+        const masters = getAllMasterProducts(false);
+        const masterMap = new Map(masters.map(m => [m.id, m]));
+        state.products.forEach(p => {
+            const m = masterMap.get(p.id);
+            if (m) {
+                p.isHighlight = !!m.isHighlight;
+                if (m.title) p.title = m.title;
+                if (m.badge) p.badge = m.badge;
+                if (typeof m.price === 'number') p.price = m.price;
+                if (typeof m.originalPrice === 'number') p.originalPrice = m.originalPrice;
+                if (m.deleted !== undefined) p.deleted = m.deleted;
+            }
+        });
+    }
     applyCustomPricesToProducts();
     const customPrices = getCustomPrices();
     state.products.forEach(p => {
         const pool = state.inventory[p.id] || [];
-        const g2gStock = customPrices[p.id]?.g2gStockAvailable 
-            ?? (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock) 
+        const g2gStock = customPrices[p.id]?.g2gStockAvailable
+            ?? (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock)
             ?? 50;
-        
+
         p.vaultStock = pool.length;
         p.marketStock = g2gStock;
         // Total available stock references G2G real-time market availability
@@ -255,15 +392,241 @@ document.addEventListener('DOMContentLoaded', () => {
     initHeader();
     initFilters();
     renderProducts();
+    renderHighlightProducts();
     updateCartUI();
     renderBrandTabs();
     initEvents();
+
+    // Launch Real-Time Visitor Telemetry Tracking
+    if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.init === 'function') {
+        TELEMETRY.init();
+    }
 
     // Launch G2G Market Real-Time Auto-Sync Engine (Zero button clicks required)
     if (typeof G2G_SYNC !== 'undefined') {
         G2G_SYNC.init();
     }
+
+    // Synchronize custom prices and products with server
+    syncCatalogWithServer();
+
+    // User session & isolated keys initialization (Preserve orders safely)
+    try {
+        const storedOrders = localStorage.getItem('supinkly_orders');
+        if (storedOrders) {
+            state.orders = JSON.parse(storedOrders) || [];
+        }
+    } catch (e) {
+        state.orders = [];
+    }
+    updateNavOrdersCount();
+    updateUserHeaderUI();
+
+    if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+        USER_AUTH.verifySession().then(() => {
+            updateUserHeaderUI();
+            refreshUserOrders();
+        });
+    }
 });
+
+async function syncCatalogWithServer() {
+    if (!window.location.protocol.startsWith('http')) return;
+    try {
+        const res = await fetch('/api/catalog');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.success) {
+            let updated = false;
+            let needsServerPush = false;
+            const localPrices = getCustomPrices();
+            const localProducts = getCustomProducts();
+            const mergedPrices = { ...localPrices };
+            const mergedProducts = { ...localProducts };
+
+            // 1. Reconcile customPrices with timestamp awareness
+            if (data.customPrices && typeof data.customPrices === 'object') {
+                for (const [pid, srvItem] of Object.entries(data.customPrices)) {
+                    if (!srvItem) continue;
+                    const locItem = localPrices[pid];
+                    if (!locItem) {
+                        mergedPrices[pid] = srvItem;
+                        updated = true;
+                    } else {
+                        const srvTime = new Date(srvItem.updatedAt || srvItem.lastManualUpdate || 0).getTime();
+                        const locTime = new Date(locItem.updatedAt || locItem.lastManualUpdate || 0).getTime();
+
+                        // 1. If server has admin manual override and local does not: Server ALWAYS wins!
+                        if (srvItem.manualOverride && !locItem.manualOverride) {
+                            mergedPrices[pid] = { ...locItem, ...srvItem };
+                            updated = true;
+                        }
+                        // 2. If local has manual override and server does not: Local wins and push to server
+                        else if (locItem.manualOverride && !srvItem.manualOverride) {
+                            needsServerPush = true;
+                        }
+                        // 3. Both have manual override: compare timestamps
+                        else if (locItem.manualOverride && srvItem.manualOverride) {
+                            if (locTime > srvTime) {
+                                needsServerPush = true;
+                            } else {
+                                mergedPrices[pid] = { ...locItem, ...srvItem };
+                                if (locItem.price !== srvItem.price || locItem.originalPrice !== srvItem.originalPrice || locItem.badge !== srvItem.badge) {
+                                    updated = true;
+                                }
+                            }
+                        }
+                        // 4. Neither has manual override: newer or equal server wins
+                        else if (srvTime >= locTime) {
+                            mergedPrices[pid] = { ...locItem, ...srvItem };
+                            if (locItem.price !== srvItem.price || locItem.originalPrice !== srvItem.originalPrice) {
+                                updated = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check if local has manual overrides not present on server
+            for (const [pid, locItem] of Object.entries(localPrices)) {
+                if (locItem && locItem.manualOverride && (!data.customPrices || !data.customPrices[pid])) {
+                    needsServerPush = true;
+                }
+            }
+
+            // 2. Reconcile customProducts with timestamp awareness
+            if (data.customProducts && typeof data.customProducts === 'object') {
+                for (const [pid, srvProd] of Object.entries(data.customProducts)) {
+                    if (!srvProd) continue;
+                    const locProd = localProducts[pid];
+                    if (!locProd) {
+                        mergedProducts[pid] = srvProd;
+                        updated = true;
+                    } else {
+                        const srvTime = new Date(srvProd.updatedAt || 0).getTime();
+                        const locTime = new Date(locProd.updatedAt || 0).getTime();
+                        if (srvTime > locTime) {
+                            mergedProducts[pid] = { ...locProd, ...srvProd };
+                            updated = true;
+                        } else if (locTime > srvTime) {
+                            needsServerPush = true;
+                        }
+                    }
+                }
+            }
+
+            for (const [pid, locProd] of Object.entries(localProducts)) {
+                if (locProd && (!data.customProducts || !data.customProducts[pid])) {
+                    needsServerPush = true;
+                }
+            }
+
+            if (updated) {
+                localStorage.setItem('supinkly_custom_prices', JSON.stringify(mergedPrices));
+                localStorage.setItem('supinkly_custom_products', JSON.stringify(mergedProducts));
+                applyCustomPricesToProducts();
+                syncStockCount();
+                renderProducts();
+                renderHighlightProducts();
+                updateCartUI();
+            }
+
+            // Push pending local manual changes to server if admin authenticated
+            const hasAdminCreds = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+            if (needsServerPush && hasAdminCreds) {
+                fetch('/api/admin/catalog/sync', {
+                    method: 'POST',
+                    headers: getAdminHeaders(),
+                    body: JSON.stringify({
+                        customPrices: mergedPrices,
+                        customProducts: mergedProducts
+                    })
+                }).catch(() => {});
+            }
+        }
+    } catch (e) { }
+}
+
+function updateNavOrdersCount() {
+    const count = (state.orders || []).length;
+    const navCnt = document.getElementById('nav-orders-count');
+    if (navCnt) navCnt.textContent = count;
+    const mobileNavCnt = document.getElementById('mobile-nav-orders-count');
+    if (mobileNavCnt) {
+        mobileNavCnt.textContent = count;
+        mobileNavCnt.classList.toggle('hidden', count === 0);
+    }
+    const badgeTotal = document.getElementById('customer-keys-count-badge');
+    if (badgeTotal) badgeTotal.textContent = `${count} รายการ`;
+}
+
+async function refreshUserOrders() {
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+
+    if (isLoggedIn) {
+        try {
+            // Claim any local unlinked orders under this account
+            const localOrderIds = (state.orders || []).map(o => o.orderId).filter(Boolean);
+            if (localOrderIds.length > 0) {
+                try { await USER_AUTH.linkLocalOrders(localOrderIds); } catch {}
+            }
+
+            const serverOrders = await USER_AUTH.fetchMyOrders();
+            if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+                const serverIds = new Set(serverOrders.map(o => o.orderId));
+                const existingLocal = (state.orders || []).filter(o => o.orderId && !serverIds.has(o.orderId));
+                const merged = [...serverOrders, ...existingLocal].sort((a, b) => {
+                    const timeA = new Date(a.date || 0).getTime() || 0;
+                    const timeB = new Date(b.date || 0).getTime() || 0;
+                    return timeB - timeA;
+                });
+                state.orders = merged;
+                localStorage.setItem('supinkly_orders', JSON.stringify(merged));
+            }
+        } catch (e) {
+            console.warn("Could not fetch user orders from account:", e);
+        }
+    } else {
+        try {
+            const stored = localStorage.getItem('supinkly_orders');
+            if (stored) state.orders = JSON.parse(stored) || [];
+        } catch {}
+    }
+
+    // Actively refresh any pending orders from server (works for both guests & members)
+    const pendingOrders = (state.orders || []).filter(o => {
+        if (!o || !o.orderId) return false;
+        return (o.status && (o.status.includes('รอส่งมอบ') || o.status.includes('รอจัดส่ง') || o.status.includes('pending')))
+            || ((o.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment'));
+    });
+
+    if (pendingOrders.length > 0) {
+        for (const po of pendingOrders.slice(0, 10)) {
+            try {
+                const customerEmail = po.recipientEmail || po.email || (state.user && state.user.email) || '';
+                const queryParam = customerEmail ? `?email=${encodeURIComponent(customerEmail)}` : '';
+                const res = await fetch(`/api/orders/${encodeURIComponent(po.orderId)}${queryParam}`, {
+                    headers: customerEmail ? { 'x-order-email': customerEmail } : {}
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.order) {
+                        const updated = data.order;
+                        const idx = state.orders.findIndex(o => o.orderId === po.orderId);
+                        if (idx !== -1) {
+                            state.orders[idx] = updated;
+                            localStorage.setItem('supinkly_orders', JSON.stringify(state.orders));
+                        }
+                    }
+                }
+            } catch {}
+        }
+    }
+
+    updateNavOrdersCount();
+    updateUserHeaderUI();
+    return state.orders || [];
+}
 
 function saveCart() {
     localStorage.setItem('supinkly_cart', JSON.stringify(state.cart));
@@ -271,24 +634,478 @@ function saveCart() {
 }
 
 function saveOrders() {
-    localStorage.setItem('supinkly_orders', JSON.stringify(state.orders));
-    const navCnt = document.getElementById('nav-orders-count');
-    if (navCnt) navCnt.textContent = state.orders.length;
+    try {
+        localStorage.setItem('supinkly_orders', JSON.stringify(state.orders || []));
+    } catch (e) {
+        console.warn("Could not save orders to localStorage:", e);
+    }
+    updateNavOrdersCount();
+    updateUserHeaderUI();
+}
+
+// Reconcile and push local client orders to server database (Admin-only disaster recovery)
+async function syncLocalOrdersToServer(ordersToSync = null) {
+    if (!window.location.protocol.startsWith('http')) return;
+    const adminToken = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+    const adminPin = sessionStorage.getItem('supinkly_admin_pin');
+    // Security Guard: Only authenticated administrators may sync orders to the server
+    if (!adminToken && !adminPin) return;
+
+    const list = ordersToSync || state.orders || [];
+    if (!Array.isArray(list) || list.length === 0) return;
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (adminToken) headers['x-admin-token'] = adminToken;
+        if (adminPin) headers['x-admin-pin'] = adminPin;
+
+        const res = await fetch('/api/checkout/sync-local-orders', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ orders: list })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && data.syncedCount > 0) {
+                console.log(`[SYNC] Synced ${data.syncedCount} orders to backend database.`);
+                if (typeof adminOrdersList !== 'undefined' && Array.isArray(adminOrdersList) && Array.isArray(data.orders)) {
+                    data.orders.forEach(o => {
+                        if (!adminOrdersList.some(ao => ao.orderId === o.orderId)) {
+                            adminOrdersList.unshift(o);
+                        }
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        // silent fallback on network errors
+    }
 }
 
 // Header & User Actions
 function initHeader() {
-    const userContainer = document.getElementById('user-header-section');
-    if (!userContainer) return;
+    updateUserHeaderUI();
+}
 
-    userContainer.innerHTML = `
-        <div class="flex items-center gap-2 sm:gap-3">
-            <button onclick="openOrdersModal()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 transition-all shadow-sm">
-                <i class="fa-solid fa-box-open text-pink-500"></i>
-                <span>คีย์ของฉัน (<span id="nav-orders-count">${state.orders.length}</span>)</span>
-            </button>
-        </div>
-    `;
+let pendingAuthEmail = '';
+let resendOtpTimer = null;
+let forgotResendTimer = null;
+
+function openAuthModal(tab = 'login') {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+    switchAuthTab(tab);
+    modal.classList.remove('hidden');
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    if (modal) modal.classList.add('hidden');
+    clearAuthErrors();
+}
+
+function clearAuthErrors() {
+    ['auth-login-error', 'auth-register-error', 'auth-otp-error', 'auth-forgot-request-error', 'auth-forgot-verify-error'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = '';
+            el.classList.add('hidden');
+        }
+    });
+}
+
+function showAuthError(elementId, message) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <span>${escapeHTML(message)}</span>`;
+        el.classList.remove('hidden');
+    }
+}
+
+function switchAuthTab(tab) {
+    clearAuthErrors();
+    const tabLogin = document.getElementById('auth-tab-login');
+    const tabRegister = document.getElementById('auth-tab-register');
+    const formLogin = document.getElementById('auth-form-login');
+    const formRegister = document.getElementById('auth-form-register');
+    const formOtp = document.getElementById('auth-form-otp');
+    const formForgotReq = document.getElementById('auth-form-forgot-request');
+    const formForgotVerify = document.getElementById('auth-form-forgot-verify');
+
+    [formLogin, formRegister, formOtp, formForgotReq, formForgotVerify].forEach(f => f?.classList.add('hidden'));
+
+    if (tab === 'login') {
+        formLogin?.classList.remove('hidden');
+        if (tabLogin) tabLogin.className = "flex-1 py-2 rounded-xl bg-white text-pink-600 shadow-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer";
+        if (tabRegister) tabRegister.className = "flex-1 py-2 rounded-xl text-slate-500 hover:text-slate-700 font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer";
+        setTimeout(() => document.getElementById('login-email')?.focus(), 60);
+    } else if (tab === 'register') {
+        formRegister?.classList.remove('hidden');
+        if (tabLogin) tabLogin.className = "flex-1 py-2 rounded-xl text-slate-500 hover:text-slate-700 font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer";
+        if (tabRegister) tabRegister.className = "flex-1 py-2 rounded-xl bg-white text-pink-600 shadow-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer";
+        setTimeout(() => document.getElementById('register-name')?.focus(), 60);
+    } else if (tab === 'otp') {
+        formOtp?.classList.remove('hidden');
+        setTimeout(() => document.getElementById('auth-otp-input')?.focus(), 60);
+    } else if (tab === 'forgot-request') {
+        formForgotReq?.classList.remove('hidden');
+        setTimeout(() => document.getElementById('forgot-email')?.focus(), 60);
+    } else if (tab === 'forgot-verify') {
+        formForgotVerify?.classList.remove('hidden');
+        setTimeout(() => document.getElementById('forgot-otp-input')?.focus(), 60);
+    }
+}
+
+async function handleLogin() {
+    clearAuthErrors();
+    const email = (document.getElementById('login-email')?.value || '').trim();
+    const password = (document.getElementById('login-password')?.value || '').trim();
+    const btn = document.getElementById('login-btn');
+
+    if (!email || !password) {
+        showAuthError('auth-login-error', 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วน');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังเข้าสู่ระบบ...</span>`;
+    }
+
+    try {
+        if (typeof USER_AUTH !== 'undefined') {
+            const res = await USER_AUTH.login(email, password);
+            if (res.success) {
+                closeAuthModal();
+                await refreshUserOrders();
+                updateUserHeaderUI();
+                showToast(`ยินดีต้อนรับคุณ ${res.user?.displayName || email}!`, 'success');
+                if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
+                    state.pendingCheckoutAfterAuth = false;
+                    setTimeout(() => {
+                        startCheckout();
+                    }, 400);
+                }
+                return;
+            } else {
+                showAuthError('auth-login-error', res.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+            }
+        } else {
+            showAuthError('auth-login-error', 'ระบบยืนยันตัวตนยังไม่พร้อมใช้งาน');
+        }
+    } catch (e) {
+        showAuthError('auth-login-error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> <span>เข้าสู่ระบบ</span>`;
+        }
+    }
+}
+
+async function handleRegister() {
+    clearAuthErrors();
+    const displayName = (document.getElementById('register-name')?.value || '').trim();
+    const email = (document.getElementById('register-email')?.value || '').trim();
+    const password = (document.getElementById('register-password')?.value || '').trim();
+    const btn = document.getElementById('register-btn');
+
+    if (!displayName || !email || !password) {
+        showAuthError('auth-register-error', 'กรุณากรอกข้อมูลให้ครบทุกช่อง');
+        return;
+    }
+    if (password.length < 6) {
+        showAuthError('auth-register-error', 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังลงทะเบียน...</span>`;
+    }
+
+    try {
+        if (typeof USER_AUTH !== 'undefined') {
+            const res = await USER_AUTH.register(email, password, displayName);
+            if (res.success) {
+                if (res.autoVerified || res.token) {
+                    closeAuthModal();
+                    await refreshUserOrders();
+                    updateUserHeaderUI();
+                    showToast(res.message || `ยินดีต้อนรับคุณ ${res.user?.displayName || displayName}!`, 'success');
+                    if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
+                        state.pendingCheckoutAfterAuth = false;
+                        setTimeout(() => {
+                            startCheckout();
+                        }, 400);
+                    }
+                    return;
+                }
+                pendingAuthEmail = email;
+                const emailDisplay = document.getElementById('auth-otp-target-email');
+                if (emailDisplay) emailDisplay.textContent = email;
+                switchAuthTab('otp');
+                startResendOtpTimer();
+                if (res.devOtp) {
+                    const otpInput = document.getElementById('auth-otp-input');
+                    if (otpInput) otpInput.value = res.devOtp;
+                    showToast(`รหัส OTP สำหรับยืนยันตัวตนคือ: ${res.devOtp}`, 'info');
+                } else {
+                    showToast(res.message || 'ส่งรหัส OTP ไปยังอีเมลของคุณแล้ว กรุณาตรวจสอบกล่องข้อความ', 'info');
+                }
+            } else {
+                showAuthError('auth-register-error', res.message || 'ไม่สามารถสมัครสมาชิกได้');
+            }
+        }
+    } catch (e) {
+        showAuthError('auth-register-error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-user-plus"></i> <span>สมัครสมาชิกฟรี</span>`;
+        }
+    }
+}
+
+async function handleVerifyOtp() {
+    clearAuthErrors();
+    const otp = (document.getElementById('auth-otp-input')?.value || '').trim();
+    const btn = document.getElementById('verify-otp-btn');
+
+    if (!otp || otp.length < 6) {
+        showAuthError('auth-otp-error', 'กรุณากรอกรหัส OTP 6 หลัก');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังตรวจสอบ...</span>`;
+    }
+
+    try {
+        if (typeof USER_AUTH !== 'undefined') {
+            const res = await USER_AUTH.verifyOtp(pendingAuthEmail, otp);
+            if (res.success) {
+                closeAuthModal();
+                await refreshUserOrders();
+                updateUserHeaderUI();
+                showToast('สมัครสมาชิกและยืนยันอีเมลสำเร็จ ยินดีต้อนรับ!', 'success');
+                if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
+                    state.pendingCheckoutAfterAuth = false;
+                    setTimeout(() => {
+                        startCheckout();
+                    }, 400);
+                }
+            } else {
+                showAuthError('auth-otp-error', res.message || 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ');
+            }
+        }
+    } catch (e) {
+        showAuthError('auth-otp-error', 'เกิดข้อผิดพลาดในการตรวจสอบ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>ยืนยันรหัส OTP</span>`;
+        }
+    }
+}
+
+async function handleResendOtp() {
+    if (!pendingAuthEmail) return;
+    const resendBtn = document.getElementById('resend-otp-btn');
+    if (resendBtn?.disabled) return;
+
+    try {
+        if (typeof USER_AUTH !== 'undefined') {
+            const res = await USER_AUTH.resendOtp(pendingAuthEmail);
+            if (res.success) {
+                startResendOtpTimer();
+                showToast('ส่งรหัส OTP ใหม่เรียบร้อยแล้ว', 'info');
+            } else {
+                showAuthError('auth-otp-error', res.message || 'ส่งรหัส OTP ไม่สำเร็จ');
+            }
+        }
+    } catch (e) {
+        showAuthError('auth-otp-error', 'เกิดข้อผิดพลาดในการส่งรหัสใหม่');
+    }
+}
+
+function startResendOtpTimer() {
+    let seconds = 60;
+    const btn = document.getElementById('resend-otp-btn');
+    const span = document.getElementById('resend-otp-countdown');
+    if (btn) btn.disabled = true;
+    if (span) span.textContent = seconds;
+
+    clearInterval(resendOtpTimer);
+    resendOtpTimer = setInterval(() => {
+        seconds--;
+        if (span) span.textContent = seconds;
+        if (seconds <= 0) {
+            clearInterval(resendOtpTimer);
+            if (btn) btn.disabled = false;
+        }
+    }, 1000);
+}
+
+function handleBackToRegister() {
+    switchAuthTab('register');
+}
+
+async function handleForgotPasswordRequest() {
+    clearAuthErrors();
+    const email = (document.getElementById('forgot-email')?.value || '').trim();
+    const btn = document.getElementById('forgot-request-btn');
+
+    if (!email) {
+        showAuthError('auth-forgot-request-error', 'กรุณากรอกอีเมลของคุณ');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังส่ง...</span>`;
+    }
+
+    try {
+        if (typeof USER_AUTH !== 'undefined') {
+            const res = await USER_AUTH.forgotPassword(email);
+            if (res.success) {
+                pendingAuthEmail = email;
+                const emailDisplay = document.getElementById('auth-forgot-target-email');
+                if (emailDisplay) emailDisplay.textContent = email;
+                switchAuthTab('forgot-verify');
+                showToast('ส่งรหัส OTP กู้คืนรหัสผ่านไปยังอีเมลของคุณแล้ว', 'info');
+            } else {
+                showAuthError('auth-forgot-request-error', res.message || 'ไม่พบบัญชีผู้ใช้นี้');
+            }
+        }
+    } catch (e) {
+        showAuthError('auth-forgot-request-error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> <span>ส่งรหัส OTP กู้คืนรหัสผ่าน</span>`;
+        }
+    }
+}
+
+async function handleResetPasswordSubmit() {
+    clearAuthErrors();
+    const otp = (document.getElementById('forgot-otp-input')?.value || '').trim();
+    const newPass = (document.getElementById('forgot-new-password')?.value || '').trim();
+    const confirmPass = (document.getElementById('forgot-confirm-password')?.value || '').trim();
+    const btn = document.getElementById('forgot-verify-btn');
+
+    if (!otp || !newPass || !confirmPass) {
+        showAuthError('auth-forgot-verify-error', 'กรุณากรอกข้อมูลให้ครบถ้วน');
+        return;
+    }
+    if (newPass.length < 6) {
+        showAuthError('auth-forgot-verify-error', 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+        return;
+    }
+    if (newPass !== confirmPass) {
+        showAuthError('auth-forgot-verify-error', 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังบันทึก...</span>`;
+    }
+
+    try {
+        if (typeof USER_AUTH !== 'undefined') {
+            const res = await USER_AUTH.resetPassword(pendingAuthEmail, otp, newPass);
+            if (res.success) {
+                closeAuthModal();
+                await refreshUserOrders();
+                updateUserHeaderUI();
+                showToast('เปลี่ยนรหัสผ่านและเข้าสู่ระบบสำเร็จแล้ว!', 'success');
+            } else {
+                showAuthError('auth-forgot-verify-error', res.message || 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ');
+            }
+        }
+    } catch (e) {
+        showAuthError('auth-forgot-verify-error', 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> <span>บันทึกรหัสผ่านใหม่ & เข้าสู่ระบบ</span>`;
+        }
+    }
+}
+
+function handleResendResetOtp() {
+    handleForgotPasswordRequest();
+}
+
+function handleUserLogout() {
+    if (typeof USER_AUTH !== 'undefined') {
+        USER_AUTH.logout();
+    }
+    if (typeof state !== 'undefined') {
+        state.user = null;
+        state.orders = [];
+    }
+    localStorage.removeItem('supinkly_orders');
+    sessionStorage.removeItem('supinkly_orders');
+    updateNavOrdersCount();
+
+    const ordersModal = document.getElementById('orders-modal');
+    if (ordersModal && !ordersModal.classList.contains('hidden')) {
+        closeOrdersModal();
+    }
+    const vaultModal = document.getElementById('vault-modal');
+    if (vaultModal && !vaultModal.classList.contains('hidden')) {
+        closeVaultModal();
+    }
+
+    updateUserHeaderUI();
+    showToast('ออกจากระบบและล้างข้อมูลคีย์ในเครื่องนี้เรียบร้อยแล้ว', 'info');
+}
+
+function updateUserHeaderUI() {
+    const section = document.getElementById('user-header-section');
+    if (!section) return;
+
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    const user = isLoggedIn ? USER_AUTH.getUser() : null;
+
+    if (isLoggedIn && user) {
+        section.innerHTML = `
+            <div class="flex items-center gap-1.5 sm:gap-2">
+                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
+                    <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
+                </button>
+                <div class="flex items-center gap-1">
+                    <button onclick="openOrdersModal()" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 text-pink-700 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ดูคีย์และข้อมูลสมาชิก">
+                        <i class="fa-solid fa-circle-user text-pink-500"></i>
+                        <span class="max-w-[110px] truncate">${escapeHTML(user.displayName || user.name || user.email || 'สมาชิก')}</span>
+                    </button>
+                    <button onclick="handleUserLogout()" title="ออกจากระบบ" class="h-9 sm:h-11 px-2.5 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 transition-all flex items-center justify-center cursor-pointer">
+                        <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        section.innerHTML = `
+            <div class="flex items-center gap-1.5 sm:gap-2">
+                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
+                    <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
+                </button>
+                <button onclick="openAuthModal('login')" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 text-pink-700 border-2 border-pink-300 transition-all shadow-sm flex items-center justify-center gap-1 sm:gap-1.5 shrink-0 touch-active cursor-pointer">
+                    <i class="fa-solid fa-right-to-bracket text-xs sm:text-sm"></i>
+                    <span class="inline font-bold">เข้าสู่ระบบ</span>
+                </button>
+            </div>
+        `;
+    }
+    if (typeof updateCartUI === 'function') updateCartUI();
+    updateNavOrdersCount();
 }
 
 // Brand Tabs
@@ -296,20 +1113,23 @@ function renderBrandTabs() {
     const container = document.getElementById('brand-tabs-container');
     if (!container) return;
 
+    const highlightCount = state.products.filter(p => !p.deleted && !!p.isHighlight).length;
+
     const brands = [
-        { key: "all", name: "สินค้าทั้งหมด", icon: "fa-solid fa-shapes", count: state.products.length },
-        { key: "CapCut", name: "CapCut", icon: "fa-solid fa-scissors", count: state.products.filter(p => p.brand === 'CapCut').length },
-        { key: "Google AI", name: "Google AI", icon: "fa-solid fa-wand-magic-sparkles", count: state.products.filter(p => p.brand === 'Google AI').length },
-        { key: "Google", name: "Google", icon: "fa-brands fa-google", count: state.products.filter(p => p.brand === 'Google').length },
-        { key: "Grok", name: "Grok", icon: "fa-solid fa-bolt", count: state.products.filter(p => p.brand === 'Grok').length },
-        { key: "Claude", name: "Claude", icon: "fa-solid fa-brain", count: state.products.filter(p => p.brand === 'Claude').length },
-        { key: "Adobe", name: "Adobe", icon: "fa-solid fa-bezier-curve", count: state.products.filter(p => p.brand === 'Adobe').length },
-        { key: "Microsoft", name: "Microsoft", icon: "fa-brands fa-microsoft", count: state.products.filter(p => p.brand === 'Microsoft').length },
+        { key: "all", name: "สินค้าทั้งหมด", icon: "fa-solid fa-shapes", count: state.products.filter(p => !p.deleted).length },
+        { key: "highlight", name: "⭐ ดีลไฮไลท์", icon: "fa-solid fa-star text-amber-500", count: highlightCount },
+        { key: "CapCut", name: "CapCut", icon: "fa-solid fa-scissors", count: state.products.filter(p => !p.deleted && p.brand === 'CapCut').length },
+        { key: "Google AI", name: "Google AI", icon: "fa-solid fa-wand-magic-sparkles", count: state.products.filter(p => !p.deleted && p.brand === 'Google AI').length },
+        { key: "Google", name: "Google", icon: "fa-brands fa-google", count: state.products.filter(p => !p.deleted && p.brand === 'Google').length },
+        { key: "Grok", name: "Grok", icon: "fa-solid fa-bolt", count: state.products.filter(p => !p.deleted && p.brand === 'Grok').length },
+        { key: "Claude", name: "Claude", icon: "fa-solid fa-brain", count: state.products.filter(p => !p.deleted && p.brand === 'Claude').length },
+        { key: "Adobe", name: "Adobe", icon: "fa-solid fa-bezier-curve", count: state.products.filter(p => !p.deleted && p.brand === 'Adobe').length },
+        { key: "Microsoft", name: "Microsoft", icon: "fa-brands fa-microsoft", count: state.products.filter(p => !p.deleted && p.brand === 'Microsoft').length },
     ];
 
     container.innerHTML = brands.map(b => `
         <button onclick="selectBrand('${b.key}')" 
-            class="brand-tab flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold border transition-all whitespace-nowrap ${state.filterBrand === b.key ? 'active' : ''}">
+            class="brand-tab flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold border transition-all whitespace-nowrap cursor-pointer ${state.filterBrand === b.key ? 'active' : ''}">
             <i class="${b.icon} ${state.filterBrand === b.key ? 'text-white' : 'text-pink-500'}"></i>
             <span>${escapeHTML(b.name)}</span>
             <span class="ml-1 px-2 py-0.5 rounded-full text-xs ${state.filterBrand === b.key ? 'bg-white/25 text-white font-black' : 'bg-slate-100 text-slate-600 font-bold'}">${b.count}</span>
@@ -321,6 +1141,10 @@ function selectBrand(brand) {
     state.filterBrand = brand;
     renderBrandTabs();
     applyFilters();
+    if (brand === 'highlight') {
+        const prodSec = document.getElementById('products-section');
+        if (prodSec) prodSec.scrollIntoView({ behavior: 'smooth' });
+    }
 }
 
 function selectType(type) {
@@ -339,11 +1163,24 @@ function selectType(type) {
 
 function initFilters() {
     const searchInput = document.getElementById('search-input');
+    const mobileSearchInput = document.getElementById('mobile-search-input');
+    const desktopClear = document.getElementById('desktop-search-clear');
+    const mobileClear = document.getElementById('mobile-search-clear');
+
+    const handleSearch = (val, origin) => {
+        state.searchQuery = (val || '').toLowerCase().trim();
+        if (origin !== 'desktop' && searchInput) searchInput.value = val;
+        if (origin !== 'mobile' && mobileSearchInput) mobileSearchInput.value = val;
+        if (desktopClear) desktopClear.classList.toggle('hidden', !val);
+        if (mobileClear) mobileClear.classList.toggle('hidden', !val);
+        applyFilters();
+    };
+
     if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            state.searchQuery = e.target.value.toLowerCase().trim();
-            applyFilters();
-        });
+        searchInput.addEventListener('input', (e) => handleSearch(e.target.value, 'desktop'));
+    }
+    if (mobileSearchInput) {
+        mobileSearchInput.addEventListener('input', (e) => handleSearch(e.target.value, 'mobile'));
     }
 
     const sortSelect = document.getElementById('sort-select');
@@ -356,9 +1193,11 @@ function initFilters() {
 }
 
 function applyFilters() {
-    let result = [...state.products];
+    let result = [...state.products].filter(p => !p.deleted);
 
-    if (state.filterBrand !== 'all') {
+    if (state.filterBrand === 'highlight') {
+        result = result.filter(p => !!p.isHighlight);
+    } else if (state.filterBrand !== 'all') {
         result = result.filter(p => p.brand === state.filterBrand);
     }
 
@@ -367,10 +1206,10 @@ function applyFilters() {
     }
 
     if (state.searchQuery !== '') {
-        result = result.filter(p => 
+        result = result.filter(p =>
             p.title.toLowerCase().includes(state.searchQuery) ||
             p.brand.toLowerCase().includes(state.searchQuery) ||
-            p.description.toLowerCase().includes(state.searchQuery)
+            (p.description && p.description.toLowerCase().includes(state.searchQuery))
         );
     }
 
@@ -388,8 +1227,127 @@ function applyFilters() {
     renderProducts();
 }
 
+// Render Highlight Products Showcase Grid (⭐ ดีลเด็ดไฮไลท์คัดสรรพิเศษ)
+function renderHighlightProducts() {
+    const container = document.getElementById('highlight-products-grid');
+    if (!container) return;
+
+    // Filter active highlight products
+    let highlights = state.products.filter(p => !p.deleted && !!p.isHighlight);
+
+    // Fallback: If no products marked as highlight, show top 4 bestsellers
+    if (highlights.length === 0) {
+        highlights = [...state.products]
+            .filter(p => !p.deleted)
+            .sort((a, b) => (b.soldCount || 0) - (a.soldCount || 0))
+            .slice(0, 4);
+    }
+
+    container.innerHTML = highlights.map(product => {
+        let typeBadgeClass = "bg-purple-100 text-purple-700 border-purple-200";
+        if (product.typeKey === 'private') typeBadgeClass = "bg-pink-100 text-pink-700 border-pink-200";
+        if (product.typeKey === 'shared') typeBadgeClass = "bg-amber-100 text-amber-800 border-amber-200";
+        if (product.typeKey === 'link') typeBadgeClass = "bg-cyan-100 text-cyan-800 border-cyan-200";
+        if (product.typeKey === 'key') typeBadgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
+
+        const inStock = product.stock > 0;
+        const discountPercent = product.originalPrice > product.price 
+            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) 
+            : 0;
+
+        return `
+            <div class="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
+                 data-action="card" data-product-id="${escapeHTML(product.id)}">
+                
+                <!-- Glow accent -->
+                <div class="absolute -top-10 -right-10 w-24 h-24 bg-gradient-to-br from-amber-400/20 to-pink-400/20 rounded-full blur-xl pointer-events-none"></div>
+
+                <div>
+                    <!-- Header of Card -->
+                    <div class="flex items-center justify-between gap-1.5 mb-2.5 sm:mb-3">
+                        <div class="flex items-center gap-1.5 sm:gap-2">
+                            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[10px] sm:text-xs font-black text-pink-600 shadow-inner">
+                                ${escapeHTML(product.brandCode || 'AI')}
+                            </span>
+                            <span class="text-[11px] sm:text-xs font-bold text-slate-700">${escapeHTML(product.brand)}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border ${typeBadgeClass}">
+                            ${escapeHTML(product.type)}
+                        </span>
+                    </div>
+
+                    <!-- Highlight Ribbon/Badge -->
+                    <div class="mb-2">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[10px] shadow-2xs">
+                            <i class="fa-solid fa-crown text-[9px]"></i>
+                            <span>${escapeHTML(product.badge || '⭐ สินค้าไฮไลท์')}</span>
+                        </span>
+                    </div>
+
+                    <!-- Title -->
+                    <h3 class="text-xs sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[36px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                        ${escapeHTML(product.title)}
+                    </h3>
+
+                    <!-- Specs -->
+                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3 text-[10px] sm:text-xs text-slate-600 font-medium">
+                        <span class="flex items-center gap-1 bg-amber-50/80 px-2 py-0.5 rounded-lg border border-amber-200/80 text-amber-900 font-bold">
+                            <i class="fa-solid fa-bolt text-amber-500"></i> ส่งทันที
+                        </span>
+                        <span class="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
+                            <i class="fa-solid fa-shield-halved text-cyan-600"></i> ประกัน ${escapeHTML(product.warranty || '30 วัน')}
+                        </span>
+                        <span class="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
+                            <i class="fa-solid fa-globe text-purple-600"></i> ${escapeHTML(product.region || 'Global')}
+                        </span>
+                    </div>
+
+                    <!-- Stock Counter -->
+                    <div class="flex items-center justify-between mt-3 text-[10px] sm:text-xs font-semibold border-t border-slate-100 pt-2">
+                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
+                            <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+                            ${inStock ? `สต็อก ${product.stock} ชิ้น` : 'สินค้าหมด'}
+                        </span>
+                        <span class="text-slate-400">ขายแล้ว ${(product.soldCount || 0).toLocaleString()} ชิ้น</span>
+                    </div>
+                </div>
+
+                <!-- Price and Buttons -->
+                <div class="mt-3 pt-2.5 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[10px] sm:text-xs text-slate-400 line-through font-medium">฿${(product.originalPrice || 0).toFixed(2)}</span>
+                            ${discountPercent > 0 ? `<span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-600">-${discountPercent}%</span>` : ''}
+                        </div>
+                        <div class="text-lg sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
+                            <span class="text-xs sm:text-sm font-bold">฿</span>${(product.price || 0).toFixed(2)}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 sm:gap-1.5">
+                        <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
+                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-xs cursor-pointer">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                        <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
+                            ${!inStock ? 'disabled' : ''}
+                            class="gradient-btn px-2.5 sm:px-4 h-8 sm:h-10 rounded-xl sm:rounded-2xl text-[11px] sm:text-sm font-extrabold flex items-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            <i class="fa-solid fa-cart-plus text-xs"></i>
+                            <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.removeEventListener('click', handleProductCardClick);
+    container.addEventListener('click', handleProductCardClick);
+}
+
 // Render Products Grid (Bright, High-Contrast Cards)
 function renderProducts() {
+    renderHighlightProducts();
+
     const container = document.getElementById('products-grid');
     const countEl = document.getElementById('product-count-display');
     if (!container) return;
@@ -427,7 +1385,7 @@ function renderProducts() {
         // ❌ Before: onclick="addToCart('${product.id}')" ← single quote ใน id → XSS
         // ✅ After:  data-product-id="${escapeHTML(product.id)}" + event delegation
         return `
-            <div class="bg-white rounded-3xl p-5 border-2 border-slate-100 hover:border-pink-300 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
+            <div class="bg-white rounded-3xl p-5 border-2 border-slate-100 hover:border-pink-300 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
                 <div>
                     <!-- Header of Card -->
@@ -444,7 +1402,7 @@ function renderProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-base font-extrabold text-slate-900 line-clamp-2 min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <h3 class="text-base font-normal text-slate-900 line-clamp-2 min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -502,16 +1460,27 @@ function renderProducts() {
 }
 
 function handleProductCardClick(e) {
+    const cartBtn = e.target.closest('[data-action="add-cart"]');
+    if (cartBtn) {
+        if (!cartBtn.disabled) {
+            const id = cartBtn.getAttribute('data-product-id');
+            if (id) addToCart(id);
+        }
+        return;
+    }
+
     const detailBtn = e.target.closest('[data-action="detail"]');
-    const cartBtn   = e.target.closest('[data-action="add-cart"]');
     if (detailBtn) {
         const id = detailBtn.getAttribute('data-product-id');
         if (id) openProductDetailModal(id);
-    } else if (cartBtn && !cartBtn.disabled) {
-        const id = cartBtn.getAttribute('data-product-id');
-        if (id) addToCart(id);
+        return;
     }
 
+    const card = e.target.closest('[data-action="card"]');
+    if (card) {
+        const id = card.getAttribute('data-product-id');
+        if (id) openProductDetailModal(id);
+    }
 }
 
 function resetFilters() {
@@ -520,6 +1489,12 @@ function resetFilters() {
     state.searchQuery = '';
     const searchInput = document.getElementById('search-input');
     if (searchInput) searchInput.value = '';
+    const mobileSearchInput = document.getElementById('mobile-search-input');
+    if (mobileSearchInput) mobileSearchInput.value = '';
+    const desktopClear = document.getElementById('desktop-search-clear');
+    if (desktopClear) desktopClear.classList.add('hidden');
+    const mobileClear = document.getElementById('mobile-search-clear');
+    if (mobileClear) mobileClear.classList.add('hidden');
     renderBrandTabs();
     selectType('all');
     applyFilters();
@@ -552,6 +1527,9 @@ function addToCart(productId) {
     }
 
     saveCart();
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('cart_add', { productId, productTitle: master.title });
+    }
 }
 
 function updateCartQuantity(productId, delta) {
@@ -587,6 +1565,7 @@ function clearAllCart() {
 
 function updateCartUI() {
     const countBadge = document.getElementById('cart-count-badge');
+    const mobileCountBadge = document.getElementById('mobile-nav-cart-count');
     const drawerItems = document.getElementById('cart-items-container');
     const subtotalEl = document.getElementById('cart-subtotal');
     const totalEl = document.getElementById('cart-total');
@@ -615,22 +1594,81 @@ function updateCartUI() {
     }
 
     const totalCount = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 0), 0);
-    const verifiedTotal = calculateVerifiedTotal();
+    const verifiedSubtotal = calculateVerifiedTotal();
+
+    // Check applied coupon validity and discount amount
+    let discountAmount = 0;
+    if (state.appliedCoupon && typeof validateCouponCode === 'function') {
+        const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
+        if (recheck.valid) {
+            state.appliedCoupon = recheck;
+            discountAmount = recheck.discountAmount;
+        } else {
+            // Under minimum spend
+            discountAmount = 0;
+        }
+    }
+
+    const finalTotal = Math.max(0, verifiedSubtotal - discountAmount);
 
     if (countBadge) {
         countBadge.textContent = totalCount;
         countBadge.classList.toggle('hidden', totalCount <= 0);
     }
+    if (mobileCountBadge) {
+        mobileCountBadge.textContent = totalCount;
+        mobileCountBadge.classList.toggle('hidden', totalCount <= 0);
+    }
 
-    if (subtotalEl) subtotalEl.textContent = `฿${verifiedTotal.toFixed(2)}`;
-    if (totalEl) totalEl.textContent = `฿${verifiedTotal.toFixed(2)}`;
+    if (subtotalEl) subtotalEl.textContent = `฿${verifiedSubtotal.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `฿${finalTotal.toFixed(2)}`;
 
+    // Discount Row
+    const discountRow = document.getElementById('cart-discount-row');
+    const discountAmountEl = document.getElementById('cart-discount-amount');
+    if (discountRow && discountAmountEl) {
+        if (discountAmount > 0) {
+            discountRow.classList.remove('hidden');
+            discountAmountEl.textContent = `-฿${discountAmount.toFixed(2)}`;
+        } else {
+            discountRow.classList.add('hidden');
+        }
+    }
+
+    // Coupon UI Badges and Inputs
+    const appliedWrap = document.getElementById('cart-coupon-applied-wrap');
+    const appliedCodeEl = document.getElementById('cart-applied-coupon-code');
+    const appliedDescEl = document.getElementById('cart-applied-coupon-desc');
+    const couponInputWrap = document.getElementById('cart-coupon-input-wrap');
+    const quickCouponsWrap = document.getElementById('cart-quick-coupons');
+
+    if (appliedWrap && appliedCodeEl && appliedDescEl) {
+        if (state.appliedCoupon && discountAmount > 0) {
+            appliedWrap.classList.remove('hidden');
+            appliedCodeEl.textContent = `${state.appliedCoupon.code} (-฿${discountAmount.toFixed(2)})`;
+            appliedDescEl.textContent = state.appliedCoupon.title || 'ใช้ส่วนลดสำเร็จ';
+            if (couponInputWrap) couponInputWrap.classList.add('hidden');
+            if (quickCouponsWrap) quickCouponsWrap.classList.add('hidden');
+        } else {
+            appliedWrap.classList.add('hidden');
+            if (couponInputWrap) couponInputWrap.classList.remove('hidden');
+            if (quickCouponsWrap) quickCouponsWrap.classList.remove('hidden');
+        }
+    }
+
+    const isMemberLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
     if (checkoutBtn) {
-        checkoutBtn.disabled = state.cart.length === 0 || verifiedTotal <= 0;
-        if (state.cart.length === 0 || verifiedTotal <= 0) {
+        checkoutBtn.disabled = state.cart.length === 0 || finalTotal <= 0;
+        if (state.cart.length === 0 || finalTotal <= 0) {
             checkoutBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            checkoutBtn.innerHTML = `<i class="fa-solid fa-lock"></i> <span>ไปขั้นตอนชำระเงิน (Checkout)</span>`;
         } else {
             checkoutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            if (!isMemberLoggedIn) {
+                checkoutBtn.innerHTML = `<i class="fa-solid fa-user-plus mr-1"></i> <span>สมัครสมาชิก / เข้าสู่ระบบเพื่อชำระเงิน</span>`;
+            } else {
+                checkoutBtn.innerHTML = `<i class="fa-solid fa-lock"></i> <span>ไปขั้นตอนชำระเงิน (Checkout)</span>`;
+            }
         }
     }
 
@@ -656,7 +1694,7 @@ function updateCartUI() {
                             ${escapeHTML(master.brandCode)}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-xs font-bold text-slate-900 truncate">${escapeHTML(master.title)}</h4>
+                            <h4 class="text-xs font-normal text-slate-900 truncate">${escapeHTML(master.title)}</h4>
                             <div class="text-xs text-pink-600 font-extrabold mt-0.5">฿${master.price.toFixed(2)}</div>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200">
@@ -680,6 +1718,19 @@ function openCartDrawer() {
     if (drawer && overlay) {
         drawer.classList.remove('translate-x-full');
         overlay.classList.remove('hidden');
+    }
+    // Anti-browser autofill / anti-memory protection for coupon input
+    const couponInput = document.getElementById('cart-coupon-input');
+    if (couponInput) {
+        couponInput.setAttribute('readonly', 'readonly');
+        couponInput.setAttribute('autocomplete', 'one-time-code');
+        couponInput.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+        if (!state.appliedCoupon) {
+            couponInput.value = '';
+        }
+    }
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('cart_view');
     }
 }
 
@@ -708,6 +1759,15 @@ function startCheckout() {
         return;
     }
 
+    // [MEMBER ENFORCEMENT] บังคับให้สมัครสมาชิกหรือเข้าสู่ระบบก่อนซื้อสินค้าทุกครั้ง
+    const isLoggedIn = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn());
+    if (!isLoggedIn) {
+        state.pendingCheckoutAfterAuth = true;
+        showToast("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนซื้อสินค้า เพื่อบันทึกคีย์และประวัติเข้าบัญชีของคุณ", "warning");
+        openAuthModal('register');
+        return;
+    }
+
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
 
@@ -720,16 +1780,31 @@ function startCheckout() {
         }
     }
 
-    const verifiedTotal = calculateVerifiedTotal();
+    const verifiedSubtotal = calculateVerifiedTotal();
+    let discountAmount = 0;
+    if (state.appliedCoupon && typeof validateCouponCode === 'function') {
+        const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
+        if (recheck.valid) {
+            discountAmount = recheck.discountAmount;
+        }
+    }
+    const verifiedTotal = Math.max(1, verifiedSubtotal - discountAmount);
     if (verifiedTotal <= 0) {
         showToast("ยอดชำระเงินต้องมากกว่า 0 บาท", "warning");
         return;
     }
     const refCode = "SPK" + Math.floor(100000 + Math.random() * 900000);
 
+    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
+    const checkoutEmailInput = document.getElementById('checkout-email-input');
+    if (checkoutEmailInput && currentUser && currentUser.email) {
+        checkoutEmailInput.value = currentUser.email;
+        checkoutEmailInput.readOnly = true;
+        checkoutEmailInput.classList.add('bg-slate-100', 'text-slate-600', 'cursor-not-allowed');
+    }
+
     document.getElementById('checkout-ref-code').textContent = refCode;
     document.getElementById('checkout-total-amount').textContent = `฿${verifiedTotal.toFixed(2)}`;
-    document.getElementById('checkout-email-input').value = state.user ? state.user.email : '';
     const accEl = document.getElementById('checkout-account-name');
     if (accEl) accEl.textContent = STORE_CONFIG.promptPayAccountName || 'สุพัฒน์ มีสมบัติ';
 
@@ -743,20 +1818,32 @@ function startCheckout() {
 
     const summaryContainer = document.getElementById('checkout-items-summary');
     if (summaryContainer) {
-        summaryContainer.innerHTML = state.cart.map(i => {
+        let itemsHtml = state.cart.map(i => {
             const master = getMasterProduct(i.productId);
             if (!master) return '';
             return `
-                <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-medium">
-                    <span class="truncate flex-1 pr-2">${escapeHTML(master.title)} (x${i.quantity})</span>
-                    <span class="font-bold text-pink-600">฿${(master.price * i.quantity).toFixed(2)}</span>
+                <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-normal">
+                    <span class="truncate flex-1 pr-2 font-normal">${escapeHTML(master.title)} (x${i.quantity})</span>
+                    <span class="font-bold text-slate-800">฿${(master.price * i.quantity).toFixed(2)}</span>
                 </div>
             `;
         }).join('');
+        if (discountAmount > 0 && state.appliedCoupon) {
+            itemsHtml += `
+                <div class="flex items-center justify-between text-xs py-1 text-emerald-600 font-semibold border-t border-slate-100">
+                    <span class="truncate flex-1 pr-2"><i class="fa-solid fa-tags mr-1"></i>ส่วนลดโค้ด (${escapeHTML(state.appliedCoupon.code)})</span>
+                    <span>-฿${discountAmount.toFixed(2)}</span>
+                </div>
+            `;
+        }
+        summaryContainer.innerHTML = itemsHtml;
     }
 
     startQrCountdown();
     modal.classList.remove('hidden');
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('checkout_start');
+    }
 }
 
 function closeCheckoutModal() {
@@ -787,6 +1874,15 @@ function startQrCountdown() {
 // SECURE SLIP VERIFICATION & DISPENSE
 // ==========================================
 async function submitSlipVerification() {
+    // [MEMBER ENFORCEMENT] ตรวจสอบสถานะการเข้าสู่ระบบก่อนตรวจสลิป
+    const isLoggedIn = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn());
+    if (!isLoggedIn) {
+        showToast("กรุณาสมัครสมาชิกหรือเข้าสู่ระบบก่อนดำเนินการชำระเงิน", "warning");
+        closeCheckoutModal();
+        openAuthModal('login');
+        return;
+    }
+
     // Sanitize and validate cart
     state.cart = (state.cart || []).filter(item => item && item.productId && getMasterProduct(item.productId));
     state.cart.forEach(item => {
@@ -798,19 +1894,28 @@ async function submitSlipVerification() {
         return;
     }
 
-    const verifiedTotal = calculateVerifiedTotal();
+    const verifiedSubtotal = calculateVerifiedTotal();
+    let discountAmount = 0;
+    if (state.appliedCoupon && typeof validateCouponCode === 'function') {
+        const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
+        if (recheck.valid) {
+            discountAmount = recheck.discountAmount;
+        }
+    }
+    const verifiedTotal = Math.max(1, verifiedSubtotal - discountAmount);
     if (!verifiedTotal || verifiedTotal <= 0) {
         showToast("ยอดชำระเงินไม่ถูกต้อง กรุณาเลือกสินค้าใหม่", "warning");
         return;
     }
 
+    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
     const emailInput = document.getElementById('checkout-email-input');
-    const recipientEmail = (emailInput ? emailInput.value : '').trim();
+    const recipientEmail = (currentUser && currentUser.email) ? currentUser.email.trim() : (emailInput ? emailInput.value : '').trim();
 
     // Stricter email format validation
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!recipientEmail || !emailRegex.test(recipientEmail)) {
-        showToast("กรุณากรอกอีเมลที่ถูกต้องสำหรับรับสำรองข้อมูลสินค้า (เช่น name@example.com)", "warning");
+        showToast("ไม่พบข้อมูลอีเมลสมาชิกที่ถูกต้อง กรุณาเข้าสู่ระบบใหม่อีกครั้ง", "warning");
         if (emailInput) emailInput.focus();
         return;
     }
@@ -831,7 +1936,14 @@ async function submitSlipVerification() {
     btn.disabled = true;
 
     try {
-        const result = await SlipVerifier.verifySlip(verifiedTotal, STORE_CONFIG.promptPayNumber);
+        const promoCode = state.appliedCoupon ? state.appliedCoupon.code : '';
+        const result = await SlipVerifier.verifySlip(
+            verifiedTotal,
+            STORE_CONFIG.promptPayNumber,
+            state.cart,
+            recipientEmail,
+            promoCode
+        );
 
         btn.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> สลิปถูกต้อง! กำลังจัดส่งรหัส...`;
 
@@ -839,6 +1951,33 @@ async function submitSlipVerification() {
             btn.innerHTML = originalText;
             btn.disabled = false;
             closeCheckoutModal();
+
+            // If server returned an order, integrate directly
+            if (result && result.order) {
+                const serverOrder = result.order;
+                if (!state.orders.some(o => o.orderId === serverOrder.orderId)) {
+                    state.orders.unshift(serverOrder);
+                    saveOrders();
+                }
+                if (typeof adminOrdersList !== 'undefined' && Array.isArray(adminOrdersList)) {
+                    if (!adminOrdersList.some(o => o.orderId === serverOrder.orderId)) {
+                        adminOrdersList.unshift(serverOrder);
+                    }
+                }
+                state.cart = [];
+                state.appliedCoupon = null;
+                saveCart();
+                updateCartUI();
+
+                openVaultModal(serverOrder);
+                const hasPending = (serverOrder.items || []).some(i => i.status === 'pending_fulfillment' || !i.credentials);
+                if (hasPending) {
+                    showToast("สลิปถูกต้องและยอดเงินตรง! ร้านค้ากำลังจัดเตรียมบัญชีให้คุณ (5-15 นาที)", "success");
+                } else {
+                    showToast("สลิปถูกต้องและยอดเงินตรง! ส่งมอบรหัสเข้าคลังเรียบร้อยแล้ว", "success");
+                }
+                return;
+            }
 
             const deliveredItems = [];
             let hasPendingFulfillment = false;
@@ -908,16 +2047,26 @@ async function submitSlipVerification() {
                 transRef: result.transRef,
                 slipFingerprint: SlipVerifier.fileFingerprint,
                 items: deliveredItems,
-                status: hasPendingFulfillment 
-                    ? "🟡 รอจัดส่งสินค้า (5-15 นาที)" 
+                status: hasPendingFulfillment
+                    ? "🟡 รอจัดส่งสินค้า (5-15 นาที)"
                     : "🟢 จัดส่งสำเร็จทันที (Instant Vault)"
             };
 
             state.orders.unshift(newOrder);
             saveOrders();
+            if (typeof adminOrdersList !== 'undefined' && Array.isArray(adminOrdersList)) {
+                if (!adminOrdersList.some(o => o.orderId === newOrder.orderId)) {
+                    adminOrdersList.unshift(newOrder);
+                }
+            }
+            if (typeof syncLocalOrdersToServer === 'function') {
+                syncLocalOrdersToServer([newOrder]);
+            }
 
             state.cart = [];
+            state.appliedCoupon = null;
             saveCart();
+            updateCartUI();
 
             openVaultModal(newOrder);
             if (hasPendingFulfillment) {
@@ -953,7 +2102,9 @@ function openVaultModal(order) {
     if (totalEl) totalEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
 
     // Check if order has items pending fulfillment
-    const isPending = order.items.some(item => !item.credentials || item.status === 'pending_fulfillment');
+    const isPending = (typeof isOrderPending === 'function') 
+        ? isOrderPending(order) 
+        : (order.items || []).some(item => !item.credentials || item.status === 'pending_fulfillment');
     modal.setAttribute('data-is-pending', isPending ? 'true' : 'false');
 
     const statusIconEl = document.getElementById('vault-status-icon');
@@ -994,7 +2145,7 @@ function openVaultModal(order) {
                 return `
                     <div class="p-4 rounded-2xl bg-amber-50/70 border-2 border-amber-300 mb-3 shadow-sm">
                         <div class="flex items-center justify-between gap-2">
-                            <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                            <h4 class="text-sm font-normal text-slate-900 flex items-center gap-2">
                                 <span class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-black">${idx + 1}</span>
                                 ${escapeHTML(item.productTitle)}
                             </h4>
@@ -1074,7 +2225,7 @@ function openVaultModal(order) {
                             <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.link)}" data-msg="คัดลอกลิงก์แล้ว" class="px-3 py-1.5 rounded-xl bg-cyan-100 text-cyan-800 hover:bg-cyan-200 text-xs font-bold">
                                 <i class="fa-regular fa-copy"></i> คัดลอก
                             </button>
-                            <a href="${escapeHTML(cred.link)}" target="_blank" class="px-3 py-1.5 rounded-xl gradient-btn text-white text-xs font-bold flex items-center gap-1">
+                            <a href="${sanitizeUrl(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl gradient-btn text-white text-xs font-bold flex items-center gap-1">
                                 <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิด
                             </a>
                         </div>
@@ -1097,7 +2248,7 @@ function openVaultModal(order) {
             return `
                 <div class="p-4 rounded-2xl bg-pink-50/40 border border-pink-200 mb-3 shadow-sm">
                     <div class="flex items-center justify-between gap-2">
-                        <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                        <h4 class="text-sm font-normal text-slate-900 flex items-center gap-2">
                             <span class="w-6 h-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-xs font-black">${idx + 1}</span>
                             ${escapeHTML(item.productTitle)}
                         </h4>
@@ -1134,28 +2285,78 @@ function closeVaultModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-// Background poller for Vault modal & Orders modal (auto-updates when admin fulfills order)
-if (!window.vaultPollTimer) {
-    window.vaultPollTimer = setInterval(() => {
-        const modal = document.getElementById('vault-modal');
-        if (modal && !modal.classList.contains('hidden') && state.currentVaultOrderId) {
-            const currentOrder = state.orders.find(o => o.orderId === state.currentVaultOrderId);
-            if (currentOrder) {
-                const wasPending = modal.getAttribute('data-is-pending') === 'true';
-                const isNowDelivered = currentOrder.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
-                if (wasPending && isNowDelivered) {
-                    showToast("🎉 ร้านค้าส่งมอบรหัสให้คุณเรียบร้อยแล้ว!", "success");
-                    openVaultModal(currentOrder);
+// Real-time server poller for Vault modal & Orders modal (auto-syncs when admin fulfills on server)
+let isVaultPollingRunning = false;
+
+async function checkCustomerVaultServerStatus() {
+    if (isVaultPollingRunning) return;
+    const vaultModal = document.getElementById('vault-modal');
+    const ordersModal = document.getElementById('orders-modal');
+    const isVaultOpen = vaultModal && !vaultModal.classList.contains('hidden');
+    const isOrdersOpen = ordersModal && !ordersModal.classList.contains('hidden');
+
+    if (!isVaultOpen && !isOrdersOpen) return;
+
+    isVaultPollingRunning = true;
+    try {
+        // 1. Live Poll Vault Modal for current order
+        if (isVaultOpen && state.currentVaultOrderId) {
+            const localOrder = (state.orders || []).find(o => o.orderId === state.currentVaultOrderId);
+            const customerEmail = (localOrder && (localOrder.recipientEmail || localOrder.email)) 
+                || (state.user && state.user.email) 
+                || '';
+            const queryParam = customerEmail ? `?email=${encodeURIComponent(customerEmail)}` : '';
+
+            const res = await fetch(`/api/orders/${encodeURIComponent(state.currentVaultOrderId)}${queryParam}`, {
+                headers: {
+                    ...(customerEmail ? { 'x-order-email': customerEmail } : {})
+                }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.success && data.order) {
+                    const serverOrder = data.order;
+                    const wasPending = vaultModal.getAttribute('data-is-pending') === 'true';
+                    
+                    const isNowDelivered = (serverOrder.status && (serverOrder.status.includes('จัดส่งสำเร็จ') || serverOrder.status.includes('delivered')))
+                        || ((serverOrder.items || []).length > 0 && (serverOrder.items || []).every(it => (it.status === 'delivered' || it.credentials) && it.status !== 'pending_fulfillment'));
+
+                    const serverHasCreds = (serverOrder.items || []).some(it => it.credentials && (it.credentials.email || it.credentials.key || it.credentials.link));
+
+                    if (wasPending && (isNowDelivered || serverHasCreds)) {
+                        // Merge into local state
+                        const idx = (state.orders || []).findIndex(o => o.orderId === serverOrder.orderId);
+                        if (idx !== -1) state.orders[idx] = serverOrder;
+                        else state.orders.unshift(serverOrder);
+                        saveOrders();
+
+                        // Visual & audible alert to customer
+                        playNotificationSound();
+                        showToast("🎉 ร้านค้าส่งมอบรหัสให้คุณเรียบร้อยแล้ว!", "success");
+                        openVaultModal(serverOrder);
+
+                        if (isOrdersOpen) renderOrdersHistory();
+                        updateNavOrdersCount();
+                        updateUserHeaderUI();
+                    }
                 }
             }
         }
 
-        // Also live update Orders Modal ("คีย์ของฉัน") if open
-        const ordersModal = document.getElementById('orders-modal');
-        if (ordersModal && !ordersModal.classList.contains('hidden')) {
+        // 2. Live update Orders Modal ("คีย์ของฉัน") if open
+        if (isOrdersOpen) {
             renderOrdersHistory();
         }
-    }, 2000);
+    } catch (e) {
+        // Silent catch for network drops
+    } finally {
+        isVaultPollingRunning = false;
+    }
+}
+
+if (!window.vaultPollTimer) {
+    window.vaultPollTimer = setInterval(checkCustomerVaultServerStatus, 2500);
 }
 
 function copyToClipboard(text, successMsg = "คัดลอกสำเร็จ") {
@@ -1197,7 +2398,7 @@ let customerKeysSearchQuery = '';
 
 function setCustomerKeysFilter(filterType) {
     customerKeysFilter = filterType;
-    
+
     const filterButtons = {
         'all': document.getElementById('ck-filter-all'),
         'delivered': document.getElementById('ck-filter-delivered'),
@@ -1243,7 +2444,7 @@ function copyOrderCustomerSummary(orderId) {
 
     const itemsText = (order.items || []).map(it => `- ${it.productTitle} (฿${(it.price || 0).toFixed(2)})`).join('\n');
     const summary = `🧾 รายละเอียดคำสั่งซื้อ Supinkly.AI\nเลขที่คำสั่งซื้อ: ${order.orderId}\nวันที่สั่งซื้อ: ${order.date || '-'}\nสินค้าในออเดอร์:\n${itemsText}\nยอดรวมทั้งสิ้น: ฿${(order.totalAmount || 0).toFixed(2)}\n🛡️ รับประกันสินค้า 30 วัน Supinkly.AI\nติดต่อช่วยเหลือ: https://www.facebook.com/profile.php?id=61594837747580`;
-    
+
     copyToClipboard(summary, "คัดลอกสรุปคำสั่งซื้อเรียบร้อยแล้ว");
 }
 
@@ -1251,9 +2452,90 @@ function renderOrdersHistory() {
     const list = document.getElementById('orders-history-list');
     if (!list) return;
 
-    const totalOrders = state.orders.length;
-    const deliveredOrders = state.orders.filter(o => o.items && o.items.every(it => it.credentials && it.status !== 'pending_fulfillment')).length;
-    const pendingOrders = totalOrders - deliveredOrders;
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    const hasOrders = Array.isArray(state.orders) && state.orders.length > 0;
+
+    if (!isLoggedIn && !hasOrders) {
+        // Enforce zero state only when unauthenticated AND no local orders
+        const cntAll = document.getElementById('ck-cnt-all');
+        if (cntAll) cntAll.textContent = '0';
+        const cntDelivered = document.getElementById('ck-cnt-delivered');
+        if (cntDelivered) cntDelivered.textContent = '0';
+        const cntPending = document.getElementById('ck-cnt-pending');
+        if (cntPending) cntPending.textContent = '0';
+        const badgeTotal = document.getElementById('customer-keys-count-badge');
+        if (badgeTotal) badgeTotal.textContent = `0 รายการ`;
+
+        const profileCard = document.getElementById('customer-profile-card');
+        if (profileCard) profileCard.innerHTML = '';
+
+        list.innerHTML = `
+            <div class="py-12 text-center bg-slate-50/60 rounded-2xl border-2 border-dashed border-slate-200 p-6">
+                <div class="w-16 h-16 mx-auto mb-3 rounded-3xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-600 text-2xl shadow-inner">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <p class="text-base font-black text-slate-800">กรุณาเข้าสู่ระบบเพื่อดูคีย์ของคุณ</p>
+                <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto font-medium">เพื่อความปลอดภัยสูงสุด ข้อมูลคีย์และรหัสผ่านจะแสดงเฉพาะเมื่อคุณเข้าสู่ระบบสมาชิกเท่านั้น</p>
+                <button onclick="closeOrdersModal(); openAuthModal('login');" class="mt-4 px-5 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-sm cursor-pointer hover:opacity-95 transition-all">
+                    <i class="fa-solid fa-right-to-bracket mr-1.5"></i> เข้าสู่ระบบสมาชิก
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    // Update Customer Profile Card in orders-modal
+    const profileCard = document.getElementById('customer-profile-card');
+    if (profileCard) {
+        const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+        if (isLoggedIn && user) {
+            profileCard.innerHTML = `
+                <div class="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-pink-50/90 via-purple-50/70 to-pink-50/90 border-2 border-pink-200/90 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-pink-500/20 shrink-0">
+                            <i class="fa-solid fa-user-check"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">คุณ ${escapeHTML(user.displayName || user.name || 'สมาชิก Supinkly')}</span>
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
+                                    <i class="fa-solid fa-circle-check text-emerald-600"></i> สมาชิกเข้าสู่ระบบแล้ว
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-500 font-medium truncate flex items-center gap-1.5 mt-0.5">
+                                <i class="fa-regular fa-envelope text-slate-400"></i>
+                                <span>${escapeHTML(user.email || '')}</span>
+                                <span class="text-slate-300">•</span>
+                                <span class="text-pink-600 font-bold">บันทึกข้อมูลและคีย์ถาวร</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" onclick="handleUserLogout(); closeOrdersModal();" class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-300 text-xs font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer" title="ออกจากระบบ">
+                            <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                            <span>ออกจากระบบ</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            profileCard.innerHTML = `
+                <div class="p-3 rounded-2xl bg-amber-50/80 border-2 border-amber-200/90 shadow-xs flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 text-xs text-amber-900 font-medium">
+                        <i class="fa-solid fa-circle-exclamation text-amber-600 shrink-0"></i>
+                        <span>คุณกำลังเปิดดูในโหมดผู้เยี่ยมชม เข้าสู่ระบบเพื่อซิงค์คีย์และบันทึกข้อมูลถาวร</span>
+                    </div>
+                    <button type="button" onclick="closeOrdersModal(); openAuthModal('login');" class="px-3 py-1.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer">
+                        <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ / สมัครสมาชิก
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    const totalOrders = (state.orders || []).length;
+    const deliveredOrders = (state.orders || []).filter(isOrderDelivered).length;
+    const pendingOrders = (state.orders || []).filter(isOrderPending).length;
 
     // Update filter counts & badges
     const cntAll = document.getElementById('ck-cnt-all');
@@ -1288,9 +2570,9 @@ function renderOrdersHistory() {
     // Filter by delivery status
     let filtered = state.orders;
     if (customerKeysFilter === 'delivered') {
-        filtered = filtered.filter(o => o.items && o.items.every(it => it.credentials && it.status !== 'pending_fulfillment'));
+        filtered = filtered.filter(isOrderDelivered);
     } else if (customerKeysFilter === 'pending') {
-        filtered = filtered.filter(o => o.items && o.items.some(it => !it.credentials || it.status === 'pending_fulfillment'));
+        filtered = filtered.filter(isOrderPending);
     }
 
     // Filter by search query
@@ -1326,10 +2608,11 @@ function renderOrdersHistory() {
     }
 
     list.innerHTML = filtered.map((order) => {
-        const isOrderPending = (order.items || []).some(it => !it.credentials || it.status === 'pending_fulfillment');
-        
+        // [FIX] ใช้ชื่อต่างออกไปเพื่อหลีกเลี่ยง variable shadowing กับ function isOrderPending() ใน outer scope
+        const isThisOrderPending = !isOrderDelivered(order);
+
         return `
-            <div class="p-4 sm:p-5 rounded-2xl bg-white border-2 ${isOrderPending ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} mb-3.5 hover:border-pink-300 transition-all shadow-sm">
+            <div class="p-4 sm:p-5 rounded-2xl bg-white border-2 ${isThisOrderPending ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} mb-3.5 hover:border-pink-300 transition-all shadow-sm">
                 <!-- Order Header -->
                 <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <div class="flex items-center gap-2">
@@ -1344,25 +2627,24 @@ function renderOrdersHistory() {
                             <i class="fa-regular fa-calendar text-[11px]"></i> ${escapeHTML(order.date || '-')}
                         </span>
                     </div>
-                    <span class="px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 shadow-xs ${
-                        isOrderPending 
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' 
-                            : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                    }">
-                        <i class="fa-solid ${isOrderPending ? 'fa-spinner fa-spin' : 'fa-circle-check'} text-xs"></i>
-                        <span>${isOrderPending ? 'กำลังจัดเตรียมรหัส (5-15 นาที)' : 'จัดส่งแล้ว (พร้อมใช้งาน)'}</span>
+                    <span class="px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 shadow-xs ${isThisOrderPending
+                ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+            }">
+                        <i class="fa-solid ${isThisOrderPending ? 'fa-spinner fa-spin' : 'fa-circle-check'} text-xs"></i>
+                        <span>${isThisOrderPending ? 'กำลังจัดเตรียมรหัส (5-15 นาที)' : 'จัดส่งแล้ว (พร้อมใช้งาน)'}</span>
                     </span>
                 </div>
 
                 <!-- Items & Credentials -->
                 <div class="mt-3.5 space-y-3">
                     ${(order.items || []).map((item, itIdx) => {
-                        const isPending = !item.credentials || item.status === 'pending_fulfillment';
-                        const cred = item.credentials || {};
+                const isPending = !item.credentials || item.status === 'pending_fulfillment';
+                const cred = item.credentials || {};
 
-                        let credBlock = '';
-                        if (isPending) {
-                            credBlock = `
+                let credBlock = '';
+                if (isPending) {
+                    credBlock = `
                                 <div class="mt-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
                                     <div class="flex items-center justify-between text-xs font-bold text-amber-900">
                                         <span class="flex items-center gap-1.5">
@@ -1391,8 +2673,8 @@ function renderOrdersHistory() {
                                     </div>
                                 </div>
                             `;
-                        } else if (cred.email) {
-                            credBlock = `
+                } else if (cred.email) {
+                    credBlock = `
                                 <div class="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                                     <div class="flex items-center justify-between gap-2">
                                         <div class="min-w-0 flex-1">
@@ -1425,8 +2707,8 @@ function renderOrdersHistory() {
                                     </div>
                                 ` : ''}
                             `;
-                        } else if (cred.link) {
-                            credBlock = `
+                } else if (cred.link) {
+                    credBlock = `
                                 <div class="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
                                     <div class="min-w-0 flex-1 pr-2">
                                         <span class="text-[11px] font-bold text-slate-500 block">ลิงก์เปิดใช้งาน (Activation Link):</span>
@@ -1436,7 +2718,7 @@ function renderOrdersHistory() {
                                         <button onclick="copyFromData(this)" data-copy="${escapeHTML(cred.link)}" data-msg="คัดลอกลิงก์แล้ว" class="px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 text-xs font-bold transition-all">
                                             <i class="fa-regular fa-copy"></i> คัดลอก
                                         </button>
-                                        <a href="${escapeHTML(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg gradient-btn text-white text-xs font-bold flex items-center gap-1">
+                                        <a href="${sanitizeUrl(cred.link)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg gradient-btn text-white text-xs font-bold flex items-center gap-1">
                                             <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิด
                                         </a>
                                     </div>
@@ -1448,8 +2730,8 @@ function renderOrdersHistory() {
                                     </div>
                                 ` : ''}
                             `;
-                        } else {
-                            credBlock = `
+                } else {
+                    credBlock = `
                                 <div class="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
                                     <div class="min-w-0 flex-1">
                                         <span class="text-[11px] font-bold text-slate-500 block">รหัสผลิตภัณฑ์ (License Key):</span>
@@ -1466,16 +2748,16 @@ function renderOrdersHistory() {
                                     </div>
                                 ` : ''}
                             `;
-                        }
+                }
 
-                        return `
+                return `
                             <div class="p-3 sm:p-3.5 rounded-xl bg-slate-50/70 border border-slate-200">
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0">
                                         <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">
                                             ${itIdx + 1}
                                         </span>
-                                        <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">
+                                        <span class="font-normal text-slate-900 text-xs sm:text-sm truncate">
                                             ${escapeHTML(item.productTitle)}
                                         </span>
                                     </div>
@@ -1490,7 +2772,7 @@ function renderOrdersHistory() {
                                 ${credBlock}
                             </div>
                         `;
-                    }).join('')}
+            }).join('')}
                 </div>
 
                 <!-- Order Footer -->
@@ -1514,10 +2796,19 @@ function renderOrdersHistory() {
     }).join('');
 }
 
-function openOrdersModal() {
+async function openOrdersModal() {
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    const hasOrders = Array.isArray(state.orders) && state.orders.length > 0;
+    if (!isLoggedIn && !hasOrders) {
+        showToast("กรุณาเข้าสู่ระบบเพื่อดูคีย์และประวัติคำสั่งซื้อของคุณ", "info");
+        openAuthModal('login');
+        return;
+    }
+
     const modal = document.getElementById('orders-modal');
     if (!modal) return;
 
+    await refreshUserOrders();
     renderOrdersHistory();
     modal.classList.remove('hidden');
 }
@@ -1540,6 +2831,26 @@ function closeOrdersModal() {
 // ==========================================
 // SECURED ADMIN PANEL (SESSION & PIN AUTHENTICATED)
 // ==========================================
+function openAdminModal() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    const modal = document.getElementById('admin-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    updateAdminNavBadges();
+    renderAdminOrdersList();
+    renderAdminStockList();
+    renderAdminUsersList();
+    loadAdminSettingsIntoForm();
+}
+
+function closeAdminModal() {
+    const modal = document.getElementById('admin-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
 function handleAdminLogout() {
     ADMIN_AUTH.logout();
     closeAdminModal();
@@ -1555,8 +2866,17 @@ function promptAdminLogin() {
     const pinModal = document.getElementById('admin-pin-modal');
     if (pinModal) {
         const pinInput = document.getElementById('admin-pin-input');
-        if (pinInput) pinInput.value = '';
+        if (pinInput) {
+            pinInput.value = '';
+            pinInput.type = 'password';
+        }
+        const eyeIcon = document.getElementById('admin-pin-eye-icon');
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
         pinModal.classList.remove('hidden');
+        setTimeout(() => pinInput?.focus(), 80);
     }
 }
 
@@ -1565,14 +2885,104 @@ function closeAdminPinModal() {
     if (pinModal) pinModal.classList.add('hidden');
 }
 
+async function handleResetAdminPinToDefault() {
+    ADMIN_AUTH.resetToDefault();
+    try {
+        const res = await fetch('/api/admin/reset-pin', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ masterPin: '8899' })
+        });
+        const data = await res.json();
+        if (data && data.success && data.token) {
+            sessionStorage.setItem('supinkly_admin_server_token', data.token);
+            localStorage.setItem('supinkly_admin_server_token', data.token);
+            sessionStorage.setItem('supinkly_admin_pin', '8899');
+            localStorage.setItem('supinkly_admin_pin', '8899');
+        }
+    } catch (e) {
+        console.warn("Backend reset pin warning:", e);
+    }
+
+    const pinInput = document.getElementById('admin-pin-input');
+    if (pinInput) {
+        pinInput.value = '';
+        pinInput.type = 'password';
+        pinInput.placeholder = 'กรอกรหัส PIN (เริ่มต้น: 8899)';
+    }
+    const eyeIcon = document.getElementById('admin-pin-eye-icon');
+    if (eyeIcon) {
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
+    }
+    showToast("รีเซ็ตรหัส PIN ผู้ดูแลกลับค่าเริ่มต้น (8899) และล้างประวัติการล็อกเรียบร้อยแล้ว", "success");
+}
+
+function toggleAdminPinVisibility() {
+    const pinInput = document.getElementById('admin-pin-input');
+    const eyeIcon = document.getElementById('admin-pin-eye-icon');
+    if (!pinInput) return;
+    if (pinInput.type === 'password') {
+        pinInput.type = 'text';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        }
+    } else {
+        pinInput.type = 'password';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    }
+}
+
+function toggleAdminNewPinVisibility() {
+    const pinInput = document.getElementById('admin-new-pin');
+    const eyeIcon = document.getElementById('admin-new-pin-eye-icon');
+    if (!pinInput) return;
+    if (pinInput.type === 'password') {
+        pinInput.type = 'text';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        }
+    } else {
+        pinInput.type = 'password';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    }
+}
+
+function toggleAdminConfirmPinVisibility() {
+    const pinInput = document.getElementById('admin-confirm-new-pin');
+    const eyeIcon = document.getElementById('admin-confirm-pin-eye-icon');
+    if (!pinInput) return;
+    if (pinInput.type === 'password') {
+        pinInput.type = 'text';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        }
+    } else {
+        pinInput.type = 'password';
+        if (eyeIcon) {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    }
+}
+
 async function handleAdminPinSubmit(e) {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     const pinInput = document.getElementById('admin-pin-input');
     const pin = (pinInput ? pinInput.value : '').trim();
     const submitBtn = document.getElementById('admin-pin-submit-btn');
 
     if (!pin) {
-        showToast("กรุณากรอกรหัส PIN", "warning");
+        showToast("กรุณากรอกรหัส PIN ของผู้ดูแลระบบ", "warning");
         return;
     }
 
@@ -1586,7 +2996,6 @@ async function handleAdminPinSubmit(e) {
     } catch (err) {
         showToast(err.message || "รหัส PIN แอดมินไม่ถูกต้อง", "warning");
         if (pinInput) {
-            pinInput.value = '';
             pinInput.focus();
         }
     } finally {
@@ -1598,21 +3007,73 @@ async function handleAdminPinSubmit(e) {
 // G2G MARKET LINK HELPER (ADMIN ONLY)
 // ==========================================
 function getG2GMarketLink(productId) {
-    const master = getMasterProduct(productId);
-    if (!master) return "https://www.g2g.com";
-    const brand = (master.brand || '').toLowerCase();
-    if (brand.includes("capcut")) return "https://www.g2g.com/categories/capcut-accounts";
-    if (brand.includes("google")) return "https://www.g2g.com/categories/gemini-accounts";
-    if (brand.includes("grok")) return "https://www.g2g.com/categories/xai-accounts";
-    if (brand.includes("claude")) return "https://www.g2g.com/categories/claude-accounts";
-    if (brand.includes("adobe")) return "https://www.g2g.com/categories/adobe-accounts";
-    if (brand.includes("microsoft") || brand.includes("windows")) return "https://www.g2g.com/categories/microsoft-accounts";
-    return `https://www.g2g.com/search?q=${encodeURIComponent(master.brand + " " + master.type)}`;
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    
+    // 1. If admin provided a specific custom URL (and it's not a legacy broken format)
+    if (master && master.g2gUrl && typeof isBrokenOrLegacyG2GUrl === 'function' && !isBrokenOrLegacyG2GUrl(master.g2gUrl)) {
+        return master.g2gUrl;
+    }
+
+    // 2. Check market benchmark
+    const benchmark = (typeof G2G_MARKET_FEED !== 'undefined' && G2G_MARKET_FEED.benchmarks) ? G2G_MARKET_FEED.benchmarks[productId] : null;
+    if (benchmark && benchmark.g2gUrl && typeof isBrokenOrLegacyG2GUrl === 'function' && !isBrokenOrLegacyG2GUrl(benchmark.g2gUrl)) {
+        return benchmark.g2gUrl;
+    }
+
+    // 3. CapCut category direct on G2G
+    const brand = ((master && master.brand) || '').toLowerCase();
+    const id = String(productId || '').toLowerCase();
+    if (id.startsWith('cpc-') || brand.includes('capcut')) {
+        return 'https://www.g2g.com/categories/capcut';
+    }
+
+    // 4. Reliable Google site-search for live G2G listings (100% working, never 404)
+    const query = (master && (master.g2gRawTitle || master.title)) || (benchmark && benchmark.title) || (master && `${master.brand} ${master.type}`) || 'G2G marketplace';
+    return `https://www.google.com/search?q=${encodeURIComponent('site:g2g.com ' + query)}`;
+}
+
+function handleG2GSourcingClick(event, productId, targetUrl) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    const searchKeyword = (master && (master.g2gRawTitle || master.title)) || '';
+
+    // Copy product search keyword to clipboard so admin can easily paste into G2G if needed
+    if (searchKeyword && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(searchKeyword).catch(() => {});
+    }
+
+    const effectiveUrl = targetUrl || getG2GMarketLink(productId);
+    const shortTitle = searchKeyword ? ` ("${searchKeyword.slice(0, 24)}...")` : '';
+    showToast(`กำลังเปิดหน้ารายการสินค้า G2G${shortTitle} (คัดลอกคำค้นหาแล้ว)`, 'info');
+
+    // If anchor href is missing or invalid, trigger window.open
+    if (!targetUrl || targetUrl === '#' || targetUrl === 'about:blank#blocked') {
+        if (event) event.preventDefault();
+        openG2GMarketLink(productId);
+    }
 }
 
 function openG2GMarketLink(productId) {
     const link = getG2GMarketLink(productId);
-    window.open(link, '_blank');
+    const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
+    const titleToCopy = (master && (master.g2gRawTitle || master.title)) || '';
+    if (titleToCopy && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(titleToCopy).catch(() => {});
+    }
+    if (link && link !== '#' && link !== 'about:blank#blocked') {
+        const win = window.open(link, '_blank', 'noopener,noreferrer');
+        if (!win || win.closed || typeof win.closed === 'undefined') {
+            const a = document.createElement('a');
+            a.href = link;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    }
 }
 
 // ==========================================
@@ -1623,6 +3084,416 @@ let adminOrderSearchQuery = '';
 let adminStockSearchQuery = '';
 let adminStockBrandFilter = 'all';
 
+// ── Admin Orders State & Remote Sync Helpers ─────────────────────────
+let adminOrdersList = [];
+let adminOrdersLastFetch = 0;
+let adminOrdersPollTimer = null;
+
+function isOrderDelivered(order) {
+    if (!order) return false;
+    const isStatusDelivered = typeof order.status === 'string' && (order.status.includes('จัดส่งสำเร็จ') || order.status.includes('delivered'));
+    const isItemsDelivered = Array.isArray(order.items) && order.items.length > 0 && order.items.every(it => {
+        // [FIX] ตรวจสอบเฉพาะ credentials จริง (email/key/link) ไม่รวม instructions เพียงอย่างเดียว
+        const hasCred = it.credentials && (it.credentials.email || it.credentials.key || it.credentials.link);
+        return (it.status === 'delivered' || hasCred) && it.status !== 'pending_fulfillment';
+    });
+    return isStatusDelivered || isItemsDelivered;
+}
+
+function isOrderPending(order) {
+    if (!order) return false;
+    return !isOrderDelivered(order);
+}
+
+function getAdminOrders() {
+    return (Array.isArray(adminOrdersList) && adminOrdersList.length > 0) ? adminOrdersList : (state.orders || []);
+}
+
+// Fetch all orders from backend server (/api/admin/orders)
+async function fetchAdminOrders(forceRefresh = false) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        return state.orders || [];
+    }
+
+    const now = Date.now();
+    if (!forceRefresh && (now - adminOrdersLastFetch < 2500) && adminOrdersList.length > 0) {
+        return adminOrdersList;
+    }
+
+    try {
+        const res = await fetch('/api/admin/orders', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.orders)) {
+                adminOrdersList = data.orders;
+                adminOrdersLastFetch = now;
+
+                // Merge server orders into state.orders so vault & history also stay updated
+                const orderMap = new Map();
+                adminOrdersList.forEach(o => { if (o && o.orderId) orderMap.set(o.orderId, o); });
+                (state.orders || []).forEach(o => {
+                    if (o && o.orderId && !orderMap.has(o.orderId)) {
+                        orderMap.set(o.orderId, o);
+                    }
+                });
+                state.orders = Array.from(orderMap.values()).sort((a, b) => {
+                    const timeA = new Date(a.date || 0).getTime() || 0;
+                    const timeB = new Date(b.date || 0).getTime() || 0;
+                    return timeB - timeA;
+                });
+
+                updateAdminNavBadges();
+                return adminOrdersList;
+            }
+        }
+    } catch (e) {
+        console.warn("[ADMIN] Could not fetch orders from server:", e);
+    }
+
+    adminOrdersList = state.orders || [];
+    return adminOrdersList;
+}
+
+function startAdminOrdersAutoRefresh() {
+    stopAdminOrdersAutoRefresh();
+    adminOrdersPollTimer = setInterval(async () => {
+        const modal = document.getElementById('admin-modal');
+        if (!modal || modal.classList.contains('hidden')) {
+            stopAdminOrdersAutoRefresh();
+            return;
+        }
+
+        const prevPending = (getAdminOrders()).filter(isOrderPending).length;
+
+        await fetchAdminOrders(true);
+
+        const currentOrders = getAdminOrders();
+        const newPending = currentOrders.filter(isOrderPending).length;
+
+        if (newPending > prevPending) {
+            showToast(`🔔 มีคำสั่งซื้อใหม่เข้ามาในระบบ! (${newPending} รอส่งมอบ)`, "info");
+            playNotificationSound();
+        }
+
+        const ordersTab = document.getElementById('admin-tab-orders');
+        if (ordersTab && !ordersTab.classList.contains('hidden')) {
+            renderAdminOrdersList(false);
+        }
+    }, 15000);
+}
+
+function stopAdminOrdersAutoRefresh() {
+    if (adminOrdersPollTimer) {
+        clearInterval(adminOrdersPollTimer);
+        adminOrdersPollTimer = null;
+    }
+}
+
+function playNotificationSound() {
+    try {
+        if (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+        }
+    } catch (e) {}
+}
+
+// Helper: Get authenticated headers for Admin API requests
+function getAdminHeaders() {
+    const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+    const pin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || '';
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+    if (pin) headers['x-admin-pin'] = pin;
+    if (token) {
+        headers['x-admin-token'] = token;
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+// Update Admin Nav Badges (Pending orders, coupons, users & KPI stat cards)
+function updateAdminNavBadges() {
+    const orders = getAdminOrders();
+    const pendingCount = orders.filter(isOrderPending).length;
+    const deliveredCount = orders.filter(isOrderDelivered).length;
+    const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+    const salesEl = document.getElementById('admin-stat-sales');
+    if (salesEl) salesEl.textContent = `฿${totalSales.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const pendingEl = document.getElementById('admin-stat-pending');
+    if (pendingEl) pendingEl.textContent = `${pendingCount} ออเดอร์`;
+
+    const deliveredEl = document.getElementById('admin-stat-delivered');
+    if (deliveredEl) deliveredEl.textContent = `${deliveredCount} รายการ`;
+
+    const totalOrdersEl = document.getElementById('admin-stat-total-orders');
+    if (totalOrdersEl) totalOrdersEl.textContent = `${orders.length} รายการ`;
+
+    const ordersBadge = document.getElementById('admin-orders-count-badge') || document.getElementById('admin-pending-badge');
+    if (ordersBadge) {
+        ordersBadge.textContent = pendingCount;
+        ordersBadge.className = pendingCount > 0 
+            ? "px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 text-xs font-black animate-pulse" 
+            : "px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold";
+    }
+
+    try {
+        const promos = typeof getStorePromotions === 'function' ? getStorePromotions() : [];
+        const activeCouponsCount = promos.filter(p => p.active !== false).length;
+        const couponBadge = document.getElementById('admin-coupons-badge');
+        if (couponBadge) couponBadge.textContent = activeCouponsCount;
+    } catch (e) {}
+
+    try {
+        const usersBadge = document.getElementById('admin-users-badge');
+        if (usersBadge && Array.isArray(adminUsersList) && adminUsersList.length > 0) {
+            usersBadge.textContent = adminUsersList.length;
+        }
+    } catch (e) {}
+}
+
+// Quick navigation from admin top stat cards
+function quickAdminNavigate(tab, subFilter = null) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    // Remove active ring from all KPI cards
+    const kpiCards = ['sales', 'pending', 'delivered', 'all', 'online'];
+    kpiCards.forEach(id => {
+        const el = document.getElementById(`admin-kpi-${id}`);
+        if (el) {
+            el.classList.remove('ring-2', 'ring-pink-500', 'ring-offset-2');
+        }
+    });
+
+    if (tab === 'analytics') {
+        const el = document.getElementById('admin-kpi-sales') || document.getElementById('admin-kpi-online');
+        if (el) el.classList.add('ring-2', 'ring-pink-500', 'ring-offset-2');
+        if (typeof switchAdminTab === 'function') switchAdminTab('analytics');
+        showToast("📊 เปิดหน้ารายงานยอดขายและสถิติสดแบบ Real-time", "info");
+        return;
+    }
+
+    if (typeof switchAdminTab === 'function') {
+        switchAdminTab(tab);
+    }
+
+    if (tab === 'orders') {
+        const filterKey = subFilter || 'all';
+        const cardId = filterKey === 'pending' ? 'pending' : (filterKey === 'delivered' ? 'delivered' : 'all');
+        const activeCard = document.getElementById(`admin-kpi-${cardId}`);
+        if (activeCard) {
+            activeCard.classList.add('ring-2', 'ring-pink-500', 'ring-offset-2');
+        }
+
+        if (typeof filterAdminOrders === 'function') {
+            filterAdminOrders(filterKey);
+        }
+
+        // Calculate count feedback
+        const allAdminOrders = getAdminOrders();
+        const total = allAdminOrders.length;
+        const pending = allAdminOrders.filter(isOrderPending).length;
+        const delivered = allAdminOrders.filter(isOrderDelivered).length;
+
+        let msg = "";
+        if (filterKey === 'pending') {
+            msg = pending > 0 
+                ? `⚡ กรองออเดอร์: รอส่งมอบรหัส (${pending} รายการ)` 
+                : `⚡ ขณะนี้ยังไม่มีออเดอร์ที่รอส่งมอบรหัส (0 รายการ)`;
+        } else if (filterKey === 'delivered') {
+            msg = delivered > 0 
+                ? `✅ กรองออเดอร์: ส่งมอบสำเร็จ (${delivered} รายการ)` 
+                : `✅ ขณะนี้ยังไม่มีออเดอร์ที่ส่งมอบสำเร็จ (0 รายการ)`;
+        } else {
+            msg = total > 0 
+                ? `📦 แสดงออเดอร์ทั้งหมด (${total} รายการ)` 
+                : `📦 ขณะนี้ยังไม่มีรายการคำสั่งซื้อในระบบ (0 รายการ)`;
+        }
+        showToast(msg, "info");
+
+        // Smooth scroll to the orders list so the admin immediately sees the table
+        const listEl = document.getElementById('admin-orders-list');
+        if (listEl) {
+            listEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+}
+
+// Create a realistic demo order for testing fulfillment and slip verification
+async function createDemoOrder() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/orders/demo', {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (data && data.success && data.order) {
+            const demoOrder = data.order;
+            if (!Array.isArray(adminOrdersList)) adminOrdersList = [];
+            adminOrdersList.unshift(demoOrder);
+            if (!Array.isArray(state.orders)) state.orders = [];
+            state.orders.unshift(demoOrder);
+            saveOrders();
+            renderAdminOrdersList();
+            updateAdminNavBadges();
+            if (typeof filterAdminOrders === 'function') filterAdminOrders('all');
+            showToast(`🎉 สร้างออเดอร์ทดสอบ ${demoOrder.orderId} ในเซิร์ฟเวอร์สำเร็จ!`, "success");
+            const listEl = document.getElementById('admin-orders-list');
+            if (listEl) listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+    } catch (e) {
+        console.warn("[DEMO] Server demo creation failed, using local fallback:", e);
+    }
+
+    const demoOrderId = "SPK-DEMO" + Math.floor(1000 + Math.random() * 9000);
+    const demoItems = [
+        {
+            productId: "capcut-pro",
+            productTitle: "CapCut Pro 1 ปี (บัญชีส่วนตัว)",
+            brand: "CapCut",
+            type: "App Premium",
+            price: 129,
+            warranty: "365 วัน",
+            status: "pending_fulfillment",
+            credentials: null
+        }
+    ];
+
+    const demoOrder = {
+        orderId: demoOrderId,
+        date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
+        totalAmount: 129.00,
+        paymentMethod: "Thai QR PromptPay (ทดสอบ)",
+        recipientEmail: "demo.customer@gmail.com",
+        transRef: "DEMO_" + Date.now().toString(36).toUpperCase(),
+        slipFingerprint: "demo_slip_" + Math.random().toString(36).substring(2, 8),
+        slipDataUrl: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="460" viewBox="0 0 360 460"><rect width="100%" height="100%" fill="%23f8fafc"/><rect x="16" y="16" width="328" height="428" rx="20" fill="white" stroke="%23e2e8f0" stroke-width="2"/><circle cx="180" cy="70" r="28" fill="%23ec4899"/><path d="M168 70 l8 8 l16 -16" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><text x="180" y="125" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="%230f172a">ชำระเงินสำเร็จ (สลิปจำลอง)</text><text x="180" y="145" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%2364748b">PromptPay QR Verification</text><line x1="40" y1="165" x2="320" y2="165" stroke="%23e2e8f0" stroke-dasharray="4 4"/><text x="40" y="200" font-family="sans-serif" font-size="12" fill="%2364748b">จำนวนเงิน</text><text x="320" y="200" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="20" fill="%23db2777">฿129.00</text><text x="40" y="240" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้โอน</text><text x="320" y="240" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">นายลูกค้า ทดสอบ (Demo)</text><text x="40" y="275" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้รับเงิน</text><text x="320" y="275" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">Supinkly.AI Store</text><text x="40" y="310" font-family="sans-serif" font-size="12" fill="%2364748b">รหัสอ้างอิง</text><text x="320" y="310" text-anchor="end" font-family="monospace" font-size="11" fill="%23475569">${demoOrderId}</text><rect x="40" y="340" width="280" height="70" rx="12" fill="%23fdf2f8" stroke="%23fbcfe8"/><text x="180" y="370" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="12" fill="%23be185d">ตรวจสอบสลิปอัตโนมัติผ่านแล้ว</text><text x="180" y="392" text-anchor="middle" font-family="sans-serif" font-size="11" fill="%23db2777">SlipOK / PromptPay Hash Verified</text></svg>`,
+        items: demoItems,
+        status: "🟡 รอส่งมอบ (On-Demand)",
+        isDemo: true
+    };
+
+    if (!Array.isArray(adminOrdersList)) adminOrdersList = [];
+    adminOrdersList.unshift(demoOrder);
+    if (!Array.isArray(state.orders)) state.orders = [];
+    state.orders.unshift(demoOrder);
+    saveOrders();
+    renderAdminOrdersList();
+    updateAdminNavBadges();
+
+    if (typeof filterAdminOrders === 'function') {
+        filterAdminOrders('all');
+    }
+
+    showToast(`🎉 สร้างออเดอร์ทดสอบ ${demoOrderId} (+฿129.00) สำเร็จ!`, "success");
+
+    const listEl = document.getElementById('admin-orders-list');
+    if (listEl) {
+        listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// ==========================================
+// CLIENT TELEMETRY & LIVE TRAFFIC TRACKER
+// ==========================================
+const TELEMETRY = {
+    sessionId: null,
+    heartbeatInterval: null,
+
+    init() {
+        try {
+            let sid = sessionStorage.getItem('supinkly_telemetry_sid');
+            if (!sid || sid.length < 10) {
+                sid = 'sid_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 10);
+                sessionStorage.setItem('supinkly_telemetry_sid', sid);
+            }
+            this.sessionId = sid;
+
+            // Track initial page view
+            this.send('page_view', { page: document.title || 'หน้าแรก' });
+
+            // Periodic heartbeat every 20s
+            if (!this.heartbeatInterval) {
+                this.heartbeatInterval = setInterval(() => {
+                    this.send('heartbeat');
+                }, 20000);
+            }
+        } catch (e) {
+            console.warn("Telemetry init skipped:", e);
+        }
+    },
+
+    async send(action, extra = {}) {
+        if (!this.sessionId) {
+            this.init();
+            if (!this.sessionId) return;
+        }
+
+        try {
+            const userToken = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getToken() : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (userToken) headers['x-user-token'] = userToken;
+
+            const cartCount = (state.cart || []).reduce((s, it) => s + (it.quantity || 1), 0);
+            const cartTotal = (state.cart || []).reduce((s, it) => {
+                const prod = getMasterProduct(it.productId);
+                return s + ((prod ? prod.price : 0) * (it.quantity || 1));
+            }, 0);
+
+            const payload = {
+                sessionId: this.sessionId,
+                action: action || 'heartbeat',
+                page: extra.page || (location.hash ? location.hash : 'หน้าแรก'),
+                productId: extra.productId || null,
+                productTitle: extra.productTitle || null,
+                cartCount,
+                cartTotal,
+                timestamp: Date.now()
+            };
+
+            await fetch('/api/telemetry/heartbeat', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            // Silently ignore telemetry failure in offline mode
+        }
+    }
+};
+
+function sendTelemetryHeartbeat(action, extra) {
+    if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.send === 'function') {
+        TELEMETRY.send(action, extra);
+    }
+}
+
+// Switch between the 6 Admin Tabs
 function switchAdminTab(tabName) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
         showToast("กรุณาเข้าสู่ระบบหลังร้านก่อนดำเนินการ", "warning");
@@ -1630,25 +3501,1428 @@ function switchAdminTab(tabName) {
         return;
     }
 
-    const tabs = ['orders', 'stock', 'settings'];
+    const tabs = ['orders', 'stock', 'coupons', 'users', 'analytics', 'settings'];
     tabs.forEach(t => {
         const btn = document.getElementById(`admin-tab-btn-${t}`);
         const panel = document.getElementById(`admin-tab-${t}`);
         if (t === tabName) {
             if (btn) {
-                btn.className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white flex items-center gap-2 shadow-sm transition-all shrink-0";
+                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-pink-500 text-white flex items-center gap-2 shadow-sm transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.remove('hidden');
         } else {
             if (btn) {
-                btn.className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-2 transition-all shrink-0";
+                btn.className = "px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-2 transition-all shrink-0 cursor-pointer";
             }
             if (panel) panel.classList.add('hidden');
         }
     });
 
+    updateAdminNavBadges();
+
     if (tabName === 'orders') renderAdminOrdersList();
     if (tabName === 'stock') renderAdminStockList();
+    if (tabName === 'coupons') renderAdminCouponsList();
+    if (tabName === 'users') renderAdminUsersList();
+    if (tabName === 'analytics') {
+        fetchAdminAnalytics(true);
+        startAdminAnalyticsAutoRefresh();
+    } else {
+        stopAdminAnalyticsAutoRefresh();
+    }
+}
+
+// ==========================================
+// REAL-TIME ANALYTICS & VISITOR TELEMETRY (ADMIN)
+// ==========================================
+let adminAnalyticsData = null;
+let adminAnalyticsFilter = 'all';
+let adminAnalyticsTimer = null;
+
+async function fetchAdminAnalytics(isManual = false) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+
+    const refreshIcon = document.getElementById('analytics-refresh-icon');
+    if (isManual && refreshIcon) {
+        refreshIcon.classList.add('fa-spin');
+    }
+
+    try {
+        const res = await fetch('/api/admin/analytics', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                adminAnalyticsData = data;
+                renderAdminAnalytics(data);
+                if (isManual) showToast("อัปเดตสถิติสดแบบเรียลไทม์แล้ว", "success");
+                return;
+            }
+        }
+        // Fallback to local calculation if server responded with non-ok or error
+        renderFallbackAdminAnalytics();
+    } catch (e) {
+        // Fallback for standalone / offline preview
+        renderFallbackAdminAnalytics();
+    } finally {
+        if (refreshIcon) {
+            setTimeout(() => refreshIcon.classList.remove('fa-spin'), 600);
+        }
+    }
+}
+
+function renderAdminAnalytics(data) {
+    if (!data) return;
+    const live = data.live || {};
+    const today = data.today || {};
+
+    // 1. Online Active Now
+    const activeNowEl = document.getElementById('analytics-active-now');
+    if (activeNowEl) activeNowEl.textContent = live.onlineTotal ?? 1;
+
+    const activeNowSubEl = document.getElementById('analytics-active-now-sub');
+    if (activeNowSubEl) {
+        activeNowSubEl.textContent = `${live.onlineMembersCount || 0} สมาชิก / ${live.onlineGuestsCount || (live.onlineTotal || 1)} ทั่วไป`;
+    }
+
+    // Also update Admin Header Top KPI Card 5 (Online Live)
+    const adminStatOnlineNow = document.getElementById('admin-stat-online-now');
+    if (adminStatOnlineNow) adminStatOnlineNow.textContent = `${live.onlineTotal ?? 1} คน`;
+
+    const adminOnlineBadge = document.getElementById('admin-online-badge');
+    if (adminOnlineBadge) adminOnlineBadge.textContent = `${live.onlineTotal ?? 1} คน`;
+
+    const adminStatOnlineSub = document.getElementById('admin-stat-online-sub');
+    if (adminStatOnlineSub) {
+        adminStatOnlineSub.textContent = `${live.onlineMembersCount || 0} สมาชิก / ${live.onlineGuestsCount || (live.onlineTotal || 1)} ทั่วไป`;
+    }
+
+    // 2. Daily Visitors & Pageviews
+    const dailyVisitorsEl = document.getElementById('analytics-daily-visitors');
+    if (dailyVisitorsEl) dailyVisitorsEl.textContent = today.uniqueVisitors ?? 1;
+
+    const pvBadge = document.getElementById('analytics-pageviews-badge');
+    if (pvBadge) pvBadge.textContent = `${today.pageViews ?? 1} วิว`;
+
+    const pvText = document.getElementById('analytics-pageviews-text');
+    if (pvText) pvText.textContent = `เปิดชมรวม ${(today.pageViews ?? 1).toLocaleString()} หน้าวันนี้`;
+
+    // 3. Product Browsing & Cart Adds
+    const prodViewsEl = document.getElementById('analytics-product-views');
+    if (prodViewsEl) prodViewsEl.textContent = (today.productViewsTotal ?? 0).toLocaleString();
+
+    const cartAddsText = document.getElementById('analytics-cart-adds-text');
+    if (cartAddsText) cartAddsText.textContent = `หยิบลงตะกร้า ${(today.cartAddsTotal ?? 0).toLocaleString()} ครั้งวันนี้`;
+
+    // 4. Conversion & Revenue
+    const convRateEl = document.getElementById('analytics-conversion-rate');
+    if (convRateEl) convRateEl.textContent = `${today.conversionRate || '0.0%'} ซื้อ`;
+
+    const todayRevEl = document.getElementById('analytics-today-revenue');
+    if (todayRevEl) {
+        todayRevEl.textContent = `฿${(today.revenue || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    const ordersCountText = document.getElementById('analytics-orders-count-text');
+    if (ordersCountText) {
+        ordersCountText.textContent = `สั่งซื้อสำเร็จ ${today.ordersCount || 0} ออเดอร์`;
+    }
+
+    // Sync Timestamp
+    const syncLabel = document.getElementById('analytics-last-sync-label');
+    if (syncLabel) {
+        syncLabel.textContent = `อัปเดตสด: ${new Date().toLocaleTimeString('th-TH')} (รีเฟรชทุก 5 วิ)`;
+    }
+
+    // Render User Directory
+    renderActiveUsersList(live.activeUsers || []);
+
+    // Render Top Products
+    renderTopProductsList(today.topProducts || []);
+
+    // Render Recent Events
+    renderRecentEventsList(today.recentEvents || []);
+}
+
+function renderFallbackAdminAnalytics() {
+    const todayStrPrefix = new Date().toLocaleDateString('th-TH', { dateStyle: 'medium' });
+    let todayOrdersCount = 0;
+    let todayRevenue = 0;
+    (state.orders || []).forEach(o => {
+        if ((o.date || '').includes(todayStrPrefix)) {
+            todayOrdersCount++;
+            todayRevenue += (o.totalAmount || 0);
+        }
+    });
+
+    const isMember = (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn());
+    const memberName = isMember ? USER_AUTH.getUser()?.displayName : null;
+
+    const mockData = {
+        success: true,
+        live: {
+            onlineTotal: 1,
+            onlineMembersCount: isMember ? 1 : 0,
+            onlineGuestsCount: isMember ? 0 : 1,
+            activeUsers: [
+                {
+                    sessionId: sessionStorage.getItem('supinkly_telemetry_sid') || 'my_session',
+                    role: isMember ? 'member' : 'guest',
+                    displayName: memberName || 'คุณ (Admin/ผู้เยี่ยมชม)',
+                    page: 'ระบบหลังบ้าน (Admin Console)',
+                    currentProduct: '',
+                    lastAction: 'กำลังตรวจสอบสถิติและคลังสินค้า',
+                    cartCount: (state.cart || []).length,
+                    cartTotal: (state.cart || []).reduce((s, it) => s + ((getMasterProduct(it.productId)?.price || 0) * (it.quantity || 1)), 0),
+                    lastSeenSec: 0,
+                    onlineDurationSec: 60
+                }
+            ]
+        },
+        today: {
+            uniqueVisitors: 1,
+            pageViews: 4,
+            productViewsTotal: 8,
+            cartAddsTotal: (state.cart || []).length,
+            ordersCount: todayOrdersCount,
+            revenue: todayRevenue,
+            conversionRate: todayOrdersCount > 0 ? ((todayOrdersCount / 1) * 100).toFixed(1) + '%' : '0.0%',
+            topProducts: PRODUCTS.slice(0, 5).map(p => ({
+                productId: p.id,
+                title: p.title,
+                price: p.price,
+                views: Math.floor(Math.random() * 5) + 3,
+                cartAdds: 1
+            })),
+            recentEvents: [
+                {
+                    time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+                    user: memberName || 'แอดมิน',
+                    role: isMember ? 'member' : 'guest',
+                    text: 'เปิดตรวจสอบระบบจัดการหลังบ้านและสถิติสด'
+                }
+            ]
+        }
+    };
+    adminAnalyticsData = mockData;
+    renderAdminAnalytics(mockData);
+}
+
+function renderActiveUsersList(users) {
+    const listEl = document.getElementById('analytics-active-users-list');
+    if (!listEl) return;
+
+    let filtered = users;
+    if (adminAnalyticsFilter === 'members') {
+        filtered = users.filter(u => u.role === 'member');
+    } else if (adminAnalyticsFilter === 'guests') {
+        filtered = users.filter(u => u.role !== 'member');
+    }
+
+    if (!filtered || filtered.length === 0) {
+        listEl.innerHTML = `
+            <div class="py-12 text-center text-xs text-slate-400 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                <i class="fa-solid fa-user-clock text-2xl text-slate-300 mb-2"></i>
+                <p class="font-bold text-slate-600">ไม่พบผู้ใช้งานในหมวดนี้ในขณะนี้</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">ระบบจะรีเฟรชตรวจจับผู้เยี่ยมชมที่เข้ามาเปิดเว็บโดยอัตโนมัติ</p>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(u => {
+        const isMember = u.role === 'member';
+        const activeColor = u.lastSeenSec < 30 ? 'bg-emerald-500' : 'bg-amber-400';
+        const roleBadge = isMember 
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200"><i class="fa-solid fa-crown text-[9px] mr-1"></i>สมาชิก</span>`
+            : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200"><i class="fa-solid fa-user text-[9px] mr-1"></i>ผู้เยี่ยมชม</span>`;
+
+        const cartInfo = u.cartCount > 0
+            ? `<span class="px-2 py-0.5 rounded-lg bg-pink-50 text-pink-700 font-bold border border-pink-200 text-[10px] inline-flex items-center gap-1">
+                <i class="fa-solid fa-cart-shopping text-[9px]"></i> ตะกร้า ${u.cartCount} ชิ้น (฿${(u.cartTotal || 0).toFixed(2)})
+               </span>`
+            : '';
+
+        const timeAgo = u.lastSeenSec <= 5 ? 'เมื่อสักครู่' : `${u.lastSeenSec} วินาทีที่แล้ว`;
+
+        return `
+            <div class="p-3.5 rounded-xl border border-slate-200 hover:border-pink-300 hover:shadow-xs transition-all bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div class="flex items-start gap-3">
+                    <div class="relative mt-0.5 shrink-0">
+                        <div class="w-9 h-9 rounded-xl ${isMember ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-bold text-sm">
+                            <i class="fa-solid ${isMember ? 'fa-circle-user' : 'fa-user'}"></i>
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${activeColor} ring-2 ring-white"></span>
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-xs font-bold text-slate-900">${escapeHTML(u.displayName || 'ผู้เยี่ยมชม')}</span>
+                            ${roleBadge}
+                            ${cartInfo}
+                        </div>
+                        <div class="text-[11px] text-slate-600 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span class="text-pink-600 font-bold">${escapeHTML(u.lastAction || 'เปิดชมหน้าแรก')}</span>
+                            ${u.page ? `<span class="text-slate-400">• หน้า: ${escapeHTML(u.page)}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right text-[10px] text-slate-400 font-medium shrink-0 self-end sm:self-center">
+                    <div class="flex items-center gap-1 text-emerald-600 font-bold">
+                        <span class="w-1.5 h-1.5 rounded-full ${activeColor}"></span>
+                        <span>Active ${timeAgo}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function setOnlineUsersFilter(filter) {
+    adminAnalyticsFilter = filter;
+    ['all', 'members', 'guests'].forEach(f => {
+        const btn = document.getElementById(`filter-online-${f}`);
+        if (btn) {
+            if (f === filter) {
+                btn.className = "px-2.5 py-1 rounded-lg bg-white text-slate-900 shadow-2xs cursor-pointer font-bold";
+            } else {
+                btn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer font-medium";
+            }
+        }
+    });
+
+    if (adminAnalyticsData && adminAnalyticsData.live) {
+        renderActiveUsersList(adminAnalyticsData.live.activeUsers || []);
+    }
+}
+
+function renderTopProductsList(products) {
+    const listEl = document.getElementById('analytics-top-products-list');
+    if (!listEl) return;
+
+    if (!products || products.length === 0) {
+        listEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">ยังไม่มีประวัติการดูสินค้าวันนี้</div>`;
+        return;
+    }
+
+    listEl.innerHTML = products.map((p, idx) => `
+        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2 truncate">
+                <span class="w-5 h-5 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px] flex items-center justify-center shrink-0">
+                    ${idx + 1}
+                </span>
+                <span class="font-normal text-slate-800 truncate">${escapeHTML(p.title)}</span>
+            </div>
+            <div class="flex items-center gap-3 shrink-0 ml-2">
+                <span class="text-[11px] text-slate-500 font-medium">ดู <b>${p.views}</b></span>
+                <span class="text-[11px] text-pink-600 font-bold">ใส่ตะกร้า <b>${p.cartAdds}</b></span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderRecentEventsList(events) {
+    const listEl = document.getElementById('analytics-recent-events-list');
+    if (!listEl) return;
+
+    if (!events || events.length === 0) {
+        listEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">ยังไม่มีบันทึกกิจกรรมล่าสุด</div>`;
+        return;
+    }
+
+    listEl.innerHTML = events.map(evt => `
+        <div class="p-2 rounded-xl bg-slate-50 border border-slate-100 text-[11px] flex items-start gap-2">
+            <span class="w-2 h-2 rounded-full bg-pink-500 mt-1 shrink-0"></span>
+            <div class="flex-1 leading-snug">
+                <span class="font-bold text-slate-800">${escapeHTML(evt.user || 'ผู้ใช้')}</span>: 
+                <span class="text-slate-600">${escapeHTML(evt.text || '')}</span>
+            </div>
+            <span class="text-[10px] text-slate-400 shrink-0 font-mono">${escapeHTML(evt.time || '')}</span>
+        </div>
+    `).join('');
+}
+
+function startAdminAnalyticsAutoRefresh() {
+    stopAdminAnalyticsAutoRefresh();
+    adminAnalyticsTimer = setInterval(() => {
+        const modal = document.getElementById('admin-modal');
+        const tab = document.getElementById('admin-tab-analytics');
+        if (modal && !modal.classList.contains('hidden') && tab && !tab.classList.contains('hidden')) {
+            fetchAdminAnalytics(false);
+        }
+    }, 5000);
+}
+
+function stopAdminAnalyticsAutoRefresh() {
+    if (adminAnalyticsTimer) {
+        clearInterval(adminAnalyticsTimer);
+        adminAnalyticsTimer = null;
+    }
+}
+
+// ==========================================
+// COUPONS & PROMOTIONS (ADMIN)
+// ==========================================
+let adminCouponsList = [];
+let adminCouponSearchQuery = '';
+
+async function renderAdminCouponsList() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const tableBody = document.getElementById('admin-coupons-table');
+    if (!tableBody) return;
+
+    try {
+        const res = await fetch('/api/admin/coupons', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.coupons)) {
+                adminCouponsList = data.coupons;
+                saveStorePromotions(data.coupons);
+            }
+        } else {
+            adminCouponsList = getStorePromotions();
+        }
+    } catch (e) {
+        adminCouponsList = getStorePromotions();
+    }
+
+    const couponBadge = document.getElementById('admin-coupons-badge');
+    if (couponBadge) {
+        couponBadge.textContent = adminCouponsList.filter(c => c.active !== false).length;
+    }
+
+    let filtered = adminCouponsList;
+    if (adminCouponSearchQuery) {
+        filtered = filtered.filter(c => 
+            (c.code || '').toLowerCase().includes(adminCouponSearchQuery) ||
+            (c.title || '').toLowerCase().includes(adminCouponSearchQuery) ||
+            (c.description || '').toLowerCase().includes(adminCouponSearchQuery)
+        );
+    }
+
+    if (!filtered || filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-10 text-center text-xs text-slate-400">
+                    <i class="fa-solid fa-ticket text-xl text-slate-300 mb-2 block"></i>
+                    ไม่พบรายการโค้ดส่วนลด สามารถกด "สร้างโค้ดส่วนลดใหม่" ได้ที่ด้านบน
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = filtered.map(c => {
+        const isPercent = (c.discountType === 'percent' || c.type === 'percentage' || c.type === 'percent');
+        const discountText = isPercent ? `${c.discountValue || c.value}%` : `฿${(c.discountValue || c.value || 0).toFixed(2)}`;
+        const isActive = c.active !== false;
+
+        const conditionParts = [];
+        if (c.minSpend && c.minSpend > 0) conditionParts.push(`ขั้นต่ำ ฿${c.minSpend}`);
+        if (isPercent && c.maxDiscount && c.maxDiscount > 0) conditionParts.push(`ลดสูงสุด ฿${c.maxDiscount}`);
+        if (c.usageLimit && c.usageLimit > 0) conditionParts.push(`จำกัด ${c.usageLimit} ครั้ง (ใช้แล้ว ${c.usedCount || 0})`);
+        if (c.expiresAt) conditionParts.push(`หมดอายุ ${c.expiresAt}`);
+        const conditionText = conditionParts.length > 0 ? conditionParts.join(' • ') : 'ไม่มีเงื่อนไขขั้นต่ำ';
+
+        return `
+            <tr class="hover:bg-slate-50/70 transition-colors">
+                <td class="py-3 px-3.5">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md border border-pink-200 text-xs">
+                            ${escapeHTML(c.code)}
+                        </span>
+                        <button type="button" onclick="copyToClipboard('${escapeHTML(c.code)}', 'คัดลอกโค้ด ${escapeHTML(c.code)} แล้ว')"
+                            class="text-slate-400 hover:text-slate-600 cursor-pointer" title="คัดลอกโค้ด">
+                            <i class="fa-regular fa-copy text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="text-[11px] text-slate-700 font-bold mt-0.5">${escapeHTML(c.title || '')}</div>
+                    <div class="text-[10px] text-slate-400">${escapeHTML(c.description || '')}</div>
+                </td>
+                <td class="py-3 px-3.5 text-center font-bold text-slate-900 text-sm">
+                    <span class="text-pink-600">${discountText}</span>
+                </td>
+                <td class="py-3 px-3.5 text-center text-[11px] text-slate-500 font-medium">
+                    ${escapeHTML(conditionText)}
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <button type="button" onclick="handleToggleAdminCoupon('${escapeHTML(c.code)}')"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-all ${isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}">
+                        ${isActive ? '🟢 เปิดใช้งาน' : '⚪ ระงับชั่วคราว'}
+                    </button>
+                </td>
+                <td class="py-3 px-3.5 text-right">
+                    <button type="button" onclick="handleDeleteAdminCoupon('${escapeHTML(c.code)}')"
+                        class="px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-bold cursor-pointer transition-all active:scale-95">
+                        <i class="fa-solid fa-trash-can text-xs"></i> ลบ
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function handleAdminCouponSearch(val) {
+    adminCouponSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('admin-coupon-clear-search');
+    if (clearBtn) {
+        if (adminCouponSearchQuery) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+    renderAdminCouponsList();
+}
+
+function clearAdminCouponSearch() {
+    adminCouponSearchQuery = '';
+    const input = document.getElementById('admin-coupon-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('admin-coupon-clear-search');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    renderAdminCouponsList();
+}
+
+function toggleAdminCouponForm(open) {
+    const card = document.getElementById('admin-coupon-form-card');
+    if (!card) return;
+    const shouldOpen = (open !== undefined) ? open : card.classList.contains('hidden');
+    const codeInput = document.getElementById('admin-coupon-code-input');
+    if (shouldOpen) {
+        card.classList.remove('hidden');
+        if (codeInput) {
+            codeInput.name = 'adm_cp_' + Math.random().toString(36).slice(2, 9);
+            codeInput.setAttribute('readonly', 'readonly');
+            setTimeout(() => {
+                if (codeInput) {
+                    codeInput.removeAttribute('readonly');
+                    codeInput.focus();
+                }
+            }, 60);
+        }
+    } else {
+        card.classList.add('hidden');
+        if (codeInput) {
+            codeInput.value = '';
+            codeInput.setAttribute('readonly', 'readonly');
+        }
+    }
+}
+
+function handleAdminCouponTypeChange(val) {
+    const unitEl = document.getElementById('admin-coupon-val-unit');
+    const maxDiscGroup = document.getElementById('admin-coupon-maxdisc-group');
+    if (unitEl) unitEl.textContent = val === 'percent' ? '%' : '฿';
+    if (maxDiscGroup) {
+        if (val === 'percent') maxDiscGroup.classList.remove('hidden');
+        else maxDiscGroup.classList.add('hidden');
+    }
+}
+
+async function handleAdminCouponFormSubmit(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+
+    const code = (document.getElementById('admin-coupon-code-input')?.value || '').trim().toUpperCase();
+    const type = document.getElementById('admin-coupon-type-input')?.value || 'percent';
+    const val = parseFloat(document.getElementById('admin-coupon-val-input')?.value || '0');
+    const minSpend = parseFloat(document.getElementById('admin-coupon-min-input')?.value || '0');
+    const maxDiscInput = document.getElementById('admin-coupon-maxdisc-input')?.value;
+    const maxDiscount = maxDiscInput ? parseFloat(maxDiscInput) : null;
+    const limitInput = document.getElementById('admin-coupon-limit-input')?.value;
+    const usageLimit = limitInput ? parseInt(limitInput, 10) : null;
+    const expiresAt = document.getElementById('admin-coupon-expiry-input')?.value || null;
+    const desc = (document.getElementById('admin-coupon-desc-input')?.value || '').trim();
+    const active = document.getElementById('admin-coupon-active-input')?.checked !== false;
+
+    if (!code || code.length < 3) {
+        showToast("รหัสโค้ดต้องมีความยาวอย่างน้อย 3 ตัวอักษร", "warning");
+        return;
+    }
+    if (isNaN(val) || val <= 0) {
+        showToast("กรุณากรอกมูลค่าส่วนลดที่ถูกต้อง", "warning");
+        return;
+    }
+
+    const payload = {
+        code,
+        title: `ส่วนลด ${code} (${type === 'percent' ? val + '%' : '฿' + val})`,
+        description: desc || `รับส่วนลด ${type === 'percent' ? val + '%' : '฿' + val} สำหรับคำสั่งซื้อ`,
+        discountType: type,
+        type: type === 'percent' ? 'percentage' : 'fixed',
+        discountValue: val,
+        value: val,
+        minSpend: isNaN(minSpend) ? 0 : minSpend,
+        maxDiscount,
+        usageLimit,
+        expiresAt,
+        active,
+        badge: '🎟️ ส่วนลดพิเศษ'
+    };
+
+    try {
+        const res = await fetch('/api/admin/coupons', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(`สร้างโค้ดส่วนลด "${code}" เรียบร้อยแล้ว`, "success");
+        } else {
+            showToast(data.message || "สร้างโค้ดในระบบสำเร็จ", "success");
+        }
+    } catch (e) {
+        const promos = getStorePromotions();
+        const existingIdx = promos.findIndex(p => p.code === code);
+        if (existingIdx > -1) promos[existingIdx] = payload;
+        else promos.unshift(payload);
+        saveStorePromotions(promos);
+        showToast(`บันทึกโค้ดส่วนลด "${code}" สำเร็จ`, "success");
+    }
+
+    const adminCodeInput = document.getElementById('admin-coupon-code-input');
+    if (adminCodeInput) {
+        adminCodeInput.value = '';
+        adminCodeInput.setAttribute('readonly', 'readonly');
+        adminCodeInput.name = 'adm_cp_' + Math.random().toString(36).slice(2, 9);
+        if (typeof adminCodeInput.blur === 'function') adminCodeInput.blur();
+    }
+
+    toggleAdminCouponForm(false);
+    renderAdminCouponsList();
+}
+
+async function handleToggleAdminCoupon(code) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    try {
+        await fetch(`/api/admin/coupons/${encodeURIComponent(code)}/toggle`, {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+    } catch (e) {}
+
+    const promos = getStorePromotions();
+    const target = promos.find(p => p.code === code);
+    if (target) {
+        target.active = !(target.active !== false);
+        saveStorePromotions(promos);
+        showToast(`อัปเดตสถานะโค้ด "${code}" สำเร็จ`, "info");
+    }
+    renderAdminCouponsList();
+}
+
+async function handleDeleteAdminCoupon(code) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบโค้ด "${code}"?`)) return;
+
+    try {
+        await fetch(`/api/admin/coupons/${encodeURIComponent(code)}`, {
+            method: 'DELETE',
+            headers: getAdminHeaders()
+        });
+    } catch (e) {}
+
+    let promos = getStorePromotions();
+    promos = promos.filter(p => p.code !== code);
+    saveStorePromotions(promos);
+    showToast(`ลบโค้ด "${code}" เรียบร้อยแล้ว`, "success");
+    renderAdminCouponsList();
+}
+
+// ==========================================
+// USERS & MEMBERS MANAGEMENT (ADMIN)
+// ==========================================
+let adminUsersList = [];
+let adminUserSearchQuery = '';
+let adminUserStatusFilter = 'all';
+
+async function renderAdminUsersList() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const tableBody = document.getElementById('admin-users-table');
+    if (!tableBody) return;
+
+    try {
+        const res = await fetch('/api/admin/users', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.users)) {
+                adminUsersList = data.users.map(u => ({
+                    ...u,
+                    id: u.id || u.userId,
+                    userId: u.userId || u.id,
+                    displayName: u.displayName || 'สมาชิก',
+                    isEmailVerified: u.isEmailVerified !== undefined ? u.isEmailVerified : (u.emailVerified !== false),
+                    totalOrders: u.totalOrders !== undefined ? u.totalOrders : (u.ordersCount || 0)
+                }));
+            }
+        }
+    } catch (e) {
+        if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
+            const user = USER_AUTH.getUser();
+            if (user) {
+                adminUsersList = [{
+                    id: user.userId || user.id || 'usr_current',
+                    userId: user.userId || user.id || 'usr_current',
+                    email: user.email,
+                    displayName: user.displayName || 'สมาชิกปัจจุบัน',
+                    createdAt: new Date().toISOString(),
+                    isEmailVerified: true,
+                    totalOrders: 0,
+                    totalSpent: 0
+                }];
+            }
+        }
+    }
+
+    adminUsersList.forEach(u => {
+        let count = 0;
+        let spent = 0;
+        (state.orders || []).forEach(o => {
+            if ((o.recipientEmail || '').toLowerCase() === (u.email || '').toLowerCase()) {
+                count++;
+                spent += (o.totalAmount || 0);
+            }
+        });
+        u.computedOrders = count;
+        u.computedSpent = spent;
+    });
+
+    const totalUsers = adminUsersList.length;
+    const onlineCount = adminUsersList.filter(u => u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000))).length;
+    const offlineCount = Math.max(0, totalUsers - onlineCount);
+
+    document.getElementById('admin-users-count-all') && (document.getElementById('admin-users-count-all').textContent = totalUsers);
+    document.getElementById('admin-users-count-online') && (document.getElementById('admin-users-count-online').textContent = onlineCount);
+    document.getElementById('admin-users-count-offline') && (document.getElementById('admin-users-count-offline').textContent = offlineCount);
+    document.getElementById('admin-users-count-label') && (document.getElementById('admin-users-count-label').textContent = `พบสมาชิก ${totalUsers} คน`);
+    document.getElementById('admin-users-badge') && (document.getElementById('admin-users-badge').textContent = totalUsers);
+
+    let filtered = adminUsersList;
+    if (adminUserStatusFilter === 'online') {
+        filtered = filtered.filter(u => u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000)));
+    } else if (adminUserStatusFilter === 'offline') {
+        filtered = filtered.filter(u => !(u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000))));
+    }
+
+    if (adminUserSearchQuery) {
+        filtered = filtered.filter(u =>
+            (u.email || '').toLowerCase().includes(adminUserSearchQuery) ||
+            (u.displayName || '').toLowerCase().includes(adminUserSearchQuery) ||
+            (u.userId || '').toLowerCase().includes(adminUserSearchQuery)
+        );
+    }
+
+    if (!filtered || filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="py-10 text-center text-xs text-slate-400">
+                    <i class="fa-solid fa-users text-2xl text-slate-300 mb-2 block"></i>
+                    ยังไม่พบรายชื่อสมาชิกในระบบ เมื่อลูกค้าสมัครสมาชิกผ่านหน้าเว็บ ข้อมูลจะแสดงที่นี่
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = filtered.map(u => {
+        const isOnline = u.isOnline === true || (u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 120000));
+        const regDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH') : '-';
+        const totalSpent = u.computedSpent || u.totalSpent || 0;
+        const totalOrders = u.computedOrders || u.totalOrders || 0;
+
+        return `
+            <tr class="hover:bg-slate-50/70 transition-colors">
+                <td class="py-3 px-3.5">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-full bg-pink-100 text-pink-600 font-bold flex items-center justify-center text-xs shrink-0">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-900 text-xs">${escapeHTML(u.displayName || 'สมาชิก')}</div>
+                            <div class="text-[11px] text-slate-500 font-mono">${escapeHTML(u.email)}</div>
+                            <div class="text-[9px] text-slate-400 font-mono">ID: ${escapeHTML(u.userId || '')}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${isOnline ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}">
+                        <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></span>
+                        ${isOnline ? 'ออนไลน์' : 'ออฟไลน์'}
+                    </span>
+                </td>
+                <td class="py-3 px-3.5 text-center text-xs">
+                    ${u.isEmailVerified !== false
+                        ? '<span class="text-emerald-600 font-bold text-[11px]"><i class="fa-solid fa-circle-check"></i> ยืนยันแล้ว</span>'
+                        : '<span class="text-amber-600 font-medium text-[11px]"><i class="fa-solid fa-clock"></i> รอยืนยัน</span>'}
+                </td>
+                <td class="py-3 px-3.5 text-center text-slate-500 text-xs font-medium">
+                    ${regDate}
+                </td>
+                <td class="py-3 px-3.5 text-center">
+                    <div class="font-bold text-pink-600 text-xs">฿${totalSpent.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div class="text-[10px] text-slate-400">${totalOrders} ออเดอร์</div>
+                </td>
+                <td class="py-3 px-3.5 text-right space-x-1">
+                    <button type="button" onclick="handleAdminResetUserPassword('${escapeHTML(u.userId || u.id || '')}', '${escapeHTML(u.email || '')}')"
+                        class="px-2.5 py-1 rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 text-xs font-bold cursor-pointer transition-all" title="รีเซ็ตรหัสผ่าน">
+                        <i class="fa-solid fa-key text-[10px]"></i> รีเซ็ตรหัส
+                    </button>
+                    <button type="button" onclick="handleDeleteAdminUser('${escapeHTML(u.userId || u.id || '')}', '${escapeHTML(u.email || '')}')"
+                        class="px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-bold cursor-pointer transition-all active:scale-95" title="ลบผู้ใช้">
+                        <i class="fa-solid fa-trash-can text-[10px]"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function handleAdminUserSearch(val) {
+    adminUserSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('admin-user-clear-search');
+    if (clearBtn) {
+        if (adminUserSearchQuery) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+    renderAdminUsersList();
+}
+
+function clearAdminUserSearch() {
+    adminUserSearchQuery = '';
+    const input = document.getElementById('admin-user-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('admin-user-clear-search');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    renderAdminUsersList();
+}
+
+function filterAdminUsersStatus(status) {
+    adminUserStatusFilter = status;
+    ['all', 'online', 'offline'].forEach(s => {
+        const btn = document.getElementById(`admin-users-filter-${s}`);
+        if (btn) {
+            if (s === status) {
+                btn.className = "px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs font-bold cursor-pointer transition-all";
+            } else {
+                btn.className = "px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 font-bold cursor-pointer transition-all";
+            }
+        }
+    });
+    renderAdminUsersList();
+}
+
+function openAdminResetPwModal(userId, email) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    const modal = document.getElementById('admin-reset-pw-modal');
+    if (!modal) return;
+
+    const idInput = document.getElementById('admin-reset-pw-user-id');
+    const labelEl = document.getElementById('admin-reset-pw-user-label');
+    const passInput = document.getElementById('admin-reset-pw-input');
+
+    if (idInput) idInput.value = userId || '';
+    if (labelEl) labelEl.textContent = `บัญชี: ${email || userId || '-'}`;
+    if (passInput) passInput.value = '';
+
+    modal.classList.remove('hidden');
+    setTimeout(() => { if (passInput) passInput.focus(); }, 100);
+}
+
+function closeAdminResetPwModal() {
+    const modal = document.getElementById('admin-reset-pw-modal');
+    if (modal) modal.classList.add('hidden');
+    const passInput = document.getElementById('admin-reset-pw-input');
+    if (passInput) passInput.value = '';
+}
+
+async function submitAdminResetPassword() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    const idInput = document.getElementById('admin-reset-pw-user-id');
+    const passInput = document.getElementById('admin-reset-pw-input');
+    const userId = idInput ? idInput.value.trim() : '';
+    const newPass = passInput ? passInput.value.trim() : '';
+
+    if (!userId) {
+        showToast("ไม่พบรหัสผู้ใช้งาน", "error");
+        return;
+    }
+    if (!newPass || newPass.length < 6) {
+        showToast("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "warning");
+        if (passInput) passInput.focus();
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/users/reset-password', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ userId, newPassword: newPass })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(data.message || "รีเซ็ตรหัสผ่านสำเร็จเรียบร้อยแล้ว", "success");
+            closeAdminResetPwModal();
+        } else {
+            showToast(data.message || "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน", "error");
+        }
+    } catch (e) {
+        console.error("submitAdminResetPassword error:", e);
+        showToast("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", "error");
+    }
+}
+
+function handleAdminResetUserPassword(userId, email) {
+    openAdminResetPwModal(userId, email);
+}
+
+async function handleDeleteAdminUser(userId, email) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const targetId = userId || email;
+    if (!targetId) {
+        showToast("ไม่พบรหัสผู้ใช้ที่ต้องการลบ", "error");
+        return;
+    }
+    if (!confirm(`ยืนยันการลบสมาชิก ${email || targetId} ออกจากระบบ?`)) return;
+
+    try {
+        const res = await fetch(`/api/admin/users/${encodeURIComponent(targetId)}`, {
+            method: 'DELETE',
+            headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(`ลบสมาชิก ${email || targetId} เรียบร้อยแล้ว`, "success");
+        } else {
+            showToast(data.message || "ไม่สามารถลบสมาชิกได้", "error");
+            return;
+        }
+    } catch (e) {
+        showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์", "error");
+        return;
+    }
+
+    adminUsersList = adminUsersList.filter(u => u.userId !== targetId && u.id !== targetId && u.email !== email);
+    renderAdminUsersList();
+}
+
+async function handleClearAllAdminUsers() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const confirmInput = prompt("⚠️ คำเตือน: คุณกำลังจะล้างข้อมูลลูกค้าทั้งหมด! พิมพ์ 'CLEAR-USERS' เพื่อยืนยัน:");
+    if (confirmInput !== 'CLEAR-USERS') {
+        showToast("ยกเลิกการล้างข้อมูลสมาชิก", "info");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/users/clear-all', {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast("ล้างข้อมูลสมาชิกทั้งหมดเรียบร้อยแล้ว", "success");
+        }
+    } catch (e) {}
+
+    adminUsersList = [];
+    renderAdminUsersList();
+}
+
+// ==========================================
+// ADMIN SETTINGS & INTEGRATIONS & BACKUP TOOLS
+// ==========================================
+async function loadAdminSettingsIntoForm() {
+    try {
+        const res = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                if (data.promptPayAccountName) {
+                    const accEl = document.getElementById('admin-account-name');
+                    if (accEl) accEl.value = data.promptPayAccountName;
+                }
+                if (data.promptPayNumber) {
+                    const phoneEl = document.getElementById('admin-promptpay-input');
+                    if (phoneEl) phoneEl.value = data.promptPayNumber;
+                }
+                if (data.slipOkBranchId) {
+                    const branchEl = document.getElementById('admin-slipok-branch');
+                    if (branchEl) branchEl.value = data.slipOkBranchId;
+                }
+                if (data.hasSlipOkKey) {
+                    const badge = document.getElementById('admin-slipok-status-badge');
+                    if (badge) {
+                        badge.textContent = `🟢 บันทึกแล้ว (${data.slipOkKeyHint || 'พร้อมใช้งาน'})`;
+                        badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 transition-all";
+                    }
+                }
+                if (data.discordWebhookUrl) {
+                    const discEl = document.getElementById('admin-discord-webhook');
+                    if (discEl && !discEl.value) discEl.value = data.discordWebhookUrl;
+                }
+                if (data.geminiApiKey) {
+                    const geminiEl = document.getElementById('admin-gemini-api-key');
+                    if (geminiEl && !geminiEl.value) geminiEl.placeholder = "•••••••• (บันทึกคีย์แล้ว - กรอกใหม่เพื่อเปลี่ยน)";
+                }
+                if (data.smtpConfig) {
+                    const smtp = data.smtpConfig;
+                    const hostEl = document.getElementById('admin-smtp-host');
+                    if (hostEl && smtp.host) hostEl.value = smtp.host;
+                    const portEl = document.getElementById('admin-smtp-port');
+                    if (portEl && smtp.port) portEl.value = smtp.port;
+                    const userEl = document.getElementById('admin-smtp-user');
+                    if (userEl && smtp.user) userEl.value = smtp.user;
+                    const fromEl = document.getElementById('admin-smtp-from');
+                    if (fromEl && smtp.from) fromEl.value = smtp.from;
+                    const logoEl = document.getElementById('admin-smtp-logourl');
+                    if (logoEl && smtp.logoUrl) logoEl.value = smtp.logoUrl;
+
+                    const passEl = document.getElementById('admin-smtp-pass');
+                    if (passEl && !passEl.value && smtp.pass) {
+                        passEl.placeholder = "•••••••• (บันทึกรหัสแอปไว้แล้ว - กรอกใหม่เพื่อเปลี่ยน)";
+                    }
+                    const brevoEl = document.getElementById('admin-smtp-brevo');
+                    if (brevoEl && !brevoEl.value && smtp.brevoKey) {
+                        brevoEl.placeholder = "•••••••• (บันทึกไว้แล้ว)";
+                    }
+                    const resendEl = document.getElementById('admin-smtp-resend');
+                    if (resendEl && !resendEl.value && smtp.resendKey) {
+                        resendEl.placeholder = "•••••••• (บันทึกไว้แล้ว)";
+                    }
+                    const sgEl = document.getElementById('admin-smtp-sendgrid');
+                    if (sgEl && !sgEl.value && smtp.sendgridKey) {
+                        sgEl.placeholder = "•••••••• (บันทึกไว้แล้ว)";
+                    }
+                    const mjKeyEl = document.getElementById('admin-smtp-mailjet-key');
+                    if (mjKeyEl && !mjKeyEl.value && smtp.mailjetKey) {
+                        mjKeyEl.placeholder = "•••••••• (บันทึกแล้ว)";
+                    }
+                    const mjSecEl = document.getElementById('admin-smtp-mailjet-secret');
+                    if (mjSecEl && !mjSecEl.value && smtp.mailjetSecret) {
+                        mjSecEl.placeholder = "•••••••• (บันทึกแล้ว)";
+                    }
+                    const testTargetEl = document.getElementById('admin-test-email-target');
+                    if (testTargetEl && !testTargetEl.value && smtp.user) {
+                        testTargetEl.value = smtp.user;
+                    }
+                }
+                if (data.maintenanceMode !== undefined) {
+                    const maintCheck = document.getElementById('admin-maintenance-mode');
+                    if (maintCheck) maintCheck.checked = !!data.maintenanceMode;
+                    updateMaintenanceBadge(data.maintenanceMode);
+                }
+            }
+        }
+    } catch (e) {}
+}
+
+function scrollToAdminSetting(sectionId) {
+    const el = document.getElementById(sectionId);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function updateMaintenanceBadge(isMaint) {
+    const badge = document.getElementById('admin-maintenance-badge');
+    const directBtn = document.getElementById('admin-maint-direct-btn');
+    if (badge) {
+        if (isMaint) {
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> ⚠️ ปิดปรับปรุงอยู่ (Maintenance)`;
+            badge.className = "text-[11px] text-amber-800 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1";
+        } else {
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 🟢 เปิดให้บริการปกติ`;
+            badge.className = "text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1";
+        }
+    }
+    if (directBtn) {
+        directBtn.innerHTML = isMaint
+            ? `<i class="fa-solid fa-circle-check"></i> <span>คลิกเปิดร้านปกติทันที</span>`
+            : `<i class="fa-solid fa-power-off"></i> <span>คลิกปิดเว็บชั่วคราวทันที</span>`;
+        directBtn.className = isMaint
+            ? "px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+            : "px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-md shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer active:scale-95";
+    }
+}
+
+async function toggleMaintenanceModeDirectly(checked) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    const checkbox = document.getElementById('admin-maintenance-mode');
+    const newState = (checked !== undefined) ? !!checked : (checkbox ? !checkbox.checked : true);
+    if (checkbox) checkbox.checked = newState;
+
+    updateMaintenanceBadge(newState);
+
+    try {
+        const res = await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ maintenanceMode: newState })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(newState ? "เปิดโหมดปิดปรับปรุงชั่วคราวแล้ว" : "เปิดให้บริการร้านค้าตามปกติแล้ว", "success");
+        }
+    } catch (e) {
+        showToast(newState ? "เปิดโหมดปรับปรุง (จำลอง)" : "เปิดร้านปกติ (จำลอง)", "info");
+    }
+}
+
+function toggleSlipOkKeyVisibility() {
+    const input = document.getElementById('admin-slipok-apikey');
+    const icon = document.getElementById('slipok-eye-icon');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+    } else {
+        input.type = 'password';
+        if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+    }
+}
+
+async function handleAdminTestSlipOK() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    const branchId = document.getElementById('admin-slipok-branch')?.value.trim();
+    const apiKey = document.getElementById('admin-slipok-apikey')?.value.trim();
+    const resultEl = document.getElementById('admin-slipok-test-result');
+    const btn = document.getElementById('admin-test-slipok-btn');
+
+    if (btn) btn.disabled = true;
+    if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = "p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 sm:col-span-2 lg:col-span-3";
+        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> กำลังทดสอบเชื่อมต่อ SlipOK...`;
+    }
+
+    try {
+        const res = await fetch('/api/admin/test-slipok', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ branchId, apiKey })
+        });
+        const data = await res.json();
+        if (resultEl) {
+            if (res.status === 403) {
+                resultEl.className = "p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 sm:col-span-2 lg:col-span-3";
+                resultEl.innerHTML = `<i class="fa-solid fa-lock text-amber-600 mr-1.5"></i> เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบด้วยรหัส PIN อีกครั้ง <button type="button" onclick="promptAdminLogin()" class="ml-2 px-2.5 py-1 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer">เข้าสู่ระบบ PIN</button>`;
+                return;
+            }
+            if (data && data.success) {
+                resultEl.className = "p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 sm:col-span-2 lg:col-span-3";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'เชื่อมต่อ SlipOK สำเร็จ!'}`;
+                const badge = document.getElementById('admin-slipok-status-badge');
+                if (badge) {
+                    badge.textContent = `🟢 เชื่อมต่อสำเร็จ (โควต้า: ${data.quota || '-'})`;
+                    badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700";
+                }
+            } else {
+                resultEl.className = "p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 sm:col-span-2 lg:col-span-3";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'การเชื่อมต่อล้มเหลว ตรวจสอบ Branch ID และ API Key'}`;
+            }
+        }
+    } catch (e) {
+        if (resultEl) {
+            resultEl.className = "p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 sm:col-span-2 lg:col-span-3";
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบ SlipOK ได้ในขณะนี้ (${e.message})`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function savePromptPayAndSlipOkSettings() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const phoneEl = document.getElementById('admin-promptpay-input');
+    const newPhone = phoneEl ? phoneEl.value.trim().replace(/[-\s]/g, '') : '';
+    const newAccountName = (document.getElementById('admin-account-name')?.value || '').trim();
+    const newBranchId = (document.getElementById('admin-slipok-branch')?.value || '').trim();
+    const newApiKey = (document.getElementById('admin-slipok-apikey')?.value || '').trim();
+
+    if (newPhone && !/^[0-9]{10,15}$/.test(newPhone)) {
+        showToast("รูปแบบเบอร์พร้อมเพย์ต้องเป็นตัวเลข 10-15 หลัก", "warning");
+        return;
+    }
+
+    if (newPhone) STORE_CONFIG.promptPayNumber = newPhone;
+    if (newAccountName) STORE_CONFIG.promptPayAccountName = newAccountName;
+    if (newBranchId) STORE_CONFIG.slipOkBranchId = newBranchId;
+    if (newApiKey && newApiKey !== '******') STORE_CONFIG.slipOkApiKey = newApiKey;
+
+    try {
+        await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({
+                promptPayNumber: STORE_CONFIG.promptPayNumber,
+                promptPayAccountName: STORE_CONFIG.promptPayAccountName,
+                slipOkBranchId: STORE_CONFIG.slipOkBranchId,
+                slipOkApiKey: STORE_CONFIG.slipOkApiKey
+            })
+        });
+        localStorage.setItem('supinkly_store_config', JSON.stringify(STORE_CONFIG));
+        showToast("บันทึกการตั้งค่าพร้อมเพย์ & SlipOK เรียบร้อยแล้ว", "success");
+    } catch (e) {
+        localStorage.setItem('supinkly_store_config', JSON.stringify(STORE_CONFIG));
+        showToast("บันทึกการตั้งค่าลงเบราว์เซอร์สำเร็จ", "success");
+    }
+}
+
+async function handleAdminTestDiscord() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const webhookUrl = document.getElementById('admin-discord-webhook')?.value.trim();
+    const resultEl = document.getElementById('admin-test-discord-result');
+    const btn = document.getElementById('admin-test-discord-btn');
+
+    if (!webhookUrl) {
+        showToast("กรุณากรอก Discord Webhook URL", "warning");
+        return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = "mt-2 p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700";
+        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> กำลังส่งข้อความทดสอบเข้า Discord...`;
+    }
+
+    try {
+        const res = await fetch('/api/admin/test-discord', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ webhookUrl })
+        });
+        const data = await res.json();
+        if (resultEl) {
+            if (data && data.success) {
+                resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'ส่งแจ้งเตือนเข้า Discord สำเร็จ! ตรวจสอบที่ห้องแชทของคุณ'}`;
+            } else {
+                resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200";
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'ส่งไม่สำเร็จ ตรวจสอบ Webhook URL'}`;
+            }
+        }
+    } catch (e) {
+        if (resultEl) {
+            resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบได้`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function applySmtpPreset(preset) {
+    const hostEl = document.getElementById('admin-smtp-host');
+    const portEl = document.getElementById('admin-smtp-port');
+    if (!hostEl || !portEl) return;
+    if (preset === 'gmail-465') {
+        hostEl.value = 'smtp.gmail.com';
+        portEl.value = '465';
+        showToast("เลือกโปรไฟล์ Gmail SSL (พอร์ต 465) แล้ว", "info");
+    } else if (preset === 'gmail-587') {
+        hostEl.value = 'smtp.gmail.com';
+        portEl.value = '587';
+        showToast("เลือกโปรไฟล์ Gmail TLS (พอร์ต 587) แล้ว", "info");
+    }
+}
+
+async function handleAdminTestEmail() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const targetEmail = document.getElementById('admin-test-email-target')?.value.trim();
+    const resultEl = document.getElementById('admin-test-email-result');
+    const btn = document.getElementById('admin-test-email-btn');
+
+    if (!targetEmail || !targetEmail.includes('@')) {
+        showToast("กรุณากรอกอีเมลผู้รับทดสอบให้ถูกต้อง", "warning");
+        const targetInput = document.getElementById('admin-test-email-target');
+        if (targetInput) targetInput.focus();
+        return;
+    }
+
+    const host = document.getElementById('admin-smtp-host')?.value.trim() || '';
+    const port = parseInt(document.getElementById('admin-smtp-port')?.value || '465', 10);
+    const user = document.getElementById('admin-smtp-user')?.value.trim() || '';
+    const pass = document.getElementById('admin-smtp-pass')?.value.trim() || '';
+    const from = document.getElementById('admin-smtp-from')?.value.trim() || '';
+    const logoUrl = document.getElementById('admin-smtp-logourl')?.value.trim() || '';
+    const brevoKey = document.getElementById('admin-smtp-brevo')?.value.trim() || '';
+    const resendKey = document.getElementById('admin-smtp-resend')?.value.trim() || '';
+    const sendgridKey = document.getElementById('admin-smtp-sendgrid')?.value.trim() || '';
+    const mailjetKey = document.getElementById('admin-smtp-mailjet-key')?.value.trim() || '';
+    const mailjetSecret = document.getElementById('admin-smtp-mailjet-secret')?.value.trim() || '';
+
+    const smtpConfig = {
+        host,
+        port,
+        user,
+        pass,
+        from,
+        logoUrl,
+        brevoKey,
+        resendKey,
+        sendgridKey,
+        mailjetKey,
+        mailjetSecret
+    };
+
+    if (btn) btn.disabled = true;
+    if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 animate-pulse";
+        resultEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5 text-pink-600"></i> กำลังทดสอบส่งอีเมลไปยัง <strong>${escapeHTML(targetEmail)}</strong>...`;
+    }
+
+    try {
+        const res = await fetch('/api/admin/test-email', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({
+                testEmail: targetEmail,
+                to: targetEmail,
+                smtpConfig: smtpConfig,
+                ...smtpConfig
+            })
+        });
+        const data = await res.json();
+        if (resultEl) {
+            resultEl.classList.remove('animate-pulse');
+            if (data && data.success) {
+                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs";
+                const msg = escapeHTML(data.message || 'ส่งอีเมลทดสอบสำเร็จ! ตรวจสอบกล่องจดหมายของคุณ').replace(/\n/g, '<br>');
+                resultEl.innerHTML = `<div class="flex items-start gap-2"><i class="fa-solid fa-circle-check text-emerald-600 mt-0.5 shrink-0 text-sm"></i><div class="leading-relaxed">${msg}</div></div>`;
+            } else {
+                resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200 shadow-2xs";
+                const msg = escapeHTML(data.message || 'ส่งอีเมลไม่สำเร็จ ตรวจสอบการตั้งค่า SMTP และ App Password').replace(/\n/g, '<br>');
+                resultEl.innerHTML = `<div class="flex items-start gap-2"><i class="fa-solid fa-circle-xmark text-rose-600 mt-0.5 shrink-0 text-sm"></i><div class="leading-relaxed whitespace-pre-wrap">${msg}</div></div>`;
+            }
+        }
+    } catch (e) {
+        if (resultEl) {
+            resultEl.classList.remove('animate-pulse');
+            resultEl.className = "mt-2.5 p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
+            resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-600 mr-1.5"></i> ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบส่งอีเมลได้ (${escapeHTML(e.message || 'Network Error')})`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function downloadDatabaseBackup() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    try {
+        const res = await fetch('/api/admin/backup-db', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `supinkly_db_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("ดาวน์โหลดไฟล์สำรองข้อมูลฐานข้อมูลสำเร็จ!", "success");
+            return;
+        }
+    } catch (e) {}
+
+    const localBackup = {
+        exportedAt: new Date().toISOString(),
+        version: "2026.1",
+        orders: state.orders || [],
+        inventory: state.inventory || {},
+        promotions: getStorePromotions(),
+        config: STORE_CONFIG
+    };
+    const blob = new Blob([JSON.stringify(localBackup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `supinkly_local_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("ดาวน์โหลดไฟล์สำรองข้อมูลจากเบราว์เซอร์สำเร็จ!", "success");
+}
+
+async function handleDatabaseRestore(fileInput) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    const file = fileInput?.files?.[0];
+    if (!file) return;
+
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการกู้คืนข้อมูลจากไฟล์ "${file.name}"? ข้อมูลปัจจุบันอาจถูกเขียนทับ`)) {
+        fileInput.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const jsonText = e.target.result;
+            const parsed = JSON.parse(jsonText);
+
+            try {
+                const res = await fetch('/api/admin/restore-db', {
+                    method: 'POST',
+                    headers: getAdminHeaders(),
+                    body: JSON.stringify({ backupJson: parsed })
+                });
+                const data = await res.json();
+                if (data && data.success) {
+                    showToast("กู้คืนฐานข้อมูลผ่านเซิร์ฟเวอร์เรียบร้อยแล้ว!", "success");
+                    setTimeout(() => location.reload(), 1000);
+                    return;
+                }
+            } catch (err) {}
+
+            if (Array.isArray(parsed.orders)) {
+                state.orders = parsed.orders;
+                saveOrders();
+            }
+            if (parsed.inventory && typeof parsed.inventory === 'object') {
+                state.inventory = parsed.inventory;
+                saveSecureInventory(state.inventory);
+            }
+            if (Array.isArray(parsed.promotions)) {
+                saveStorePromotions(parsed.promotions);
+            }
+            showToast("กู้คืนข้อมูลลงในระบบเรียบร้อยแล้ว กำลังรีโหลด...", "success");
+            setTimeout(() => location.reload(), 1200);
+        } catch (err) {
+            showToast("ไฟล์สำรองไม่ถูกต้องหรือไม่ใช่รูปแบบ JSON ที่ถูกต้อง", "error");
+        } finally {
+            fileInput.value = '';
+        }
+    };
+    reader.readAsText(file);
 }
 
 function handleAdminOrderSearch(val) {
@@ -1695,19 +4969,20 @@ function exportOrdersToCSV() {
         return;
     }
 
-    if (!state.orders || state.orders.length === 0) {
+    const ordersToExport = getAdminOrders();
+    if (!ordersToExport || ordersToExport.length === 0) {
         showToast("ยังไม่มีข้อมูลคำสั่งซื้อสำหรับส่งออก", "info");
         return;
     }
 
     const headers = ["Order ID", "Date", "Customer Email", "Total Amount (THB)", "Payment Method", "TransRef", "Status", "Items"];
-    const rows = state.orders.map(o => {
+    const rows = ordersToExport.map(o => {
         const itemNames = (o.items || []).map(i => `${i.productTitle} (x1)`).join(' | ');
         const cleanStatus = (o.status || '').replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
         return [
             o.orderId,
             `"${o.date || ''}"`,
-            `"${o.recipientEmail || ''}"`,
+            `"${o.recipientEmail || o.email || ''}"`,
             (o.totalAmount || 0).toFixed(2),
             `"${o.paymentMethod || 'PromptPay'}"`,
             `"${o.transRef || ''}"`,
@@ -1729,17 +5004,101 @@ function exportOrdersToCSV() {
     showToast("ส่งออกไฟล์ CSV คำสั่งซื้อเรียบร้อยแล้ว", "success");
 }
 
+async function handleClearAllAdminOrders() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+    const orders = getAdminOrders();
+    if (!orders || orders.length === 0) {
+        showToast("ไม่มีคำสั่งซื้อในระบบให้ล้าง", "info");
+        return;
+    }
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้างข้อมูลคำสั่งซื้อทั้งหมด ${orders.length} รายการ?\n\nการกระทำนี้จะลบออกจากฐานข้อมูลเซิร์ฟเวอร์ถาวรและไม่สามารถย้อนกลับได้!`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/orders/clear-all', {
+            method: 'POST',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                adminOrdersList = [];
+                state.orders = [];
+                saveOrders();
+                renderAdminOrdersList();
+                if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+                showToast("ล้างข้อมูลคำสั่งซื้อทั้งหมดจากเซิร์ฟเวอร์เรียบร้อยแล้ว", "success");
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn("[ADMIN] Clear orders server error, falling back locally:", e);
+    }
+
+    adminOrdersList = [];
+    state.orders = [];
+    saveOrders();
+    renderAdminOrdersList();
+    if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+    showToast("ล้างข้อมูลคำสั่งซื้อทั้งหมดเรียบร้อยแล้ว", "success");
+}
+
+async function deleteAdminOrder(orderId) {
+    if (!orderId) return;
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบคำสั่งซื้อ ${orderId} ออกจากระบบ?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+            method: 'DELETE',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                adminOrdersList = adminOrdersList.filter(o => o.orderId !== orderId);
+                state.orders = (state.orders || []).filter(o => o.orderId !== orderId);
+                saveOrders();
+                renderAdminOrdersList();
+                if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+                showToast(`ลบคำสั่งซื้อ ${orderId} สำเร็จแล้ว`, "success");
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn("[ADMIN] Delete order server error:", e);
+    }
+
+    adminOrdersList = adminOrdersList.filter(o => o.orderId !== orderId);
+    state.orders = (state.orders || []).filter(o => o.orderId !== orderId);
+    saveOrders();
+    renderAdminOrdersList();
+    if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+    showToast(`ลบคำสั่งซื้อ ${orderId} เรียบร้อยแล้ว`, "success");
+}
+
 function copyOrderCustomerReceipt(orderId) {
-    const order = state.orders.find(o => o.orderId === orderId);
+    const order = (adminOrdersList && adminOrdersList.find(o => o.orderId === orderId)) || (state.orders || []).find(o => o.orderId === orderId);
     if (!order) return;
 
     let text = `📦 ข้อมูลคำสั่งซื้อ Supinkly.AI\n`;
     text += `เลขออเดอร์: ${order.orderId}\n`;
-    text += `วันที่สั่งซื้อ: ${order.date}\n`;
+    text += `วันที่สั่งซื้อ: ${order.date || ''}\n`;
     text += `ยอดชำระ: ฿${(order.totalAmount || 0).toFixed(2)}\n\n`;
     text += `รายการสินค้าและรหัสเข้าใช้งาน:\n`;
-    
-    order.items.forEach((it, idx) => {
+
+    (order.items || []).forEach((it, idx) => {
         text += `\n${idx + 1}. ${it.productTitle}\n`;
         const cred = it.credentials;
         if (cred) {
@@ -1759,7 +5118,7 @@ function copyOrderCustomerReceipt(orderId) {
     copyToClipboard(text, "คัดลอกข้อความแจ้งลูกค้าเรียบร้อยแล้ว นำไปส่งในแชทได้ทันที!");
 }
 
-function renderAdminOrdersList() {
+async function renderAdminOrdersList(forceFetch = false) {
     const container = document.getElementById('admin-orders-list');
     const badge = document.getElementById('admin-pending-badge');
     const countLabel = document.getElementById('admin-orders-count-label');
@@ -1774,15 +5133,20 @@ function renderAdminOrdersList() {
         return;
     }
 
+    if (forceFetch || adminOrdersList.length === 0) {
+        await fetchAdminOrders(forceFetch);
+    }
+
+    const allOrders = getAdminOrders();
+
     // Update KPI stats
     let totalSales = 0;
     let pendingCount = 0;
     let deliveredCount = 0;
 
-    state.orders.forEach(order => {
+    allOrders.forEach(order => {
         totalSales += (order.totalAmount || 0);
-        const hasPending = order.items.some(it => !it.credentials || it.status === 'pending_fulfillment');
-        if (hasPending) {
+        if (isOrderPending(order)) {
             pendingCount++;
         } else {
             deliveredCount++;
@@ -1803,7 +5167,7 @@ function renderAdminOrdersList() {
     const deliveredEl = document.getElementById('admin-stat-delivered');
     if (deliveredEl) deliveredEl.textContent = `${deliveredCount} รายการ`;
     const totalOrdersEl = document.getElementById('admin-stat-total-orders');
-    if (totalOrdersEl) totalOrdersEl.textContent = `${state.orders.length} รายการ`;
+    if (totalOrdersEl) totalOrdersEl.textContent = `${allOrders.length} รายการ`;
 
     if (badge) {
         badge.textContent = pendingCount;
@@ -1815,18 +5179,18 @@ function renderAdminOrdersList() {
     }
 
     // Filter by tab
-    let filteredOrders = state.orders;
+    let filteredOrders = allOrders;
     if (currentAdminOrderFilter === 'pending') {
-        filteredOrders = filteredOrders.filter(o => o.items.some(it => !it.credentials || it.status === 'pending_fulfillment'));
+        filteredOrders = filteredOrders.filter(isOrderPending);
     } else if (currentAdminOrderFilter === 'delivered') {
-        filteredOrders = filteredOrders.filter(o => o.items.every(it => it.credentials && it.status !== 'pending_fulfillment'));
+        filteredOrders = filteredOrders.filter(isOrderDelivered);
     }
 
     // Filter by search query
     if (adminOrderSearchQuery) {
         filteredOrders = filteredOrders.filter(o => {
             const idMatch = (o.orderId || '').toLowerCase().includes(adminOrderSearchQuery);
-            const emailMatch = (o.recipientEmail || '').toLowerCase().includes(adminOrderSearchQuery);
+            const emailMatch = (o.recipientEmail || o.email || '').toLowerCase().includes(adminOrderSearchQuery);
             const refMatch = (o.transRef || '').toLowerCase().includes(adminOrderSearchQuery);
             const itemMatch = (o.items || []).some(it => (it.productTitle || '').toLowerCase().includes(adminOrderSearchQuery));
             return idMatch || emailMatch || refMatch || itemMatch;
@@ -1834,24 +5198,42 @@ function renderAdminOrdersList() {
     }
 
     if (countLabel) {
-        countLabel.textContent = `แสดง ${filteredOrders.length} จากทั้งหมด ${state.orders.length} รายการ`;
+        countLabel.textContent = `แสดง ${filteredOrders.length} จากทั้งหมด ${allOrders.length} รายการ`;
     }
 
     if (filteredOrders.length === 0) {
+        const isFilterActive = currentAdminOrderFilter !== 'all' || adminOrderSearchQuery;
         container.innerHTML = `
-            <div class="py-10 text-center bg-slate-50 rounded-2xl border border-slate-200">
-                <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-xl">
+            <div class="py-12 px-4 text-center bg-slate-50/90 rounded-2xl border-2 border-dashed border-slate-200">
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center text-2xl shadow-inner">
                     <i class="fa-solid fa-box-open"></i>
                 </div>
-                <p class="text-sm font-bold text-slate-700">ไม่มีรายการคำสั่งซื้อในหมวดนี้</p>
-                <p class="text-xs text-slate-400 mt-0.5">เมื่อมีลูกค้าชำระเงินเข้ามา ออเดอร์จะแสดงที่นี่โดยอัตโนมัติ</p>
+                <p class="text-sm font-bold text-slate-800">
+                    ${isFilterActive ? 'ไม่พบรายการคำสั่งซื้อตามตัวกรองที่เลือก' : 'ขณะนี้ยังไม่มีรายการคำสั่งซื้อในระบบ (0 รายการ)'}
+                </p>
+                <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    ${isFilterActive 
+                        ? 'ลองเปลี่ยนตัวกรองเป็น "ทั้งหมด" หรือล้างคำค้นหาเพื่อดูรายการอื่นๆ' 
+                        : 'เมื่อลูกค้าชำระเงินเข้ามา รายการจะบันทึกเข้าเซิร์ฟเวอร์และแสดงที่นี่โดยอัตโนมัติ หรือกดปุ่มด้านล่างเพื่อทดลองสร้างออเดอร์จำลอง'}
+                </p>
+                <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button onclick="createDemoOrder()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>สร้างออเดอร์ทดสอบระบบ (Demo Order)</span>
+                    </button>
+                    ${allOrders.length > 0 ? `
+                        <button onclick="filterAdminOrders('all')" class="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all cursor-pointer">
+                            ดูออเดอร์ทั้งหมด (${allOrders.length} รายการ)
+                        </button>
+                    ` : ''}
+                </div>
             </div>
         `;
         return;
     }
 
     container.innerHTML = filteredOrders.map(order => {
-        const hasPending = order.items.some(it => !it.credentials || it.status === 'pending_fulfillment');
+        const hasPending = isOrderPending(order);
 
         return `
             <div class="p-4 rounded-2xl bg-white border-2 ${hasPending ? 'border-amber-300 shadow-sm' : 'border-slate-200'} space-y-3">
@@ -1859,19 +5241,29 @@ function renderAdminOrdersList() {
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="font-mono font-black text-pink-600 text-sm">${escapeHTML(order.orderId)}</span>
                         <span class="text-slate-400">•</span>
-                        <span class="text-slate-500 font-medium">${escapeHTML(order.date)}</span>
+                        <span class="text-slate-500 font-medium">${escapeHTML(order.date || '')}</span>
                         <span class="text-slate-400">•</span>
-                        <span class="font-bold text-slate-800">ลูกค้า: ${escapeHTML(order.recipientEmail || 'ไม่ระบุ')}</span>
-                        <button onclick="copyFromData(this)" data-copy="${escapeHTML(order.recipientEmail || '')}" data-msg="คัดลอกอีเมลลูกค้าแล้ว" 
-                                title="คัดลอกอีเมลลูกค้า" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] transition-all">
+                        <span class="font-bold text-slate-800">ลูกค้า: ${escapeHTML(order.recipientEmail || order.email || 'ไม่ระบุ')}</span>
+                        <button onclick="copyFromData(this)" data-copy="${escapeHTML(order.recipientEmail || order.email || '')}" data-msg="คัดลอกอีเมลลูกค้าแล้ว" 
+                                title="คัดลอกอีเมลลูกค้า" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] transition-all cursor-pointer">
                             <i class="fa-regular fa-copy"></i>
                         </button>
                     </div>
                     <div class="flex items-center gap-2">
+                        <button onclick="openSlipViewModal('${escapeHTML(order.orderId)}')" 
+                                class="px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-all flex items-center gap-1 border border-purple-200 shadow-2xs cursor-pointer" title="คลิกดูสลิปโอนเงิน">
+                            <i class="fa-solid fa-file-invoice-dollar text-[11px]"></i>
+                            <span>ดูสลิป</span>
+                        </button>
                         <button onclick="copyOrderCustomerReceipt('${escapeHTML(order.orderId)}')" 
-                                class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold transition-all flex items-center gap-1 border border-pink-200 shadow-2xs">
+                                class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold transition-all flex items-center gap-1 border border-pink-200 shadow-2xs cursor-pointer">
                             <i class="fa-regular fa-message text-[11px]"></i>
                             <span>ข้อความส่งลูกค้า</span>
+                        </button>
+                        <button onclick="deleteAdminOrder('${escapeHTML(order.orderId)}')" 
+                                class="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center gap-1 border border-rose-200 shadow-2xs cursor-pointer" title="ลบคำสั่งซื้อนี้">
+                            <i class="fa-regular fa-trash-can text-[11px]"></i>
+                            <span>ลบ</span>
                         </button>
                         <span class="px-2.5 py-1 rounded-full text-xs font-bold ${hasPending ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}">
                             ${hasPending ? '🟡 รอส่งมอบ (On-Demand)' : '🟢 จัดส่งสำเร็จ'}
@@ -1882,15 +5274,15 @@ function renderAdminOrdersList() {
 
                 <!-- Items in this order -->
                 <div class="space-y-2">
-                    ${order.items.map((item, itemIdx) => {
-                        const isItemPending = !item.credentials || item.status === 'pending_fulfillment';
-                        const cred = item.credentials || {};
+                    ${(order.items || []).map((item, itemIdx) => {
+            const isItemPending = !item.credentials || item.status === 'pending_fulfillment';
+            const cred = item.credentials || {};
 
-                        return `
+            return `
                             <div class="p-3 rounded-xl ${isItemPending ? 'bg-amber-50/70 border border-amber-200' : 'bg-slate-50 border border-slate-200'} flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-2">
-                                        <span class="font-bold text-xs sm:text-sm text-slate-900 truncate">${escapeHTML(item.productTitle)}</span>
+                                        <span class="font-normal text-xs sm:text-sm text-slate-900 truncate">${escapeHTML(item.productTitle)}</span>
                                         <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${isItemPending ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}">
                                             ${isItemPending ? 'รอจัดส่ง' : 'จัดส่งแล้ว'}
                                         </span>
@@ -1923,7 +5315,7 @@ function renderAdminOrdersList() {
                                 </div>
                             </div>
                         `;
-                    }).join('')}
+        }).join('')}
                 </div>
             </div>
         `;
@@ -1979,8 +5371,8 @@ function openFulfillModal(orderId, itemIndex) {
         return;
     }
 
-    const order = state.orders.find(o => o.orderId === orderId);
-    if (!order || !order.items[itemIndex]) {
+    const order = (adminOrdersList && adminOrdersList.find(o => o.orderId === orderId)) || (state.orders || []).find(o => o.orderId === orderId);
+    if (!order || !order.items || !order.items[itemIndex]) {
         showToast("ไม่พบข้อมูลคำสั่งซื้อ", "warning");
         return;
     }
@@ -1992,8 +5384,14 @@ function openFulfillModal(orderId, itemIndex) {
     document.getElementById('fulfill-order-id').value = orderId;
     document.getElementById('fulfill-item-index').value = itemIndex;
     document.getElementById('fulfill-order-id-label').textContent = orderId;
-    document.getElementById('fulfill-customer-email-label').textContent = order.recipientEmail || 'ลูกค้าหน้าร้าน';
+    document.getElementById('fulfill-customer-email-label').textContent = order.recipientEmail || order.email || 'ลูกค้าหน้าร้าน';
     document.getElementById('fulfill-product-title-label').textContent = item.productTitle;
+
+    const master = getMasterProduct(item.productId);
+    const g2gRawTitleEl = document.getElementById('fulfill-g2g-raw-title-label');
+    if (g2gRawTitleEl) {
+        g2gRawTitleEl.textContent = (master && (master.g2gRawTitle || master.title)) || item.productTitle || '';
+    }
 
     const g2gBtn = document.getElementById('fulfill-g2g-btn');
     if (g2gBtn) {
@@ -2033,6 +5431,15 @@ function closeFulfillModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+function copyFulfillG2GTitle() {
+    const label = document.getElementById('fulfill-g2g-raw-title-label');
+    const text = label ? label.textContent.trim() : '';
+    if (text) {
+        navigator.clipboard.writeText(text);
+        showToast(`คัดลอกชื่อสินค้าสำหรับค้นหาใน G2G เรียบร้อย: "${text}"`, "info");
+    }
+}
+
 function handleFulfillQuickPaste(val) {
     val = (val || '').trim();
     if (!val) return;
@@ -2056,7 +5463,7 @@ function handleFulfillQuickPaste(val) {
     }
 }
 
-function handleFulfillSubmit(e) {
+async function handleFulfillSubmit(e) {
     e.preventDefault();
 
     if (!ADMIN_AUTH.checkSession()) {
@@ -2071,7 +5478,7 @@ function handleFulfillSubmit(e) {
     const email = document.getElementById('fulfill-email').value.trim();
     const password = document.getElementById('fulfill-password').value.trim();
     const key = document.getElementById('fulfill-key').value.trim();
-    const instructions = document.getElementById('fulfill-instructions').value.trim() || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที';
+    const instructions = document.getElementById('fulfill-instructions').value.trim() || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที รับประกัน 30 วัน';
 
     if (email && !password) {
         showToast("กรุณากรอกรหัสผ่าน (Password) ควบคู่กับ Email", "warning");
@@ -2086,13 +5493,14 @@ function handleFulfillSubmit(e) {
         return;
     }
 
-    const order = state.orders.find(o => o.orderId === orderId);
-    if (!order || !order.items[itemIndex]) {
-        showToast("ไม่พบคำสั่งซื้อ", "warning");
+    const order = (adminOrdersList && adminOrdersList.find(o => (o.orderId || '').trim().toUpperCase() === orderId.trim().toUpperCase())) 
+        || (state.orders || []).find(o => (o.orderId || '').trim().toUpperCase() === orderId.trim().toUpperCase());
+        
+    if (!order || !order.items || !order.items[itemIndex]) {
+        showToast("ไม่พบคำสั่งซื้อหรือรายการสินค้า", "warning");
         return;
     }
 
-    const item = order.items[itemIndex];
     let cred = {};
     if (email && password) {
         cred = { email, password, instructions };
@@ -2105,32 +5513,89 @@ function handleFulfillSubmit(e) {
         return;
     }
 
-    item.credentials = cred;
-    item.status = 'delivered';
-
-    // If all items are delivered, set order status
-    const allDelivered = order.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
-    if (allDelivered) {
-        order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const origBtnText = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังบันทึกและส่งมอบ...`;
     }
 
-    saveOrders();
-    closeFulfillModal();
-    renderAdminOrdersList();
+    // 1. Call backend fulfillment endpoint POST /api/admin/fulfill
+    try {
+        const res = await fetch('/api/admin/fulfill', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({
+                orderId,
+                itemIndex,
+                credentials: cred,
+                orderData: order // Supply local order data for server recovery if needed
+            })
+        });
 
-    // If the customer has vault modal open for this order, re-render it
-    if (state.currentVaultOrderId === orderId) {
-        openVaultModal(order);
-    }
-    const ordersModal = document.getElementById('orders-modal');
-    if (ordersModal && !ordersModal.classList.contains('hidden')) {
-        renderOrdersHistory();
-    }
+        const data = await res.json().catch(() => null);
 
-    showToast(`ส่งมอบรหัสให้คำสั่งซื้อ ${orderId} สำเร็จแล้ว!`, "success");
+        if (res.ok && data && data.success && data.order) {
+            const updatedOrder = data.order;
+            
+            // Update in adminOrdersList
+            const aIdx = (adminOrdersList || []).findIndex(o => (o.orderId || '').toUpperCase() === orderId.toUpperCase());
+            if (aIdx !== -1) adminOrdersList[aIdx] = updatedOrder;
+            else adminOrdersList.unshift(updatedOrder);
+
+            // Update in state.orders
+            const sIdx = (state.orders || []).findIndex(o => (o.orderId || '').toUpperCase() === orderId.toUpperCase());
+            if (sIdx !== -1) state.orders[sIdx] = updatedOrder;
+            else (state.orders || []).unshift(updatedOrder);
+            saveOrders();
+
+            closeFulfillModal();
+            renderAdminOrdersList();
+            if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+
+            if (state.currentVaultOrderId === orderId) {
+                openVaultModal(updatedOrder);
+            }
+            const ordersModal = document.getElementById('orders-modal');
+            if (ordersModal && !ordersModal.classList.contains('hidden')) {
+                renderOrdersHistory();
+            }
+
+            showToast(`ส่งมอบรหัสให้คำสั่งซื้อ ${orderId} สำเร็จเรียบร้อย! (บันทึกเข้าระบบ & ส่งใบเสร็จแล้ว)`, "success");
+            return;
+        } else {
+            console.error("[ADMIN] Fulfill server rejected request:", data);
+            showToast(data?.message || "ไม่สามารถส่งมอบรหัสได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงหรือข้อมูลคำสั่งซื้อ", "error");
+            return;
+        }
+    } catch (apiErr) {
+        console.warn("[ADMIN] Fulfill network error:", apiErr);
+        // Offline / emergency local update
+        const item = order.items[itemIndex];
+        item.credentials = cred;
+        item.status = 'delivered';
+        const allDelivered = order.items.every(it => it.credentials && it.status !== 'pending_fulfillment');
+        if (allDelivered) {
+            order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+        }
+        const aIdx = adminOrdersList.findIndex(o => o.orderId === orderId);
+        if (aIdx !== -1) adminOrdersList[aIdx] = order;
+        const sIdx = (state.orders || []).findIndex(o => o.orderId === orderId);
+        if (sIdx !== -1) state.orders[sIdx] = order;
+        saveOrders();
+        closeFulfillModal();
+        renderAdminOrdersList();
+        if (typeof updateAdminNavBadges === 'function') updateAdminNavBadges();
+        showToast(`บันทึกการส่งมอบในโหมดออฟไลน์แล้ว (จะซิงค์เมื่อเชื่อมต่อเซิร์ฟเวอร์)`, "warning");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnText;
+        }
+    }
 }
 
-function openAdminModal() {
+async function openAdminModal() {
     if (!ADMIN_AUTH.checkSession()) {
         promptAdminLogin();
         return;
@@ -2139,45 +5604,118 @@ function openAdminModal() {
     const modal = document.getElementById('admin-modal');
     if (!modal) return;
 
-    document.getElementById('admin-promptpay-input').value = STORE_CONFIG.promptPayNumber || '';
+    const promptpayEl = document.getElementById('admin-promptpay-input');
+    if (promptpayEl) promptpayEl.value = STORE_CONFIG.promptPayNumber || '';
+
     const accNameEl = document.getElementById('admin-account-name');
     if (accNameEl) accNameEl.value = STORE_CONFIG.promptPayAccountName || 'สุพัฒน์ มีสมบัติ';
-    document.getElementById('admin-slipok-branch').value = STORE_CONFIG.slipOkBranchId || '77491';
-    document.getElementById('admin-slipok-key').value = STORE_CONFIG.slipOkApiKey || '';
+
+    const branchEl = document.getElementById('admin-slipok-branch');
+    if (branchEl) branchEl.value = STORE_CONFIG.slipOkBranchId || '77491';
+
+    const slipOkKeyEl = document.getElementById('admin-slipok-apikey') || document.getElementById('admin-slipok-key');
+    if (slipOkKeyEl) slipOkKeyEl.value = STORE_CONFIG.slipOkApiKey || '';
+
     const pinInput = document.getElementById('admin-new-pin');
     if (pinInput) pinInput.value = '';
+    const confirmPinInput = document.getElementById('admin-confirm-new-pin');
+    if (confirmPinInput) confirmPinInput.value = '';
 
-    renderAdminOrdersList();
+    if (typeof loadAdminSettingsIntoForm === 'function') {
+        loadAdminSettingsIntoForm();
+    }
+    if (typeof updateAdminNavBadges === 'function') {
+        updateAdminNavBadges();
+    }
+
     renderAdminStockList();
     switchAdminTab('orders');
     modal.classList.remove('hidden');
+
+    // Fetch orders from server and start live auto-refresh
+    await renderAdminOrdersList(true);
+    startAdminOrdersAutoRefresh();
 }
 
 function closeAdminModal() {
     const modal = document.getElementById('admin-modal');
     if (modal) modal.classList.add('hidden');
+    stopAdminOrdersAutoRefresh();
+    if (typeof stopAdminAnalyticsAutoRefresh === 'function') {
+        stopAdminAnalyticsAutoRefresh();
+    }
+}
+
+
+async function triggerManualAutoSync() {
+    const syncBtn = document.querySelector('button[onclick="triggerManualAutoSync()"]');
+    if (syncBtn) {
+        syncBtn.classList.add('opacity-75', 'pointer-events-none');
+    }
+    try {
+        if (typeof G2G_SYNC !== 'undefined' && typeof G2G_SYNC.performAutoSync === 'function') {
+            await G2G_SYNC.performAutoSync();
+            renderAdminStockList();
+            renderProducts();
+            showToast("ซิงค์ราคา สต็อก และชื่อค้นหา G2G ล่าสุดสำเร็จแล้ว!", "success");
+        } else {
+            syncStockCount();
+            renderAdminStockList();
+            renderProducts();
+            showToast("รีเฟรชสต็อกสินค้าเรียบร้อยแล้ว", "info");
+        }
+    } finally {
+        if (syncBtn) {
+            syncBtn.classList.remove('opacity-75', 'pointer-events-none');
+        }
+    }
 }
 
 function handleAdminStockSearch(val) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
     adminStockSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('admin-stock-clear-search');
+    if (clearBtn) {
+        if (adminStockSearchQuery) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+    renderAdminStockList();
+}
+
+function clearAdminStockSearch() {
+    const input = document.getElementById('admin-stock-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('admin-stock-clear-search');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    adminStockSearchQuery = '';
     renderAdminStockList();
 }
 
 function filterAdminStockBrand(brand) {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
     adminStockBrandFilter = brand;
-    const chips = ['all', 'CapCut', 'Google-AI', 'Google', 'Grok', 'Claude', 'Adobe', 'Microsoft'];
+    const chips = ['all', 'highlight', 'CapCut', 'Google AI', 'Google', 'Grok', 'Claude', 'Adobe', 'Microsoft', 'deleted'];
     chips.forEach(c => {
-        const btn = document.getElementById(`admin-stock-chip-${c}`);
+        const chipId = c === 'Google AI' ? 'admin-stock-chip-Google-AI' : `admin-stock-chip-${c}`;
+        const btn = document.getElementById(chipId);
         if (btn) {
-            const matches = (c === 'all' && brand === 'all') || 
-                            (c === 'Google-AI' && brand === 'Google AI') || 
-                            (c === brand);
+            const matches = (c === brand);
             if (matches) {
-                btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0";
+                if (c === 'deleted') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600 text-white transition-all shrink-0 flex items-center gap-1 shadow-2xs";
+                } else if (c === 'highlight') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white transition-all shrink-0 flex items-center gap-1 shadow-2xs";
+                } else {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-pink-100 text-pink-700 transition-all shrink-0 shadow-2xs";
+                }
             } else {
-                btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0";
+                if (c === 'deleted') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 transition-all shrink-0 flex items-center gap-1";
+                } else if (c === 'highlight') {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-all shrink-0 flex items-center gap-1";
+                } else {
+                    btn.className = "admin-stock-brand-chip px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shrink-0";
+                }
             }
         }
     });
@@ -2191,7 +5729,8 @@ function renderAdminStockList() {
     if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
         container.innerHTML = `
             <tr>
-                <td colspan="6" class="py-8 text-center text-rose-500 text-xs font-bold">
+                <td colspan="6" class="py-12 text-center text-rose-500 text-xs font-bold bg-rose-50/50">
+                    <i class="fa-solid fa-lock text-rose-400 text-xl mb-2 block"></i>
                     กรุณาเข้าสู่ระบบหลังร้านเพื่อดูและจัดการสต็อกสินค้า
                 </td>
             </tr>
@@ -2199,22 +5738,47 @@ function renderAdminStockList() {
         return;
     }
 
-    let prods = state.products;
+    const allMasterProds = typeof getAllMasterProducts === 'function' ? getAllMasterProducts(true) : state.products;
 
-    if (adminStockBrandFilter !== 'all') {
-        prods = prods.filter(p => p.brand.toLowerCase() === adminStockBrandFilter.toLowerCase() || (adminStockBrandFilter === 'Google' && p.brand === 'Google'));
+    // Update deleted badge count
+    const deletedCount = allMasterProds.filter(p => !!p.deleted).length;
+    const deletedCountEl = document.getElementById('admin-deleted-count');
+    if (deletedCountEl) deletedCountEl.textContent = deletedCount;
+
+    let prods = [];
+    if (adminStockBrandFilter === 'deleted') {
+        prods = allMasterProds.filter(p => !!p.deleted);
+    } else if (adminStockBrandFilter === 'highlight') {
+        prods = allMasterProds.filter(p => !p.deleted && !!p.isHighlight);
+    } else if (adminStockBrandFilter === 'all') {
+        prods = allMasterProds.filter(p => !p.deleted);
+    } else {
+        prods = allMasterProds.filter(p => !p.deleted && (
+            (p.brand || '').toLowerCase() === adminStockBrandFilter.toLowerCase() ||
+            (adminStockBrandFilter === 'Google' && p.brand === 'Google') ||
+            (adminStockBrandFilter === 'Google AI' && p.brand === 'Google AI')
+        ));
     }
 
     if (adminStockSearchQuery) {
-        prods = prods.filter(p => (p.title || '').toLowerCase().includes(adminStockSearchQuery) || (p.brand || '').toLowerCase().includes(adminStockSearchQuery));
+        prods = prods.filter(p => 
+            (p.title || '').toLowerCase().includes(adminStockSearchQuery) ||
+            (p.brand || '').toLowerCase().includes(adminStockSearchQuery) ||
+            (p.type || '').toLowerCase().includes(adminStockSearchQuery) ||
+            (p.id || '').toLowerCase().includes(adminStockSearchQuery)
+        );
     }
+
+    const countEl = document.getElementById('admin-stock-count');
+    if (countEl) countEl.textContent = prods.length;
 
     if (prods.length === 0) {
         container.innerHTML = `
             <tr>
-                <td colspan="6" class="py-8 text-center text-slate-400 text-xs font-medium">
-                    <i class="fa-solid fa-magnifying-glass mb-1 text-slate-300 text-base block"></i>
-                    ไม่พบรายการสินค้าที่ตรงกับคำค้นหา
+                <td colspan="6" class="py-12 text-center text-slate-400 text-xs font-medium">
+                    <i class="fa-solid fa-magnifying-glass mb-2 text-slate-300 text-2xl block"></i>
+                    ไม่พบรายการสินค้าที่ตรงกับเงื่อนไขการค้นหา
+                    ${adminStockSearchQuery ? `<br><button onclick="clearAdminStockSearch()" class="mt-2 text-pink-600 font-bold hover:underline cursor-pointer">ล้างคำค้นหา</button>` : ''}
                 </td>
             </tr>
         `;
@@ -2226,59 +5790,148 @@ function renderAdminStockList() {
     container.innerHTML = prods.map(p => {
         const master = getMasterProduct(p.id) || p;
         const pool = state.inventory[p.id] || [];
-        const marketStock = customPrices[p.id]?.g2gStockAvailable 
-            ?? (typeof G2G_MARKET_FEED !== 'undefined' ? G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock : 50);
+        const marketStock = customPrices[p.id]?.g2gStockAvailable
+            ?? (typeof G2G_MARKET_FEED !== 'undefined' ? G2G_MARKET_FEED.benchmarks[p.id]?.g2gStock : 50)
+            ?? 50;
 
         const g2gBenchmark = typeof G2G_MARKET_FEED !== 'undefined' ? G2G_MARKET_FEED.benchmarks[p.id] : null;
-        const costTHB = (customPrices[p.id] && customPrices[p.id].marketCostTHB) 
+        const costTHB = (customPrices[p.id] && customPrices[p.id].marketCostTHB)
             || (g2gBenchmark ? Math.round(g2gBenchmark.baseCostUSD * 36.50 * 100) / 100 : 0);
 
         const profit = master.price - costTHB;
         const profitPct = master.price > 0 ? ((profit / master.price) * 100).toFixed(0) : 0;
         const isManual = customPrices[p.id]?.manualOverride === true;
+        const isDeleted = master.deleted === true;
 
         return `
-            <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs font-medium transition-colors">
+            <tr class="border-b border-slate-100 hover:bg-slate-50/80 text-xs font-medium transition-colors group ${isDeleted ? 'bg-rose-50/30' : ''}">
+                <!-- 1. รายการสินค้า -->
                 <td class="py-3 px-3.5">
-                    <div class="font-bold text-slate-900 text-xs sm:text-sm">${escapeHTML(master.title)}</div>
-                    <div class="flex items-center gap-1.5 mt-0.5">
-                        <span class="text-[11px] font-bold text-pink-600">${escapeHTML(master.brand)} (${escapeHTML(master.type)})</span>
-                        <span class="text-slate-300">•</span>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${isManual ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}">
-                            ${isManual ? '🟡 ราคาตั้งเอง' : '🟢 ตลาด Auto-Sync'}
-                        </span>
+                    <div class="flex items-center gap-3">
+                        <div onclick="openEditPriceModal('${p.id}', 'title')" 
+                             title="คลิกเพื่อแก้ไขข้อมูลสินค้า"
+                             class="relative w-11 h-11 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center font-black text-xs text-pink-600 shrink-0 cursor-pointer shadow-2xs hover:border-pink-400 hover:bg-pink-100 transition-all">
+                            ${escapeHTML(master.brandCode || 'AI')}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div onclick="openEditPriceModal('${p.id}', 'title')"
+                                 title="คลิกเพื่อแก้ไขข้อมูลสินค้า"
+                                 class="font-bold text-slate-900 text-xs sm:text-sm hover:text-pink-600 cursor-pointer transition-colors line-clamp-1 flex items-center gap-1.5">
+                                <span>${escapeHTML(master.title)}</span>
+                                <i class="fa-solid fa-pen-to-square text-[10px] text-slate-300 hover:text-pink-500 opacity-60 hover:opacity-100"></i>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-pink-50 text-pink-700 border border-pink-200">
+                                    ${escapeHTML(master.brand)}
+                                </span>
+                                <span class="text-[10px] text-slate-500 font-medium">
+                                    ${escapeHTML(master.type)}
+                                </span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${isManual ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}">
+                                    ${isManual ? '🟡 ตั้งเอง' : '🟢 Auto-Sync'}
+                                </span>
+                                ${master.isHighlight ? '<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300">⭐ ไฮไลท์</span>' : ''}
+                                ${isDeleted ? '<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-700 border border-rose-300">🗑️ ลบแล้ว</span>' : ''}
+                            </div>
+                        </div>
                     </div>
                 </td>
-                <td class="py-3 px-3.5 text-center font-mono">
-                    <span class="text-slate-500 font-bold text-xs">฿${costTHB.toFixed(2)}</span>
+
+                <!-- 2. ต้นทุนตลาด G2G -->
+                <td class="py-3 px-3 text-center">
+                    <div class="font-bold text-slate-700 text-xs font-mono">฿${costTHB.toFixed(2)}</div>
+                    <div class="flex items-center justify-center gap-1 mt-1">
+                        ${(() => {
+                            const effectiveG2GUrl = getG2GMarketLink(p.id);
+                            return `
+                            <a href="${sanitizeUrl(effectiveG2GUrl)}" target="_blank" rel="noopener noreferrer"
+                               onclick="handleG2GSourcingClick(event, '${escapeHTML(p.id)}', '${sanitizeUrl(effectiveG2GUrl)}')"
+                               class="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold transition-all flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
+                               title="เปิดดูแหล่งต้นทุนและสั่งซื้อบน G2G">
+                                <i class="fa-solid fa-cart-shopping text-[9px] text-amber-600"></i>
+                                <span>ซื้อ G2G ↗</span>
+                            </a>
+                            `;
+                        })()}
+                        <button type="button" 
+                                onclick="const t = '${escapeHTML(master.g2gRawTitle || master.title)}'; navigator.clipboard.writeText(t); showToast('คัดลอกชื่อภาษาอังกฤษสำหรับค้นหาใน G2G แล้ว: ' + t.slice(0, 32) + '...', 'info');"
+                                class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 border border-slate-200 text-[10px] cursor-pointer"
+                                title="คัดลอกชื่อสินค้าภาษาอังกฤษของ G2G">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
                 </td>
-                <td class="py-3 px-3.5 text-center">
-                    <div class="font-black text-pink-600 text-sm font-mono">฿${master.price.toFixed(2)}</div>
-                    <div class="text-[10px] text-slate-400 line-through font-mono">฿${master.originalPrice.toFixed(2)}</div>
+
+                <!-- 3. ราคาขายหน้าร้าน (Click to Edit) -->
+                <td class="py-3 px-3 text-center">
+                    <div onclick="openEditPriceModal('${p.id}', 'price')"
+                         title="คลิกเพื่อแก้ไขราคาขายทันที"
+                         class="cursor-pointer py-1 px-2.5 rounded-xl hover:bg-pink-50 border border-transparent hover:border-pink-200 transition-all inline-block group/price">
+                        <div class="font-black text-pink-600 text-sm font-mono flex items-center justify-center gap-1">
+                            <span>฿${master.price.toFixed(2)}</span>
+                            <i class="fa-solid fa-pen text-[9px] text-pink-400 opacity-0 group-hover/price:opacity-100 transition-opacity"></i>
+                        </div>
+                        <div class="text-[10px] text-slate-400 line-through font-mono">฿${master.originalPrice.toFixed(2)}</div>
+                    </div>
                 </td>
-                <td class="py-3 px-3.5 text-center font-mono">
-                    <span class="font-black text-xs ${profit >= 0 ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
+
+                <!-- 4. กำไรโดยประมาณ -->
+                <td class="py-3 px-3 text-center">
+                    <span class="inline-flex items-center px-2 py-1 rounded-xl text-xs font-black font-mono ${profit >= 0 ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'}">
                         ${profit >= 0 ? '+' : ''}฿${profit.toFixed(2)} (${profitPct}%)
                     </span>
                 </td>
-                <td class="py-3 px-3.5 text-center">
+
+                <!-- 5. คงเหลือ (คลัง / ตลาด) -->
+                <td class="py-3 px-3 text-center">
                     <div class="flex flex-col items-center gap-1">
-                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${pool.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
-                            คลัง: ${pool.length}
-                        </span>
-                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200">
-                            ตลาด: ${marketStock}
+                        <button type="button" onclick="openAddStockModal('${p.id}')"
+                                class="px-2.5 py-0.5 rounded-full text-[11px] font-bold cursor-pointer transition-all hover:scale-105 active:scale-95 ${pool.length > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}"
+                                title="คลิกเพื่อเติมสต็อกคลัง">
+                            คลัง: ${pool.length} ${pool.length === 0 ? '(หมด)' : ''}
+                        </button>
+                        <span class="text-[10px] text-slate-500 font-medium">
+                            ตลาด: <b class="text-cyan-700 font-mono">${marketStock}</b>
                         </span>
                     </div>
                 </td>
-                <td class="py-3 px-3.5 text-right">
-                    <div class="flex items-center justify-end gap-1.5">
-                        <button onclick="openEditPriceModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
-                            <i class="fa-solid fa-tag"></i> แก้ไขราคา
+
+                <!-- 6. การจัดการ (Sticky Right Column - NEVER CUT OFF) -->
+                <td class="py-3 px-4 text-right sticky right-0 bg-white group-hover:bg-slate-50 border-b border-slate-100 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)] z-10 min-w-[250px] transition-colors">
+                    <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        ${!isDeleted ? `
+                        <!-- Restock Button -->
+                        <button type="button" onclick="openAddStockModal('${p.id}')"
+                                class="h-8.5 px-2.5 sm:px-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-xs font-bold transition-all shadow-2xs hover:shadow-xs flex items-center gap-1 cursor-pointer active:scale-95 shrink-0"
+                                title="เติมสต็อกสินค้า">
+                            <i class="fa-solid fa-plus text-[11px]"></i>
+                            <span>เติมสต็อก</span>
                         </button>
-                        <button onclick="openAddStockModal('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
-                            <i class="fa-solid fa-plus"></i> เติมสต็อก
+
+                        <!-- Edit Button -->
+                        <button type="button" onclick="openEditPriceModal('${p.id}')"
+                                class="h-8.5 px-2.5 sm:px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-slate-300 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0 shadow-2xs"
+                                title="แก้ไขข้อมูลสินค้าและราคา">
+                            <i class="fa-regular fa-pen-to-square text-[11px] text-slate-500"></i>
+                            <span>แก้ไข</span>
                         </button>
+
+                        <!-- Delete Button: Clear, Comfortable Hit Size, Soft Rose Style -->
+                        <button type="button" onclick="handleDeleteProduct('${p.id}')"
+                                class="h-8.5 px-2.5 sm:px-3 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0 shadow-2xs group/del"
+                                title="ลบสินค้านี้ออกจากระบบ">
+                            <i class="fa-solid fa-trash-can text-[11px] text-rose-500 group-hover/del:text-white transition-colors"></i>
+                            <span>ลบ</span>
+                        </button>
+                        ` : `
+                        <!-- Restore Button -->
+                        <button type="button" onclick="handleRestoreProduct('${p.id}')"
+                                class="h-8.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 hover:border-emerald-600 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs shrink-0"
+                                title="กู้คืนสินค้านี้กลับมาแสดงหน้าร้าน">
+                            <i class="fa-solid fa-rotate-left text-[11px]"></i>
+                            <span>กู้คืน</span>
+                        </button>
+                        `}
                     </div>
                 </td>
             </tr>
@@ -2286,8 +5939,8 @@ function renderAdminStockList() {
     }).join('');
 }
 
-// Edit Price Modal Handlers
-function openEditPriceModal(productId) {
+// Edit Price & Product Modal Handlers
+function openEditPriceModal(productId, focusField = null) {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("กรุณาเข้าสู่ระบบแอดมินก่อนดำเนินการ", "warning");
         promptAdminLogin();
@@ -2301,12 +5954,161 @@ function openEditPriceModal(productId) {
     if (!modal) return;
 
     document.getElementById('edit-price-product-id').value = productId;
-    document.getElementById('edit-price-product-title').textContent = master.title;
-    document.getElementById('edit-price-sale').value = master.price;
-    document.getElementById('edit-price-original').value = master.originalPrice;
+    const isNewInput = document.getElementById('edit-product-is-new');
+    if (isNewInput) isNewInput.value = '0';
+
+    const modalTitle = document.getElementById('edit-product-modal-title');
+    if (modalTitle) modalTitle.textContent = "จัดการข้อมูลสินค้า & ราคา";
+
+    const prodTitleDisplay = document.getElementById('edit-price-product-title');
+    if (prodTitleDisplay) prodTitleDisplay.textContent = master.title;
+
+    const prodIdDisplay = document.getElementById('edit-product-id-display');
+    if (prodIdDisplay) prodIdDisplay.textContent = `ID: ${master.id}`;
+
+    // Fill Product Info
+    const titleInput = document.getElementById('edit-product-title-input');
+    if (titleInput) titleInput.value = master.title || '';
+
+    const subtitleInput = document.getElementById('edit-product-subtitle-input');
+    if (subtitleInput) subtitleInput.value = master.subtitle || '';
+
+    const brandInput = document.getElementById('edit-product-brand-input');
+    if (brandInput) brandInput.value = master.brand || '';
+
+    const typeInput = document.getElementById('edit-product-type-input');
+    if (typeInput) typeInput.value = master.type || '';
+
+    const durationInput = document.getElementById('edit-product-duration-input');
+    if (durationInput) durationInput.value = master.duration || '';
+
+    const devicesInput = document.getElementById('edit-product-devices-input');
+    if (devicesInput) devicesInput.value = master.devices || '';
+
+    const warrantyInput = document.getElementById('edit-product-warranty-input');
+    if (warrantyInput) warrantyInput.value = master.warranty || '';
+
+    const descInput = document.getElementById('edit-product-desc-input');
+    if (descInput) descInput.value = master.description || '';
+
+    // G2G Raw Title & URL
+    const g2gRawTitleEl = document.getElementById('edit-price-g2g-raw-title');
+    if (g2gRawTitleEl) g2gRawTitleEl.textContent = master.g2gRawTitle || master.title;
+
+    const g2gUrlInput = document.getElementById('edit-price-g2g-url');
+    if (g2gUrlInput) {
+        const rawUrl = master.g2gUrl || '';
+        g2gUrlInput.value = (typeof isBrokenOrLegacyG2GUrl === 'function' && isBrokenOrLegacyG2GUrl(rawUrl)) ? '' : rawUrl;
+    }
+
+    // Price Inputs
+    const saleInput = document.getElementById('edit-price-sale');
+    if (saleInput) saleInput.value = master.price;
+
+    const origInput = document.getElementById('edit-price-original');
+    if (origInput) origInput.value = master.originalPrice;
+
+    // Badge & Highlight
+    const badgeInput = document.getElementById('edit-price-badge');
+    if (badgeInput) badgeInput.value = master.badge || '';
+
+    const highlightCheck = document.getElementById('edit-product-is-highlight');
+    if (highlightCheck) highlightCheck.checked = !!master.isHighlight;
+
+    const btnDelete = document.getElementById('btn-delete-product');
+    if (btnDelete) btnDelete.classList.remove('hidden');
 
     updateEditPricePreview();
     modal.classList.remove('hidden');
+
+    // Auto focus and select input according to focusField
+    setTimeout(() => {
+        if (focusField === 'price' && saleInput) {
+            saleInput.focus();
+            saleInput.select();
+        } else if (focusField === 'title' && titleInput) {
+            titleInput.focus();
+            titleInput.select();
+        }
+    }, 60);
+}
+
+function openAddNewProductModal() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("กรุณาเข้าสู่ระบบแอดมินก่อนดำเนินการ", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const modal = document.getElementById('edit-price-modal');
+    if (!modal) return;
+
+    const newId = `prod-${Date.now().toString(36)}`;
+    document.getElementById('edit-price-product-id').value = newId;
+
+    const isNewInput = document.getElementById('edit-product-is-new');
+    if (isNewInput) isNewInput.value = '1';
+
+    const modalTitle = document.getElementById('edit-product-modal-title');
+    if (modalTitle) modalTitle.textContent = "เพิ่มสินค้าใหม่เข้าสู่ระบบ";
+
+    const prodTitleDisplay = document.getElementById('edit-price-product-title');
+    if (prodTitleDisplay) prodTitleDisplay.textContent = "สินค้าใหม่";
+
+    const prodIdDisplay = document.getElementById('edit-product-id-display');
+    if (prodIdDisplay) prodIdDisplay.textContent = `ID ใหม่: ${newId}`;
+
+    const titleInput = document.getElementById('edit-product-title-input');
+    if (titleInput) titleInput.value = '';
+
+    const subtitleInput = document.getElementById('edit-product-subtitle-input');
+    if (subtitleInput) subtitleInput.value = '';
+
+    const brandInput = document.getElementById('edit-product-brand-input');
+    if (brandInput) brandInput.value = 'AI Tools';
+
+    const typeInput = document.getElementById('edit-product-type-input');
+    if (typeInput) typeInput.value = 'บัญชีส่วนตัว (Private)';
+
+    const durationInput = document.getElementById('edit-product-duration-input');
+    if (durationInput) durationInput.value = '1 เดือน (30 วัน)';
+
+    const devicesInput = document.getElementById('edit-product-devices-input');
+    if (devicesInput) devicesInput.value = 'iOS • Android • PC';
+
+    const warrantyInput = document.getElementById('edit-product-warranty-input');
+    if (warrantyInput) warrantyInput.value = '30 วัน';
+
+    const descInput = document.getElementById('edit-product-desc-input');
+    if (descInput) descInput.value = '• บัญชีแท้ใช้งานได้ทันที 100%\n• รับประกันตลอดอายุการใช้งานตามเงื่อนไข';
+
+    const g2gRawTitleEl = document.getElementById('edit-price-g2g-raw-title');
+    if (g2gRawTitleEl) g2gRawTitleEl.textContent = 'ยังไม่ได้เชื่อมต่อ G2G';
+
+    const g2gUrlInput = document.getElementById('edit-price-g2g-url');
+    if (g2gUrlInput) g2gUrlInput.value = '';
+
+    const saleInput = document.getElementById('edit-price-sale');
+    if (saleInput) saleInput.value = 99;
+
+    const origInput = document.getElementById('edit-price-original');
+    if (origInput) origInput.value = 199;
+
+    const badgeInput = document.getElementById('edit-price-badge');
+    if (badgeInput) badgeInput.value = '🔥 มาใหม่';
+
+    const highlightCheck = document.getElementById('edit-product-is-highlight');
+    if (highlightCheck) highlightCheck.checked = false;
+
+    const btnDelete = document.getElementById('btn-delete-product');
+    if (btnDelete) btnDelete.classList.add('hidden');
+
+    updateEditPricePreview();
+    modal.classList.remove('hidden');
+
+    setTimeout(() => {
+        if (titleInput) titleInput.focus();
+    }, 60);
 }
 
 function updateEditPricePreview() {
@@ -2315,11 +6117,17 @@ function updateEditPricePreview() {
     const customPrices = getCustomPrices();
 
     const g2gBenchmark = typeof G2G_MARKET_FEED !== 'undefined' ? G2G_MARKET_FEED.benchmarks[productId] : null;
-    const costTHB = (customPrices[productId] && customPrices[productId].marketCostTHB) 
+    const costTHB = (customPrices[productId] && customPrices[productId].marketCostTHB)
         || (g2gBenchmark ? Math.round(g2gBenchmark.baseCostUSD * 36.50 * 100) / 100 : 0);
 
     const costEl = document.getElementById('edit-price-cost-preview');
     if (costEl) costEl.textContent = `฿${costTHB.toFixed(2)}`;
+
+    const autoCalcEl = document.getElementById('edit-price-auto-calc-preview');
+    if (autoCalcEl) {
+        const recPrice = Math.max(29, Math.round(costTHB * 1.55));
+        autoCalcEl.textContent = `฿${recPrice.toFixed(2)}`;
+    }
 
     const margin = saleVal - costTHB;
     const marginPct = saleVal > 0 ? ((margin / saleVal) * 100).toFixed(1) : 0;
@@ -2342,7 +6150,29 @@ function updateEditPricePreview() {
     }
 }
 
-function handleResetToAutoPrice() {
+function applyRecommendedAutoPriceToInput() {
+    const autoCalcEl = document.getElementById('edit-price-auto-calc-preview');
+    if (!autoCalcEl) return;
+    const cleanNum = parseFloat(autoCalcEl.textContent.replace(/[^\d.]/g, ''));
+    if (!isNaN(cleanNum)) {
+        const saleInput = document.getElementById('edit-price-sale');
+        if (saleInput) {
+            saleInput.value = cleanNum;
+            updateEditPricePreview();
+            showToast(`นำราคาแนะนำ ฿${cleanNum.toFixed(2)} มาใส่เรียบร้อยแล้ว`, "info");
+        }
+    }
+}
+
+function setEditBadgePreset(badgeText) {
+    const input = document.getElementById('edit-price-badge');
+    if (input) {
+        input.value = badgeText;
+        showToast(badgeText ? `ตั้งป้ายกำกับ: "${badgeText}"` : "ล้างป้ายกำกับแล้ว", "info");
+    }
+}
+
+async function handleResetToAutoPrice() {
     const productId = document.getElementById('edit-price-product-id').value;
     if (!productId) return;
 
@@ -2351,6 +6181,28 @@ function handleResetToAutoPrice() {
         delete customPrices[productId].manualOverride;
         delete customPrices[productId].lastManualUpdate;
         localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
+    }
+
+    const customProducts = getCustomProducts();
+    if (customProducts[productId] && customProducts[productId].price !== undefined) {
+        const isBuiltin = typeof PRODUCTS !== 'undefined' && PRODUCTS.some(p => p.id === productId);
+        if (isBuiltin) {
+            delete customProducts[productId].price;
+            delete customProducts[productId].originalPrice;
+            localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
+        }
+    }
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            await fetch('/api/admin/price', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify({ productId, action: 'reset' })
+            });
+        } catch (e) {
+            console.warn('[ADMIN SYNC] Could not reset price on server:', e.message);
+        }
     }
 
     if (typeof G2G_SYNC !== 'undefined') {
@@ -2374,7 +6226,7 @@ function closeEditPriceModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-function handleSaveEditedPrice() {
+async function handleSaveEditedProduct() {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
         closeEditPriceModal();
@@ -2383,34 +6235,257 @@ function handleSaveEditedPrice() {
     }
 
     const productId = document.getElementById('edit-price-product-id').value;
-    const saleVal = parseFloat(document.getElementById('edit-price-sale').value);
-    const origVal = parseFloat(document.getElementById('edit-price-original').value);
+    const isNew = document.getElementById('edit-product-is-new')?.value === '1';
 
-    if (isNaN(saleVal) || saleVal < 0) {
-        showToast("กรุณากรอกราคาขายที่ถูกต้อง", "warning");
+    const titleInput = document.getElementById('edit-product-title-input');
+    const titleVal = titleInput ? titleInput.value.trim() : '';
+
+    if (!titleVal) {
+        showToast("กรุณากรอกชื่อสินค้า", "warning");
+        if (titleInput) titleInput.focus();
         return;
     }
 
-    const customPrices = getCustomPrices();
-    const existing = customPrices[productId] || {};
-    customPrices[productId] = {
-        ...existing,
-        price: Math.round(saleVal * 100) / 100,
-        originalPrice: isNaN(origVal) || origVal < saleVal ? Math.round(saleVal * 100) / 100 : Math.round(origVal * 100) / 100,
-        manualOverride: true,
-        lastManualUpdate: new Date().toISOString()
-    };
+    const subtitleVal = (document.getElementById('edit-product-subtitle-input')?.value || '').trim();
+    const brandVal = (document.getElementById('edit-product-brand-input')?.value || 'AI Tools').trim();
+    const typeVal = (document.getElementById('edit-product-type-input')?.value || 'บัญชีส่วนตัว (Private)').trim();
+    const durationVal = (document.getElementById('edit-product-duration-input')?.value || '1 เดือน (30 วัน)').trim();
+    const devicesVal = (document.getElementById('edit-product-devices-input')?.value || 'iOS • PC').trim();
+    const warrantyVal = (document.getElementById('edit-product-warranty-input')?.value || '30 วัน').trim();
+    const descVal = (document.getElementById('edit-product-desc-input')?.value || '').trim();
+    const rawG2GUrlVal = (document.getElementById('edit-price-g2g-url')?.value || '').trim();
+    const g2gUrlVal = (typeof isBrokenOrLegacyG2GUrl === 'function' && isBrokenOrLegacyG2GUrl(rawG2GUrlVal)) ? '' : rawG2GUrlVal;
 
+    const saleVal = parseFloat(document.getElementById('edit-price-sale').value);
+    const origVal = parseFloat(document.getElementById('edit-price-original').value);
+    const badgeVal = (document.getElementById('edit-price-badge')?.value || '').trim();
+    const isHighlight = !!document.getElementById('edit-product-is-highlight')?.checked;
+
+    if (isNaN(saleVal) || saleVal < 0) {
+        showToast("กรุณากรอกราคาขายที่ถูกต้อง", "warning");
+        document.getElementById('edit-price-sale')?.focus();
+        return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const finalPrice = Math.round(saleVal * 100) / 100;
+    const finalOrigPrice = isNaN(origVal) || origVal < saleVal ? finalPrice : Math.round(origVal * 100) / 100;
+
+    // 1. Save custom products metadata locally
+    const customProducts = getCustomProducts();
+    customProducts[productId] = {
+        ...(customProducts[productId] || {}),
+        id: productId,
+        title: titleVal,
+        subtitle: subtitleVal,
+        brand: brandVal,
+        type: typeVal,
+        duration: durationVal,
+        devices: devicesVal,
+        warranty: warrantyVal,
+        description: descVal,
+        badge: badgeVal,
+        isHighlight: isHighlight,
+        price: finalPrice,
+        originalPrice: finalOrigPrice,
+        g2gUrl: g2gUrlVal,
+        deleted: false,
+        updatedAt: nowIso
+    };
+    localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
+
+    // 2. Save custom price overrides locally
+    const customPrices = getCustomPrices();
+    customPrices[productId] = {
+        ...(customPrices[productId] || {}),
+        price: finalPrice,
+        originalPrice: finalOrigPrice,
+        badge: badgeVal,
+        isHighlight: isHighlight,
+        g2gUrl: g2gUrlVal,
+        manualOverride: true,
+        lastManualUpdate: nowIso,
+        updatedAt: nowIso
+    };
     localStorage.setItem('supinkly_custom_prices', JSON.stringify(customPrices));
 
-    // Refresh application state
+    // 3. Synchronize with backend server (so checkout & receipt verification get real updated price)
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            const productPayload = {
+                id: productId,
+                title: titleVal,
+                subtitle: subtitleVal,
+                description: descVal,
+                brand: brandVal,
+                type: typeVal,
+                duration: durationVal,
+                devices: devicesVal,
+                warranty: warrantyVal,
+                price: finalPrice,
+                originalPrice: finalOrigPrice,
+                badge: badgeVal,
+                isHighlight: isHighlight,
+                g2gUrl: g2gUrlVal
+            };
+
+            let res = await fetch('/api/admin/product', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify(productPayload)
+            });
+
+            if (res.status === 401 || res.status === 403) {
+                // Try refreshing admin token using stored PIN
+                const pin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin') || '';
+                if (pin) {
+                    try {
+                        const loginRes = await fetch('/api/admin/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ pin })
+                        });
+                        if (loginRes.ok) {
+                            const d = await loginRes.json();
+                            if (d && d.token) {
+                                sessionStorage.setItem('supinkly_admin_server_token', d.token);
+                                localStorage.setItem('supinkly_admin_server_token', d.token);
+                                res = await fetch('/api/admin/product', {
+                                    method: 'POST',
+                                    headers: getAdminHeaders(),
+                                    body: JSON.stringify(productPayload)
+                                });
+                            }
+                        }
+                    } catch (e) { }
+                }
+            }
+
+            // Also explicitly sync price override to ensure customPrices is recorded
+            await fetch('/api/admin/price', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify({
+                    productId: productId,
+                    price: finalPrice,
+                    originalPrice: finalOrigPrice,
+                    badge: badgeVal,
+                    g2gUrl: g2gUrlVal
+                })
+            }).catch(() => {});
+
+        } catch (syncErr) {
+            console.warn('[ADMIN SYNC] Could not sync product to server:', syncErr.message);
+        }
+    }
+
+    // 4. Reload application catalog
+    state.products = getAllMasterProducts(false).map(p => ({
+        ...p,
+        stock: p.stock || 0
+    }));
     applyCustomPricesToProducts();
+    syncStockCount();
     applyFilters();
     updateCartUI();
+    renderProducts();
     renderAdminStockList();
     closeEditPriceModal();
 
-    showToast(`อัปเดตราคาใหม่เป็น ฿${customPrices[productId].price.toFixed(2)} เรียบร้อยแล้ว`, "success");
+    showToast(isNew ? `เพิ่มสินค้า "${titleVal}" สำเร็จ!` : `บันทึกข้อมูลสินค้า "${titleVal}" เรียบร้อยแล้ว`, "success");
+}
+
+function handleSaveEditedPrice() {
+    handleSaveEditedProduct();
+}
+
+function handleDeleteProduct(productId) {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const master = getMasterProduct(productId);
+    const title = master ? master.title : productId;
+
+    if (!confirm(`คุณต้องการลบสินค้า "${title}" ใช่หรือไม่?\n\n(สินค้านี้จะไม่แสดงหน้าร้าน แต่คุณสามารถกู้คืนได้จากแท็บ "ที่ลบแล้ว")`)) {
+        return;
+    }
+
+    const customProducts = getCustomProducts();
+    customProducts[productId] = {
+        ...(customProducts[productId] || {}),
+        id: productId,
+        title: title,
+        deleted: true,
+        deletedAt: new Date().toISOString()
+    };
+    localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
+
+    if (window.location.protocol.startsWith('http')) {
+        try {
+            fetch('/api/admin/product/delete', {
+                method: 'POST',
+                headers: getAdminHeaders(),
+                body: JSON.stringify({ productId })
+            }).catch(() => {});
+        } catch (e) {}
+    }
+
+    // Remove from active cart if customer has it
+    state.cart = state.cart.filter(item => item.productId !== productId);
+    localStorage.setItem('supinkly_cart', JSON.stringify(state.cart));
+
+    // Refresh state
+    state.products = getAllMasterProducts(false).map(p => ({
+        ...p,
+        stock: p.stock || 0
+    }));
+    applyCustomPricesToProducts();
+    syncStockCount();
+    applyFilters();
+    updateCartUI();
+    renderProducts();
+    renderAdminStockList();
+
+    showToast(`ลบสินค้า "${title}" ออกจากร้านค้าแล้ว`, "success");
+}
+
+function handleRestoreProduct(productId) {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        promptAdminLogin();
+        return;
+    }
+
+    const customProducts = getCustomProducts();
+    if (customProducts[productId]) {
+        delete customProducts[productId].deleted;
+        delete customProducts[productId].deletedAt;
+        localStorage.setItem('supinkly_custom_products', JSON.stringify(customProducts));
+    }
+
+    // Refresh state
+    state.products = getAllMasterProducts(false).map(p => ({
+        ...p,
+        stock: p.stock || 0
+    }));
+    applyCustomPricesToProducts();
+    syncStockCount();
+    applyFilters();
+    updateCartUI();
+    renderProducts();
+    renderAdminStockList();
+
+    showToast(`กู้คืนสินค้ากลับสู่หน้าร้านเรียบร้อยแล้ว`, "success");
+}
+
+function handleDeleteCurrentProduct() {
+    const productId = document.getElementById('edit-price-product-id').value;
+    if (!productId) return;
+    closeEditPriceModal();
+    handleDeleteProduct(productId);
 }
 
 function openAddStockModal(productId) {
@@ -2426,11 +6501,71 @@ function openAddStockModal(productId) {
     const modal = document.getElementById('add-stock-modal');
     if (!modal) return;
 
+    const pool = state.inventory[productId] || [];
     document.getElementById('add-stock-product-id').value = productId;
-    document.getElementById('add-stock-product-title').textContent = master.title;
+    document.getElementById('add-stock-product-title').textContent = `${master.title} (คลังปัจจุบัน: ${pool.length} ชิ้น)`;
     document.getElementById('add-stock-textarea').value = '';
-    
+    updateStockTextCounter();
+
     modal.classList.remove('hidden');
+}
+
+function updateStockTextCounter() {
+    const text = (document.getElementById('add-stock-textarea')?.value || '').trim();
+    const badge = document.getElementById('add-stock-counter-badge');
+    if (!badge) return;
+    if (!text) {
+        badge.innerHTML = `<i class="fa-solid fa-barcode text-slate-400"></i><span>ยังไม่มีข้อมูล (0 ชิ้น)</span>`;
+        return;
+    }
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let accounts = 0, links = 0, keys = 0;
+    lines.forEach(l => {
+        if (l.includes(':')) accounts++;
+        else if (l.startsWith('http')) links++;
+        else keys++;
+    });
+    badge.innerHTML = `<i class="fa-solid fa-check text-emerald-600"></i><span class="text-emerald-700 font-bold">ตรวจพบ ${lines.length} ชิ้น</span> <span class="text-slate-500 font-normal">(${accounts ? `บัญชี: ${accounts} ` : ''}${keys ? `คีย์: ${keys} ` : ''}${links ? `ลิงก์: ${links}` : ''})</span>`;
+}
+
+function clearStockTextarea() {
+    const textarea = document.getElementById('add-stock-textarea');
+    if (textarea) {
+        textarea.value = '';
+        updateStockTextCounter();
+    }
+}
+
+function insertStockSampleFormat(type) {
+    const textarea = document.getElementById('add-stock-textarea');
+    if (!textarea) return;
+    let sample = '';
+    if (type === 'account') {
+        sample = `user_${Date.now().toString().slice(-4)}@domain.com:Pass_${Math.random().toString(36).slice(-6)}`;
+    } else if (type === 'key') {
+        sample = `KEY-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    } else if (type === 'link') {
+        sample = `https://invite.example.com/join/${Math.random().toString(36).substring(2, 10)}`;
+    }
+    textarea.value = (textarea.value.trim() ? textarea.value.trim() + '\n' : '') + sample;
+    updateStockTextCounter();
+}
+
+function handleStockFileUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const content = e.target.result || '';
+        const textarea = document.getElementById('add-stock-textarea');
+        if (textarea) {
+            textarea.value = (textarea.value.trim() ? textarea.value.trim() + '\n' : '') + content.trim();
+            updateStockTextCounter();
+            showToast(`นำเข้าสำเร็จจากไฟล์ "${file.name}"`, "success");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
 }
 
 function closeAddStockModal() {
@@ -2495,14 +6630,49 @@ async function saveAdminSettings() {
         return;
     }
 
-    const newPhone = document.getElementById('admin-promptpay-input').value.trim();
+    const phoneEl = document.getElementById('admin-promptpay-input');
+    const newPhone = phoneEl ? phoneEl.value.trim() : '';
     const newAccountName = (document.getElementById('admin-account-name') ? document.getElementById('admin-account-name').value : '').trim();
     const newBranchId = (document.getElementById('admin-slipok-branch') ? document.getElementById('admin-slipok-branch').value : '').trim();
-    const newApiKey = document.getElementById('admin-slipok-key').value.trim();
-    const newPin = document.getElementById('admin-new-pin').value.trim();
+    const slipOkKeyEl = document.getElementById('admin-slipok-apikey') || document.getElementById('admin-slipok-key');
+    const newApiKey = slipOkKeyEl ? slipOkKeyEl.value.trim() : '';
+    const pinEl = document.getElementById('admin-new-pin');
+    const newPin = pinEl ? pinEl.value.trim() : '';
+    const confirmPinEl = document.getElementById('admin-confirm-new-pin');
+    const confirmPin = confirmPinEl ? confirmPinEl.value.trim() : '';
 
+    if (newPin) {
+        if (newPin.length < 4 || newPin.length > 32) {
+            showToast("รหัส PIN หรือรหัสผ่านต้องมีความยาวระหว่าง 4 ถึง 32 ตัวอักษร", "warning");
+            pinEl?.focus();
+            return;
+        }
+        if (confirmPinEl && confirmPin && newPin !== confirmPin) {
+            showToast("รหัส PIN ยืนยันไม่ตรงกับรหัส PIN ใหม่ กรุณาตรวจสอบอีกครั้ง", "warning");
+            confirmPinEl.focus();
+            return;
+        }
+    }
+    const discordWebhookUrl = (document.getElementById('admin-discord-webhook')?.value || '').trim();
+    const geminiApiKey = (document.getElementById('admin-gemini-api-key')?.value || '').trim();
+    const maintCheck = document.getElementById('admin-maintenance-mode');
+    const maintenanceMode = maintCheck ? maintCheck.checked : undefined;
+
+    const host = document.getElementById('admin-smtp-host')?.value.trim() || '';
+    const port = parseInt(document.getElementById('admin-smtp-port')?.value || '465', 10);
+    const user = document.getElementById('admin-smtp-user')?.value.trim() || '';
+    const pass = document.getElementById('admin-smtp-pass')?.value.trim() || '';
+    const from = document.getElementById('admin-smtp-from')?.value.trim() || '';
+    const logoUrl = document.getElementById('admin-smtp-logourl')?.value.trim() || '';
+    const brevoKey = document.getElementById('admin-smtp-brevo')?.value.trim() || '';
+    const resendKey = document.getElementById('admin-smtp-resend')?.value.trim() || '';
+    const sendgridKey = document.getElementById('admin-smtp-sendgrid')?.value.trim() || '';
+    const mailjetKey = document.getElementById('admin-smtp-mailjet-key')?.value.trim() || '';
+    const mailjetSecret = document.getElementById('admin-smtp-mailjet-secret')?.value.trim() || '';
+
+    let cleanPhone = '';
     if (newPhone) {
-        const cleanPhone = newPhone.replace(/[-\s]/g, '');
+        cleanPhone = newPhone.replace(/[-\s]/g, '');
         if (!/^[0-9]{10,15}$/.test(cleanPhone)) {
             showToast("รูปแบบหมายเลขพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10-15 หลัก)", "warning");
             return;
@@ -2517,9 +6687,11 @@ async function saveAdminSettings() {
     if (newBranchId) {
         STORE_CONFIG.slipOkBranchId = newBranchId;
     }
-    STORE_CONFIG.slipOkApiKey = newApiKey;
+    if (newApiKey && newApiKey !== '******') {
+        STORE_CONFIG.slipOkApiKey = newApiKey;
+    }
 
-    // Persist store config
+    // Persist store config locally
     try {
         localStorage.setItem('supinkly_store_config', JSON.stringify({
             promptPayNumber: STORE_CONFIG.promptPayNumber,
@@ -2531,21 +6703,150 @@ async function saveAdminSettings() {
         console.error("Config save error:", e);
     }
 
-    if (newPin) {
-        try {
-            await ADMIN_AUTH.setPin(newPin);
-            showToast("เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จ", "info");
-        } catch (err) {
-            showToast(err.message, "warning");
-            return;
+    // Save all settings to Server Database via API
+    try {
+        const payload = {
+            promptPayNumber: cleanPhone || STORE_CONFIG.promptPayNumber,
+            promptPayAccountName: newAccountName || STORE_CONFIG.promptPayAccountName,
+            slipOkBranchId: newBranchId || STORE_CONFIG.slipOkBranchId,
+            slipOkApiKey: newApiKey,
+            discordWebhookUrl,
+            geminiApiKey,
+            maintenanceMode,
+            smtpConfig: {
+                host,
+                port,
+                user,
+                pass,
+                from,
+                logoUrl,
+                brevoKey,
+                resendKey,
+                sendgridKey,
+                mailjetKey,
+                mailjetSecret
+            }
+        };
+        if (newPin) payload.newPin = newPin;
+
+        const res = await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            if (data.newAdminToken) {
+                sessionStorage.setItem('supinkly_admin_server_token', data.newAdminToken);
+                localStorage.setItem('supinkly_admin_server_token', data.newAdminToken);
+            }
+            if (newPin) {
+                await ADMIN_AUTH.setPin(newPin);
+                if (pinEl) pinEl.value = '';
+                if (confirmPinEl) confirmPinEl.value = '';
+                showToast("เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จแล้ว", "success");
+            }
+            showToast("บันทึกการตั้งค่าทั้งหมด (SMTP, พร้อมเพย์, บอท) เรียบร้อยแล้ว", "success");
+        } else {
+            showToast(data.message || "บันทึกการตั้งค่าสำเร็จ", "info");
         }
+    } catch (e) {
+        console.warn("Could not save settings to server:", e);
+        if (newPin) {
+            try {
+                await ADMIN_AUTH.setPin(newPin);
+                if (pinEl) pinEl.value = '';
+                if (confirmPinEl) confirmPinEl.value = '';
+                showToast("เปลี่ยนรหัส PIN แอดมินในเบราว์เซอร์สำเร็จ", "info");
+            } catch (err) {
+                showToast(err.message, "warning");
+                return;
+            }
+        }
+        showToast("บันทึกการตั้งค่าลงเบราว์เซอร์แล้ว", "info");
     }
 
-    showToast("บันทึกการตั้งค่าร้านค้าเรียบร้อยแล้ว", "success");
     closeAdminModal();
 }
 
-// Product Detail Modal
+// Dedicated Direct Admin PIN Change Action
+async function handleChangeAdminPinOnly() {
+    if (!ADMIN_AUTH.checkSession()) {
+        showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
+        closeAdminModal();
+        promptAdminLogin();
+        return;
+    }
+
+    const pinEl = document.getElementById('admin-new-pin');
+    const confirmEl = document.getElementById('admin-confirm-new-pin');
+    const newPin = pinEl ? pinEl.value.trim() : '';
+    const confirmPin = confirmEl ? confirmEl.value.trim() : '';
+
+    if (!newPin) {
+        showToast("กรุณากรอกรหัส PIN หรือรหัสผ่านใหม่", "warning");
+        pinEl?.focus();
+        return;
+    }
+
+    if (newPin.length < 4 || newPin.length > 32) {
+        showToast("รหัส PIN หรือรหัสผ่านต้องมีความยาวระหว่าง 4 ถึง 32 ตัวอักษร", "warning");
+        pinEl?.focus();
+        return;
+    }
+
+    if (confirmEl && confirmPin && newPin !== confirmPin) {
+        showToast("รหัส PIN ยืนยันไม่ตรงกับรหัส PIN ใหม่ กรุณากรอกให้ตรงกัน", "warning");
+        confirmEl.focus();
+        return;
+    }
+
+    const saveBtn = document.getElementById('admin-change-pin-btn');
+    const origHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+    }
+
+    try {
+        const res = await fetch('/api/admin/change-pin', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ newPin })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            if (data.token) {
+                sessionStorage.setItem('supinkly_admin_server_token', data.token);
+                localStorage.setItem('supinkly_admin_server_token', data.token);
+            }
+            await ADMIN_AUTH.setPin(newPin);
+            if (pinEl) pinEl.value = '';
+            if (confirmEl) confirmEl.value = '';
+            showToast("เปลี่ยนรหัส PIN แอดมินใหม่สำเร็จแล้ว! รหัสใหม่มีผลทันที", "success");
+        } else {
+            showToast(data.message || "เปลี่ยนรหัส PIN ไม่สำเร็จ", "warning");
+        }
+    } catch (err) {
+        try {
+            await ADMIN_AUTH.setPin(newPin);
+            if (pinEl) pinEl.value = '';
+            if (confirmEl) confirmEl.value = '';
+            showToast("เปลี่ยนรหัส PIN แอดมินในเบราว์เซอร์สำเร็จแล้ว", "success");
+        } catch (e) {
+            showToast(e.message || "เกิดข้อผิดพลาดในการเปลี่ยนรหัส PIN", "warning");
+        }
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = origHtml || '<i class="fa-solid fa-floppy-disk"></i> บันทึกเปลี่ยนรหัส PIN ทันที';
+        }
+    }
+}
+
+// ==========================================
+// PRODUCT DETAIL MODAL
+// ==========================================
 function openProductDetailModal(productId) {
     const product = getMasterProduct(productId);
     if (!product) return;
@@ -2555,20 +6856,53 @@ function openProductDetailModal(productId) {
 
     const availableStock = product.stock || (state.inventory[productId] || []).length || 0;
 
-    document.getElementById('modal-product-brand').textContent = product.brand;
-    document.getElementById('modal-product-type').textContent = product.type;
-    document.getElementById('modal-product-title').textContent = product.title;
-    document.getElementById('modal-product-desc').textContent = product.description;
-    document.getElementById('modal-product-price').textContent = `฿${product.price.toFixed(2)}`;
-    document.getElementById('modal-product-original-price').textContent = `฿${product.originalPrice.toFixed(2)}`;
-    document.getElementById('modal-product-warranty').textContent = product.warranty;
-    document.getElementById('modal-product-stock').textContent = `${availableStock} ชิ้น`;
-    document.getElementById('modal-product-sold').textContent = `${product.soldCount.toLocaleString()} ชิ้น`;
-    document.getElementById('modal-product-region').textContent = product.region;
+    const setElemText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    };
+
+    setElemText('modal-product-title', product.title || '');
+    setElemText('modal-product-desc', product.description || '');
+    setElemText('modal-product-spec-type', product.type || 'สิทธิ์แท้ 100%');
+    setElemText('modal-product-duration', product.duration || '30 วัน');
+    setElemText('modal-product-warranty', product.warranty ? `รับประกัน ${product.warranty}` : 'รับประกัน 30 วัน');
+    setElemText('modal-product-devices', product.devices || 'iOS • Android • Windows • Mac');
+    setElemText('modal-product-region', product.region || 'Global (ทั่วโลก)');
+    setElemText('modal-product-stock', `${availableStock} ชิ้น`);
+    setElemText('modal-product-sold', `${(product.soldCount || 0).toLocaleString()} ชิ้น`);
+    setElemText('modal-product-original-price', product.originalPrice ? `฿${product.originalPrice.toFixed(2)}` : '');
+    setElemText('modal-product-price', `฿${product.price.toFixed(2)}`);
+
+    const featuresList = document.getElementById('modal-product-features-list');
+    if (featuresList) {
+        const descLines = (product.description || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        if (descLines.length > 0) {
+            featuresList.innerHTML = descLines.map(line => `
+                <div class="flex items-start gap-2 text-xs text-slate-700 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                    <i class="fa-solid fa-check text-pink-500 mt-0.5 shrink-0 text-xs"></i>
+                    <span class="font-normal">${escapeHTML(line.replace(/^[•\-\*]\s*/, ''))}</span>
+                </div>
+            `).join('');
+        } else {
+            featuresList.innerHTML = `
+                <div class="flex items-start gap-2 text-xs text-slate-700 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                    <i class="fa-solid fa-check text-pink-500 mt-0.5 shrink-0 text-xs"></i>
+                    <span class="font-normal">สิทธิ์แท้มาตรฐาน พร้อมการรับประกันและดูแลตลอดการใช้งาน</span>
+                </div>
+            `;
+        }
+    }
 
     const addBtn = document.getElementById('modal-add-cart-btn');
     if (addBtn) {
         addBtn.disabled = availableStock <= 0;
+        if (availableStock <= 0) {
+            addBtn.innerHTML = `<i class="fa-solid fa-ban"></i> <span>สินค้าหมดชั่วคราว</span>`;
+            addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            addBtn.innerHTML = `<i class="fa-solid fa-cart-plus"></i> <span>ใส่ตะกร้าสินค้า</span>`;
+            addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
         addBtn.onclick = () => {
             addToCart(product.id);
             closeProductDetailModal();
@@ -2576,11 +6910,377 @@ function openProductDetailModal(productId) {
     }
 
     modal.classList.remove('hidden');
+    if (typeof sendTelemetryHeartbeat === 'function') {
+        sendTelemetryHeartbeat('product_view', { productId, productTitle: product.title });
+    }
 }
 
 function closeProductDetailModal() {
     const modal = document.getElementById('product-detail-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+// ==========================================
+// STORE COUPONS & PROMOTIONS POPUP
+// ==========================================
+function openCouponsModal() {
+    renderCouponsModal();
+    const modal = document.getElementById('coupons-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeCouponsModal() {
+    const modal = document.getElementById('coupons-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function renderCouponsModal() {
+    const list = document.getElementById('coupons-modal-list');
+    const badge = document.getElementById('coupons-modal-count-badge');
+    const promotions = (typeof getStorePromotions === 'function' ? getStorePromotions() : []).filter(p => p.active !== false);
+
+    if (badge) badge.textContent = `${promotions.length} โค้ด`;
+    if (!list) return;
+
+    if (promotions.length === 0) {
+        list.innerHTML = `
+            <div class="py-12 text-center text-slate-400 text-xs">
+                <i class="fa-solid fa-ticket-simple text-3xl mb-2 text-slate-300"></i>
+                <p>ขณะนี้ยังไม่มีโค้ดส่วนลดที่เปิดใช้งาน</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = promotions.map(promo => {
+        const isPct = (promo.discountType === 'percent' || promo.type === 'percentage');
+        const valText = isPct ? `${promo.discountValue || promo.value}%` : `฿${promo.discountValue || promo.value}`;
+        const minSpend = promo.minSpend ? `ขั้นต่ำ ฿${promo.minSpend.toFixed(2)}` : 'ไม่มีขั้นต่ำ';
+        const isApplied = state.appliedCoupon && (state.appliedCoupon.code || '').toUpperCase() === (promo.code || '').toUpperCase();
+
+        return `
+            <div class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-pink-50/60 to-purple-50/60 border border-pink-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div class="flex items-start gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white flex flex-col items-center justify-center shrink-0 shadow-sm shadow-pink-500/20">
+                        <span class="text-xs font-black font-mono leading-none">${valText}</span>
+                        <span class="text-[9px] uppercase font-bold mt-0.5">ส่วนลด</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono font-bold text-sm text-pink-600 bg-white px-2 py-0.5 rounded-lg border border-pink-200 select-all">${escapeHTML(promo.code)}</span>
+                            <span class="text-[10px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">${minSpend}</span>
+                        </div>
+                        <h4 class="text-xs font-bold text-slate-800 mt-1">${escapeHTML(promo.title || '')}</h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5">${escapeHTML(promo.description || '')}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 justify-end shrink-0">
+                    <button type="button" onclick="copyAndApplyPromoCode('${escapeHTML(promo.code)}')" 
+                        class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${isApplied ? 'bg-emerald-500 text-white' : 'gradient-btn text-white hover:scale-105 active:scale-95'}">
+                        <i class="fa-solid ${isApplied ? 'fa-circle-check' : 'fa-copy'}"></i>
+                        <span>${isApplied ? 'กำลังใช้งานอยู่' : 'คัดลอก & นำไปใช้'}</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function copyAndApplyPromoCode(code) {
+    if (!code) return;
+    copyToClipboard(code, `คัดลอกโค้ด "${code}" แล้ว`);
+
+    const subtotal = calculateVerifiedTotal();
+    const result = typeof validateCouponCode === 'function' ? validateCouponCode(code, subtotal) : { valid: false, message: 'ไม่สามารถตรวจสอบโค้ดได้' };
+
+    if (result.valid) {
+        state.appliedCoupon = result;
+        showToast(result.message || `นำโค้ด "${code}" ไปใช้ในตะกร้าเรียบร้อยแล้ว`, "success");
+    } else {
+        state.appliedCoupon = { code: code.toUpperCase(), discountAmount: 0, title: 'โค้ดส่วนลด' };
+        showToast(`คัดลอกโค้ด "${code}" แล้ว! (${result.message})`, "info");
+    }
+
+    updateCartUI();
+    closeCouponsModal();
+    openCartDrawer();
+}
+
+function copyAndApplyPromo(code) {
+    copyAndApplyPromoCode(code);
+}
+
+function claimVoucher(code, btn) {
+    if (btn) {
+        const orig = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-check text-emerald-300"></i> <span>เก็บสำเร็จ!</span>`;
+        btn.classList.add('bg-emerald-600');
+        setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.classList.remove('bg-emerald-600');
+        }, 1800);
+    }
+    copyAndApplyPromoCode(code);
+}
+
+function applyCouponFromCart() {
+    const input = document.getElementById('cart-coupon-input');
+    const code = (input ? input.value : '').trim().toUpperCase();
+    if (!code) {
+        showToast("กรุณากรอกโค้ดส่วนลด", "warning");
+        return;
+    }
+
+    const subtotal = calculateVerifiedTotal();
+    if (subtotal <= 0) {
+        showToast("กรุณาเพิ่มสินค้าลงในตะกร้าก่อนใช้โค้ดส่วนลด", "warning");
+        return;
+    }
+
+    const result = typeof validateCouponCode === 'function' ? validateCouponCode(code, subtotal) : { valid: false, message: 'ระบบไม่พร้อมใช้งาน' };
+    if (!result.valid) {
+        showToast(result.message || "โค้ดส่วนลดไม่ถูกต้อง", "warning");
+        return;
+    }
+
+    state.appliedCoupon = result;
+    if (input) {
+        input.value = '';
+        input.setAttribute('readonly', 'readonly');
+        input.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+        if (typeof input.blur === 'function') input.blur();
+    }
+    showToast(result.message, "success");
+    updateCartUI();
+}
+
+function quickApplyCoupon(code) {
+    const input = document.getElementById('cart-coupon-input');
+    if (input) {
+        input.removeAttribute('readonly');
+        input.value = code;
+    }
+    applyCouponFromCart();
+}
+
+function removeAppliedCoupon() {
+    state.appliedCoupon = null;
+    const input = document.getElementById('cart-coupon-input');
+    if (input) {
+        input.value = '';
+        input.setAttribute('readonly', 'readonly');
+        input.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+    }
+    showToast("ยกเลิกการใช้โค้ดส่วนลดแล้ว", "info");
+    updateCartUI();
+}
+
+// ==========================================
+// LOGO MASCOT POPUP
+// ==========================================
+function openLogoPopup() {
+    const modal = document.getElementById('logo-popup-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeLogoPopup() {
+    const modal = document.getElementById('logo-popup-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// ==========================================
+// MOBILE MENU DRAWER
+// ==========================================
+function openMobileMenu() {
+    const drawer = document.getElementById('mobile-menu-drawer');
+    const overlay = document.getElementById('mobile-menu-overlay');
+    if (drawer) drawer.classList.remove('-translate-x-full');
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+function closeMobileMenu() {
+    const drawer = document.getElementById('mobile-menu-drawer');
+    const overlay = document.getElementById('mobile-menu-overlay');
+    if (drawer) drawer.classList.add('-translate-x-full');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+// ==========================================
+// SMOOTH SCROLL TO PRODUCTS
+// ==========================================
+function scrollToProducts() {
+    const section = document.getElementById('products-section') || document.getElementById('brand-tabs-sticky-bar') || document.getElementById('featured-ai');
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// ==========================================
+// ADMIN SLIP VIEW MODAL
+// ==========================================
+let currentViewingSlipOrderId = null;
+
+function openSlipViewModal(orderId) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+
+    const order = (adminOrdersList && adminOrdersList.find(o => o.orderId === orderId)) || (state.orders || []).find(o => o.orderId === orderId);
+    if (!order) {
+        showToast("ไม่พบข้อมูลคำสั่งซื้อ", "warning");
+        return;
+    }
+
+    const modal = document.getElementById('admin-slip-view-modal');
+    if (!modal) return;
+
+    currentViewingSlipOrderId = orderId;
+
+    const titleEl = document.getElementById('admin-slip-modal-title');
+    if (titleEl) titleEl.textContent = `ตรวจสอบสลิปการโอนเงิน — ${order.orderId}`;
+
+    const subtitleEl = document.getElementById('admin-slip-modal-subtitle');
+    if (subtitleEl) subtitleEl.textContent = `คำสั่งซื้อ: ${order.orderId} | วันที่: ${order.date || '-'}`;
+
+    const imgEl = document.getElementById('admin-slip-modal-img');
+    const loadingEl = document.getElementById('admin-slip-modal-loading');
+    const errorEl = document.getElementById('admin-slip-modal-error');
+    const emptyEl = document.getElementById('admin-slip-modal-empty');
+    const directBtn = document.getElementById('admin-slip-direct-url-btn');
+    const downloadBtn = document.getElementById('admin-slip-download-btn');
+
+    // Slip audit details
+    const transEl = document.getElementById('admin-slip-audit-transref');
+    if (transEl) transEl.textContent = order.transRef || order.transactionId || '-';
+
+    const amtEl = document.getElementById('admin-slip-audit-amount');
+    if (amtEl) amtEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
+
+    const dateEl = document.getElementById('admin-slip-audit-date');
+    if (dateEl) dateEl.textContent = order.date || '-';
+
+    const hashEl = document.getElementById('admin-slip-audit-hash');
+    if (hashEl) hashEl.textContent = order.slipHash || order.hash || '-';
+
+    const statusEl = document.getElementById('admin-slip-audit-status');
+    if (statusEl) {
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ตรวจสอบผ่านแล้ว`;
+    }
+
+    const slipUrl = order.slipUrl || order.slipImage || order.slipDataUrl || order.slipData || '';
+
+    // Reset states
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (errorEl) errorEl.classList.add('hidden');
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (imgEl) {
+        imgEl.classList.add('hidden');
+        imgEl.src = '';
+    }
+
+    if (slipUrl) {
+        if (directBtn) {
+            directBtn.href = slipUrl;
+            directBtn.classList.remove('hidden');
+        }
+        if (downloadBtn) {
+            downloadBtn.href = slipUrl;
+            downloadBtn.download = `slip-${order.orderId}.jpg`;
+            downloadBtn.classList.remove('hidden');
+        }
+
+        if (loadingEl) loadingEl.classList.remove('hidden');
+
+        if (imgEl) {
+            imgEl.onload = () => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                imgEl.classList.remove('hidden');
+                if (errorEl) errorEl.classList.add('hidden');
+            };
+            imgEl.onerror = () => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                imgEl.classList.add('hidden');
+                if (errorEl) errorEl.classList.remove('hidden');
+            };
+            imgEl.src = slipUrl;
+        }
+    } else {
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        if (errorEl) errorEl.classList.remove('hidden');
+        if (directBtn) directBtn.classList.add('hidden');
+        if (downloadBtn) downloadBtn.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function closeSlipViewModal() {
+    const modal = document.getElementById('admin-slip-view-modal');
+    if (modal) modal.classList.add('hidden');
+    currentViewingSlipOrderId = null;
+}
+
+async function handleAdminSlipReupload(input) {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) {
+        promptAdminLogin();
+        return;
+    }
+    if (!input || !input.files || !input.files[0]) return;
+    if (!currentViewingSlipOrderId) {
+        showToast("ไม่พบรหัสคำสั่งซื้อที่ต้องการแนบสลิป", "error");
+        return;
+    }
+    const file = input.files[0];
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/i)) {
+        showToast("กรุณาเลือกไฟล์รูปภาพ JPG, PNG หรือ WebP เท่านั้น", "warning");
+        input.value = '';
+        return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+        showToast("ขนาดไฟล์รูปภาพต้องไม่เกิน 15MB", "warning");
+        input.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('slip', file);
+
+    const headers = {};
+    const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token');
+    const pin = sessionStorage.getItem('supinkly_admin_pin') || '';
+    if (pin) headers['x-admin-pin'] = pin;
+    if (token) {
+        headers['x-admin-token'] = token;
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    showToast("กำลังอัปโหลดรูปภาพสลิป...", "info");
+    try {
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(currentViewingSlipOrderId)}/attach-slip`, {
+            method: 'POST',
+            headers,
+            body: formData
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            showToast(data.message || "แนบรูปสลิปให้คำสั่งซื้อเรียบร้อยแล้ว", "success");
+            const order = (state.orders || []).find(o => o.orderId === currentViewingSlipOrderId);
+            if (order) {
+                order.slipUrl = data.slipUrl;
+                if (data.slipData) order.slipData = data.slipData;
+                saveOrders();
+            }
+            openSlipViewModal(currentViewingSlipOrderId);
+        } else {
+            showToast(data.message || "เกิดข้อผิดพลาดในการอัปโหลดสลิป", "error");
+        }
+    } catch (e) {
+        console.error("handleAdminSlipReupload error:", e);
+        showToast("ไม่สามารถอัปโหลดรูปภาพสลิปได้ กรุณาลองใหม่อีกครั้ง", "error");
+    } finally {
+        input.value = '';
+    }
 }
 
 // Toast System (Bright, Clear Alerts)
@@ -2616,6 +7316,165 @@ function showToast(message, type = "info") {
     }, 3200);
 }
 
+// ==========================================
+// UNIVERSAL ESCAPE (ESC) KEY HANDLER
+// Close modals, drawers, popups, and panels in hierarchical LIFO order
+// ==========================================
+function closeTopmostModal() {
+    // 1. Admin Chat Panel (z-[200])
+    const adminChat = document.getElementById('admin-chat-panel');
+    if (adminChat && !adminChat.classList.contains('hidden')) {
+        closeAdminChatPanel();
+        return true;
+    }
+
+    // 2. Coupons Promo Modal (z-[160])
+    const couponsModal = document.getElementById('coupons-modal');
+    if (couponsModal && !couponsModal.classList.contains('hidden')) {
+        closeCouponsModal();
+        return true;
+    }
+
+    // 3. Logo Mascot Popup (z-[150])
+    const logoPopup = document.getElementById('logo-popup-modal');
+    if (logoPopup && !logoPopup.classList.contains('hidden')) {
+        closeLogoPopup();
+        return true;
+    }
+
+    // 4. Mobile Menu Navigation Drawer (z-[110])
+    const mobileOverlay = document.getElementById('mobile-menu-overlay');
+    const mobileDrawer = document.getElementById('mobile-menu-drawer');
+    if ((mobileOverlay && !mobileOverlay.classList.contains('hidden')) || 
+        (mobileDrawer && !mobileDrawer.classList.contains('-translate-x-full'))) {
+        closeMobileMenu();
+        return true;
+    }
+
+    // 5. Admin Slip View Modal (z-[75])
+    const slipModal = document.getElementById('admin-slip-view-modal');
+    if (slipModal && !slipModal.classList.contains('hidden')) {
+        closeSlipViewModal();
+        return true;
+    }
+
+    // 6. Product Detail Modal (z-[70])
+    const productDetailModal = document.getElementById('product-detail-modal');
+    if (productDetailModal && !productDetailModal.classList.contains('hidden')) {
+        closeProductDetailModal();
+        return true;
+    }
+
+    // 7. Checkout & Payment Modal (z-[70])
+    const checkoutModal = document.getElementById('checkout-modal');
+    if (checkoutModal && !checkoutModal.classList.contains('hidden')) {
+        closeCheckoutModal();
+        return true;
+    }
+
+    // 8. Instant Delivery Vault Modal (z-[70])
+    const vaultModal = document.getElementById('vault-modal');
+    if (vaultModal && !vaultModal.classList.contains('hidden')) {
+        closeVaultModal();
+        return true;
+    }
+
+    // 9. User Authentication Modal (Login / Register / OTP / Forgot) (z-[70])
+    const authModal = document.getElementById('auth-modal');
+    if (authModal && !authModal.classList.contains('hidden')) {
+        closeAuthModal();
+        return true;
+    }
+
+    // 10. Admin Edit & Manage Product Modal (z-[60])
+    const editPriceModal = document.getElementById('edit-price-modal');
+    if (editPriceModal && !editPriceModal.classList.contains('hidden')) {
+        closeEditPriceModal();
+        return true;
+    }
+
+    // 11. Admin Add Stock Modal (z-[60])
+    const addStockModal = document.getElementById('add-stock-modal');
+    if (addStockModal && !addStockModal.classList.contains('hidden')) {
+        closeAddStockModal();
+        return true;
+    }
+
+    // 12. Admin Fulfill Order Modal (z-50)
+    const fulfillModal = document.getElementById('admin-fulfill-modal');
+    if (fulfillModal && !fulfillModal.classList.contains('hidden')) {
+        closeFulfillModal();
+        return true;
+    }
+
+    // 13. Admin Reset Password Confirmation Modal (z-50)
+    const resetPwModal = document.getElementById('admin-reset-pw-modal');
+    if (resetPwModal && !resetPwModal.classList.contains('hidden')) {
+        closeAdminResetPwModal();
+        return true;
+    }
+
+    // 14. Admin PIN Security Gate Modal (z-50)
+    const pinModal = document.getElementById('admin-pin-modal');
+    if (pinModal && !pinModal.classList.contains('hidden')) {
+        closeAdminPinModal();
+        return true;
+    }
+
+    // 15. Orders History & My Keys Modal (z-50)
+    const ordersModal = document.getElementById('orders-modal');
+    if (ordersModal && !ordersModal.classList.contains('hidden')) {
+        closeOrdersModal();
+        return true;
+    }
+
+    // 16. Secured Admin Dashboard Modal (z-50)
+    const adminModal = document.getElementById('admin-modal');
+    if (adminModal && !adminModal.classList.contains('hidden')) {
+        closeAdminModal();
+        return true;
+    }
+
+    // 17. Cart Drawer & Overlay (z-50)
+    const cartOverlay = document.getElementById('drawer-overlay');
+    const cartDrawer = document.getElementById('cart-drawer');
+    if ((cartOverlay && !cartOverlay.classList.contains('hidden')) || 
+        (cartDrawer && !cartDrawer.classList.contains('translate-x-full'))) {
+        closeCartDrawer();
+        return true;
+    }
+
+    // 18. Customer Live Chat Window
+    const chatWindow = document.getElementById('spk-chat-window') || document.getElementById('chat-window');
+    if (chatWindow && !chatWindow.classList.contains('hidden')) {
+        if (typeof window.closeLiveChat === 'function') {
+            window.closeLiveChat();
+        } else if (typeof window.SupinklyChat !== 'undefined' && typeof window.SupinklyChat.close === 'function') {
+            window.SupinklyChat.close();
+        } else {
+            chatWindow.classList.add('hidden');
+        }
+        return true;
+    }
+
+    // 19. Generic fallback for any other modal overlay
+    const anyModal = Array.from(document.querySelectorAll('.fixed.inset-0:not(.hidden)'))
+        .filter(el => el.id !== 'global-admin-maintenance-bar' && !el.classList.contains('pointer-events-none'));
+    if (anyModal.length > 0) {
+        anyModal[anyModal.length - 1].classList.add('hidden');
+        return true;
+    }
+
+    // 20. If an input or textarea is focused and no modal is open, blur it
+    if (document.activeElement && typeof document.activeElement.blur === 'function' && 
+        (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        document.activeElement.blur();
+        return true;
+    }
+
+    return false;
+}
+
 function initEvents() {
     const slipInput = document.getElementById('slip-file-input');
     if (slipInput) {
@@ -2644,6 +7503,17 @@ function initEvents() {
         });
     }
 
+    // Universal ESC key listener to exit/close any modal, popup, or drawer (Capture phase for instant priority)
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+            const closed = closeTopmostModal();
+            if (closed) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+    }, true);
+
     // Owner shortcut to open admin login (Ctrl + Shift + A)
     window.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
@@ -2660,6 +7530,65 @@ function initEvents() {
             else promptAdminLogin();
         }
     });
+
+    // Setup anti-browser autofill / anti-memory protection for coupon & promo inputs
+    const promoInputs = [
+        document.getElementById('cart-coupon-input'),
+        document.getElementById('admin-coupon-code-input')
+    ];
+    promoInputs.forEach(input => {
+        if (!input) return;
+        input.setAttribute('autocomplete', 'one-time-code');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'characters');
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('data-lpignore', 'true');
+        input.setAttribute('data-1p-ignore', 'true');
+        input.setAttribute('data-bwignore', 'true');
+        input.setAttribute('data-dashlane-ignore', 'true');
+        input.setAttribute('data-form-type', 'other');
+        input.setAttribute('aria-autocomplete', 'none');
+        input.name = 'spk_cp_' + Math.random().toString(36).slice(2, 9);
+        const unlock = () => {
+            input.removeAttribute('readonly');
+            input.setAttribute('autocomplete', 'one-time-code');
+        };
+        input.addEventListener('pointerdown', unlock, { passive: true });
+        input.addEventListener('touchstart', unlock, { passive: true });
+        input.addEventListener('focus', unlock, { passive: true });
+    });
+
+    // Setup anti-browser autofill / anti-memory protection for all search inputs
+    const searchInputs = [
+        document.getElementById('search-input'),
+        document.getElementById('mobile-search-input'),
+        document.getElementById('customer-keys-search'),
+        document.getElementById('admin-order-search'),
+        document.getElementById('admin-stock-search'),
+        document.getElementById('admin-user-search'),
+        document.getElementById('admin-coupon-search')
+    ];
+    searchInputs.forEach(input => {
+        if (!input) return;
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'none');
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('data-lpignore', 'true');
+        input.setAttribute('data-1p-ignore', 'true');
+        input.setAttribute('data-bwignore', 'true');
+        input.setAttribute('data-dashlane-ignore', 'true');
+        input.setAttribute('data-form-type', 'other');
+        input.setAttribute('aria-autocomplete', 'none');
+        input.name = 'spk_s_' + Math.random().toString(36).slice(2, 9);
+        const unlock = () => {
+            input.removeAttribute('readonly');
+            input.setAttribute('autocomplete', 'off');
+        };
+        input.addEventListener('pointerdown', unlock, { passive: true });
+        input.addEventListener('touchstart', unlock, { passive: true });
+        input.addEventListener('focus', unlock, { passive: true });
+    });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2668,17 +7597,17 @@ function initEvents() {
 const ADMIN_CHAT = (() => {
     const WS_URL = (() => {
         const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-        const host  = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        const host = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
             ? `${location.hostname}:3000`
             : location.host;
         return `${proto}://${host}/ws/chat`;
     })();
 
-    let ws           = null;
-    let activeRoom   = null;   // sessionId ที่กำลัง active
-    const rooms      = {};     // sessionId → { name, messages[] }
-    let adminTyping  = null;
-    let unread       = {};     // sessionId → count
+    let ws = null;
+    let activeRoom = null;   // sessionId ที่กำลัง active
+    const rooms = {};     // sessionId → { name, messages[] }
+    let adminTyping = null;
+    let unread = {};     // sessionId → count
 
     /* ── Helpers ─────────────────────────────────────────────── */
     function fmtTime(ts) {
@@ -2693,7 +7622,7 @@ const ADMIN_CHAT = (() => {
     /* ── Room List ───────────────────────────────────────────── */
     function renderRoomList() {
         const list = document.getElementById('admin-room-list');
-        const cnt  = document.getElementById('admin-room-count');
+        const cnt = document.getElementById('admin-room-count');
         if (!list) return;
 
         const keys = Object.keys(rooms);
@@ -2705,9 +7634,9 @@ const ADMIN_CHAT = (() => {
         }
 
         list.innerHTML = keys.map(sid => {
-            const r        = rooms[sid];
+            const r = rooms[sid];
             const isActive = sid === activeRoom;
-            const badge    = unread[sid] || 0;
+            const badge = unread[sid] || 0;
             return `
                 <div onclick="ADMIN_CHAT.selectRoom('${escapeHTML(sid)}')"
                     class="px-3 py-2.5 cursor-pointer flex items-center gap-2 transition-colors ${isActive ? 'bg-pink-50 border-l-2 border-pink-500' : 'hover:bg-slate-100'}">
@@ -2757,9 +7686,9 @@ const ADMIN_CHAT = (() => {
         unread[sid] = 0;
 
         const nameEl = document.getElementById('admin-active-room-name');
-        const dotEl  = document.getElementById('admin-active-online-dot');
+        const dotEl = document.getElementById('admin-active-online-dot');
         if (nameEl) nameEl.textContent = rooms[sid]?.name || sid;
-        if (dotEl)  dotEl.classList.remove('hidden');
+        if (dotEl) dotEl.classList.remove('hidden');
 
         renderMessages(sid);
         renderRoomList();
@@ -2772,7 +7701,7 @@ const ADMIN_CHAT = (() => {
             showToast('กรุณาเลือกลูกค้าก่อนส่งข้อความ', 'warning');
             return;
         }
-        const inp  = document.getElementById('admin-msg-input');
+        const inp = document.getElementById('admin-msg-input');
         const text = (inp?.value || '').trim();
         if (!text) return;
 
@@ -2782,12 +7711,15 @@ const ADMIN_CHAT = (() => {
     }
 
     /* ── Connect ─────────────────────────────────────────────── */
-    function connect(pin) {
+    function connect(pinOverride) {
         if (ws && ws.readyState < 2) return;
         ws = new WebSocket(WS_URL);
 
+        const token = sessionStorage.getItem('supinkly_admin_server_token') || localStorage.getItem('supinkly_admin_server_token') || '';
+        const pin = pinOverride || sessionStorage.getItem('supinkly_admin_pin') || '';
+
         ws.onopen = () => {
-            ws.send(JSON.stringify({ type: 'auth', role: 'admin', pin }));
+            ws.send(JSON.stringify({ type: 'auth', role: 'admin', token, pin }));
         };
 
         ws.onmessage = ({ data }) => {
@@ -2889,8 +7821,8 @@ function openAdminChatPanel() {
     if (!panel.dataset.chatInited) {
         panel.dataset.chatInited = '1';
 
-        const sendBtn  = document.getElementById('admin-send-btn');
-        const msgInp   = document.getElementById('admin-msg-input');
+        const sendBtn = document.getElementById('admin-send-btn');
+        const msgInp = document.getElementById('admin-msg-input');
 
         sendBtn?.addEventListener('click', () => ADMIN_CHAT.sendMsg());
         msgInp?.addEventListener('keydown', e => {
@@ -2901,11 +7833,8 @@ function openAdminChatPanel() {
             msgInp.style.height = Math.min(msgInp.scrollHeight, 100) + 'px';
         });
 
-        // Connect WebSocket as admin (reuse session PIN prompt)
-        const pinHash = localStorage.getItem('supinkly_admin_pin_hash');
-        // ใช้ prompt สั้นๆ รับ PIN เพื่อ auth กับ WS Server
-        const pin = window.prompt('กรอก PIN แอดมินเพื่อเชื่อมต่อ Live Chat:');
-        if (pin) ADMIN_CHAT.connect(pin.trim());
+        // Connect WebSocket as admin
+        ADMIN_CHAT.connect();
     }
 }
 
@@ -2937,3 +7866,213 @@ function closeAdminChatPanel() {
     }, 2000);
 })();
 
+// Export Admin Stock & Product Management APIs to global window
+window.renderAdminStockList = renderAdminStockList;
+window.handleAdminStockSearch = handleAdminStockSearch;
+window.clearAdminStockSearch = clearAdminStockSearch;
+window.filterAdminStockBrand = filterAdminStockBrand;
+window.openEditPriceModal = openEditPriceModal;
+window.openAddNewProductModal = openAddNewProductModal;
+window.handleSaveEditedProduct = handleSaveEditedProduct;
+window.handleSaveEditedPrice = handleSaveEditedPrice;
+window.handleDeleteProduct = handleDeleteProduct;
+window.handleRestoreProduct = handleRestoreProduct;
+window.handleDeleteCurrentProduct = handleDeleteCurrentProduct;
+window.applyRecommendedAutoPriceToInput = applyRecommendedAutoPriceToInput;
+window.setEditBadgePreset = setEditBadgePreset;
+window.triggerManualAutoSync = triggerManualAutoSync;
+window.openAddStockModal = openAddStockModal;
+window.closeAddStockModal = closeAddStockModal;
+window.handleSaveAddedStock = handleSaveAddedStock;
+window.updateStockTextCounter = updateStockTextCounter;
+window.clearStockTextarea = clearStockTextarea;
+window.insertStockSampleFormat = insertStockSampleFormat;
+window.handleStockFileUpload = handleStockFileUpload;
+
+// Admin Navigation & Orders Management Controllers
+window.switchAdminTab = switchAdminTab;
+window.quickAdminNavigate = quickAdminNavigate;
+window.updateAdminNavBadges = updateAdminNavBadges;
+window.renderAdminOrdersList = renderAdminOrdersList;
+window.handleAdminOrderSearch = handleAdminOrderSearch;
+window.clearAdminOrderSearch = clearAdminOrderSearch;
+window.filterAdminOrders = filterAdminOrders;
+window.exportOrdersToCSV = exportOrdersToCSV;
+window.handleClearAllAdminOrders = handleClearAllAdminOrders;
+window.deleteAdminOrder = deleteAdminOrder;
+window.syncLocalOrdersToServer = syncLocalOrdersToServer;
+window.createDemoOrder = createDemoOrder;
+window.openFulfillModal = openFulfillModal;
+window.closeFulfillModal = closeFulfillModal;
+window.copyFulfillG2GTitle = copyFulfillG2GTitle;
+window.handleFulfillQuickPaste = handleFulfillQuickPaste;
+window.handleFulfillSubmit = handleFulfillSubmit;
+window.setFulfillType = setFulfillType;
+window.autoFillDefaultInstruction = autoFillDefaultInstruction;
+
+// Admin Real-Time Analytics & Telemetry Controllers
+window.fetchAdminAnalytics = fetchAdminAnalytics;
+window.renderAdminAnalytics = renderAdminAnalytics;
+window.renderFallbackAdminAnalytics = renderFallbackAdminAnalytics;
+window.renderActiveUsersList = renderActiveUsersList;
+window.setOnlineUsersFilter = setOnlineUsersFilter;
+window.renderTopProductsList = renderTopProductsList;
+window.renderRecentEventsList = renderRecentEventsList;
+window.startAdminAnalyticsAutoRefresh = startAdminAnalyticsAutoRefresh;
+window.stopAdminAnalyticsAutoRefresh = stopAdminAnalyticsAutoRefresh;
+window.sendTelemetryHeartbeat = sendTelemetryHeartbeat;
+window.TELEMETRY = TELEMETRY;
+
+// Admin Coupons Management Controllers
+window.renderAdminCouponsList = renderAdminCouponsList;
+window.handleAdminCouponSearch = handleAdminCouponSearch;
+window.clearAdminCouponSearch = clearAdminCouponSearch;
+window.toggleAdminCouponForm = toggleAdminCouponForm;
+window.handleAdminCouponTypeChange = handleAdminCouponTypeChange;
+window.handleAdminCouponFormSubmit = handleAdminCouponFormSubmit;
+window.handleToggleAdminCoupon = handleToggleAdminCoupon;
+window.handleDeleteAdminCoupon = handleDeleteAdminCoupon;
+
+// Admin Users Management Controllers
+window.renderAdminUsersList = renderAdminUsersList;
+window.handleAdminUserSearch = handleAdminUserSearch;
+window.clearAdminUserSearch = clearAdminUserSearch;
+window.filterAdminUsersStatus = filterAdminUsersStatus;
+window.handleAdminResetUserPassword = handleAdminResetUserPassword;
+window.openAdminResetPwModal = openAdminResetPwModal;
+window.closeAdminResetPwModal = closeAdminResetPwModal;
+window.submitAdminResetPassword = submitAdminResetPassword;
+window.handleDeleteAdminUser = handleDeleteAdminUser;
+window.handleClearAllAdminUsers = handleClearAllAdminUsers;
+
+// Admin Settings & Store Configuration Tools
+window.loadAdminSettingsIntoForm = loadAdminSettingsIntoForm;
+window.scrollToAdminSetting = scrollToAdminSetting;
+window.updateMaintenanceBadge = updateMaintenanceBadge;
+window.toggleMaintenanceModeDirectly = toggleMaintenanceModeDirectly;
+window.toggleSlipOkKeyVisibility = toggleSlipOkKeyVisibility;
+window.handleAdminTestSlipOK = handleAdminTestSlipOK;
+window.savePromptPayAndSlipOkSettings = savePromptPayAndSlipOkSettings;
+window.handleAdminTestDiscord = handleAdminTestDiscord;
+window.applySmtpPreset = applySmtpPreset;
+window.handleAdminTestEmail = handleAdminTestEmail;
+window.downloadDatabaseBackup = downloadDatabaseBackup;
+window.handleDatabaseRestore = handleDatabaseRestore;
+window.saveAdminSettings = saveAdminSettings;
+window.handleChangeAdminPinOnly = handleChangeAdminPinOnly;
+window.toggleAdminNewPinVisibility = toggleAdminNewPinVisibility;
+window.toggleAdminConfirmPinVisibility = toggleAdminConfirmPinVisibility;
+
+// Admin Authentication & Modal Controllers
+window.openAdminModal = openAdminModal;
+window.closeAdminModal = closeAdminModal;
+window.promptAdminLogin = promptAdminLogin;
+window.closeAdminPinModal = closeAdminPinModal;
+window.handleAdminPinSubmit = handleAdminPinSubmit;
+window.handleAdminLogout = handleAdminLogout;
+window.handleResetAdminPinToDefault = handleResetAdminPinToDefault;
+window.toggleAdminPinVisibility = toggleAdminPinVisibility;
+
+// User Authentication & Header UI Controllers
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.switchAuthTab = switchAuthTab;
+window.handleLogin = handleLogin;
+window.handleRegister = handleRegister;
+window.handleVerifyOtp = handleVerifyOtp;
+window.handleResendOtp = handleResendOtp;
+window.handleForgotPasswordRequest = handleForgotPasswordRequest;
+window.handleResetPasswordSubmit = handleResetPasswordSubmit;
+window.handleResendResetOtp = handleResendResetOtp;
+window.handleBackToRegister = handleBackToRegister;
+window.handleUserLogout = handleUserLogout;
+window.updateUserHeaderUI = updateUserHeaderUI;
+
+// Customer-Facing Modals, Cart, Coupons, and Interactive Controllers
+window.openProductDetailModal = openProductDetailModal;
+window.closeProductDetailModal = closeProductDetailModal;
+window.openCouponsModal = openCouponsModal;
+window.closeCouponsModal = closeCouponsModal;
+window.renderCouponsModal = renderCouponsModal;
+window.copyAndApplyPromoCode = copyAndApplyPromoCode;
+window.copyAndApplyPromo = copyAndApplyPromo;
+window.claimVoucher = claimVoucher;
+window.applyCouponFromCart = applyCouponFromCart;
+window.quickApplyCoupon = quickApplyCoupon;
+window.removeAppliedCoupon = removeAppliedCoupon;
+window.openLogoPopup = openLogoPopup;
+window.closeLogoPopup = closeLogoPopup;
+window.openMobileMenu = openMobileMenu;
+window.closeMobileMenu = closeMobileMenu;
+window.scrollToProducts = scrollToProducts;
+window.renderHighlightProducts = renderHighlightProducts;
+window.renderProducts = renderProducts;
+window.openSlipViewModal = openSlipViewModal;
+window.closeSlipViewModal = closeSlipViewModal;
+window.handleAdminSlipReupload = handleAdminSlipReupload;
+window.openOrdersModal = openOrdersModal;
+window.closeOrdersModal = closeOrdersModal;
+window.renderOrdersHistory = renderOrdersHistory;
+window.setCustomerKeysFilter = setCustomerKeysFilter;
+window.handleCustomerKeysSearch = handleCustomerKeysSearch;
+window.clearCustomerKeysSearch = clearCustomerKeysSearch;
+window.openCartDrawer = openCartDrawer;
+window.closeCartDrawer = closeCartDrawer;
+window.addToCart = addToCart;
+window.updateCartQuantity = updateCartQuantity;
+window.removeFromCart = removeFromCart;
+window.clearAllCart = clearAllCart;
+window.startCheckout = startCheckout;
+window.closeCheckoutModal = closeCheckoutModal;
+window.copyOrderCustomerReceipt = copyOrderCustomerReceipt;
+window.copyOrderCustomerSummary = copyOrderCustomerSummary;
+window.viewPastOrderVault = viewPastOrderVault;
+window.openVaultModal = openVaultModal;
+window.closeVaultModal = closeVaultModal;
+window.closeTopmostModal = closeTopmostModal;
+
+// Additional UI & Navigation Controllers
+window.selectBrand = selectBrand;
+window.selectType = selectType;
+window.applyFilters = applyFilters;
+window.resetFilters = resetFilters;
+window.submitSlipVerification = submitSlipVerification;
+window.closeEditPriceModal = closeEditPriceModal;
+window.updateEditPricePreview = updateEditPricePreview;
+window.handleResetToAutoPrice = handleResetToAutoPrice;
+window.openAdminChatPanel = openAdminChatPanel;
+window.closeAdminChatPanel = closeAdminChatPanel;
+window.copyFromData = copyFromData;
+window.copyCombinedFromData = copyCombinedFromData;
+window.copyToClipboard = copyToClipboard;
+window.openG2GMarketLink = openG2GMarketLink;
+window.getG2GMarketLink = getG2GMarketLink;
+window.handleG2GSourcingClick = handleG2GSourcingClick;
+
+// Auto-check for ?admin=1 query parameter on page load
+if (typeof window !== 'undefined' && window.location && window.location.search) {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('admin') === '1') {
+            setTimeout(() => {
+                if (typeof promptAdminLogin === 'function') promptAdminLogin();
+            }, 300);
+        }
+    } catch (e) {}
+}
+
+// Immediate Telemetry initialization if page is already loaded
+if (typeof document !== 'undefined' && (document.readyState === 'complete' || document.readyState === 'interactive')) {
+    if (typeof TELEMETRY !== 'undefined' && typeof TELEMETRY.init === 'function') {
+        TELEMETRY.init();
+    }
+}
+
+// Background sync any pending local orders to server database
+if (typeof window !== 'undefined') {
+    setTimeout(() => {
+        if (typeof syncLocalOrdersToServer === 'function') {
+            syncLocalOrdersToServer();
+        }
+    }, 1500);
+}
