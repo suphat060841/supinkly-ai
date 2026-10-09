@@ -255,7 +255,7 @@ class MailService {
                 port: config.port || 465,
                 servername: config.host,
                 family: 4, // Force IPv4 to prevent hanging on cloud Docker IPv6 blackholes
-                rejectUnauthorized: false
+                rejectUnauthorized: process.env.SMTP_IGNORE_TLS === 'true' ? false : true
             });
 
             let buffer = '';
@@ -457,7 +457,7 @@ class MailService {
                                 host: config.host,
                                 servername: config.host,
                                 family: 4,
-                                rejectUnauthorized: false
+                                rejectUnauthorized: process.env.SMTP_IGNORE_TLS === 'true' ? false : true
                             }, () => {
                                 phase = 'EHLO2';
                                 activeSocket = tlsSocket;

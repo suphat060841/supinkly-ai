@@ -20,7 +20,7 @@ process.on('uncaughtException', (err) => {
     console.error('[SERVER SAFETY] Uncaught Exception:', err);
 });
 const upload = multer({
-    limits: { fileSize: 15 * 1024 * 1024 },
+    limits: { fileSize: 8 * 1024 * 1024 }, // 8MB limit: high resolution for mobile slips while protecting server RAM
     fileFilter: (req, file, cb) => {
         const allowedExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic'];
         const ext = path.extname(file.originalname || '').toLowerCase();
@@ -181,21 +181,39 @@ app.get('/api/public/g2g-feed', (req, res) => {
     });
 });
 
-// ─── [FIX #1] CORS Whitelist ────────────────────────────────────────────────
-// รองรับ localhost, onrender.com และ domain ที่กำหนดใน ALLOWED_ORIGINS
+// ─── [FIX #1] Hardened CORS Whitelist & Origin Validation ───────────────────
 const rawOrigins = process.env.ALLOWED_ORIGINS || '*';
-const ALLOWED_ORIGINS = rawOrigins.split(',').map(s => s.trim());
+const ALLOWED_ORIGINS = rawOrigins ? rawOrigins.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+
+function isAllowedOrigin(origin, hostHeader = '') {
+    if (!origin) return true; // Direct, server-to-server, same-origin
+    if (rawOrigins === '*') return true;
+    const lowerOrigin = origin.toLowerCase();
+    if (ALLOWED_ORIGINS.includes(lowerOrigin)) return true;
+    try {
+        const parsed = new URL(origin);
+        const host = parsed.hostname.toLowerCase();
+        // Allow localhost and local loopbacks for dev
+        if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+        // Match current server host to prevent cross-tenant access
+        if (hostHeader) {
+            const reqHost = hostHeader.split(':')[0].toLowerCase();
+            if (host === reqHost) return true;
+        }
+    } catch {}
+    return false;
+}
+
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow same-origin / direct requests / wildcard / onrender.com
-        if (!origin || rawOrigins === '*' || ALLOWED_ORIGINS.includes(origin) || (origin && origin.endsWith('.onrender.com'))) {
+        if (isAllowedOrigin(origin)) {
             callback(null, true);
         } else {
             callback(new Error('CORS: origin not allowed'));
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-admin-pin', 'x-order-email', 'x-user-token']
+    allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-admin-pin', 'x-order-email', 'x-user-token', 'x-order-token']
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -406,7 +424,13 @@ app.use((req, res, next) => {
 </html>`);
 });
 
-app.use(express.static(path.join(__dirname)));
+// [SECURITY HARDENED] Only serve specific public asset directories and index.html
+app.use('/css', express.static(path.join(__dirname, 'css'), { dotfiles: 'ignore', maxAge: '1d' }));
+app.use('/js', express.static(path.join(__dirname, 'js'), { dotfiles: 'ignore', maxAge: '1h' }));
+app.use('/images', express.static(path.join(__dirname, 'images'), { dotfiles: 'ignore', maxAge: '1d' }));
+app.get(['/', '/index.html'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // ─── [FIX #2] Rate Limiting ─────────────────────────────────────────────────
 // Login PIN brute force protection
@@ -540,14 +564,6 @@ function authenticateAdmin(req) {
         adminSessions.delete(token);
     }
 
-    // 3. Direct Admin PIN verification fallback (Supports Master PIN 8899)
-    const adminPin = req.headers['x-admin-pin'];
-    if (adminPin) {
-        const db = getDb();
-        const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
-        if (verifyPin(adminPin, storedHash)) return true;
-    }
-
     return false;
 }
 
@@ -664,61 +680,77 @@ if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2));
 }
 
+let memoryDb = null;
+
+function normalizeDbData(data) {
+    if (!data.pendingRegistrations) data.pendingRegistrations = {};
+    if (!data.passwordResets) data.passwordResets = {};
+    if (!data.users) data.users = [];
+    if (!data.smtpConfig) data.smtpConfig = {};
+    if (!data.customPrices) data.customPrices = {};
+    if (!data.customProducts) data.customProducts = {};
+    if (!data.analytics) data.analytics = {};
+    if (!data.inventory) data.inventory = {};
+    if (!data.orders) data.orders = [];
+    if (!data.usedSlips) data.usedSlips = [];
+    if (!data.usedTransRefs) data.usedTransRefs = [];
+    if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
+        data.coupons = [...DEFAULT_SERVER_COUPONS];
+    }
+    if (!data.adminPinHash) {
+        data.adminPinHash = hashPin(data.adminPin || process.env.ADMIN_PIN || '8899');
+    }
+    if (data.adminPin) {
+        delete data.adminPin;
+    }
+    if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
+        data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
+    }
+    return data;
+}
+
+function pruneStaleAuthRecords(db) {
+    if (!db) return;
+    const now = Date.now();
+    if (db.pendingRegistrations) {
+        for (const [em, rec] of Object.entries(db.pendingRegistrations)) {
+            if (rec && now > (rec.expiresAt || 0) + 15 * 60 * 1000) {
+                delete db.pendingRegistrations[em];
+            }
+        }
+    }
+    if (db.passwordResets) {
+        for (const [em, rec] of Object.entries(db.passwordResets)) {
+            if (rec && now > (rec.expiresAt || 0) + 15 * 60 * 1000) {
+                delete db.passwordResets[em];
+            }
+        }
+    }
+}
+
 function getDb() {
+    if (memoryDb) return memoryDb;
     try {
         if (fs.existsSync(DB_FILE)) {
             const raw = fs.readFileSync(DB_FILE, 'utf-8');
-            const data = JSON.parse(raw);
-            if (!data.pendingRegistrations) data.pendingRegistrations = {};
-            if (!data.passwordResets) data.passwordResets = {};
-            if (!data.users) data.users = [];
-            if (!data.smtpConfig) data.smtpConfig = {};
-            if (!data.customPrices) data.customPrices = {};
-            if (!data.customProducts) data.customProducts = {};
-            if (!data.analytics) data.analytics = {};
-            if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
-                data.coupons = DEFAULT_SERVER_COUPONS;
-            }
-            if (!data.adminPinHash) {
-                data.adminPinHash = hashPin(data.adminPin || process.env.ADMIN_PIN || '8899');
-            }
-            if (data.adminPin) {
-                delete data.adminPin;
-                try { fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)); } catch {}
-            }
-            if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
-                data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
-            }
-            return data;
+            memoryDb = normalizeDbData(JSON.parse(raw));
+            return memoryDb;
         }
     } catch (err) {
         console.error("Database read error, trying backup:", err.message);
         if (fs.existsSync(DB_BAK)) {
             try {
-                const data = JSON.parse(fs.readFileSync(DB_BAK, 'utf-8'));
-                if (!data.pendingRegistrations) data.pendingRegistrations = {};
-                if (!data.passwordResets) data.passwordResets = {};
-                if (!data.users) data.users = [];
-                if (!data.smtpConfig) data.smtpConfig = {};
-                if (!data.customPrices) data.customPrices = {};
-                if (!data.customProducts) data.customProducts = {};
-                if (!data.analytics) data.analytics = {};
-                if (!data.coupons || !Array.isArray(data.coupons)) {
-                    data.coupons = DEFAULT_SERVER_COUPONS;
-                }
-                if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
-                    data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
-                }
-                return data;
+                memoryDb = normalizeDbData(JSON.parse(fs.readFileSync(DB_BAK, 'utf-8')));
+                return memoryDb;
             } catch (e) { }
         }
     }
-    return {
+    memoryDb = normalizeDbData({
         adminPinHash: hashPin(process.env.ADMIN_PIN || '8899'),
         promptPayNumber: process.env.PROMPTPAY_NUMBER || "0982949371",
         promptPayAccountName: process.env.PROMPTPAY_NAME || "สุพัฒน์ มีสมบัติ",
         slipOkApiKey: process.env.SLIPOK_API_KEY || "",
-        coupons: DEFAULT_SERVER_COUPONS,
+        coupons: [...DEFAULT_SERVER_COUPONS],
         slipOkBranchId: process.env.SLIPOK_BRANCH_ID || "77491",
         usedSlips: [],
         usedTransRefs: [],
@@ -731,18 +763,25 @@ function getDb() {
         passwordResets: {},
         smtpConfig: {},
         analytics: {}
-    };
+    });
+    return memoryDb;
 }
 
 function saveDb(data) {
-    const jsonStr = JSON.stringify(data, null, 2);
+    if (data) memoryDb = data;
+    const dbToSave = memoryDb || data;
+    if (!dbToSave) return;
+    pruneStaleAuthRecords(dbToSave);
+    const jsonStr = JSON.stringify(dbToSave, null, 2);
     try {
         fs.writeFileSync(DB_TMP, jsonStr, 'utf-8');
-        if (fs.existsSync(DB_FILE)) {
-            try { fs.copyFileSync(DB_FILE, DB_BAK); } catch (e) { }
-            try { fs.unlinkSync(DB_FILE); } catch (e) { }
+        try { if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, DB_BAK); } catch (e) { }
+        try {
+            fs.renameSync(DB_TMP, DB_FILE);
+        } catch (renameErr) {
+            fs.writeFileSync(DB_FILE, jsonStr, 'utf-8');
+            try { if (fs.existsSync(DB_TMP)) fs.unlinkSync(DB_TMP); } catch (e) { }
         }
-        fs.renameSync(DB_TMP, DB_FILE);
     } catch (err) {
         console.error("Atomic database write error, falling back to direct write:", err.message);
         try {
@@ -904,9 +943,11 @@ const MASTER_CATALOG = {
     "ms-03": { title: "Microsoft Copilot Pro 1M", price: 590.00, warranty: "30 วัน" }
 };
 
+const FORBIDDEN_OBJ_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 // Catalog product resolution helper (Unifies built-in catalog & custom admin products)
 function getCatalogProduct(productId, db) {
-    if (!productId || typeof productId !== 'string') return null;
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId)) return null;
     const currentDb = db || getDb();
     if (currentDb.customProducts && currentDb.customProducts[productId]) {
         const cp = currentDb.customProducts[productId];
@@ -921,6 +962,7 @@ function getCatalogProduct(productId, db) {
 
 // Effective unit price calculator (considers admin dynamic customPrices & customProducts)
 function getEffectiveUnitPrice(productId, product, db) {
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId)) return 0;
     const currentDb = db || getDb();
     if (currentDb.customPrices && currentDb.customPrices[productId] && typeof currentDb.customPrices[productId].price === 'number') {
         return currentDb.customPrices[productId].price;
@@ -1094,12 +1136,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                 return res.status(400).json({ success: false, message: `ไม่พบข้อมูลสินค้ารหัส: ${item.productId}` });
             }
             const unitPrice = getEffectiveUnitPrice(item.productId, catalogItem, db);
-            let finalUnitPrice = unitPrice;
-            if (typeof item.price === 'number' && item.price > 0) {
-                if (Math.abs(item.price - unitPrice) <= Math.max(30, unitPrice * 0.15)) {
-                    finalUnitPrice = item.price;
-                }
-            }
+            // [SECURITY FIX] Server catalog is strictly authoritative; client price tampering is eliminated
+            const finalUnitPrice = unitPrice;
+            item.price = finalUnitPrice;
             expectedTotal += finalUnitPrice * qty;
         }
 
@@ -1174,7 +1213,8 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
 
         // ── Verify with SlipOK Server-Side (if API key is configured) ──
         const apiKey = (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
-        const branchId = (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
+        const rawBranchId = (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
+        const branchId = /^[0-9a-zA-Z_\-]{1,32}$/.test(rawBranchId) ? encodeURIComponent(rawBranchId) : "77491";
 
         if (apiKey) {
             try {
@@ -1656,7 +1696,7 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
     const db = getDb();
 
     const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
-    if (!productId || !VALID_ID_REGEX.test(productId)) {
+    if (!productId || !VALID_ID_REGEX.test(productId) || productId === '__proto__' || productId === 'constructor' || productId === 'prototype') {
         return res.status(400).json({ success: false, message: "productId ไม่ถูกต้อง" });
     }
 
@@ -1703,13 +1743,22 @@ app.post('/api/admin/verify-session', adminRateLimit, (req, res) => {
     return res.status(401).json({ success: false, valid: false });
 });
 
-// 5. API: Admin Fetch Orders
+// 5. API: Admin Fetch Orders (Optimized payload: strips massive base64 slipData in list)
 app.get('/api/admin/orders', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const db = getDb();
-    res.json({ success: true, orders: db.orders || [] });
+    const sanitizedOrders = (db.orders || []).map(o => {
+        if (!o.slipData || typeof o.slipData !== 'string') return o;
+        const { slipData, ...rest } = o;
+        return {
+            ...rest,
+            hasSlipData: true,
+            slipUrl: o.slipUrl || (o.slipHash ? `/images/slips/${o.slipHash.slice(0, 20)}.jpg` : '')
+        };
+    });
+    res.json({ success: true, orders: sanitizedOrders });
 });
 
 // 5.1 API: Admin Delete Order
@@ -1959,7 +2008,7 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const { productId, price, originalPrice, badge, g2gUrl, action } = req.body;
-    if (!productId || typeof productId !== 'string') {
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId.trim())) {
         return res.status(400).json({ success: false, message: "กรุณาระบุ productId" });
     }
 
@@ -2023,6 +2072,9 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
     const prodId = (id && typeof id === 'string' && id.trim())
         ? id.trim().toLowerCase().replace(/[^a-z0-9\-]/g, '-')
         : 'prod-' + Date.now().toString(36);
+    if (!prodId || FORBIDDEN_OBJ_KEYS.has(prodId)) {
+        return res.status(400).json({ success: false, message: "รหัสสินค้าไม่ถูกต้อง" });
+    }
 
     const numPrice = !isNaN(parseFloat(price)) ? Math.max(0, parseFloat(price)) : 0;
     const numOrig = (!isNaN(parseFloat(originalPrice)) && parseFloat(originalPrice) >= numPrice)
@@ -2082,7 +2134,7 @@ app.post('/api/admin/product/delete', adminRateLimit, (req, res) => {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const { productId, restore } = req.body;
-    if (!productId || typeof productId !== 'string') {
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId.trim())) {
         return res.status(400).json({ success: false, message: "กรุณาระบุ productId" });
     }
 
@@ -2125,6 +2177,7 @@ app.post('/api/admin/catalog/sync', adminRateLimit, (req, res) => {
     // Reconcile customPrices
     if (customPrices && typeof customPrices === 'object') {
         for (const [prodId, clientItem] of Object.entries(customPrices)) {
+            if (FORBIDDEN_OBJ_KEYS.has(prodId)) continue;
             if (!clientItem || typeof clientItem !== 'object') continue;
             const srvItem = db.customPrices[prodId];
             const clientTime = new Date(clientItem.updatedAt || clientItem.lastManualUpdate || 0).getTime();
@@ -2147,6 +2200,7 @@ app.post('/api/admin/catalog/sync', adminRateLimit, (req, res) => {
     // Reconcile customProducts
     if (customProducts && typeof customProducts === 'object') {
         for (const [prodId, clientProd] of Object.entries(customProducts)) {
+            if (FORBIDDEN_OBJ_KEYS.has(prodId)) continue;
             if (!clientProd || typeof clientProd !== 'object') continue;
             const srvProd = db.customProducts[prodId];
             const clientTime = new Date(clientProd.updatedAt || 0).getTime();
@@ -2440,8 +2494,9 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
     }
     const { branchId, apiKey } = req.body;
     const db = getDb();
-    const targetBranchId = (branchId && branchId.trim()) ? branchId.trim() : (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
-    const targetApiKey = (apiKey && apiKey !== '******') ? apiKey.trim() : (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
+    const rawBranchId = (branchId && typeof branchId === 'string' && branchId.trim()) ? branchId.trim() : String(process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
+    const targetBranchId = /^[0-9a-zA-Z_\-]{1,32}$/.test(rawBranchId) ? encodeURIComponent(rawBranchId) : "77491";
+    const targetApiKey = (apiKey && apiKey !== '******') ? String(apiKey).trim() : String(process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
 
     if (!targetApiKey) {
         return res.status(400).json({ success: false, message: "กรุณาระบุ SlipOK API Key เพื่อทดสอบการเชื่อมต่อ" });
@@ -2459,7 +2514,9 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
             // Auto-persist valid key immediately so user doesn't lose it
             if (apiKey && apiKey !== '******' && apiKey.trim()) {
                 db.slipOkApiKey = apiKey.trim();
-                if (branchId && branchId.trim()) db.slipOkBranchId = branchId.trim();
+                if (branchId && typeof branchId === 'string' && /^[0-9a-zA-Z_\-]{1,32}$/.test(branchId.trim())) {
+                    db.slipOkBranchId = branchId.trim();
+                }
                 saveDb(db);
                 autoSaved = true;
             }
@@ -3833,7 +3890,13 @@ app.get('/api/auth/my-orders', sessionCheckRateLimit, (req, res) => {
     });
     if (linked) saveDb(db);
 
-    const myOrders = (db.orders || []).filter(o => o.userId && o.userId === session.userId);
+    const myOrders = (db.orders || []).filter(o => o.userId && o.userId === session.userId).map(o => {
+        const copy = { ...o };
+        if (copy.slipData && typeof copy.slipData === 'string' && copy.slipData.length > 200) {
+            delete copy.slipData;
+        }
+        return copy;
+    });
     res.json({ success: true, orders: myOrders });
 });
 
@@ -4161,7 +4224,12 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
             let res = await fetch(url, {
                 method: 'POST',
                 headers: reqHeaders,
-                body: JSON.stringify({ contents }),
+                body: JSON.stringify({
+                    contents,
+                    system_instruction: {
+                        parts: [{ text: systemInstruction }]
+                    }
+                }),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
@@ -4181,7 +4249,10 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
                             {
                                 parts: [{ text: fullPromptText }]
                             }
-                        ]
+                        ],
+                        system_instruction: {
+                            parts: [{ text: systemInstruction }]
+                        }
                     }),
                     signal: fallbackCtrl.signal
                 });
@@ -4576,21 +4647,11 @@ const wsHeartbeat = setInterval(() => {
 }, 35000);
 
 wss.on('connection', (ws, req) => {
-    // ── [SECURITY FIX] CSWSH Origin Verification (Strict Hostname Matching) ──
+    // ── [SECURITY FIX] CSWSH Origin Verification (Strict Whitelist & Host Matching) ──
     const origin = req.headers.origin;
-    if (origin && rawOrigins !== '*') {
-        let isOriginValid = false;
-        try {
-            const parsed = new URL(origin);
-            const host = parsed.hostname.toLowerCase();
-            if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.onrender.com') || ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes(host)) {
-                isOriginValid = true;
-            }
-        } catch {}
-        if (!isOriginValid) {
-            ws.close(1008, 'Origin not allowed');
-            return;
-        }
+    if (origin && !isAllowedOrigin(origin, req.headers.host)) {
+        ws.close(1008, 'Origin not allowed');
+        return;
     }
 
     ws.isAlive = true;
