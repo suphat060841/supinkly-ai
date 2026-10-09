@@ -1361,7 +1361,7 @@ function renderHighlightProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-[12px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
+                    <h3 class="text-[12px] sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -1497,7 +1497,7 @@ function renderProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-[12px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
+                    <h3 class="text-[12px] sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -3340,7 +3340,7 @@ function renderWishlistPane() {
                         ${escapeHTML(product.brandCode || 'AI')}
                     </div>
                     <div class="min-w-0">
-                        <h5 class="text-xs font-bold text-slate-900 truncate">${escapeHTML(product.title)}</h5>
+                        <h5 class="text-xs font-normal text-slate-900 truncate">${escapeHTML(product.title)}</h5>
                         <div class="flex items-center gap-2 mt-0.5">
                             <span class="text-xs font-black text-pink-600">฿${product.price.toFixed(2)}</span>
                             <span class="text-[10px] font-bold ${inStock ? 'text-emerald-600' : 'text-rose-500'}">
@@ -6610,7 +6610,7 @@ function renderAdminStockList() {
                         <div class="min-w-0 flex-1">
                             <div onclick="openEditPriceModal('${p.id}', 'title')"
                                  title="คลิกเพื่อแก้ไขข้อมูลสินค้า"
-                                 class="font-bold text-slate-900 text-xs sm:text-sm hover:text-pink-600 cursor-pointer transition-colors line-clamp-1 flex items-center gap-1.5">
+                                 class="font-normal text-slate-900 text-xs sm:text-sm hover:text-pink-600 cursor-pointer transition-colors line-clamp-1 flex items-center gap-1.5">
                                 <span>${escapeHTML(master.title)}</span>
                                 <i class="fa-solid fa-pen-to-square text-[10px] text-slate-300 hover:text-pink-500 opacity-60 hover:opacity-100"></i>
                             </div>

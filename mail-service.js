@@ -1236,7 +1236,7 @@ class MailService {
                     <table width="100%" cellspacing="0" cellpadding="0" border="0">
                         <tr>
                             <td style="vertical-align: top;">
-                                <div style="font-size: 14px; font-weight: bold; color: #0F172A;">${idx + 1}. ${title}</div>
+                                <div style="font-size: 14px; font-weight: normal; color: #0F172A;">${idx + 1}. ${title}</div>
                                 <div style="font-size: 11px; color: #64748B; margin-top: 2px;">
                                     การรับประกัน: <span style="color: #059669; font-weight: bold;">${warranty}</span>
                                 </div>
