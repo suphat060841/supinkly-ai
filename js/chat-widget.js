@@ -58,7 +58,7 @@ const CHAT = (() => {
         el.innerHTML = `
         <!-- Bubble Button -->
         <button id="spk-chat-btn"
-            class="fixed bottom-[72px] right-3 sm:bottom-6 sm:right-6 z-40 w-11 h-11 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active group"
+            class="fixed bottom-[76px] right-3 sm:bottom-6 sm:right-6 z-40 w-11 h-11 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active group"
             title="แชท Live สด กับเราได้ตลอด 24 ชม." aria-label="เปิดแชท">
             <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-lg sm:text-2xl text-white"></i>
             <span id="spk-chat-badge"

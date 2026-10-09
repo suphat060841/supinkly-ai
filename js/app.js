@@ -1227,6 +1227,22 @@ function applyFilters() {
     renderProducts();
 }
 
+// Mobile-friendly typography & badge helpers
+function getShortTypeBadge(type, typeKey) {
+    if (typeKey === 'private') return 'ส่วนตัว';
+    if (typeKey === 'shared') return 'แชร์';
+    if (typeKey === 'link') return 'ลิงก์';
+    if (typeKey === 'key') return 'คีย์แท้';
+    if (typeKey === 'topup') return 'เติมเงิน';
+    if (!type) return 'มาตรฐาน';
+    return String(type).replace(/\s*\(.*?\)/g, '').trim() || type;
+}
+
+function formatProductPrice(price) {
+    if (typeof price !== 'number' || isNaN(price)) return '0';
+    return (price % 1 === 0) ? price.toLocaleString() : price.toFixed(2);
+}
+
 // Render Highlight Products Showcase Grid (⭐ ดีลเด็ดไฮไลท์คัดสรรพิเศษ)
 function renderHighlightProducts() {
     const container = document.getElementById('highlight-products-grid');
@@ -1255,8 +1271,12 @@ function renderHighlightProducts() {
             ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) 
             : 0;
 
+        const shortType = getShortTypeBadge(product.type, product.typeKey);
+        const formattedPrice = formatProductPrice(product.price);
+        const formattedOrigPrice = formatProductPrice(product.originalPrice);
+
         return `
-            <div class="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
+            <div class="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
                  data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
                 <!-- Glow accent -->
@@ -1264,74 +1284,75 @@ function renderHighlightProducts() {
 
                 <div>
                     <!-- Header of Card -->
-                    <div class="flex items-center justify-between gap-1.5 mb-2.5 sm:mb-3">
-                        <div class="flex items-center gap-1.5 sm:gap-2">
-                            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[10px] sm:text-xs font-black text-pink-600 shadow-inner">
+                    <div class="flex items-center justify-between gap-1 mb-1.5 sm:mb-3">
+                        <div class="flex items-center gap-1 sm:gap-2 min-w-0">
+                            <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
                                 ${escapeHTML(product.brandCode || 'AI')}
                             </span>
-                            <span class="text-[11px] sm:text-xs font-bold text-slate-700">${escapeHTML(product.brand)}</span>
+                            <span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>
                         </div>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border ${typeBadgeClass}">
-                            ${escapeHTML(product.type)}
+                        <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap shrink-0">
+                            <span class="sm:hidden">${escapeHTML(shortType)}</span>
+                            <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
                         </span>
                     </div>
 
                     <!-- Highlight Ribbon/Badge -->
-                    <div class="mb-2">
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[10px] shadow-2xs">
-                            <i class="fa-solid fa-crown text-[9px]"></i>
-                            <span>${escapeHTML(product.badge || '⭐ สินค้าไฮไลท์')}</span>
+                    <div class="mb-1.5 sm:mb-2">
+                        <span class="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[9px] sm:text-[10px] shadow-2xs">
+                            <i class="fa-solid fa-crown text-[8px] sm:text-[9px]"></i>
+                            <span class="truncate max-w-[120px] sm:max-w-none">${escapeHTML(product.badge || '⭐ สินค้าไฮไลท์')}</span>
                         </span>
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-xs sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[36px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <h3 class="text-[12px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
-                    <!-- Specs -->
-                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3 text-[10px] sm:text-xs text-slate-600 font-medium">
-                        <span class="flex items-center gap-1 bg-amber-50/80 px-2 py-0.5 rounded-lg border border-amber-200/80 text-amber-900 font-bold">
-                            <i class="fa-solid fa-bolt text-amber-500"></i> ส่งทันที
+                    <!-- Specs (Compact on mobile) -->
+                    <div class="flex flex-wrap items-center gap-1 sm:gap-2 mt-1.5 sm:mt-3 text-[9px] sm:text-xs text-slate-600 font-medium">
+                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-amber-50/90 px-1.5 py-0.5 rounded-md border border-amber-200/80 text-amber-900 font-bold">
+                            <i class="fa-solid fa-bolt text-amber-500 text-[8px] sm:text-[10px]"></i> ส่งทันที
                         </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-shield-halved text-cyan-600"></i> ประกัน ${escapeHTML(product.warranty || '30 วัน')}
+                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                            <i class="fa-solid fa-shield-halved text-cyan-600 text-[8px] sm:text-[10px]"></i> ประกัน ${escapeHTML(product.warranty || '30 วัน')}
                         </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-globe text-purple-600"></i> ${escapeHTML(product.region || 'Global')}
+                        <span class="hidden sm:inline-flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                            <i class="fa-solid fa-globe text-purple-600 text-[10px]"></i> ${escapeHTML(product.region || 'Global')}
                         </span>
                     </div>
 
-                    <!-- Stock Counter -->
-                    <div class="flex items-center justify-between mt-3 text-[10px] sm:text-xs font-semibold border-t border-slate-100 pt-2">
-                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
+                    <!-- Stock Counter (Collision-free) -->
+                    <div class="flex items-center justify-between mt-2 sm:mt-3 text-[9px] sm:text-xs font-semibold border-t border-slate-100 pt-1.5 sm:pt-2 gap-1">
+                        <span class="inline-flex items-center gap-1 ${inStock ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200' : 'text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200'} shrink-0 font-bold">
                             <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-                            ${inStock ? `สต็อก ${product.stock} ชิ้น` : 'สินค้าหมด'}
+                            ${inStock ? `สต็อก ${product.stock}` : 'หมด'}
                         </span>
-                        <span class="text-slate-400">ขายแล้ว ${(product.soldCount || 0).toLocaleString()} ชิ้น</span>
+                        <span class="text-slate-400 truncate text-right">ขายแล้ว ${(product.soldCount || 0).toLocaleString()}<span class="hidden sm:inline"> ชิ้น</span></span>
                     </div>
                 </div>
 
                 <!-- Price and Buttons -->
-                <div class="mt-3 pt-2.5 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <div>
-                        <div class="flex items-center gap-1.5">
-                            <span class="text-[10px] sm:text-xs text-slate-400 line-through font-medium">฿${(product.originalPrice || 0).toFixed(2)}</span>
-                            ${discountPercent > 0 ? `<span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-600">-${discountPercent}%</span>` : ''}
+                <div class="mt-2 sm:mt-3 pt-2 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-1.5 sm:gap-2">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1">
+                            <span class="text-[9px] sm:text-xs text-slate-400 line-through font-medium truncate">฿${formattedOrigPrice}</span>
+                            ${discountPercent > 0 ? `<span class="text-[8px] sm:text-[10px] font-black px-1 py-0.2 rounded bg-rose-100 text-rose-600 shrink-0">-${discountPercent}%</span>` : ''}
                         </div>
-                        <div class="text-lg sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
-                            <span class="text-xs sm:text-sm font-bold">฿</span>${(product.price || 0).toFixed(2)}
+                        <div class="text-base sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
+                            <span class="text-[11px] sm:text-sm font-bold">฿</span>${formattedPrice}
                         </div>
                     </div>
-                    <div class="flex items-center gap-1 sm:gap-1.5">
+                    <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
-                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-xs cursor-pointer">
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-2.5 sm:px-4 h-8 sm:h-10 rounded-xl sm:rounded-2xl text-[11px] sm:text-sm font-extrabold flex items-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
-                            <i class="fa-solid fa-cart-plus text-xs"></i>
+                            class="gradient-btn px-2 sm:px-4 h-7 sm:h-10 rounded-lg sm:rounded-2xl text-[10px] sm:text-sm font-extrabold flex items-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            <i class="fa-solid fa-cart-plus text-[10px] sm:text-xs"></i>
                             <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
                     </div>
@@ -1380,73 +1401,81 @@ function renderProducts() {
         if (product.typeKey === 'key') typeBadgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
 
         const inStock = product.stock > 0;
+        const discountPercent = product.originalPrice > product.price 
+            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) 
+            : 0;
 
-        // [FIX #6] ใช้ data-* attribute แทน onclick('${id}') เพื่อป้องกัน JS-context XSS
-        // ❌ Before: onclick="addToCart('${product.id}')" ← single quote ใน id → XSS
-        // ✅ After:  data-product-id="${escapeHTML(product.id)}" + event delegation
+        const shortType = getShortTypeBadge(product.type, product.typeKey);
+        const formattedPrice = formatProductPrice(product.price);
+        const formattedOrigPrice = formatProductPrice(product.originalPrice);
+
         return `
-            <div class="bg-white rounded-3xl p-5 border-2 border-slate-100 hover:border-pink-300 shadow-sm hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
                 <div>
                     <!-- Header of Card -->
-                    <div class="flex items-center justify-between gap-2 mb-3">
-                        <div class="flex items-center gap-2">
-                            <span class="w-8 h-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-xs font-black text-pink-600 shadow-inner">
-                                ${escapeHTML(product.brandCode)}
+                    <div class="flex items-center justify-between gap-1 mb-1.5 sm:mb-3">
+                        <div class="flex items-center gap-1 sm:gap-2 min-w-0">
+                            <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
+                                ${escapeHTML(product.brandCode || 'AI')}
                             </span>
-                            <span class="text-xs font-bold text-slate-700">${escapeHTML(product.brand)}</span>
+                            <span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>
                         </div>
-                        <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${typeBadgeClass}">
-                            ${escapeHTML(product.type)}
+                        <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap shrink-0">
+                            <span class="sm:hidden">${escapeHTML(shortType)}</span>
+                            <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
                         </span>
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-base font-normal text-slate-900 line-clamp-2 min-h-[44px] group-hover:text-pink-600 transition-colors leading-snug">
+                    <h3 class="text-[12px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
                     <!-- Specs -->
-                    <div class="flex flex-wrap items-center gap-2 mt-3.5 text-xs text-slate-600 font-medium">
-                        <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-bolt text-amber-500"></i> ส่งทันที
+                    <div class="flex flex-wrap items-center gap-1 sm:gap-2 mt-1.5 sm:mt-3 text-[9px] sm:text-xs text-slate-600 font-medium">
+                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200 text-slate-700 font-bold">
+                            <i class="fa-solid fa-bolt text-amber-500 text-[8px] sm:text-[10px]"></i> ส่งทันที
                         </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-shield-halved text-cyan-600"></i> ประกัน ${escapeHTML(product.warranty)}
+                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                            <i class="fa-solid fa-shield-halved text-cyan-600 text-[8px] sm:text-[10px]"></i> ประกัน ${escapeHTML(product.warranty || '30 วัน')}
                         </span>
-                        <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                            <i class="fa-solid fa-globe text-purple-600"></i> ${escapeHTML(product.region)}
+                        <span class="hidden sm:inline-flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                            <i class="fa-solid fa-globe text-purple-600 text-[10px]"></i> ${escapeHTML(product.region || 'Global')}
                         </span>
                     </div>
 
                     <!-- Stock Counter -->
-                    <div class="flex items-center justify-between mt-4 text-xs font-semibold border-t border-slate-100 pt-2.5">
-                        <span class="flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'}">
-                            <span class="w-2 h-2 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-                            ${inStock ? `สต็อกพร้อมส่ง ${product.stock} ชิ้น` : 'สินค้าหมดชั่วคราว'}
+                    <div class="flex items-center justify-between mt-2 sm:mt-3 text-[9px] sm:text-xs font-semibold border-t border-slate-100 pt-1.5 sm:pt-2.5 gap-1">
+                        <span class="inline-flex items-center gap-1 ${inStock ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200' : 'text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200'} shrink-0 font-bold">
+                            <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+                            ${inStock ? `สต็อก ${product.stock}` : 'หมด'}
                         </span>
-                        <span class="text-slate-400">ขายแล้ว ${product.soldCount.toLocaleString()} ชิ้น</span>
+                        <span class="text-slate-400 truncate text-right">ขายแล้ว ${(product.soldCount || 0).toLocaleString()}<span class="hidden sm:inline"> ชิ้น</span></span>
                     </div>
                 </div>
 
                 <!-- Price and Buttons -->
-                <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
-                    <div>
-                        <div class="text-xs text-slate-400 line-through font-medium">฿${product.originalPrice.toFixed(2)}</div>
-                        <div class="text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
-                            <span class="text-sm">฿</span>${product.price.toFixed(2)}
+                <div class="mt-2 sm:mt-3 pt-2 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-1.5 sm:gap-3">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1">
+                            <span class="text-[9px] sm:text-xs text-slate-400 line-through font-medium truncate">฿${formattedOrigPrice}</span>
+                            ${discountPercent > 0 ? `<span class="text-[8px] sm:text-[10px] font-black px-1 py-0.2 rounded bg-rose-100 text-rose-600 shrink-0">-${discountPercent}%</span>` : ''}
+                        </div>
+                        <div class="text-base sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
+                            <span class="text-[11px] sm:text-sm font-bold">฿</span>${formattedPrice}
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียด" 
-                            class="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-sm transition-all shadow-sm">
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-4 h-10 rounded-2xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
-                            <i class="fa-solid fa-cart-plus"></i>
-                            <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
+                            class="gradient-btn px-2 sm:px-4 h-7 sm:h-10 rounded-lg sm:rounded-2xl text-[10px] sm:text-sm font-extrabold flex items-center gap-1.5 cursor-pointer active:scale-95 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            <i class="fa-solid fa-cart-plus text-[10px] sm:text-xs"></i>
+                            <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
                     </div>
                 </div>
@@ -7849,10 +7878,10 @@ function closeAdminChatPanel() {
     const btn = document.createElement('button');
     btn.id = 'admin-floating-chat-btn';
     btn.title = 'Live Chat แอดมิน (Ctrl+Shift+C)';
-    btn.className = 'hidden fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-xl hover:scale-110 transition-all flex items-center justify-center';
+    btn.className = 'hidden fixed bottom-[76px] left-3 sm:bottom-6 sm:left-6 z-40 w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center';
     btn.innerHTML = `
-        <i class="fa-solid fa-headset text-xl"></i>
-        <span class="chat-badge hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-black flex items-center justify-center"></span>`;
+        <i class="fa-solid fa-headset text-lg sm:text-xl"></i>
+        <span class="chat-badge hidden absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-red-500 border-2 border-white text-white text-[9px] sm:text-[10px] font-black flex items-center justify-center"></span>`;
     btn.addEventListener('click', openAdminChatPanel);
     document.body.appendChild(btn);
 
