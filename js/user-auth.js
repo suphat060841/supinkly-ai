@@ -217,6 +217,123 @@ const USER_AUTH = (() => {
         } catch { return []; }
     }
 
+    // ── Fetch Full Member Profile & VIP Stats ──────────────────
+    async function getProfile() {
+        if (!isLoggedIn()) return null;
+        try {
+            const res = await fetch('/api/auth/profile', { headers: getHeaders() });
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (data.success && data.profile) {
+                const normalized = { ...data.profile, userId: data.profile.userId || data.profile.id, id: data.profile.id || data.profile.userId };
+                localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+                try { sessionStorage.setItem(USER_KEY, JSON.stringify(normalized)); } catch {}
+                return normalized;
+            }
+            return null;
+        } catch { return null; }
+    }
+
+    // ── Update Member Profile Info ─────────────────────────────
+    async function updateProfile(updateData) {
+        if (!isLoggedIn()) return { success: false, message: "กรุณาเข้าสู่ระบบก่อน" };
+        try {
+            const res = await fetch('/api/auth/profile', {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(updateData)
+            });
+            const data = await res.json();
+            if (data.success && data.profile) {
+                const normalized = { ...data.profile, userId: data.profile.userId || data.profile.id, id: data.profile.id || data.profile.userId };
+                localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+                try { sessionStorage.setItem(USER_KEY, JSON.stringify(normalized)); } catch {}
+            }
+            return data;
+        } catch {
+            return { success: false, message: "ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง" };
+        }
+    }
+
+    // ── Change Password ────────────────────────────────────────
+    async function changePassword(oldPassword, newPassword) {
+        if (!isLoggedIn()) return { success: false, message: "กรุณาเข้าสู่ระบบก่อน" };
+        try {
+            const res = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ oldPassword, newPassword })
+            });
+            const data = await res.json();
+            if (data.success && data.token) {
+                saveSession(data.token, data.expiresAt, getUser());
+            }
+            return data;
+        } catch {
+            return { success: false, message: "ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาลองใหม่อีกครั้ง" };
+        }
+    }
+
+    // ── Toggle Wishlist ────────────────────────────────────────
+    async function toggleWishlist(productId) {
+        if (!isLoggedIn()) return { success: false, requireLogin: true, message: "กรุณาเข้าสู่ระบบก่อนบันทึกรายการโปรด" };
+        try {
+            const res = await fetch('/api/auth/wishlist/toggle', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ productId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                const u = getUser();
+                if (u) {
+                    u.wishlist = data.wishlist || [];
+                    localStorage.setItem(USER_KEY, JSON.stringify(u));
+                }
+            }
+            return data;
+        } catch {
+            return { success: false, message: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้" };
+        }
+    }
+
+    // ── Toggle Stock Alert ─────────────────────────────────────
+    async function toggleStockAlert(productId) {
+        if (!isLoggedIn()) return { success: false, requireLogin: true, message: "กรุณาเข้าสู่ระบบก่อนตั้งค่าแจ้งเตือนสต็อก" };
+        try {
+            const res = await fetch('/api/auth/stock-alert/toggle', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ productId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                const u = getUser();
+                if (u) {
+                    u.stockAlerts = data.stockAlerts || [];
+                    localStorage.setItem(USER_KEY, JSON.stringify(u));
+                }
+            }
+            return data;
+        } catch {
+            return { success: false, message: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้" };
+        }
+    }
+
+    // ── Validate Referral Code ─────────────────────────────────
+    async function validateReferral(code) {
+        try {
+            const res = await fetch('/api/promotions/referral/validate', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ code })
+            });
+            return await res.json();
+        } catch {
+            return { success: false, message: "ไม่สามารถตรวจสอบรหัสแนะนำได้" };
+        }
+    }
+
     return { 
         getToken, 
         getUser, 
@@ -233,6 +350,12 @@ const USER_AUTH = (() => {
         logout, 
         verifySession, 
         linkLocalOrders, 
-        fetchMyOrders 
+        fetchMyOrders,
+        getProfile,
+        updateProfile,
+        changePassword,
+        toggleWishlist,
+        toggleStockAlert,
+        validateReferral
     };
 })();

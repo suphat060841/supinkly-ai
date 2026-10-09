@@ -1192,6 +1192,67 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             };
         }
 
+        // ── [VIP TIER AUTOMATIC DISCOUNT] ──
+        let vipDiscountAmount = 0;
+        let appliedVipInfo = null;
+        let targetUser = orderUserId ? (db.users || []).find(u => u.id === orderUserId) : null;
+        if (!targetUser && orderEmail) {
+            targetUser = (db.users || []).find(u => (u.email || '').toLowerCase() === orderEmail);
+        }
+
+        if (targetUser) {
+            ensureUserDefaults(targetUser, db);
+            const userOrders = (db.orders || []).filter(o => o.userId === targetUser.id && o.status && !o.status.includes('ยกเลิก'));
+            const totalSpent = userOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+            const vipTier = calculateUserVipTier(totalSpent);
+            if (vipTier && vipTier.discountPercent > 0) {
+                vipDiscountAmount = Math.round((expectedTotal * vipTier.discountPercent / 100) * 100) / 100;
+                expectedTotal = Math.max(1, Math.round((expectedTotal - vipDiscountAmount) * 100) / 100);
+                appliedVipInfo = {
+                    tier: vipTier.tier,
+                    tierName: vipTier.tierName,
+                    badge: vipTier.badge,
+                    discountPercent: vipTier.discountPercent,
+                    discountAmount: vipDiscountAmount
+                };
+            }
+        }
+
+        // ── [REFERRAL CODE DISCOUNT (5%)] ──
+        let referralDiscountAmount = 0;
+        let appliedReferralInfo = null;
+        const rawReferralCode = (req.body.referralCode || '').trim().toUpperCase();
+        let targetReferrer = null;
+        if (rawReferralCode) {
+            targetReferrer = (db.users || []).find(u => (u.referralCode || '').toUpperCase() === rawReferralCode);
+            const isSelfReferral = !!(targetReferrer && (
+                (targetUser && targetReferrer.id === targetUser.id) ||
+                (orderEmail && targetReferrer.email && targetReferrer.email.toLowerCase() === orderEmail.toLowerCase())
+            ));
+            if (targetReferrer && !isSelfReferral) {
+                ensureUserDefaults(targetReferrer, db);
+                referralDiscountAmount = Math.round((expectedTotal * 0.05) * 100) / 100;
+                expectedTotal = Math.max(1, Math.round((expectedTotal - referralDiscountAmount) * 100) / 100);
+                appliedReferralInfo = {
+                    code: targetReferrer.referralCode,
+                    referrerName: targetReferrer.displayName || 'เพื่อนของคุณ',
+                    discountPercent: 5,
+                    discountAmount: referralDiscountAmount
+                };
+            }
+        }
+
+        // ── [PINK COINS REDEMPTION (1 Coin = 1 THB)] ──
+        let coinsRedeemed = 0;
+        const requestedCoins = parseInt(req.body.coinsToRedeem || '0', 10);
+        if (targetUser && requestedCoins > 0 && typeof targetUser.coins === 'number' && targetUser.coins > 0) {
+            const maxAllowed = Math.min(targetUser.coins, Math.floor(expectedTotal - 1));
+            coinsRedeemed = Math.min(requestedCoins, Math.max(0, maxAllowed));
+            if (coinsRedeemed > 0) {
+                expectedTotal = Math.max(1, Math.round((expectedTotal - coinsRedeemed) * 100) / 100);
+            }
+        }
+
         let transRef = null;
         let isAutoVerified = false;
 
@@ -1377,11 +1438,20 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
             email: orderEmail,
             recipientEmail: orderEmail,
-            userId: orderUserId || (userSession ? userSession.userId : null),
-            userName: orderUserName || (userSession ? userSession.displayName : orderEmail),
+            userId: orderUserId || (targetUser ? targetUser.id : (userSession ? userSession.userId : null)),
+            userName: orderUserName || (targetUser ? targetUser.displayName : (userSession ? userSession.displayName : orderEmail)),
             subtotal: originalSubtotal,
             discountAmount: discountAmount,
             coupon: appliedCouponInfo,
+            vipDiscount: vipDiscountAmount,
+            vipInfo: appliedVipInfo,
+            referralDiscount: referralDiscountAmount,
+            referralInfo: appliedReferralInfo,
+            coinsRedeemed: coinsRedeemed,
+            coinsEarned: Math.max(1, Math.floor(expectedTotal / 10)),
+            coinsAwarded: isAutoVerified,
+            referralCommission: Math.floor(expectedTotal * 0.05),
+            referralAwarded: isAutoVerified && !!(targetReferrer && appliedReferralInfo),
             totalAmount: expectedTotal,
             paymentMethod: "Thai QR PromptPay",
             transRef: transRef || "REF-" + Date.now().toString(36).toUpperCase(),
@@ -1394,6 +1464,57 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         };
         if (!currentDb.orders) currentDb.orders = [];
         currentDb.orders.unshift(order);
+
+        // [SECURITY FIX] Re-bind targetUser & targetReferrer to currentDb instances to eliminate TOCTOU / in-memory desync
+        const liveUser = targetUser ? (currentDb.users || []).find(u => u.id === targetUser.id) : null;
+        const liveReferrer = targetReferrer ? (currentDb.users || []).find(u => u.id === targetReferrer.id) : null;
+
+        // [MEMBER COINS PROCESSING]
+        if (liveUser) {
+            // Deduct redeemed coins immediately (placed on hold to prevent double-spending)
+            if (coinsRedeemed > 0) {
+                liveUser.coins = Math.max(0, (liveUser.coins || 0) - coinsRedeemed);
+                liveUser.coinsHistory = liveUser.coinsHistory || [];
+                liveUser.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: -coinsRedeemed,
+                    type: 'redeem',
+                    description: `ใช้เหรียญลดเงินสดในคำสั่งซื้อ #${order.orderId}`
+                });
+                if (liveUser.coinsHistory.length > 100) liveUser.coinsHistory = liveUser.coinsHistory.slice(-100);
+            }
+            // [CRITICAL SECURITY FIX] Earn coins ONLY if payment slip is authentic & verified
+            if (isAutoVerified) {
+                const earnedCoins = order.coinsEarned;
+                liveUser.coins = (liveUser.coins || 0) + earnedCoins;
+                liveUser.coinsHistory = liveUser.coinsHistory || [];
+                liveUser.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: earnedCoins,
+                    type: 'earn',
+                    description: `ได้รับเหรียญจากการสั่งซื้อ #${order.orderId}`
+                });
+                if (liveUser.coinsHistory.length > 100) liveUser.coinsHistory = liveUser.coinsHistory.slice(-100);
+            }
+        }
+
+        // [CRITICAL SECURITY FIX] Award Referrer commission ONLY if payment slip is authentic & verified (No 100% rounding exploit)
+        if (liveReferrer && appliedReferralInfo && isAutoVerified) {
+            const refCommission = order.referralCommission;
+            if (refCommission > 0) {
+                liveReferrer.coins = (liveReferrer.coins || 0) + refCommission;
+                liveReferrer.referralCount = (liveReferrer.referralCount || 0) + 1;
+                liveReferrer.referralEarnings = (liveReferrer.referralEarnings || 0) + refCommission;
+                liveReferrer.coinsHistory = liveReferrer.coinsHistory || [];
+                liveReferrer.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: refCommission,
+                    type: 'referral',
+                    description: `ได้รับค่าคอมมิชชั่นแนะนำเพื่อนสั่งซื้อ #${order.orderId}`
+                });
+                if (liveReferrer.coinsHistory.length > 100) liveReferrer.coinsHistory = liveReferrer.coinsHistory.slice(-100);
+            }
+        }
 
         // [COUPON USAGE] Increment usedCount for the redeemed promotion
         if (appliedCouponInfo && appliedCouponInfo.code) {
@@ -1431,7 +1552,13 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         }
         mailService.sendOrderReceiptEmail(order, false, currentDb).catch(e => console.warn('[MAIL] Order receipt email error:', e.message));
 
-        res.json({ success: true, order, isAutoVerified, pendingReview: !isAutoVerified });
+        res.json({
+            success: true,
+            order,
+            isAutoVerified,
+            pendingReview: !isAutoVerified,
+            userProfile: targetUser ? getUserEnrichedProfile(targetUser, currentDb) : null
+        });
     } catch (err) {
         console.error('checkout error:', err.message);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในระบบ" });
@@ -1786,6 +1913,55 @@ app.delete('/api/admin/orders/:orderId', adminRateLimit, (req, res) => {
         db.usedTransRefs = db.usedTransRefs.filter(r => r !== removedOrder.transRef);
     }
 
+    // [COINS REFUND & REVERSAL UPON ORDER DELETION]
+    if (removedOrder.coinsRedeemed > 0 && removedOrder.userId) {
+        const u = (db.users || []).find(user => user.id === removedOrder.userId);
+        if (u) {
+            u.coins = (u.coins || 0) + removedOrder.coinsRedeemed;
+            u.coinsHistory = u.coinsHistory || [];
+            u.coinsHistory.push({
+                date: new Date().toISOString(),
+                amount: removedOrder.coinsRedeemed,
+                type: 'refund',
+                description: `คืนเหรียญที่ใช้ เนื่องจากคำสั่งซื้อ #${removedOrder.orderId} ถูกลบ/ยกเลิก`
+            });
+            if (u.coinsHistory.length > 100) u.coinsHistory = u.coinsHistory.slice(-100);
+        }
+    }
+    if (removedOrder.coinsAwarded && removedOrder.userId && removedOrder.coinsEarned > 0) {
+        const u = (db.users || []).find(user => user.id === removedOrder.userId);
+        if (u) {
+            u.coins = Math.max(0, (u.coins || 0) - removedOrder.coinsEarned);
+            u.coinsHistory = u.coinsHistory || [];
+            u.coinsHistory.push({
+                date: new Date().toISOString(),
+                amount: -removedOrder.coinsEarned,
+                type: 'reversal',
+                description: `ดึงเหรียญคืน เนื่องจากคำสั่งซื้อ #${removedOrder.orderId} ถูกลบ/ยกเลิก`
+            });
+            if (u.coinsHistory.length > 100) u.coinsHistory = u.coinsHistory.slice(-100);
+        }
+    }
+    if (removedOrder.referralAwarded && removedOrder.referralInfo && removedOrder.referralInfo.code) {
+        const refUser = (db.users || []).find(user => (user.referralCode || '').toUpperCase() === (removedOrder.referralInfo.code || '').toUpperCase());
+        if (refUser) {
+            const refCommission = removedOrder.referralCommission || Math.floor((removedOrder.totalAmount || 0) * 0.05);
+            if (refCommission > 0) {
+                refUser.coins = Math.max(0, (refUser.coins || 0) - refCommission);
+                refUser.referralCount = Math.max(0, (refUser.referralCount || 0) - 1);
+                refUser.referralEarnings = Math.max(0, (refUser.referralEarnings || 0) - refCommission);
+                refUser.coinsHistory = refUser.coinsHistory || [];
+                refUser.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: -refCommission,
+                    type: 'reversal',
+                    description: `ดึงค่าคอมมิชชั่นคืน เนื่องจากคำสั่งซื้อ #${removedOrder.orderId} ถูกลบ/ยกเลิก`
+                });
+                if (refUser.coinsHistory.length > 100) refUser.coinsHistory = refUser.coinsHistory.slice(-100);
+            }
+        }
+    }
+
     saveDb(db);
     res.json({ success: true, message: `ลบคำสั่งซื้อ ${orderId} สำเร็จเรียบร้อย`, orders: db.orders });
 });
@@ -1973,6 +2149,42 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
 
     if (allDelivered) {
         order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+        // [COIN REWARD UPON ADMIN FULFILLMENT]
+        if (!order.coinsAwarded && order.userId && (order.coinsEarned || 0) > 0) {
+            const u = (db.users || []).find(user => user.id === order.userId);
+            if (u) {
+                u.coins = (u.coins || 0) + order.coinsEarned;
+                u.coinsHistory = u.coinsHistory || [];
+                u.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: order.coinsEarned,
+                    type: 'earn',
+                    description: `ได้รับเหรียญจากคำสั่งซื้อ #${order.orderId}`
+                });
+                if (u.coinsHistory.length > 100) u.coinsHistory = u.coinsHistory.slice(-100);
+            }
+            order.coinsAwarded = true;
+        }
+        if (!order.referralAwarded && order.referralInfo && order.referralInfo.code) {
+            const refUser = (db.users || []).find(user => (user.referralCode || '').toUpperCase() === (order.referralInfo.code || '').toUpperCase());
+            if (refUser && refUser.id !== order.userId) {
+                const refCommission = order.referralCommission || Math.floor((order.totalAmount || 0) * 0.05);
+                if (refCommission > 0) {
+                    refUser.coins = (refUser.coins || 0) + refCommission;
+                    refUser.referralCount = (refUser.referralCount || 0) + 1;
+                    refUser.referralEarnings = (refUser.referralEarnings || 0) + refCommission;
+                    refUser.coinsHistory = refUser.coinsHistory || [];
+                    refUser.coinsHistory.push({
+                        date: new Date().toISOString(),
+                        amount: refCommission,
+                        type: 'referral',
+                        description: `ได้รับค่าคอมมิชชั่นแนะนำเพื่อนสั่งซื้อ #${order.orderId}`
+                    });
+                    if (refUser.coinsHistory.length > 100) refUser.coinsHistory = refUser.coinsHistory.slice(-100);
+                }
+            }
+            order.referralAwarded = true;
+        }
     } else {
         order.status = "🟡 จัดส่งแล้วบางส่วน (รอส่งมอบรายการที่เหลือ)";
     }
@@ -3320,6 +3532,155 @@ function authenticateUser(req) {
     return verifyUserToken(token);
 }
 
+// ── VIP Tier, Pink Coins & Referral Helper Functions ──
+function calculateUserVipTier(totalSpent) {
+    const spent = Math.max(0, Number(totalSpent) || 0);
+    if (spent >= 3000) {
+        return {
+            tier: 'Diamond',
+            tierName: 'Diamond VIP',
+            badge: '💎 Diamond VIP',
+            icon: 'fa-gem',
+            color: 'from-cyan-500 to-blue-600',
+            discountPercent: 7,
+            minSpent: 3000,
+            nextTier: null,
+            neededForNext: 0,
+            progressPercent: 100
+        };
+    } else if (spent >= 1500) {
+        return {
+            tier: 'Gold',
+            tierName: 'Gold VIP',
+            badge: '🥇 Gold VIP',
+            icon: 'fa-crown',
+            color: 'from-amber-400 to-yellow-600',
+            discountPercent: 5,
+            minSpent: 1500,
+            nextTier: 'Diamond VIP',
+            neededForNext: Math.max(0, 3000 - spent),
+            progressPercent: Math.min(100, Math.round(((spent - 1500) / (3000 - 1500)) * 100))
+        };
+    } else if (spent >= 500) {
+        return {
+            tier: 'Silver',
+            tierName: 'Silver Member',
+            badge: '🥈 Silver Member',
+            icon: 'fa-award',
+            color: 'from-slate-400 to-slate-600',
+            discountPercent: 3,
+            minSpent: 500,
+            nextTier: 'Gold VIP',
+            neededForNext: Math.max(0, 1500 - spent),
+            progressPercent: Math.min(100, Math.round(((spent - 500) / (1500 - 500)) * 100))
+        };
+    } else {
+        return {
+            tier: 'Bronze',
+            tierName: 'Bronze Member',
+            badge: '🥉 Bronze Member',
+            icon: 'fa-shield',
+            color: 'from-amber-700 to-amber-900',
+            discountPercent: 0,
+            minSpent: 0,
+            nextTier: 'Silver Member',
+            neededForNext: Math.max(0, 500 - spent),
+            progressPercent: Math.min(100, Math.round((spent / 500) * 100))
+        };
+    }
+}
+
+function ensureUserDefaults(user, db) {
+    if (!user) return false;
+    let modified = false;
+
+    // Coins: Welcome bonus 20 coins
+    if (typeof user.coins !== 'number' || isNaN(user.coins)) {
+        user.coins = 20;
+        modified = true;
+    }
+    if (!Array.isArray(user.coinsHistory)) {
+        user.coinsHistory = [
+            {
+                date: user.createdAt || new Date().toISOString(),
+                amount: 20,
+                type: 'bonus',
+                description: 'โบนัสต้อนรับสมาชิกใหม่ (Welcome Bonus)'
+            }
+        ];
+        modified = true;
+    }
+
+    // Referral Code
+    if (!user.referralCode) {
+        const cleanName = (user.displayName || user.email.split('@')[0]).replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase() || 'SPK';
+        let code;
+        const existingCodes = new Set((db?.users || []).map(u => (u.referralCode || '').toUpperCase()));
+        do {
+            code = `SPK-${cleanName}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+        } while (existingCodes.has(code));
+        user.referralCode = code;
+        modified = true;
+    }
+    if (typeof user.referralCount !== 'number') {
+        user.referralCount = 0;
+        modified = true;
+    }
+    if (typeof user.referralEarnings !== 'number') {
+        user.referralEarnings = 0;
+        modified = true;
+    }
+
+    // Wishlist & Stock Alerts
+    if (!Array.isArray(user.wishlist)) {
+        user.wishlist = [];
+        modified = true;
+    }
+    if (!Array.isArray(user.stockAlerts)) {
+        user.stockAlerts = [];
+        modified = true;
+    }
+
+    return modified;
+}
+
+function getUserEnrichedProfile(user, db) {
+    if (!user) return null;
+    const isMod = ensureUserDefaults(user, db);
+    if (isMod && db) saveDb(db);
+
+    const userOrders = (db.orders || []).filter(o => o.userId === user.id);
+    // [SECURITY FIX] Count ONLY legitimately verified or fulfilled orders towards VIP tier (Ignore unverified slips & demo orders)
+    const completedOrders = userOrders.filter(o => 
+        !o.isDemo && 
+        (o.isAutoVerified === true || (o.status && o.status.includes('จัดส่งสำเร็จ')))
+    );
+    const totalSpent = completedOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+    const vip = calculateUserVipTier(totalSpent);
+
+    return {
+        id: user.id,
+        userId: user.id,
+        email: user.email,
+        displayName: user.displayName || user.email.split('@')[0],
+        phone: user.phone || '',
+        lineId: user.lineId || '',
+        coins: Math.max(0, user.coins || 0),
+        coinsHistory: (user.coinsHistory || []).slice(-50).reverse(),
+        referralCode: user.referralCode,
+        referralCount: user.referralCount || 0,
+        referralEarnings: user.referralEarnings || 0,
+        wishlist: user.wishlist || [],
+        stockAlerts: user.stockAlerts || [],
+        totalSpent: Math.round(totalSpent * 100) / 100,
+        totalOrders: userOrders.length,
+        completedOrdersCount: completedOrders.length,
+        vip,
+        emailVerified: user.emailVerified !== false,
+        createdAt: user.createdAt || ''
+    };
+}
+
 const userAuthRateLimit = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 15,
@@ -3364,9 +3725,9 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
             return res.status(429).json({ success: false, message: `กรุณารออีก ${waitSec} วินาทีก่อนขอรหัสใหม่อีกครั้ง` });
         }
 
-        // Sanitize displayName to prevent control characters and formatting attacks
+        // Sanitize displayName to prevent HTML/XSS injection, control characters and formatting attacks
         const cleanDisplayName = displayName
-            ? String(displayName).replace(/[\r\n\t\x00-\x1f]/g, '').slice(0, 60).trim()
+            ? String(displayName).replace(/<[^>]*>/g, '').replace(/[\r\n\t\x00-\x1f"`]/g, '').slice(0, 40).trim()
             : normalEmail.split('@')[0];
 
         const pendingUserId = 'U' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -3417,12 +3778,13 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
 
             saveDb(db);
             const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+            const enriched = getUserEnrichedProfile(user, db);
             return res.json({
                 success: true,
                 autoVerified: true,
                 token,
                 expiresAt,
-                user: { id: user.id, userId: user.id, email: user.email, displayName: user.displayName },
+                user: enriched,
                 message: "สมัครสมาชิกและเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!"
             });
         }
@@ -3523,11 +3885,12 @@ app.post('/api/auth/verify-otp', otpRateLimit, (req, res) => {
         saveDb(db);
 
         const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+        const enriched = getUserEnrichedProfile(user, db);
         res.json({
             success: true,
             token,
             expiresAt,
-            user: { id: user.id, userId: user.id, email: user.email, displayName: user.displayName }
+            user: enriched
         });
     } catch (err) {
         console.error('Verify OTP error:', err);
@@ -3642,7 +4005,8 @@ app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
     if (linked) saveDb(db);
 
     const { token, expiresAt } = generateUserToken(user.id, normalEmail, user.tokenVersion || 1);
-    res.json({ success: true, token, expiresAt, user: { id: user.id, userId: user.id, email: normalEmail, displayName: user.displayName } });
+    const enriched = getUserEnrichedProfile(user, db);
+    res.json({ success: true, token, expiresAt, user: enriched });
 });
 
 // U2.1 Forgot Password: Request OTP to reset password
@@ -3834,7 +4198,10 @@ app.post('/api/auth/logout', (req, res) => {
 app.post('/api/auth/verify-session', sessionCheckRateLimit, (req, res) => {
     const session = authenticateUser(req);
     if (session) {
-        return res.json({ success: true, valid: true, user: { id: session.userId, userId: session.userId, email: session.email, displayName: session.displayName } });
+        const db = getDb();
+        const user = (db.users || []).find(u => u.id === session.userId);
+        const enriched = user ? getUserEnrichedProfile(user, db) : { id: session.userId, userId: session.userId, email: session.email, displayName: session.displayName };
+        return res.json({ success: true, valid: true, user: enriched });
     }
     return res.status(401).json({ success: false, valid: false });
 });
@@ -3899,6 +4266,173 @@ app.get('/api/auth/my-orders', sessionCheckRateLimit, (req, res) => {
     });
     res.json({ success: true, orders: myOrders });
 });
+
+// U7. Get Full Member Profile & VIP Stats
+app.get('/api/auth/profile', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const db = getDb();
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    }
+    const profile = getUserEnrichedProfile(user, db);
+    res.json({ success: true, profile, user: profile });
+});
+
+// U8. Update Member Profile Info (Display Name, Phone, LINE ID)
+app.put('/api/auth/profile', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const db = getDb();
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    }
+    const { displayName, phone, lineId } = req.body || {};
+    if (typeof displayName === 'string' && displayName.trim()) {
+        const cleanName = String(displayName).replace(/<[^>]*>/g, '').replace(/[\r\n\t\x00-\x1f"`]/g, '').slice(0, 40).trim();
+        if (cleanName) user.displayName = cleanName;
+    }
+    if (typeof phone === 'string') {
+        user.phone = String(phone).replace(/[^0-9+\-\s()]/g, '').slice(0, 20).trim();
+    }
+    if (typeof lineId === 'string') {
+        user.lineId = String(lineId).replace(/[^a-zA-Z0-9._\-@]/g, '').slice(0, 30).trim();
+    }
+    saveDb(db);
+    const profile = getUserEnrichedProfile(user, db);
+    res.json({ success: true, message: "บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว", profile, user: profile });
+});
+
+// U9. Change Password (Authenticated Self-Service)
+app.post('/api/auth/change-password', userAuthRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const { oldPassword, newPassword } = req.body || {};
+    if (!oldPassword || !newPassword) {
+        return res.status(400).json({ success: false, message: "กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่" });
+    }
+    const newPw = String(newPassword).trim();
+    if (newPw.length < 6 || newPw.length > 128) {
+        return res.status(400).json({ success: false, message: "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
+    }
+    const db = getDb();
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    }
+    if (!verifyPassword(String(oldPassword).trim(), user.passwordHash, user.id)) {
+        return res.status(400).json({ success: false, message: "รหัสผ่านเดิมไม่ถูกต้อง" });
+    }
+    user.passwordHash = hashPassword(newPw, user.id);
+    user.tokenVersion = (user.tokenVersion || 1) + 1;
+    saveDb(db);
+    const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+    res.json({ success: true, message: "เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว", token, expiresAt });
+});
+
+// U10. Toggle Product in Wishlist
+app.post('/api/auth/wishlist/toggle', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อนบันทึกรายการโปรด" });
+    }
+    const cleanId = String(req.body?.productId || '').trim();
+    if (!/^[a-zA-Z0-9_\-]{2,64}$/.test(cleanId)) {
+        return res.status(400).json({ success: false, message: "รหัสสินค้าไม่ถูกต้อง" });
+    }
+    const db = getDb();
+    if (!getCatalogProduct(cleanId, db)) {
+        return res.status(404).json({ success: false, message: "ไม่พบสินค้าในระบบ" });
+    }
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    ensureUserDefaults(user, db);
+    const idx = user.wishlist.indexOf(cleanId);
+    let inWishlist = false;
+    if (idx > -1) {
+        user.wishlist.splice(idx, 1);
+        inWishlist = false;
+    } else {
+        if (user.wishlist.length >= 100) {
+            return res.status(400).json({ success: false, message: "รายการโปรดเต็มแล้ว (สูงสุด 100 รายการ)" });
+        }
+        user.wishlist.push(cleanId);
+        inWishlist = true;
+    }
+    saveDb(db);
+    res.json({ success: true, inWishlist, wishlist: user.wishlist });
+});
+
+// U11. Toggle Back-In-Stock Alert
+app.post('/api/auth/stock-alert/toggle', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อนตั้งค่าแจ้งเตือนสต็อก" });
+    }
+    const cleanId = String(req.body?.productId || '').trim();
+    if (!/^[a-zA-Z0-9_\-]{2,64}$/.test(cleanId)) {
+        return res.status(400).json({ success: false, message: "รหัสสินค้าไม่ถูกต้อง" });
+    }
+    const db = getDb();
+    if (!getCatalogProduct(cleanId, db)) {
+        return res.status(404).json({ success: false, message: "ไม่พบสินค้าในระบบ" });
+    }
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    ensureUserDefaults(user, db);
+    const idx = user.stockAlerts.indexOf(cleanId);
+    let hasAlert = false;
+    if (idx > -1) {
+        user.stockAlerts.splice(idx, 1);
+        hasAlert = false;
+    } else {
+        if (user.stockAlerts.length >= 100) {
+            return res.status(400).json({ success: false, message: "รายการแจ้งเตือนสต็อกเต็มแล้ว (สูงสุด 100 รายการ)" });
+        }
+        user.stockAlerts.push(cleanId);
+        hasAlert = true;
+    }
+    saveDb(db);
+    res.json({ success: true, hasAlert, stockAlerts: user.stockAlerts });
+});
+
+// U12. Validate Referral Code (Friend Recommendation 5% Off)
+app.post('/api/promotions/referral/validate', couponValidateRateLimit, (req, res) => {
+    const rawCode = (req.body?.code || '').trim().toUpperCase();
+    if (!rawCode || !/^[A-Z0-9_\-]{4,40}$/.test(rawCode)) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุรหัสผู้แนะนำที่ถูกต้อง" });
+    }
+    const db = getDb();
+    const session = authenticateUser(req);
+    const referrer = (db.users || []).find(u => (u.referralCode || '').toUpperCase() === rawCode);
+    if (!referrer) {
+        return res.status(404).json({ success: false, message: "ไม่พบรหัสผู้แนะนำนี้ในระบบ" });
+    }
+    const isSelf = !!(session && (
+        session.userId === referrer.id ||
+        (session.email && referrer.email && session.email.toLowerCase() === referrer.email.toLowerCase())
+    ));
+    if (isSelf) {
+        return res.status(400).json({ success: false, message: "คุณไม่สามารถใช้รหัสแนะนำของตนเองได้" });
+    }
+    res.json({
+        success: true,
+        valid: true,
+        code: referrer.referralCode,
+        discountPercent: 5,
+        referrerName: referrer.displayName || 'เพื่อนของคุณ',
+        title: `ส่วนลดแนะนำเพื่อน (ลด 5% จากคุณ ${referrer.displayName || 'สมาชิก'})`
+    });
+});
+
 
 // ─────────────────────────────────────────────────────────────
 // 📊 REAL-TIME TELEMETRY & ANALYTICS API ENDPOINTS

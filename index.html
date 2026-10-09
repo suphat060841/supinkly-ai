@@ -204,8 +204,19 @@
                 </div>
             </div>
 
-            <!-- Actions: Cart & User Account -->
+            <!-- Actions: Wishlist, Cart & User Account -->
             <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+
+                <!-- Wishlist Button -->
+                <button onclick="openOrdersModal('wishlist')" title="รายการสินค้าที่ชอบ"
+                    class="relative p-2 sm:px-3 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white border-2 border-rose-200 hover:border-rose-400 text-slate-700 hover:text-rose-600 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer touch-active">
+                    <i class="fa-solid fa-heart text-sm sm:text-base text-rose-500"></i>
+                    <span class="text-xs font-bold text-slate-800 hidden md:inline">ที่ชอบ</span>
+                    <span id="nav-wishlist-count-badge"
+                        class="hidden absolute -top-1.5 -right-1.5 sm:static sm:w-auto sm:h-auto px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-rose-500 text-white font-bold text-[9px] sm:text-xs flex items-center justify-center shadow-md">
+                        0
+                    </span>
+                </button>
 
                 <!-- Cart Button -->
                 <button onclick="openCartDrawer()"
@@ -1590,18 +1601,95 @@
                 </button>
             </div>
 
+            <!-- VIP Member Auto Discount Row (Hidden if Bronze or Guest) -->
+            <div id="cart-vip-discount-row"
+                class="hidden p-2 rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 text-xs flex items-center justify-between font-bold text-amber-900">
+                <span class="flex items-center gap-1.5 truncate">
+                    <i id="cart-vip-icon" class="fa-solid fa-crown text-amber-500"></i>
+                    <span id="cart-vip-title">ส่วนลดสมาชิก VIP</span>
+                </span>
+                <span id="cart-vip-amount" class="text-amber-800 font-black">-฿0.00</span>
+            </div>
+
+            <!-- Referral Friend Discount Row (Hidden by default) -->
+            <div id="cart-referral-discount-row"
+                class="hidden p-2 rounded-xl bg-purple-50 border border-purple-200 text-xs flex items-center justify-between font-bold text-purple-900">
+                <span class="flex items-center gap-1.5 truncate">
+                    <i class="fa-solid fa-user-group text-purple-500"></i>
+                    <span id="cart-referral-title">ส่วนลดแนะนำเพื่อน (5%)</span>
+                </span>
+                <div class="flex items-center gap-1">
+                    <span id="cart-referral-amount" class="text-purple-800 font-black">-฿0.00</span>
+                    <button type="button" onclick="removeReferralCode()" class="text-rose-500 hover:text-rose-700 ml-1 cursor-pointer" title="ลบโค้ดแนะนำ">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pink Coins Redemption Wrap (Member Only) -->
+            <div id="cart-coins-wrap"
+                class="hidden p-2.5 rounded-2xl bg-gradient-to-r from-amber-50/80 via-white to-pink-50/80 border border-amber-200/90 text-xs space-y-1.5 shadow-2xs">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-coins text-amber-500"></i>
+                        <span>ใช้ Pink Coins ลดเงินสด:</span>
+                    </span>
+                    <span class="text-[11px] font-bold text-amber-800">
+                        มี <span id="cart-coins-balance">0</span> เหรียญ (฿<span id="cart-coins-baht">0.00</span>)
+                    </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <input type="number" id="cart-coins-input" min="0" placeholder="0 เหรียญ" oninput="handleCoinsInputChange(this.value)"
+                        class="w-24 px-2 py-1.5 rounded-lg border border-amber-300 font-bold text-xs bg-white text-slate-800 outline-none focus:border-pink-500 text-center">
+                    <button type="button" onclick="applyMaxCoins()"
+                        class="px-2.5 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[11px] cursor-pointer transition-colors">
+                        ใช้สูงสุด
+                    </button>
+                    <button type="button" onclick="clearCoins()"
+                        class="px-2 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] cursor-pointer transition-colors">
+                        ล้าง
+                    </button>
+                </div>
+                <div id="cart-coins-error" class="hidden text-[10px] text-rose-600 font-bold"></div>
+            </div>
+
+            <!-- Referral Code Input Toggle / Form -->
+            <div id="cart-referral-input-wrap" class="space-y-1">
+                <div class="flex items-center gap-1.5">
+                    <input type="text" id="cart-referral-input" placeholder="รหัสแนะนำเพื่อน (เช่น SPK-REF...)"
+                        class="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold uppercase outline-none focus:border-purple-400 bg-slate-50 focus:bg-white transition-all">
+                    <button type="button" onclick="applyReferralCode()"
+                        class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold cursor-pointer transition-all active:scale-95">
+                        ใช้รหัส
+                    </button>
+                </div>
+            </div>
+
             <!-- Pricing Breakdown -->
             <div class="space-y-1.5 pt-1">
                 <div class="flex items-center justify-between text-xs text-slate-600 font-medium">
                     <span>ราคารวมสินค้า:</span>
                     <span id="cart-subtotal" class="font-bold text-slate-900">฿0.00</span>
                 </div>
-                <!-- Discount Row (Hidden if no discount) -->
+                <!-- Promotion Discount Row -->
                 <div id="cart-discount-row"
                     class="hidden flex items-center justify-between text-xs text-emerald-600 font-bold">
                     <span>ส่วนลดโปรโมชั่น:</span>
                     <span id="cart-discount-amount" class="font-bold">-฿0.00</span>
                 </div>
+                <!-- Coins Discount Row -->
+                <div id="cart-coins-discount-row"
+                    class="hidden flex items-center justify-between text-xs text-amber-600 font-bold">
+                    <span>ลดด้วย Pink Coins:</span>
+                    <span id="cart-coins-discount-amount" class="font-bold">-฿0.00</span>
+                </div>
+            </div>
+
+            <!-- Earn Coins Preview Badge -->
+            <div id="cart-earn-coins-preview"
+                class="text-[11px] text-pink-600 font-bold text-center bg-pink-50 py-1.5 px-2 rounded-xl border border-pink-100 flex items-center justify-center gap-1.5 shadow-2xs">
+                <i class="fa-solid fa-gift text-pink-500"></i>
+                <span>สั่งซื้อออเดอร์นี้ รับเพิ่ม +<span id="cart-coins-earned-val">0</span> Pink Coins!</span>
             </div>
 
             <div
@@ -2081,96 +2169,417 @@
     <!-- ==========================================
          ORDERS HISTORY & MY KEYS MODAL ("คีย์ของฉัน")
          ========================================== -->
+    <!-- ==========================================
+         MEMBER CENTER & KEY VAULT MODAL ("ศูนย์สมาชิก & คีย์ของฉัน")
+         ========================================== -->
     <div id="orders-modal"
-        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4">
         <div
-            class="bg-white max-w-2xl w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200 relative max-h-[92vh] flex flex-col shadow-2xl">
+            class="bg-white max-w-3xl w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200 relative max-h-[94vh] flex flex-col shadow-2xl">
 
             <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-4 border-b border-slate-200 shrink-0">
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200 shrink-0">
                 <div class="flex items-center gap-3">
                     <div
-                        class="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-50 via-white to-pink-100 border-2 border-pink-300 p-1 flex items-center justify-center shadow-md shadow-pink-500/15 overflow-hidden shrink-0">
+                        class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-pink-50 via-white to-pink-100 border-2 border-pink-300 p-1 flex items-center justify-center shadow-md shadow-pink-500/15 overflow-hidden shrink-0">
                         <img src="images/pop_new.png" alt="Supinkly Mascot Logo" class="w-full h-full object-contain"
                             onerror="this.src='images/logo.jpg'">
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <h3 class="text-base sm:text-lg font-bold text-slate-900">คีย์และบัญชีของฉัน</h3>
+                            <h3 id="member-center-modal-title" class="text-base sm:text-lg font-bold text-slate-900">ศูนย์สมาชิก & คลังคีย์</h3>
                             <span id="customer-keys-count-badge"
                                 class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-100 text-pink-700">0
                                 รายการ</span>
                         </div>
-                        <p class="text-xs text-slate-500 font-medium">ประวัติคำสั่งซื้อและรหัสใช้งานของคุณ
-                            ดูและคัดลอกรหัสเข้าใช้งานได้ทันที</p>
+                        <p class="text-xs text-slate-500 font-medium">จัดการคีย์ รหัสบัญชี สิทธิพิเศษ VIP แต้มพ้อยท์ และข้อมูลส่วนตัว</p>
                     </div>
                 </div>
                 <button onclick="closeOrdersModal()"
-                    class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-base transition-colors shrink-0"
+                    class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-base transition-colors shrink-0 cursor-pointer"
                     title="ปิดหน้าต่าง">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
-            <!-- Guarantee & Support Reassurance Banner -->
-            <div
-                class="mt-3 p-3 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-blue-50 border border-pink-200 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
-                <div class="flex items-center gap-2 text-slate-700 font-bold">
-                    <span
-                        class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
-                        <i class="fa-solid fa-shield-halved"></i>
+            <!-- Member Center Navigation Tabs Bar -->
+            <div class="mt-3 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0 text-xs font-bold">
+                <button id="member-tab-btn-orders" onclick="switchMemberTab('orders')"
+                    class="member-tab-btn px-3 py-2 rounded-xl bg-pink-500 text-white shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-key"></i>
+                    <span>คีย์ของฉัน</span>
+                    <span id="tab-cnt-orders" class="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">0</span>
+                </button>
+                <button id="member-tab-btn-vip" onclick="switchMemberTab('vip')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-crown text-amber-500"></i>
+                    <span>ระดับ VIP</span>
+                    <span id="tab-badge-vip" class="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[10px]">Bronze</span>
+                </button>
+                <button id="member-tab-btn-coins" onclick="switchMemberTab('coins')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-coins text-amber-500"></i>
+                    <span>Pink Coins</span>
+                    <span id="tab-cnt-coins" class="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[10px]">20</span>
+                </button>
+                <button id="member-tab-btn-referral" onclick="switchMemberTab('referral')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-user-group text-purple-500"></i>
+                    <span>แนะนำเพื่อน</span>
+                </button>
+                <button id="member-tab-btn-wishlist" onclick="switchMemberTab('wishlist')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-heart text-rose-500"></i>
+                    <span>ที่ชอบ</span>
+                    <span id="tab-cnt-wishlist" class="px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700 text-[10px]">0</span>
+                </button>
+                <button id="member-tab-btn-settings" onclick="switchMemberTab('settings')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-gear text-slate-500"></i>
+                    <span>ตั้งค่าบัญชี</span>
+                </button>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 1: MY KEYS & ORDERS (Existing Orders)
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-orders" class="member-pane flex-1 flex flex-col min-h-0">
+                <!-- Customer Account Profile & Sync Status Card -->
+                <div id="customer-profile-card" class="mt-3 shrink-0"></div>
+
+                <!-- Search Bar & Filter Chips -->
+                <div class="mt-3 space-y-2 shrink-0">
+                    <div class="relative">
+                        <i
+                            class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="customer-keys-search" name="spk_ck_search_q"
+                            oninput="handleCustomerKeysSearch(this.value)"
+                            placeholder="🔍 ค้นหาชื่อสินค้า, อีเมล, เลขที่คำสั่งซื้อ (เช่น CapCut, Windows, ORD-)..."
+                            autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly
+                            data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                            data-form-type="other" aria-autocomplete="none" onfocus="this.removeAttribute('readonly');"
+                            onpointerdown="this.removeAttribute('readonly');"
+                            ontouchstart="this.removeAttribute('readonly');"
+                            class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-pink-500 outline-none transition-all font-medium">
+                        <button id="customer-keys-clear-search" onclick="clearCustomerKeysSearch()"
+                            class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                        <button onclick="setCustomerKeysFilter('all')" id="ck-filter-all"
+                            class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-pink-500 text-white shadow-xs">
+                            ทั้งหมด (<span id="ck-cnt-all">0</span>)
+                        </button>
+                        <button onclick="setCustomerKeysFilter('delivered')" id="ck-filter-delivered"
+                            class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
+                            🟢 พร้อมใช้งาน (<span id="ck-cnt-delivered">0</span>)
+                        </button>
+                        <button onclick="setCustomerKeysFilter('pending')" id="ck-filter-pending"
+                            class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
+                            🟡 รอจัดเตรียม (<span id="ck-cnt-pending">0</span>)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scrollable Orders / Keys List -->
+                <div id="orders-history-list" class="mt-3 space-y-3 overflow-y-auto flex-1 pr-1"></div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 2: VIP TIER & PRIVILEGES
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-vip" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Metallic Tier Card -->
+                <div id="vip-metallic-card" class="p-5 rounded-3xl bg-gradient-to-br from-amber-500 via-amber-600 to-yellow-700 text-white shadow-xl relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 text-8xl text-white/10 pointer-events-none">
+                        <i class="fa-solid fa-crown"></i>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-xs">
+                                Supinkly Loyalty Program
+                            </span>
+                            <h4 id="vip-card-tier-name" class="text-2xl font-black mt-1 flex items-center gap-2">
+                                <span>🥉 Bronze Member</span>
+                            </h4>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[11px] text-white/80 block">ส่วนลดอัตโนมัติ</span>
+                            <span id="vip-card-discount-rate" class="text-2xl font-black text-amber-200">0%</span>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar to Next Tier -->
+                    <div class="mt-4 pt-4 border-t border-white/20 space-y-1.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span id="vip-card-progress-text" class="font-medium">ช้อปอีก ฿500.00 เพื่อเลื่อนขั้นเป็น Silver Member</span>
+                            <span id="vip-card-progress-pct" class="font-black">0%</span>
+                        </div>
+                        <div class="w-full h-2.5 rounded-full bg-black/20 overflow-hidden">
+                            <div id="vip-card-progress-bar" class="h-full bg-white rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-white/80 pt-0.5">
+                            <span>ยอดใช้จ่ายสะสม: ฿<span id="vip-card-total-spent">0.00</span></span>
+                            <span id="vip-card-next-tier-label">ขั้นถัดไป: Silver Member (ลด 3%)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tier Comparison Benefits Grid -->
+                <div class="space-y-2">
+                    <h5 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-award text-pink-500"></i>
+                        <span>สิทธิประโยชน์ระดับสมาชิกทั้งหมด:</span>
+                    </h5>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <!-- Bronze -->
+                        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                            <div class="font-bold text-slate-800 flex items-center gap-1">
+                                <span>🥉 Bronze</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500">ยอดสะสม ฿0 - ฿499</div>
+                            <div class="text-xs font-black text-slate-700">ส่วนลด 0%</div>
+                            <p class="text-[10px] text-slate-500">บันทึกคีย์ถาวรในคลัง</p>
+                        </div>
+                        <!-- Silver -->
+                        <div class="p-3 rounded-2xl bg-slate-100 border border-slate-300 space-y-1">
+                            <div class="font-bold text-slate-800 flex items-center gap-1">
+                                <span>🥈 Silver</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500">ยอดสะสม ฿500+</div>
+                            <div class="text-xs font-black text-slate-800">ลด 3% ทุกบิล</div>
+                            <p class="text-[10px] text-slate-500">ประหยัดทันทีอัตโนมัติ</p>
+                        </div>
+                        <!-- Gold -->
+                        <div class="p-3 rounded-2xl bg-amber-50 border border-amber-300 space-y-1">
+                            <div class="font-bold text-amber-900 flex items-center gap-1">
+                                <span>🥇 Gold VIP</span>
+                            </div>
+                            <div class="text-[10px] text-amber-700">ยอดสะสม ฿1,500+</div>
+                            <div class="text-xs font-black text-amber-900">ลด 5% ทุกบิล</div>
+                            <p class="text-[10px] text-amber-800">คุ้มค่ายอดนิยม ⭐</p>
+                        </div>
+                        <!-- Diamond -->
+                        <div class="p-3 rounded-2xl bg-cyan-50 border border-cyan-300 space-y-1">
+                            <div class="font-bold text-cyan-900 flex items-center gap-1">
+                                <span>💎 Diamond</span>
+                            </div>
+                            <div class="text-[10px] text-cyan-700">ยอดสะสม ฿3,000+</div>
+                            <div class="text-xs font-black text-cyan-900">ลด 7% ทุกบิล</div>
+                            <p class="text-[10px] text-cyan-800">ส่งมอบด่วนคิวแรก</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 3: PINK COINS & REWARDS
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-coins" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Coins Balance Banner -->
+                <div class="p-4 rounded-3xl bg-gradient-to-r from-amber-50 via-pink-50 to-amber-50 border-2 border-amber-300 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-600 text-white flex items-center justify-center text-2xl shadow-md shadow-amber-500/30">
+                            <i class="fa-solid fa-coins"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs text-amber-800 font-bold">ยอดเหรียญสะสมของคุณ</span>
+                            <div class="text-2xl sm:text-3xl font-black text-slate-900 flex items-baseline gap-1.5">
+                                <span id="coins-pane-balance">20</span>
+                                <span class="text-sm font-bold text-pink-600">Pink Coins</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white px-3.5 py-2 rounded-2xl border border-amber-200 text-right">
+                        <span class="text-[10px] text-slate-500 block font-medium">มูลค่าใช้ลดเงินสด</span>
+                        <span class="text-lg font-black text-emerald-600">฿<span id="coins-pane-baht">20.00</span></span>
+                    </div>
+                </div>
+
+                <!-- How to Earn Info Box -->
+                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                    <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-question text-pink-500"></i>
+                        <span>วิธีสะสมและใช้งาน Pink Coins:</span>
+                    </div>
+                    <ul class="text-[11px] text-slate-600 space-y-1 list-disc list-inside">
+                        <li><b>ช้อปสินค้า:</b> ทุกยอดซื้อ 10 บาท จะได้รับ 1 Pink Coin สะสมเข้ากระเป๋าทันที</li>
+                        <li><b>โบนัสต้อนรับ:</b> สมัครสมาชิกใหม่ รับฟรีทันที 20 Pink Coins</li>
+                        <li><b>แนะนำเพื่อน:</b> เมื่อเพื่อนสั่งซื้อผ่านรหัสของคุณ คุณจะได้รับ 5% ของยอดสั่งซื้อเป็น Pink Coins</li>
+                        <li><b>วิธีใช้:</b> เปิดตะกร้าสินค้า แล้วกรอกจำนวน Pink Coins ในช่อง "ใช้ Pink Coins ลดเงินสด"</li>
+                    </ul>
+                </div>
+
+                <!-- Coins History Ledger -->
+                <div class="space-y-2">
+                    <h5 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-clock-rotate-left text-pink-500"></i>
+                        <span>ประวัติการรับและใช้งานเหรียญ:</span>
+                    </h5>
+                    <div id="coins-history-list" class="space-y-1.5 max-h-48 overflow-y-auto">
+                        <div class="p-3 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">กำลังโหลดข้อมูล...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 4: REFERRAL & AFFILIATE PROGRAM
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-referral" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Referral Hero Card -->
+                <div class="p-4.5 rounded-3xl bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 border-2 border-purple-200 text-slate-800 space-y-3 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-500 to-pink-500 text-white flex items-center justify-center text-xl shadow-md shadow-purple-500/25">
+                            <i class="fa-solid fa-gift"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-base font-black text-slate-900">ชวนเพื่อนรับส่วนลด & คุณรับค่าคอมมิชชั่น</h4>
+                            <p class="text-xs text-slate-600 font-medium">เพื่อนได้ลด 5% ทุกออเดอร์ • คุณได้รับ Pink Coins 5% จากยอดซื้อเพื่อน</p>
+                        </div>
+                    </div>
+
+                    <!-- Personal Referral Code Display -->
+                    <div class="p-3 rounded-2xl bg-white border border-purple-200 space-y-2">
+                        <label class="text-[11px] font-bold text-slate-600 block">รหัสแนะนำเพื่อนของคุณ:</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="referral-code-display" readonly
+                                class="flex-1 px-3 py-2 rounded-xl bg-purple-50 border-2 border-purple-300 font-mono font-black text-sm sm:text-base text-purple-900 text-center tracking-wider outline-none select-all">
+                            <button type="button" onclick="copyReferralCode()"
+                                class="px-4 py-2 rounded-xl gradient-btn text-white font-bold text-xs shadow-md shadow-pink-500/20 flex items-center gap-1.5 cursor-pointer active:scale-95">
+                                <i class="fa-solid fa-copy"></i>
+                                <span>คัดลอกรหัส</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Shareable URL -->
+                    <div class="p-3 rounded-2xl bg-white border border-purple-200 space-y-2">
+                        <label class="text-[11px] font-bold text-slate-600 block">ลิงก์ชวนเพื่อนอัตโนมัติ (เพื่อนคลิกแล้วได้ส่วนลดทันที):</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="referral-link-display" readonly
+                                class="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 outline-none truncate select-all">
+                            <button type="button" onclick="copyReferralLink()"
+                                class="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-xs flex items-center gap-1 cursor-pointer active:scale-95">
+                                <i class="fa-solid fa-link"></i>
+                                <span>คัดลอกลิงก์</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Referral Stats Cards -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                        <span class="text-xs text-slate-500 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-users text-purple-500"></i> เพื่อนที่แนะนำสำเร็จ
+                        </span>
+                        <div class="text-xl font-black text-slate-900 mt-1.5">
+                            <span id="referral-stats-friends">0</span> คน
+                        </div>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+                        <span class="text-xs text-amber-800 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-coins text-amber-500"></i> แต้มคอมมิชชั่นสะสม
+                        </span>
+                        <div class="text-xl font-black text-amber-900 mt-1.5">
+                            <span id="referral-stats-coins">0</span> Coins
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 5: WISHLIST (FAVORITES)
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-wishlist" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-heart text-rose-500"></i>
+                        <span>สินค้าที่คุณบันทึกไว้ (<span id="wishlist-pane-count">0</span> รายการ):</span>
                     </span>
-                    <span>รับประกันสินค้า 30 วัน เคลมง่าย บริการ 24 ชม.</span>
-                </div>
-                <a href="https://www.facebook.com/profile.php?id=61594837747580" target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-blue-200 text-[#1877F2] font-bold hover:bg-blue-50 transition-colors shadow-xs">
-                    <i class="fa-brands fa-facebook"></i>
-                    <span>ติดต่อขอความช่วยเหลือ</span>
-                </a>
-            </div>
-
-            <!-- Customer Account Profile & Sync Status Card -->
-            <div id="customer-profile-card" class="mt-3 shrink-0"></div>
-
-            <!-- Search Bar & Filter Chips -->
-            <div class="mt-3 space-y-2 shrink-0">
-                <div class="relative">
-                    <i
-                        class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                    <input type="text" id="customer-keys-search" name="spk_ck_search_q"
-                        oninput="handleCustomerKeysSearch(this.value)"
-                        placeholder="🔍 ค้นหาชื่อสินค้า, อีเมล, เลขที่คำสั่งซื้อ (เช่น CapCut, Windows, ORD-)..."
-                        autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly
-                        data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
-                        data-form-type="other" aria-autocomplete="none" onfocus="this.removeAttribute('readonly');"
-                        onpointerdown="this.removeAttribute('readonly');"
-                        ontouchstart="this.removeAttribute('readonly');"
-                        class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-pink-500 outline-none transition-all font-medium">
-                    <button id="customer-keys-clear-search" onclick="clearCustomerKeysSearch()"
-                        class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
-                        <i class="fa-solid fa-circle-xmark"></i>
+                    <button type="button" onclick="addAllWishlistToCart()"
+                        class="text-xs font-bold text-pink-600 hover:text-pink-700 hover:underline cursor-pointer">
+                        ใส่ตะกร้าทั้งหมด
                     </button>
                 </div>
-
-                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-                    <button onclick="setCustomerKeysFilter('all')" id="ck-filter-all"
-                        class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-pink-500 text-white shadow-xs">
-                        ทั้งหมด (<span id="ck-cnt-all">0</span>)
-                    </button>
-                    <button onclick="setCustomerKeysFilter('delivered')" id="ck-filter-delivered"
-                        class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
-                        🟢 พร้อมใช้งาน (<span id="ck-cnt-delivered">0</span>)
-                    </button>
-                    <button onclick="setCustomerKeysFilter('pending')" id="ck-filter-pending"
-                        class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
-                        🟡 รอจัดเตรียม (<span id="ck-cnt-pending">0</span>)
-                    </button>
+                <div id="wishlist-items-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <!-- Populated dynamically by renderWishlistPane() -->
                 </div>
             </div>
 
-            <!-- Scrollable Orders / Keys List -->
-            <div id="orders-history-list" class="mt-3 space-y-3 overflow-y-auto flex-1 pr-1"></div>
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 6: ACCOUNT PROFILE SETTINGS & SECURITY
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-settings" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Personal Info Form Card -->
+                <div class="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                    <h5 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-user-pen text-pink-500"></i>
+                        <span>ข้อมูลโปรไฟล์ผู้ใช้งาน</span>
+                    </h5>
+                    <div id="settings-profile-status" class="hidden p-2.5 rounded-xl text-xs font-bold"></div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">อีเมลบัญชี (ไม่สามารถแก้ไขได้):</label>
+                            <input type="email" id="settings-email" readonly
+                                class="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 outline-none cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">ชื่อที่แสดง (Display Name):</label>
+                            <input type="text" id="settings-display-name" placeholder="ชื่อของคุณ"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-pink-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">เบอร์โทรศัพท์ (ทางเลือก):</label>
+                            <input type="tel" id="settings-phone" placeholder="08x-xxx-xxxx"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-pink-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">LINE ID สำหรับรับคีย์ด่วน (ทางเลือก):</label>
+                            <input type="text" id="settings-line-id" placeholder="@lineid หรือ id"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-pink-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                    </div>
+                    <button type="button" onclick="handleSaveProfileSettings()"
+                        class="px-5 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-md shadow-pink-500/20 cursor-pointer active:scale-95 transition-all">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูลโปรไฟล์
+                    </button>
+                </div>
+
+                <!-- Change Password Form Card -->
+                <div class="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                    <h5 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-lock text-purple-500"></i>
+                        <span>เปลี่ยนรหัสผ่าน (Change Password)</span>
+                    </h5>
+                    <div id="settings-password-status" class="hidden p-2.5 rounded-xl text-xs font-bold"></div>
+
+                    <div class="space-y-2.5 max-w-md">
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">รหัสผ่านปัจจุบัน:</label>
+                            <input type="password" id="settings-old-pass" placeholder="กรอกรหัสผ่านปัจจุบัน"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-purple-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">รหัสผ่านใหม่:</label>
+                            <input type="password" id="settings-new-pass" placeholder="รหัสผ่านใหม่อย่างน้อย 6 ตัวอักษร"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-purple-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">ยืนยันรหัสผ่านใหม่:</label>
+                            <input type="password" id="settings-confirm-pass" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-purple-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <button type="button" onclick="handleChangePasswordSettings()"
+                            class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 cursor-pointer active:scale-95 transition-all">
+                            <i class="fa-solid fa-key mr-1"></i> เปลี่ยนรหัสผ่านทันที
+                        </button>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </div>
@@ -4714,17 +5123,27 @@ user2@gmail.com:Pass5678
                 </div>
 
                 <!-- Modal Bottom Pricing & Action Bar -->
-                <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-4">
+                <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-2.5 sm:gap-4">
                     <div>
                         <span id="modal-product-original-price"
                             class="text-xs text-slate-400 line-through block font-medium"></span>
                         <span id="modal-product-price" class="text-2xl sm:text-3xl font-bold text-pink-600"></span>
                     </div>
-                    <button id="modal-add-cart-btn"
-                        class="flex-1 py-3.5 rounded-2xl gradient-btn text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-95 transition-transform cursor-pointer">
-                        <i class="fa-solid fa-cart-plus"></i>
-                        <span>ใส่ตะกร้าสินค้า</span>
-                    </button>
+                    <div class="flex items-center gap-2 flex-1 justify-end">
+                        <button id="modal-wishlist-btn" type="button" title="บันทึกในรายการโปรด"
+                            class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200 flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs">
+                            <i class="fa-regular fa-heart"></i>
+                        </button>
+                        <button id="modal-stock-alert-btn" type="button" title="แจ้งเตือนเมื่อมีของ"
+                            class="hidden w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs">
+                            <i class="fa-regular fa-bell"></i>
+                        </button>
+                        <button id="modal-add-cart-btn"
+                            class="flex-1 max-w-xs py-3.5 rounded-2xl gradient-btn text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-95 transition-transform cursor-pointer">
+                            <i class="fa-solid fa-cart-plus"></i>
+                            <span>ใส่ตะกร้าสินค้า</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 

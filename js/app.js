@@ -316,7 +316,11 @@ const state = {
     searchQuery: '',
     sortBy: 'popular',
     qrTimer: null,
-    qrSecondsLeft: 900
+    qrSecondsLeft: 900,
+    coinsToRedeem: 0,
+    referralCode: null,
+    referralDiscount: null,
+    activeMemberTab: 'orders'
 };
 
 // Custom Price Management
@@ -421,12 +425,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateNavOrdersCount();
     updateUserHeaderUI();
+    updateMemberBadges();
+
+    // Check referral query param in URL (?ref=CODE)
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const refParam = urlParams.get('ref');
+        if (refParam && typeof refParam === 'string' && refParam.trim()) {
+            setTimeout(() => {
+                applyReferralCode(refParam.trim());
+            }, 600);
+        }
+    } catch {}
 
     if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
         USER_AUTH.verifySession().then(() => {
             updateUserHeaderUI();
+            updateMemberBadges();
             refreshUserOrders();
         });
+        if (typeof USER_AUTH.getProfile === 'function') {
+            USER_AUTH.getProfile().then(p => {
+                if (p) {
+                    state.user = p;
+                    updateUserHeaderUI();
+                    updateMemberBadges();
+                    if (typeof updateCartUI === 'function') updateCartUI();
+                }
+            });
+        }
     }
 });
 
@@ -776,8 +803,11 @@ async function handleLogin() {
             const res = await USER_AUTH.login(email, password);
             if (res.success) {
                 closeAuthModal();
+                state.user = USER_AUTH.getUser();
                 await refreshUserOrders();
                 updateUserHeaderUI();
+                updateMemberBadges();
+                renderProducts();
                 showToast(`ยินดีต้อนรับคุณ ${res.user?.displayName || email}!`, 'success');
                 if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
                     state.pendingCheckoutAfterAuth = false;
@@ -829,8 +859,11 @@ async function handleRegister() {
             if (res.success) {
                 if (res.autoVerified || res.token) {
                     closeAuthModal();
+                    state.user = USER_AUTH.getUser();
                     await refreshUserOrders();
                     updateUserHeaderUI();
+                    updateMemberBadges();
+                    renderProducts();
                     showToast(res.message || `ยินดีต้อนรับคุณ ${res.user?.displayName || displayName}!`, 'success');
                     if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
                         state.pendingCheckoutAfterAuth = false;
@@ -886,8 +919,11 @@ async function handleVerifyOtp() {
             const res = await USER_AUTH.verifyOtp(pendingAuthEmail, otp);
             if (res.success) {
                 closeAuthModal();
+                state.user = USER_AUTH.getUser();
                 await refreshUserOrders();
                 updateUserHeaderUI();
+                updateMemberBadges();
+                renderProducts();
                 showToast('สมัครสมาชิกและยืนยันอีเมลสำเร็จ ยินดีต้อนรับ!', 'success');
                 if (state.pendingCheckoutAfterAuth && state.cart && state.cart.length > 0) {
                     state.pendingCheckoutAfterAuth = false;
@@ -1047,6 +1083,9 @@ function handleUserLogout() {
     if (typeof state !== 'undefined') {
         state.user = null;
         state.orders = [];
+        state.coinsToRedeem = 0;
+        state.referralCode = null;
+        state.referralDiscount = null;
     }
     localStorage.removeItem('supinkly_orders');
     sessionStorage.removeItem('supinkly_orders');
@@ -1062,6 +1101,8 @@ function handleUserLogout() {
     }
 
     updateUserHeaderUI();
+    updateMemberBadges();
+    renderProducts();
     showToast('ออกจากระบบและล้างข้อมูลคีย์ในเครื่องนี้เรียบร้อยแล้ว', 'info');
 }
 
@@ -1073,16 +1114,25 @@ function updateUserHeaderUI() {
     const user = isLoggedIn ? USER_AUTH.getUser() : null;
 
     if (isLoggedIn && user) {
+        let vipBadgeClass = "bg-amber-100 text-amber-800 border-amber-300";
+        if (user.vip?.tier === 'diamond') vipBadgeClass = "bg-cyan-100 text-cyan-800 border-cyan-300";
+        else if (user.vip?.tier === 'silver') vipBadgeClass = "bg-slate-200 text-slate-800 border-slate-300";
+        else if (user.vip?.tier === 'bronze') vipBadgeClass = "bg-amber-50 text-amber-900 border-amber-200";
+
         section.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
+                <button onclick="openOrdersModal('orders')" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
                 </button>
                 <div class="flex items-center gap-1">
-                    <button onclick="openOrdersModal()" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 text-pink-700 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ดูคีย์และข้อมูลสมาชิก">
+                    <button onclick="openOrdersModal('orders')" class="h-9 sm:h-11 px-2.5 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 text-pink-700 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ศูนย์สมาชิก & คลังคีย์">
                         <i class="fa-solid fa-circle-user text-pink-500"></i>
-                        <span class="max-w-[110px] truncate">${escapeHTML(user.displayName || user.name || user.email || 'สมาชิก')}</span>
+                        <span class="max-w-[100px] truncate">${escapeHTML(user.displayName || user.name || 'สมาชิก')}</span>
+                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-black border ${vipBadgeClass}">
+                            <i class="fa-solid fa-crown text-[9px] text-amber-500"></i>
+                            <span>${escapeHTML(user.vip?.tierName || 'Bronze')}</span>
+                        </span>
                     </button>
                     <button onclick="handleUserLogout()" title="ออกจากระบบ" class="h-9 sm:h-11 px-2.5 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 transition-all flex items-center justify-center cursor-pointer">
                         <i class="fa-solid fa-right-from-bracket text-xs"></i>
@@ -1093,7 +1143,7 @@ function updateUserHeaderUI() {
     } else {
         section.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                <button onclick="openOrdersModal()" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
+                <button onclick="openOrdersModal('orders')" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
                     <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
                     <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
                 </button>
@@ -1105,6 +1155,7 @@ function updateUserHeaderUI() {
         `;
     }
     if (typeof updateCartUI === 'function') updateCartUI();
+    if (typeof updateMemberBadges === 'function') updateMemberBadges();
     updateNavOrdersCount();
 }
 
@@ -1275,6 +1326,10 @@ function renderHighlightProducts() {
         const formattedPrice = formatProductPrice(product.price);
         const formattedOrigPrice = formatProductPrice(product.originalPrice);
 
+        const cardUser = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+        const isWishlisted = !!(cardUser && Array.isArray(cardUser.wishlist) && cardUser.wishlist.includes(product.id));
+        const isAlerted = !!(cardUser && Array.isArray(cardUser.stockAlerts) && cardUser.stockAlerts.includes(product.id));
+
         return `
             <div class="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
                  data-action="card" data-product-id="${escapeHTML(product.id)}">
@@ -1345,6 +1400,16 @@ function renderHighlightProducts() {
                         </div>
                     </div>
                     <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                        <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
+                        </button>
+                        ${!inStock ? `
+                        <button data-action="stock-alert" data-product-id="${escapeHTML(product.id)}" title="${isAlerted ? 'แจ้งเตือนเมื่อมีของ (เปิดแล้ว)' : 'แจ้งเตือนเมื่อมีสินค้า'}" 
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            <i class="fa-${isAlerted ? 'solid' : 'regular'} fa-bell"></i>
+                        </button>
+                        ` : ''}
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
                             class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
                             <i class="fa-regular fa-eye"></i>
@@ -1409,6 +1474,10 @@ function renderProducts() {
         const formattedPrice = formatProductPrice(product.price);
         const formattedOrigPrice = formatProductPrice(product.originalPrice);
 
+        const cardUser = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+        const isWishlisted = !!(cardUser && Array.isArray(cardUser.wishlist) && cardUser.wishlist.includes(product.id));
+        const isAlerted = !!(cardUser && Array.isArray(cardUser.stockAlerts) && cardUser.stockAlerts.includes(product.id));
+
         return `
             <div class="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
@@ -1467,6 +1536,16 @@ function renderProducts() {
                         </div>
                     </div>
                     <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+                        <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
+                        </button>
+                        ${!inStock ? `
+                        <button data-action="stock-alert" data-product-id="${escapeHTML(product.id)}" title="${isAlerted ? 'แจ้งเตือนเมื่อมีของ (เปิดแล้ว)' : 'แจ้งเตือนเมื่อมีสินค้า'}" 
+                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            <i class="fa-${isAlerted ? 'solid' : 'regular'} fa-bell"></i>
+                        </button>
+                        ` : ''}
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียด" 
                             class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
                             <i class="fa-regular fa-eye"></i>
@@ -1489,8 +1568,25 @@ function renderProducts() {
 }
 
 function handleProductCardClick(e) {
+    const wishlistBtn = e.target.closest('[data-action="wishlist"]');
+    if (wishlistBtn) {
+        e.stopPropagation();
+        const id = wishlistBtn.getAttribute('data-product-id');
+        if (id) toggleProductWishlist(id);
+        return;
+    }
+
+    const stockAlertBtn = e.target.closest('[data-action="stock-alert"]');
+    if (stockAlertBtn) {
+        e.stopPropagation();
+        const id = stockAlertBtn.getAttribute('data-product-id');
+        if (id) toggleProductStockAlert(id);
+        return;
+    }
+
     const cartBtn = e.target.closest('[data-action="add-cart"]');
     if (cartBtn) {
+        e.stopPropagation();
         if (!cartBtn.disabled) {
             const id = cartBtn.getAttribute('data-product-id');
             if (id) addToCart(id);
@@ -1500,6 +1596,7 @@ function handleProductCardClick(e) {
 
     const detailBtn = e.target.closest('[data-action="detail"]');
     if (detailBtn) {
+        e.stopPropagation();
         const id = detailBtn.getAttribute('data-product-id');
         if (id) openProductDetailModal(id);
         return;
@@ -1625,20 +1722,90 @@ function updateCartUI() {
     const totalCount = state.cart.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 0), 0);
     const verifiedSubtotal = calculateVerifiedTotal();
 
-    // Check applied coupon validity and discount amount
-    let discountAmount = 0;
+    // 1. Check applied coupon validity and discount amount
+    let couponDiscountAmount = 0;
     if (state.appliedCoupon && typeof validateCouponCode === 'function') {
         const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
         if (recheck.valid) {
             state.appliedCoupon = recheck;
-            discountAmount = recheck.discountAmount;
+            couponDiscountAmount = recheck.discountAmount;
         } else {
-            // Under minimum spend
-            discountAmount = 0;
+            couponDiscountAmount = 0;
         }
     }
+    const subtotalAfterCoupon = Math.max(0, verifiedSubtotal - couponDiscountAmount);
 
-    const finalTotal = Math.max(0, verifiedSubtotal - discountAmount);
+    // 2. VIP Member Auto Discount
+    const currentUser = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    let vipDiscountAmount = 0;
+    const vipRow = document.getElementById('cart-vip-discount-row');
+    const vipAmountEl = document.getElementById('cart-vip-amount');
+    const vipTitleEl = document.getElementById('cart-vip-title');
+    if (currentUser && currentUser.vip && currentUser.vip.discountPercent > 0) {
+        vipDiscountAmount = Math.round((subtotalAfterCoupon * currentUser.vip.discountPercent / 100) * 100) / 100;
+        if (vipRow && vipAmountEl) {
+            vipRow.classList.remove('hidden');
+            vipAmountEl.textContent = `-฿${vipDiscountAmount.toFixed(2)}`;
+            if (vipTitleEl) vipTitleEl.textContent = `ส่วนลดสมาชิก ${currentUser.vip.tierName} (${currentUser.vip.discountPercent}%)`;
+        }
+    } else if (vipRow) {
+        vipRow.classList.add('hidden');
+    }
+    const subtotalAfterVip = Math.max(0, subtotalAfterCoupon - vipDiscountAmount);
+
+    // 3. Referral Friend Discount (5%)
+    let refDiscountAmount = 0;
+    const refRow = document.getElementById('cart-referral-discount-row');
+    const refAmountEl = document.getElementById('cart-referral-amount');
+    const refTitleEl = document.getElementById('cart-referral-title');
+    if (state.referralDiscount) {
+        refDiscountAmount = Math.round((subtotalAfterVip * 0.05) * 100) / 100;
+        if (refRow && refAmountEl) {
+            refRow.classList.remove('hidden');
+            refAmountEl.textContent = `-฿${refDiscountAmount.toFixed(2)}`;
+            if (refTitleEl) refTitleEl.textContent = `ส่วนลดแนะนำเพื่อน (${state.referralDiscount.code || '5%'})`;
+        }
+    } else if (refRow) {
+        refRow.classList.add('hidden');
+    }
+    const subtotalBeforeCoins = Math.max(1, subtotalAfterVip - refDiscountAmount);
+
+    // 4. Pink Coins Redemption (1 Coin = ฿1)
+    const coinsWrap = document.getElementById('cart-coins-wrap');
+    const coinsBalanceEl = document.getElementById('cart-coins-balance');
+    const coinsBahtEl = document.getElementById('cart-coins-baht');
+    const coinsDiscountRow = document.getElementById('cart-coins-discount-row');
+    const coinsDiscountAmountEl = document.getElementById('cart-coins-discount-amount');
+    const earnCoinsPreview = document.getElementById('cart-earn-coins-preview');
+    const earnCoinsVal = document.getElementById('cart-coins-earned-val');
+
+    let coinsDiscountAmount = 0;
+    if (currentUser && typeof currentUser.coins === 'number' && currentUser.coins > 0) {
+        if (coinsWrap) {
+            coinsWrap.classList.remove('hidden');
+            if (coinsBalanceEl) coinsBalanceEl.textContent = currentUser.coins;
+            if (coinsBahtEl) coinsBahtEl.textContent = currentUser.coins.toFixed(2);
+        }
+        const maxCoinsAllowed = Math.min(currentUser.coins, Math.floor(subtotalBeforeCoins - 1));
+        const coinsToRedeem = Math.min(state.coinsToRedeem || 0, Math.max(0, maxCoinsAllowed));
+        state.coinsToRedeem = coinsToRedeem;
+        coinsDiscountAmount = coinsToRedeem;
+
+        if (coinsDiscountRow && coinsDiscountAmountEl) {
+            if (coinsDiscountAmount > 0) {
+                coinsDiscountRow.classList.remove('hidden');
+                coinsDiscountAmountEl.textContent = `-฿${coinsDiscountAmount.toFixed(2)}`;
+            } else {
+                coinsDiscountRow.classList.add('hidden');
+            }
+        }
+    } else {
+        if (coinsWrap) coinsWrap.classList.add('hidden');
+        if (coinsDiscountRow) coinsDiscountRow.classList.add('hidden');
+        state.coinsToRedeem = 0;
+    }
+
+    const finalTotal = Math.max(1, subtotalBeforeCoins - coinsDiscountAmount);
 
     if (countBadge) {
         countBadge.textContent = totalCount;
@@ -1652,13 +1819,20 @@ function updateCartUI() {
     if (subtotalEl) subtotalEl.textContent = `฿${verifiedSubtotal.toFixed(2)}`;
     if (totalEl) totalEl.textContent = `฿${finalTotal.toFixed(2)}`;
 
+    // Earn Coins Preview
+    if (earnCoinsPreview && earnCoinsVal) {
+        const coinsEarned = Math.max(1, Math.floor(finalTotal / 10));
+        earnCoinsVal.textContent = coinsEarned;
+        earnCoinsPreview.classList.toggle('hidden', state.cart.length === 0);
+    }
+
     // Discount Row
     const discountRow = document.getElementById('cart-discount-row');
     const discountAmountEl = document.getElementById('cart-discount-amount');
     if (discountRow && discountAmountEl) {
-        if (discountAmount > 0) {
+        if (couponDiscountAmount > 0) {
             discountRow.classList.remove('hidden');
-            discountAmountEl.textContent = `-฿${discountAmount.toFixed(2)}`;
+            discountAmountEl.textContent = `-฿${couponDiscountAmount.toFixed(2)}`;
         } else {
             discountRow.classList.add('hidden');
         }
@@ -1672,9 +1846,9 @@ function updateCartUI() {
     const quickCouponsWrap = document.getElementById('cart-quick-coupons');
 
     if (appliedWrap && appliedCodeEl && appliedDescEl) {
-        if (state.appliedCoupon && discountAmount > 0) {
+        if (state.appliedCoupon && couponDiscountAmount > 0) {
             appliedWrap.classList.remove('hidden');
-            appliedCodeEl.textContent = `${state.appliedCoupon.code} (-฿${discountAmount.toFixed(2)})`;
+            appliedCodeEl.textContent = `${state.appliedCoupon.code} (-฿${couponDiscountAmount.toFixed(2)})`;
             appliedDescEl.textContent = state.appliedCoupon.title || 'ใช้ส่วนลดสำเร็จ';
             if (couponInputWrap) couponInputWrap.classList.add('hidden');
             if (quickCouponsWrap) quickCouponsWrap.classList.add('hidden');
@@ -1810,21 +1984,41 @@ function startCheckout() {
     }
 
     const verifiedSubtotal = calculateVerifiedTotal();
-    let discountAmount = 0;
+    let couponDiscountAmount = 0;
     if (state.appliedCoupon && typeof validateCouponCode === 'function') {
         const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
         if (recheck.valid) {
-            discountAmount = recheck.discountAmount;
+            couponDiscountAmount = recheck.discountAmount;
         }
     }
-    const verifiedTotal = Math.max(1, verifiedSubtotal - discountAmount);
+    const subtotalAfterCoupon = Math.max(0, verifiedSubtotal - couponDiscountAmount);
+
+    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
+    let vipDiscountAmount = 0;
+    if (currentUser && currentUser.vip && currentUser.vip.discountPercent > 0) {
+        vipDiscountAmount = Math.round((subtotalAfterCoupon * currentUser.vip.discountPercent / 100) * 100) / 100;
+    }
+    const subtotalAfterVip = Math.max(0, subtotalAfterCoupon - vipDiscountAmount);
+
+    let refDiscountAmount = 0;
+    if (state.referralDiscount) {
+        refDiscountAmount = Math.round((subtotalAfterVip * 0.05) * 100) / 100;
+    }
+    const subtotalBeforeCoins = Math.max(1, subtotalAfterVip - refDiscountAmount);
+
+    let coinsDiscountAmount = 0;
+    if (currentUser && typeof currentUser.coins === 'number' && currentUser.coins > 0 && state.coinsToRedeem > 0) {
+        const maxCoinsAllowed = Math.min(currentUser.coins, Math.floor(subtotalBeforeCoins - 1));
+        coinsDiscountAmount = Math.min(state.coinsToRedeem, Math.max(0, maxCoinsAllowed));
+    }
+
+    const verifiedTotal = Math.max(1, Math.round((subtotalBeforeCoins - coinsDiscountAmount) * 100) / 100);
     if (verifiedTotal <= 0) {
         showToast("ยอดชำระเงินต้องมากกว่า 0 บาท", "warning");
         return;
     }
     const refCode = "SPK" + Math.floor(100000 + Math.random() * 900000);
 
-    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
     const checkoutEmailInput = document.getElementById('checkout-email-input');
     if (checkoutEmailInput && currentUser && currentUser.email) {
         checkoutEmailInput.value = currentUser.email;
@@ -1857,11 +2051,35 @@ function startCheckout() {
                 </div>
             `;
         }).join('');
-        if (discountAmount > 0 && state.appliedCoupon) {
+        if (couponDiscountAmount > 0 && state.appliedCoupon) {
             itemsHtml += `
                 <div class="flex items-center justify-between text-xs py-1 text-emerald-600 font-semibold border-t border-slate-100">
                     <span class="truncate flex-1 pr-2"><i class="fa-solid fa-tags mr-1"></i>ส่วนลดโค้ด (${escapeHTML(state.appliedCoupon.code)})</span>
-                    <span>-฿${discountAmount.toFixed(2)}</span>
+                    <span>-฿${couponDiscountAmount.toFixed(2)}</span>
+                </div>
+            `;
+        }
+        if (vipDiscountAmount > 0 && currentUser?.vip) {
+            itemsHtml += `
+                <div class="flex items-center justify-between text-xs py-1 text-amber-700 font-semibold border-t border-slate-100">
+                    <span class="truncate flex-1 pr-2"><i class="fa-solid fa-crown mr-1 text-amber-500"></i>ส่วนลด VIP (${escapeHTML(currentUser.vip.tierName)} ${currentUser.vip.discountPercent}%)</span>
+                    <span>-฿${vipDiscountAmount.toFixed(2)}</span>
+                </div>
+            `;
+        }
+        if (refDiscountAmount > 0) {
+            itemsHtml += `
+                <div class="flex items-center justify-between text-xs py-1 text-purple-700 font-semibold border-t border-slate-100">
+                    <span class="truncate flex-1 pr-2"><i class="fa-solid fa-user-group mr-1 text-purple-500"></i>ส่วนลดแนะนำเพื่อน (5%)</span>
+                    <span>-฿${refDiscountAmount.toFixed(2)}</span>
+                </div>
+            `;
+        }
+        if (coinsDiscountAmount > 0) {
+            itemsHtml += `
+                <div class="flex items-center justify-between text-xs py-1 text-pink-700 font-semibold border-t border-slate-100">
+                    <span class="truncate flex-1 pr-2"><i class="fa-solid fa-coins mr-1 text-amber-500"></i>ใช้ Pink Coins (${coinsDiscountAmount} เหรียญ)</span>
+                    <span>-฿${coinsDiscountAmount.toFixed(2)}</span>
                 </div>
             `;
         }
@@ -1924,20 +2142,40 @@ async function submitSlipVerification() {
     }
 
     const verifiedSubtotal = calculateVerifiedTotal();
-    let discountAmount = 0;
+    let couponDiscountAmount = 0;
     if (state.appliedCoupon && typeof validateCouponCode === 'function') {
         const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
         if (recheck.valid) {
-            discountAmount = recheck.discountAmount;
+            couponDiscountAmount = recheck.discountAmount;
         }
     }
-    const verifiedTotal = Math.max(1, verifiedSubtotal - discountAmount);
+    const subtotalAfterCoupon = Math.max(0, verifiedSubtotal - couponDiscountAmount);
+
+    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
+    let vipDiscountAmount = 0;
+    if (currentUser && currentUser.vip && currentUser.vip.discountPercent > 0) {
+        vipDiscountAmount = Math.round((subtotalAfterCoupon * currentUser.vip.discountPercent / 100) * 100) / 100;
+    }
+    const subtotalAfterVip = Math.max(0, subtotalAfterCoupon - vipDiscountAmount);
+
+    let refDiscountAmount = 0;
+    if (state.referralDiscount) {
+        refDiscountAmount = Math.round((subtotalAfterVip * 0.05) * 100) / 100;
+    }
+    const subtotalBeforeCoins = Math.max(1, subtotalAfterVip - refDiscountAmount);
+
+    let coinsDiscountAmount = 0;
+    if (currentUser && typeof currentUser.coins === 'number' && currentUser.coins > 0 && state.coinsToRedeem > 0) {
+        const maxCoinsAllowed = Math.min(currentUser.coins, Math.floor(subtotalBeforeCoins - 1));
+        coinsDiscountAmount = Math.min(state.coinsToRedeem, Math.max(0, maxCoinsAllowed));
+    }
+
+    const verifiedTotal = Math.max(1, Math.round((subtotalBeforeCoins - coinsDiscountAmount) * 100) / 100);
     if (!verifiedTotal || verifiedTotal <= 0) {
         showToast("ยอดชำระเงินไม่ถูกต้อง กรุณาเลือกสินค้าใหม่", "warning");
         return;
     }
 
-    const currentUser = (typeof USER_AUTH !== 'undefined' && USER_AUTH.getUser) ? USER_AUTH.getUser() : null;
     const emailInput = document.getElementById('checkout-email-input');
     const recipientEmail = (currentUser && currentUser.email) ? currentUser.email.trim() : (emailInput ? emailInput.value : '').trim();
 
@@ -1971,7 +2209,9 @@ async function submitSlipVerification() {
             STORE_CONFIG.promptPayNumber,
             state.cart,
             recipientEmail,
-            promoCode
+            promoCode,
+            state.coinsToRedeem || 0,
+            state.referralCode || ''
         );
 
         btn.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> สลิปถูกต้อง! กำลังจัดส่งรหัส...`;
@@ -1995,8 +2235,12 @@ async function submitSlipVerification() {
                 }
                 state.cart = [];
                 state.appliedCoupon = null;
+                state.coinsToRedeem = 0;
+                state.referralCode = null;
+                state.referralDiscount = null;
                 saveCart();
                 updateCartUI();
+                updateMemberBadges();
 
                 openVaultModal(serverOrder);
                 const hasPending = (serverOrder.items || []).some(i => i.status === 'pending_fulfillment' || !i.credentials);
@@ -2530,6 +2774,15 @@ function renderOrdersHistory() {
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
                                     <i class="fa-solid fa-circle-check text-emerald-600"></i> สมาชิกเข้าสู่ระบบแล้ว
                                 </span>
+                                <button type="button" onclick="switchMemberTab('vip')" class="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-black border border-amber-300 transition-colors">
+                                    <i class="fa-solid fa-crown text-amber-600"></i> ${escapeHTML(user.vip?.tierName || 'Bronze')} (${user.vip?.discountPercent || 0}% OFF)
+                                </button>
+                                <button type="button" onclick="switchMemberTab('coins')" class="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-pink-100 hover:bg-pink-200 text-pink-800 text-[10px] font-black border border-pink-300 transition-colors">
+                                    <i class="fa-solid fa-coins text-amber-500"></i> ${(user.coins !== undefined ? user.coins : 20).toLocaleString()} Coins
+                                </button>
+                                <button type="button" onclick="switchMemberTab('wishlist')" class="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-800 text-[10px] font-black border border-rose-300 transition-colors">
+                                    <i class="fa-solid fa-heart text-rose-500"></i> ${(user.wishlist || []).length} ที่ชอบ
+                                </button>
                             </div>
                             <div class="text-[11px] text-slate-500 font-medium truncate flex items-center gap-1.5 mt-0.5">
                                 <i class="fa-regular fa-envelope text-slate-400"></i>
@@ -2825,11 +3078,11 @@ function renderOrdersHistory() {
     }).join('');
 }
 
-async function openOrdersModal() {
+async function openOrdersModal(initialTab = 'orders') {
     const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
     const hasOrders = Array.isArray(state.orders) && state.orders.length > 0;
     if (!isLoggedIn && !hasOrders) {
-        showToast("กรุณาเข้าสู่ระบบเพื่อดูคีย์และประวัติคำสั่งซื้อของคุณ", "info");
+        showToast("กรุณาเข้าสู่ระบบเพื่อดูศูนย์สมาชิกและคีย์ของคุณ", "info");
         openAuthModal('login');
         return;
     }
@@ -2837,9 +3090,23 @@ async function openOrdersModal() {
     const modal = document.getElementById('orders-modal');
     if (!modal) return;
 
+    if (isLoggedIn && typeof USER_AUTH.getProfile === 'function') {
+        USER_AUTH.getProfile().then(p => {
+            if (p) {
+                state.user = p;
+                updateMemberBadges();
+                if (state.activeMemberTab === 'vip') renderVipPane();
+                if (state.activeMemberTab === 'coins') renderCoinsPane();
+                if (state.activeMemberTab === 'referral') renderReferralPane();
+                if (state.activeMemberTab === 'wishlist') renderWishlistPane();
+            }
+        });
+    }
+
     await refreshUserOrders();
-    renderOrdersHistory();
+    updateMemberBadges();
     modal.classList.remove('hidden');
+    switchMemberTab(initialTab || 'orders');
 }
 
 function viewPastOrderVault(target) {
@@ -2855,6 +3122,504 @@ function viewPastOrderVault(target) {
 function closeOrdersModal() {
     const modal = document.getElementById('orders-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+// ══════════════════════════════════════════
+// MEMBER CENTER TABS & LOYALTY SYSTEM
+// ══════════════════════════════════════════
+function switchMemberTab(tabName) {
+    state.activeMemberTab = tabName;
+    const allTabs = ['orders', 'vip', 'coins', 'referral', 'wishlist', 'settings'];
+    allTabs.forEach(t => {
+        const btn = document.getElementById(`member-tab-btn-${t}`);
+        const pane = document.getElementById(`member-pane-${t}`);
+        if (pane) {
+            pane.classList.toggle('hidden', t !== tabName);
+        }
+        if (btn) {
+            if (t === tabName) {
+                btn.className = "member-tab-btn px-3 py-2 rounded-xl bg-pink-500 text-white shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer font-bold";
+            } else {
+                btn.className = "member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer font-bold";
+            }
+        }
+    });
+
+    if (tabName === 'vip') renderVipPane();
+    else if (tabName === 'coins') renderCoinsPane();
+    else if (tabName === 'referral') renderReferralPane();
+    else if (tabName === 'wishlist') renderWishlistPane();
+    else if (tabName === 'settings') renderSettingsPane();
+    else if (tabName === 'orders') renderOrdersHistory();
+}
+
+function updateMemberBadges() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+
+    // Navbar wishlist badge
+    const navWishlistBadge = document.getElementById('nav-wishlist-count-badge');
+    const wishlistCount = Array.isArray(user?.wishlist) ? user.wishlist.length : 0;
+    if (navWishlistBadge) {
+        navWishlistBadge.textContent = wishlistCount;
+        navWishlistBadge.classList.toggle('hidden', wishlistCount <= 0);
+    }
+
+    // Tab buttons counts
+    const tabCntOrders = document.getElementById('tab-cnt-orders');
+    if (tabCntOrders) tabCntOrders.textContent = (state.orders || []).length;
+
+    const tabBadgeVip = document.getElementById('tab-badge-vip');
+    if (tabBadgeVip) tabBadgeVip.textContent = user?.vip?.tierName || 'Bronze';
+
+    const tabCntCoins = document.getElementById('tab-cnt-coins');
+    if (tabCntCoins) tabCntCoins.textContent = (user?.coins !== undefined ? user.coins : 20);
+
+    const tabCntWishlist = document.getElementById('tab-cnt-wishlist');
+    if (tabCntWishlist) tabCntWishlist.textContent = wishlistCount;
+}
+
+function renderVipPane() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    const vip = user?.vip || { tier: 'bronze', tierName: 'Bronze', badge: '🥉', discountPercent: 0, nextTierName: 'Silver Member', neededSpend: 500, progressPercent: 0 };
+    const totalSpent = Number(user?.totalSpent || 0);
+
+    const card = document.getElementById('vip-metallic-card');
+    if (card) {
+        card.className = "p-5 rounded-3xl text-white shadow-xl relative overflow-hidden transition-all duration-300";
+        if (vip.tier === 'diamond') {
+            card.classList.add('bg-gradient-to-br', 'from-cyan-600', 'via-blue-600', 'to-indigo-800');
+        } else if (vip.tier === 'gold') {
+            card.classList.add('bg-gradient-to-br', 'from-amber-500', 'via-yellow-600', 'to-amber-700');
+        } else if (vip.tier === 'silver') {
+            card.classList.add('bg-gradient-to-br', 'from-slate-500', 'via-slate-600', 'to-slate-700');
+        } else {
+            card.classList.add('bg-gradient-to-br', 'from-amber-700', 'via-amber-800', 'to-amber-950');
+        }
+    }
+
+    const tierNameEl = document.getElementById('vip-card-tier-name');
+    if (tierNameEl) tierNameEl.innerHTML = `<span>${escapeHTML(vip.badge || '🥉')} ${escapeHTML(vip.tierName || 'Bronze')} Member</span>`;
+
+    const discountRateEl = document.getElementById('vip-card-discount-rate');
+    if (discountRateEl) discountRateEl.textContent = `${vip.discountPercent || 0}%`;
+
+    const progressTextEl = document.getElementById('vip-card-progress-text');
+    if (progressTextEl) {
+        if (vip.neededSpend > 0 && vip.nextTierName) {
+            progressTextEl.textContent = `ช้อปอีก ฿${vip.neededSpend.toFixed(2)} เพื่อเลื่อนขั้นเป็น ${vip.nextTierName}`;
+        } else {
+            progressTextEl.textContent = `ยินดีด้วย! คุณอยู่ในระดับสมาชิกสูงสุด Diamond แล้ว ⭐`;
+        }
+    }
+
+    const progressPctEl = document.getElementById('vip-card-progress-pct');
+    if (progressPctEl) progressPctEl.textContent = `${vip.progressPercent || 0}%`;
+
+    const progressBarEl = document.getElementById('vip-card-progress-bar');
+    if (progressBarEl) progressBarEl.style.width = `${vip.progressPercent || 0}%`;
+
+    const totalSpentEl = document.getElementById('vip-card-total-spent');
+    if (totalSpentEl) totalSpentEl.textContent = totalSpent.toFixed(2);
+
+    const nextTierLabelEl = document.getElementById('vip-card-next-tier-label');
+    if (nextTierLabelEl) {
+        if (vip.nextTierName) {
+            nextTierLabelEl.textContent = `ขั้นถัดไป: ${vip.nextTierName}`;
+        } else {
+            nextTierLabelEl.textContent = `ระดับสูงสุด: ลด 7% ทุกบิล`;
+        }
+    }
+}
+
+function renderCoinsPane() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    const coins = Number(user?.coins !== undefined ? user.coins : 20);
+
+    const balEl = document.getElementById('coins-pane-balance');
+    if (balEl) balEl.textContent = coins.toLocaleString();
+
+    const bahtEl = document.getElementById('coins-pane-baht');
+    if (bahtEl) bahtEl.textContent = coins.toFixed(2);
+
+    const historyList = document.getElementById('coins-history-list');
+    if (historyList) {
+        const history = Array.isArray(user?.coinsHistory) ? [...user.coinsHistory].reverse() : [];
+        if (history.length === 0) {
+            historyList.innerHTML = `
+                <div class="p-4 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200">
+                    <i class="fa-solid fa-coins text-amber-400 text-lg mb-1 block"></i>
+                    <span>ยังไม่มีประวัติการทำรายการ Pink Coins</span>
+                </div>
+            `;
+        } else {
+            historyList.innerHTML = history.slice(0, 30).map(item => {
+                const isEarn = (item.amount || 0) > 0;
+                const dateStr = item.date ? new Date(item.date).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                return `
+                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                        <div class="min-w-0 pr-2">
+                            <div class="font-bold text-slate-800 truncate">${escapeHTML(item.description || 'รายการพ้อยท์')}</div>
+                            <div class="text-[10px] text-slate-400 font-medium">${escapeHTML(dateStr)}</div>
+                        </div>
+                        <span class="font-black text-xs shrink-0 ${isEarn ? 'text-emerald-600' : 'text-rose-600'}">
+                            ${isEarn ? '+' : ''}${item.amount} Coins
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+function renderReferralPane() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    const refCode = user?.referralCode || (user ? 'SPK-' + (user.id || user.userId || '').toString().slice(-6).toUpperCase() : '');
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const shareUrl = `${origin}${pathname}?ref=${encodeURIComponent(refCode)}`;
+
+    const codeInput = document.getElementById('referral-code-display');
+    if (codeInput) codeInput.value = refCode;
+
+    const linkInput = document.getElementById('referral-link-display');
+    if (linkInput) linkInput.value = shareUrl;
+
+    const friendsEl = document.getElementById('referral-stats-friends');
+    if (friendsEl) friendsEl.textContent = (user?.referralCount || 0).toLocaleString();
+
+    const coinsEl = document.getElementById('referral-stats-coins');
+    if (coinsEl) coinsEl.textContent = (user?.referralEarnings || 0).toLocaleString();
+}
+
+function copyReferralCode() {
+    const input = document.getElementById('referral-code-display');
+    if (!input || !input.value) return;
+    copyToClipboard(input.value, "คัดลอกรหัสแนะนำเพื่อนเรียบร้อยแล้ว! เพื่อนใช้ลด 5%");
+}
+
+function copyReferralLink() {
+    const input = document.getElementById('referral-link-display');
+    if (!input || !input.value) return;
+    copyToClipboard(input.value, "คัดลอกลิงก์แนะนำเพื่อนเรียบร้อยแล้ว! ส่งให้เพื่อนได้เลย");
+}
+
+function renderWishlistPane() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    const wishlist = Array.isArray(user?.wishlist) ? user.wishlist : [];
+
+    const countEl = document.getElementById('wishlist-pane-count');
+    if (countEl) countEl.textContent = wishlist.length;
+
+    const grid = document.getElementById('wishlist-items-grid');
+    if (!grid) return;
+
+    if (wishlist.length === 0) {
+        grid.innerHTML = `
+            <div class="col-span-full py-12 text-center bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 p-6">
+                <div class="w-14 h-14 mx-auto mb-2.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-500 text-2xl shadow-inner">
+                    <i class="fa-solid fa-heart"></i>
+                </div>
+                <h4 class="text-sm font-bold text-slate-800">ยังไม่มีสินค้าในรายการโปรด</h4>
+                <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">คลิกปุ่ม ❤️ ที่การ์ดสินค้าเพื่อบันทึกสินค้าที่คุณสนใจไว้ดูภายหลัง</p>
+                <button onclick="closeOrdersModal()" class="mt-3.5 px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-xs cursor-pointer">
+                    เลือกดูสินค้าในร้าน
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    const validCards = wishlist.map(pid => {
+        const product = getMasterProduct(pid);
+        if (!product) return '';
+        const inStock = (product.stock || (state.inventory[pid] || []).length || 0) > 0;
+        return `
+            <div class="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between gap-2.5">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center font-black text-xs text-pink-600 shrink-0">
+                        ${escapeHTML(product.brandCode || 'AI')}
+                    </div>
+                    <div class="min-w-0">
+                        <h5 class="text-xs font-bold text-slate-900 truncate">${escapeHTML(product.title)}</h5>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-xs font-black text-pink-600">฿${product.price.toFixed(2)}</span>
+                            <span class="text-[10px] font-bold ${inStock ? 'text-emerald-600' : 'text-rose-500'}">
+                                ${inStock ? '🟢 มีของ' : '🔴 หมด'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button type="button" onclick="addToCart('${escapeHTML(product.id)}');" ${!inStock ? 'disabled' : ''}
+                        class="px-2.5 py-1.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-xs cursor-pointer ${!inStock ? 'opacity-40 cursor-not-allowed' : 'active:scale-95'}">
+                        <i class="fa-solid fa-cart-plus mr-1"></i>ใส่ตะกร้า
+                    </button>
+                    <button type="button" onclick="toggleProductWishlist('${escapeHTML(product.id)}');" title="นำออกจากรายการโปรด"
+                        class="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center text-xs cursor-pointer transition-colors">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).filter(Boolean);
+
+    if (validCards.length === 0) {
+        grid.innerHTML = `
+            <div class="col-span-full py-12 text-center bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 p-6">
+                <div class="w-14 h-14 mx-auto mb-2.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-500 text-2xl shadow-inner">
+                    <i class="fa-solid fa-heart"></i>
+                </div>
+                <h4 class="text-sm font-bold text-slate-800">ยังไม่มีสินค้าในรายการโปรด</h4>
+                <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">คลิกปุ่ม ❤️ ที่การ์ดสินค้าเพื่อบันทึกสินค้าที่คุณสนใจไว้ดูภายหลัง</p>
+                <button onclick="closeOrdersModal()" class="mt-3.5 px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-xs cursor-pointer">
+                    เลือกดูสินค้าในร้าน
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = validCards.join('');
+}
+
+function addAllWishlistToCart() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    const wishlist = Array.isArray(user?.wishlist) ? user.wishlist : [];
+    if (wishlist.length === 0) {
+        showToast("ไม่มีสินค้าในรายการโปรด", "info");
+        return;
+    }
+    let addedCount = 0;
+    wishlist.forEach(pid => {
+        const p = getMasterProduct(pid);
+        if (p && (p.stock || (state.inventory[pid] || []).length || 0) > 0) {
+            addToCart(pid);
+            addedCount++;
+        }
+    });
+    if (addedCount > 0) {
+        showToast(`เพิ่มสินค้า ${addedCount} รายการลงตะกร้าแล้ว`, "success");
+        closeOrdersModal();
+        openCartDrawer();
+    } else {
+        showToast("สินค้าในรายการโปรดหมดสต็อกชั่วคราว", "warning");
+    }
+}
+
+async function toggleProductWishlist(productId) {
+    if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) {
+        showToast("กรุณาเข้าสู่ระบบก่อนบันทึกรายการโปรด", "info");
+        openAuthModal('login');
+        return;
+    }
+    const res = await USER_AUTH.toggleWishlist(productId);
+    if (res.success) {
+        const isAdded = res.action === 'added';
+        showToast(isAdded ? "เพิ่มเข้ารายการโปรดแล้ว ❤️" : "นำออกจากรายการโปรดแล้ว", isAdded ? "success" : "info");
+        state.user = USER_AUTH.getUser();
+        updateMemberBadges();
+        renderProducts();
+        if (state.activeMemberTab === 'wishlist') renderWishlistPane();
+    } else {
+        showToast(res.message || "เกิดข้อผิดพลาด", "warning");
+    }
+}
+
+async function toggleProductStockAlert(productId) {
+    if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) {
+        showToast("กรุณาเข้าสู่ระบบก่อนตั้งค่าแจ้งเตือนสต็อก", "info");
+        openAuthModal('login');
+        return;
+    }
+    const res = await USER_AUTH.toggleStockAlert(productId);
+    if (res.success) {
+        const isAdded = res.action === 'added';
+        showToast(isAdded ? "ตั้งค่าแจ้งเตือนเมื่อสินค้าพร้อมจำหน่ายแล้ว 🔔" : "ยกเลิกการแจ้งเตือนแล้ว", isAdded ? "success" : "info");
+        state.user = USER_AUTH.getUser();
+        renderProducts();
+    } else {
+        showToast(res.message || "เกิดข้อผิดพลาด", "warning");
+    }
+}
+
+function renderSettingsPane() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    if (!user) return;
+
+    const emailEl = document.getElementById('settings-email');
+    if (emailEl) emailEl.value = user.email || '';
+
+    const nameEl = document.getElementById('settings-display-name');
+    if (nameEl) nameEl.value = user.displayName || user.name || '';
+
+    const phoneEl = document.getElementById('settings-phone');
+    if (phoneEl) phoneEl.value = user.phone || '';
+
+    const lineEl = document.getElementById('settings-line-id');
+    if (lineEl) lineEl.value = user.lineId || '';
+
+    const pStatus = document.getElementById('settings-profile-status');
+    if (pStatus) pStatus.classList.add('hidden');
+
+    const pwStatus = document.getElementById('settings-password-status');
+    if (pwStatus) pwStatus.classList.add('hidden');
+}
+
+async function handleSaveProfileSettings() {
+    const nameEl = document.getElementById('settings-display-name');
+    const phoneEl = document.getElementById('settings-phone');
+    const lineEl = document.getElementById('settings-line-id');
+    const statusEl = document.getElementById('settings-profile-status');
+
+    const displayName = (nameEl ? nameEl.value : '').trim();
+    const phone = (phoneEl ? phoneEl.value : '').trim();
+    const lineId = (lineEl ? lineEl.value : '').trim();
+
+    if (!displayName) {
+        showToast("กรุณากรอกชื่อที่ต้องการแสดง", "warning");
+        if (nameEl) nameEl.focus();
+        return;
+    }
+
+    const res = await USER_AUTH.updateProfile({ displayName, phone, lineId });
+    if (statusEl) {
+        statusEl.classList.remove('hidden');
+        if (res.success) {
+            statusEl.className = "p-2.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300";
+            statusEl.textContent = "✓ บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว";
+            state.user = USER_AUTH.getUser();
+            updateUserHeaderUI();
+            updateMemberBadges();
+            showToast("บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว", "success");
+        } else {
+            statusEl.className = "p-2.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-300";
+            statusEl.textContent = res.message || "เกิดข้อผิดพลาดในการบันทึก";
+            showToast(res.message || "เกิดข้อผิดพลาด", "warning");
+        }
+    }
+}
+
+async function handleChangePasswordSettings() {
+    const oldPassEl = document.getElementById('settings-old-pass');
+    const newPassEl = document.getElementById('settings-new-pass');
+    const confPassEl = document.getElementById('settings-confirm-pass');
+    const statusEl = document.getElementById('settings-password-status');
+
+    const oldPassword = oldPassEl ? oldPassEl.value : '';
+    const newPassword = newPassEl ? newPassEl.value : '';
+    const confirmPassword = confPassEl ? confPassEl.value : '';
+
+    if (!oldPassword || !newPassword) {
+        showToast("กรุณากรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่", "warning");
+        return;
+    }
+    if (newPassword.length < 6) {
+        showToast("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "warning");
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        showToast("รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน", "warning");
+        return;
+    }
+
+    const res = await USER_AUTH.changePassword(oldPassword, newPassword);
+    if (statusEl) {
+        statusEl.classList.remove('hidden');
+        if (res.success) {
+            statusEl.className = "p-2.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300";
+            statusEl.textContent = "✓ เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว";
+            if (oldPassEl) oldPassEl.value = '';
+            if (newPassEl) newPassEl.value = '';
+            if (confPassEl) confPassEl.value = '';
+            showToast("เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว", "success");
+        } else {
+            statusEl.className = "p-2.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-300";
+            statusEl.textContent = res.message || "รหัสผ่านเดิมไม่ถูกต้อง";
+            showToast(res.message || "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน", "warning");
+        }
+    }
+}
+
+function applyMaxCoins() {
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    if (!user || !user.coins || user.coins <= 0) {
+        showToast("คุณยังไม่มี Pink Coins สะสม", "info");
+        return;
+    }
+    const verifiedSubtotal = calculateVerifiedTotal();
+    let couponDiscount = 0;
+    if (state.appliedCoupon && typeof validateCouponCode === 'function') {
+        const recheck = validateCouponCode(state.appliedCoupon.code, verifiedSubtotal);
+        if (recheck.valid) couponDiscount = recheck.discountAmount || 0;
+    }
+    const afterCoupon = Math.max(0, verifiedSubtotal - couponDiscount);
+    let vipDiscount = 0;
+    if (user && user.vip && user.vip.discountPercent > 0) {
+        vipDiscount = Math.round((afterCoupon * user.vip.discountPercent / 100) * 100) / 100;
+    }
+    const afterVip = Math.max(0, afterCoupon - vipDiscount);
+    let refDiscount = 0;
+    if (state.referralDiscount) {
+        refDiscount = Math.round((afterVip * 0.05) * 100) / 100;
+    }
+    const netBeforeCoins = Math.max(1, afterVip - refDiscount);
+    const maxCoinsAllowed = Math.min(user.coins, Math.floor(netBeforeCoins - 1));
+    state.coinsToRedeem = Math.max(0, maxCoinsAllowed);
+    const input = document.getElementById('cart-coins-input');
+    if (input) input.value = state.coinsToRedeem;
+    updateCartUI();
+    showToast(`ใช้ Pink Coins สูงสุด ${state.coinsToRedeem} เหรียญ`, "info");
+}
+
+function clearCoins() {
+    state.coinsToRedeem = 0;
+    const input = document.getElementById('cart-coins-input');
+    if (input) input.value = '';
+    updateCartUI();
+}
+
+function handleCoinsInputChange(val) {
+    const num = parseInt(val, 10) || 0;
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+    const userCoins = (user && typeof user.coins === 'number') ? user.coins : 0;
+    const errEl = document.getElementById('cart-coins-error');
+    if (num > userCoins) {
+        if (errEl) {
+            errEl.textContent = `คุณมี Pink Coins เพียง ${userCoins} เหรียญ`;
+            errEl.classList.remove('hidden');
+        }
+        state.coinsToRedeem = userCoins;
+    } else {
+        if (errEl) errEl.classList.add('hidden');
+        state.coinsToRedeem = Math.max(0, num);
+    }
+    updateCartUI();
+}
+
+async function applyReferralCode(codeToApply) {
+    const input = document.getElementById('cart-referral-input');
+    const code = (codeToApply || (input ? input.value : '') || '').trim().toUpperCase();
+    if (!code) {
+        showToast("กรุณากรอกรหัสแนะนำเพื่อน", "warning");
+        return;
+    }
+    const res = await USER_AUTH.validateReferral(code);
+    if (res.success && res.referral) {
+        state.referralCode = code;
+        state.referralDiscount = res.referral;
+        showToast(`ใช้รหัสแนะนำของ ${res.referral.referrerName || 'เพื่อน'} สำเร็จ! รับส่วนลด 5%`, "success");
+        if (input) input.value = '';
+        updateCartUI();
+    } else {
+        showToast(res.message || "รหัสแนะนำไม่ถูกต้องหรือไม่สามารถใช้กับบัญชีของคุณได้", "warning");
+    }
+}
+
+function removeReferralCode() {
+    state.referralCode = null;
+    state.referralDiscount = null;
+    showToast("ยกเลิกการใช้รหัสแนะนำเพื่อนแล้ว", "info");
+    updateCartUI();
 }
 
 // ==========================================
@@ -6919,6 +7684,43 @@ function openProductDetailModal(productId) {
                     <span class="font-normal">สิทธิ์แท้มาตรฐาน พร้อมการรับประกันและดูแลตลอดการใช้งาน</span>
                 </div>
             `;
+        }
+    }
+
+    const user = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+
+    // Wishlist Toggle in Modal
+    const wishBtn = document.getElementById('modal-wishlist-btn');
+    if (wishBtn) {
+        const isWishlisted = !!(user && Array.isArray(user.wishlist) && user.wishlist.includes(product.id));
+        wishBtn.innerHTML = `<i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>`;
+        wishBtn.className = `w-11 h-11 sm:w-12 sm:h-12 rounded-2xl ${isWishlisted ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25' : 'bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200'} flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs`;
+        wishBtn.onclick = async () => {
+            await toggleProductWishlist(product.id);
+            const freshUser = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+            const nowWishlisted = !!(freshUser && Array.isArray(freshUser.wishlist) && freshUser.wishlist.includes(product.id));
+            wishBtn.innerHTML = `<i class="fa-${nowWishlisted ? 'solid' : 'regular'} fa-heart"></i>`;
+            wishBtn.className = `w-11 h-11 sm:w-12 sm:h-12 rounded-2xl ${nowWishlisted ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25' : 'bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200'} flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs`;
+        };
+    }
+
+    // Stock Alert Toggle in Modal (Shown when stock is 0)
+    const alertBtn = document.getElementById('modal-stock-alert-btn');
+    if (alertBtn) {
+        if (availableStock <= 0) {
+            const isAlerted = !!(user && Array.isArray(user.stockAlerts) && user.stockAlerts.includes(product.id));
+            alertBtn.classList.remove('hidden');
+            alertBtn.innerHTML = `<i class="fa-${isAlerted ? 'solid' : 'regular'} fa-bell"></i>`;
+            alertBtn.className = `w-11 h-11 sm:w-12 sm:h-12 rounded-2xl ${isAlerted ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25' : 'bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200'} flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs`;
+            alertBtn.onclick = async () => {
+                await toggleProductStockAlert(product.id);
+                const freshUser = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
+                const nowAlerted = !!(freshUser && Array.isArray(freshUser.stockAlerts) && freshUser.stockAlerts.includes(product.id));
+                alertBtn.innerHTML = `<i class="fa-${nowAlerted ? 'solid' : 'regular'} fa-bell"></i>`;
+                alertBtn.className = `w-11 h-11 sm:w-12 sm:h-12 rounded-2xl ${nowAlerted ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25' : 'bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200'} flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs`;
+            };
+        } else {
+            alertBtn.classList.add('hidden');
         }
     }
 

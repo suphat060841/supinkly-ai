@@ -182,7 +182,7 @@ const SlipVerifier = {
         if (input) input.value = '';
     },
 
-    async verifySlip(expectedAmount, expectedReceiver, cartItems = [], email = '', promoCode = '') {
+    async verifySlip(expectedAmount, expectedReceiver, cartItems = [], email = '', promoCode = '', coinsToRedeem = 0, referralCode = '') {
         if (!this.selectedFile) {
             throw new Error("กรุณาเลือกไฟล์รูปภาพสลิปก่อนทำการตรวจสอบ");
         }
@@ -196,7 +196,7 @@ const SlipVerifier = {
             throw new Error("สลิปใบนี้เคยถูกใช้งานไปแล้วในระบบ ไม่สามารถใช้ซ้ำได้");
         }
 
-        // Resolve fallback values for cart, email, and coupon
+        // Resolve fallback values for cart, email, coupon, coins, and referral
         const effectiveCart = (Array.isArray(cartItems) && cartItems.length > 0)
             ? cartItems
             : ((typeof state !== 'undefined' && Array.isArray(state.cart) && state.cart.length > 0) ? state.cart : []);
@@ -208,6 +208,14 @@ const SlipVerifier = {
         const effectivePromo = (promoCode && typeof promoCode === 'string' && promoCode.trim())
             ? promoCode.trim().toUpperCase()
             : (typeof state !== 'undefined' && state.appliedCoupon?.code ? state.appliedCoupon.code.toUpperCase() : '');
+
+        const effectiveCoins = (typeof coinsToRedeem === 'number' && coinsToRedeem > 0)
+            ? coinsToRedeem
+            : ((typeof state !== 'undefined' && typeof state.coinsToRedeem === 'number') ? state.coinsToRedeem : 0);
+
+        const effectiveRef = (referralCode && typeof referralCode === 'string' && referralCode.trim())
+            ? referralCode.trim().toUpperCase()
+            : ((typeof state !== 'undefined' && state.referralCode) ? state.referralCode.toUpperCase() : '');
 
         if (!effectiveCart || effectiveCart.length === 0) {
             throw new Error("ข้อมูลตะกร้าสินค้าว่างเปล่า กรุณาเลือกสินค้าก่อนทำการชำระเงิน");
@@ -233,6 +241,8 @@ const SlipVerifier = {
             formData.append('slip', this.selectedFile);
             if (effectiveEmail) formData.append('email', effectiveEmail);
             if (effectivePromo) formData.append('promoCode', effectivePromo);
+            if (effectiveCoins > 0) formData.append('coinsToRedeem', effectiveCoins);
+            if (effectiveRef) formData.append('referralCode', effectiveRef);
             formData.append('cartItems', JSON.stringify(cleanCart));
 
             try {
@@ -256,10 +266,22 @@ const SlipVerifier = {
                     throw new Error(data.message || "สลิปไม่ผ่านการตรวจสอบจากระบบธนาคาร");
                 }
                 registerUsedSlip(this.fileFingerprint, data.order?.transRef);
+
+                // Auto-sync enriched userProfile into client state and localStorage
+                if (data.userProfile) {
+                    try {
+                        localStorage.setItem('spk_user', JSON.stringify(data.userProfile));
+                        if (typeof state !== 'undefined' && state.user) {
+                            state.user = data.userProfile;
+                        }
+                    } catch {}
+                }
+
                 return {
                     success: true,
                     order: data.order,
-                    transRef: data.order?.transRef
+                    transRef: data.order?.transRef,
+                    userProfile: data.userProfile
                 };
             } catch (err) {
                 throw new Error(err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อระบบตรวจสอบสลิป");
