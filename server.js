@@ -285,9 +285,63 @@ try {
     // Ensure images/slips directory exists for storing uploaded payment slips
     const slipsDir = path.join(imagesDir, 'slips');
     if (!fs.existsSync(slipsDir)) fs.mkdirSync(slipsDir, { recursive: true });
+
+    // Auto-sync generated product showcase posters from brain directory
+    const productImagesDir = path.join(imagesDir, 'products');
+    if (!fs.existsSync(productImagesDir)) fs.mkdirSync(productImagesDir, { recursive: true });
+    const brainDir = 'C:/Users/BINARY/.gemini/antigravity-ide/brain/ad4464ae-ebe7-49b1-88c7-a71f56b992bc';
+    const productSyncMap = {
+        'goo-02.jpg': 'gemini_pro_regular_font_1791612539223.jpg',
+        'cpc-01.jpg': 'capcut_pro_new_theme_1791612664008.jpg',
+        'cld-01.jpg': 'claude_pro_new_theme_1791612944744.jpg',
+        'ms-01.jpg': 'win11_pro_new_theme_1791612998226.jpg',
+        'adb-02.jpg': 'adobe_all_apps_theme_1791613038625.jpg',
+        'grk-01.jpg': 'grok_ai_new_theme_1791613083731.jpg',
+        'goo-ai-01.jpg': 'google_gemini_adv_theme_1791613119077.jpg'
+    };
+    for (const [destName, srcName] of Object.entries(productSyncMap)) {
+        const srcPath = path.join(brainDir, srcName);
+        const destPath = path.join(productImagesDir, destName);
+        if (fs.existsSync(srcPath)) {
+            try {
+                if (!fs.existsSync(destPath) || fs.statSync(destPath).size !== fs.statSync(srcPath).size) {
+                    fs.copyFileSync(srcPath, destPath);
+                }
+            } catch (err) { }
+        }
+    }
 } catch (e) {
     // Non-blocking
 }
+
+// Dedicated handler for product showcase images with brain fallback
+app.get('/images/products/:filename', (req, res, next) => {
+    const filename = path.basename(req.params.filename || '');
+    const productSyncMap = {
+        'goo-02.jpg': 'gemini_pro_regular_font_1791612539223.jpg',
+        'cpc-01.jpg': 'capcut_pro_new_theme_1791612664008.jpg',
+        'cld-01.jpg': 'claude_pro_new_theme_1791612944744.jpg',
+        'ms-01.jpg': 'win11_pro_new_theme_1791612998226.jpg',
+        'adb-02.jpg': 'adobe_all_apps_theme_1791613038625.jpg',
+        'grk-01.jpg': 'grok_ai_new_theme_1791613083731.jpg',
+        'goo-ai-01.jpg': 'google_gemini_adv_theme_1791613119077.jpg'
+    };
+    if (productSyncMap[filename]) {
+        const brainDir = 'C:/Users/BINARY/.gemini/antigravity-ide/brain/ad4464ae-ebe7-49b1-88c7-a71f56b992bc';
+        const srcPath = path.join(brainDir, productSyncMap[filename]);
+        const destPath = path.join(__dirname, 'images', 'products', filename);
+        if (fs.existsSync(srcPath)) {
+            try {
+                if (!fs.existsSync(destPath) || fs.statSync(destPath).size !== fs.statSync(srcPath).size) {
+                    fs.copyFileSync(srcPath, destPath);
+                }
+            } catch (e) { }
+            res.setHeader('Content-Type', 'image/jpeg');
+            return res.sendFile(srcPath);
+        }
+    }
+    next();
+});
 
 // Explicit handler for pop_new image
 app.get(['/images/pop_new.png', '/images/pop_new.jpg', '/images/pop_new'], (req, res, next) => {
