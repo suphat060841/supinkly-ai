@@ -354,7 +354,7 @@ try {
     if (!fs.existsSync(productImagesDir)) fs.mkdirSync(productImagesDir, { recursive: true });
     const brainDir = 'C:/Users/BINARY/.gemini/antigravity-ide/brain/ad4464ae-ebe7-49b1-88c7-a71f56b992bc';
     const productSyncMap = {
-        'goo-02.jpg': 'gemini_pro_14baht_day_1791614025014.jpg',
+        'goo-02.jpg': 'gemini_pro_250_baht_new_1791616817871.jpg',
         'cpc-01.jpg': 'capcut_pro_new_theme_1791612664008.jpg',
         'cld-01.jpg': 'claude_pro_new_theme_1791612944744.jpg',
         'ms-01.jpg': 'win11_pro_new_theme_1791612998226.jpg',
@@ -381,7 +381,7 @@ try {
 app.get('/images/products/:filename', (req, res, next) => {
     const filename = path.basename(req.params.filename || '');
     const productSyncMap = {
-        'goo-02.jpg': 'gemini_pro_14baht_day_1791614025014.jpg',
+        'goo-02.jpg': 'gemini_pro_250_baht_new_1791616817871.jpg',
         'cpc-01.jpg': 'capcut_pro_new_theme_1791612664008.jpg',
         'cld-01.jpg': 'claude_pro_new_theme_1791612944744.jpg',
         'ms-01.jpg': 'win11_pro_new_theme_1791612998226.jpg',
@@ -1096,7 +1096,7 @@ const MASTER_CATALOG = {
     "goo-ai-02": { title: "Google AI Ultra Private", price: 2590.00, warranty: "30 วัน" },
     "goo-ai-03": { title: "Google AI Pro Shared", price: 99.00, warranty: "30 วัน" },
     "goo-01": { title: "Google Drive 5TB Private", price: 229.00, warranty: "30 วัน" },
-    "goo-02": { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 99.00, warranty: "30 วัน" },
+    "goo-02": { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 250.00, warranty: "30 วัน" },
     "grk-01": { title: "Grok 7D Private", price: 290.00, warranty: "7 วัน" },
     "grk-02": { title: "Grok 1M Private", price: 950.00, warranty: "30 วัน" },
     "grk-03": { title: "SuperGrok Heavy 1M", price: 4990.00, warranty: "30 วัน" },

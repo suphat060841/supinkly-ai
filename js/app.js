@@ -1163,17 +1163,24 @@ function renderBrandTabs() {
 
     const highlightCount = state.products.filter(p => !p.deleted && !!p.isHighlight).length;
 
-    const brands = [
+    const rawBrands = [
         { key: "all", name: "สินค้าทั้งหมด", icon: "fa-solid fa-shapes", count: state.products.filter(p => !p.deleted).length },
         { key: "highlight", name: "⭐ ดีลไฮไลท์", icon: "fa-solid fa-star text-amber-500", count: highlightCount },
-        { key: "CapCut", name: "CapCut", icon: "fa-solid fa-scissors", count: state.products.filter(p => !p.deleted && p.brand === 'CapCut').length },
+        { key: "Google One", name: "Google One", icon: "fa-brands fa-google", count: state.products.filter(p => !p.deleted && (p.brand === 'Google One' || p.brand === 'Google')).length },
         { key: "Google AI", name: "Google AI", icon: "fa-solid fa-wand-magic-sparkles", count: state.products.filter(p => !p.deleted && p.brand === 'Google AI').length },
-        { key: "Google", name: "Google", icon: "fa-brands fa-google", count: state.products.filter(p => !p.deleted && p.brand === 'Google').length },
+        { key: "CapCut", name: "CapCut", icon: "fa-solid fa-scissors", count: state.products.filter(p => !p.deleted && p.brand === 'CapCut').length },
         { key: "Grok", name: "Grok", icon: "fa-solid fa-bolt", count: state.products.filter(p => !p.deleted && p.brand === 'Grok').length },
         { key: "Claude", name: "Claude", icon: "fa-solid fa-brain", count: state.products.filter(p => !p.deleted && p.brand === 'Claude').length },
         { key: "Adobe", name: "Adobe", icon: "fa-solid fa-bezier-curve", count: state.products.filter(p => !p.deleted && p.brand === 'Adobe').length },
         { key: "Microsoft", name: "Microsoft", icon: "fa-brands fa-microsoft", count: state.products.filter(p => !p.deleted && p.brand === 'Microsoft').length },
     ];
+
+    const brands = rawBrands.filter(b => b.key === 'all' || b.key === 'highlight' || b.count > 0);
+
+    if (state.filterBrand !== 'all' && state.filterBrand !== 'highlight') {
+        const activeBrand = brands.find(b => b.key === state.filterBrand);
+        if (!activeBrand) state.filterBrand = 'all';
+    }
 
     container.innerHTML = brands.map(b => `
         <button onclick="selectBrand('${b.key}')" 
@@ -1257,7 +1264,7 @@ function applyFilters() {
     if (state.filterBrand === 'highlight') {
         result = result.filter(p => !!p.isHighlight);
     } else if (state.filterBrand !== 'all') {
-        result = result.filter(p => p.brand === state.filterBrand);
+        result = result.filter(p => p.brand === state.filterBrand || (state.filterBrand === 'Google One' && p.brand === 'Google') || (state.filterBrand === 'Google' && p.brand === 'Google One'));
     }
 
     if (state.filterType !== 'all') {
