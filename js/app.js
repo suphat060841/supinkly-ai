@@ -3090,8 +3090,32 @@ function renderOrdersHistory() {
                             `;
                 }
 
+                const warrantyStatus = calculateWarrantyStatus(order, item);
+                let warrantyBadgeHtml = '';
+                if (warrantyStatus.isExpired) {
+                    warrantyBadgeHtml = `
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold border border-slate-200 flex items-center gap-1">
+                            <i class="fa-solid fa-hourglass-end text-slate-400"></i> หมดประกัน (${warrantyStatus.expiryDateStr})
+                        </span>
+                    `;
+                } else if (warrantyStatus.isExpiringSoon) {
+                    warrantyBadgeHtml = `
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-300 flex items-center gap-1 animate-pulse">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-500"></i> ใกล้หมดอายุ (${warrantyStatus.daysRemaining} วัน)
+                        </span>
+                    `;
+                } else {
+                    warrantyBadgeHtml = `
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 flex items-center gap-1">
+                            <i class="fa-solid fa-shield-halved text-emerald-500"></i> ประกันเหลือ ${warrantyStatus.daysRemaining} วัน
+                        </span>
+                    `;
+                }
+
+                const credSnippet = cred.email ? `Email: ${cred.email}` : (cred.key ? `Key: ${cred.key}` : (cred.link ? `Link: ${cred.link}` : ''));
+
                 return `
-                            <div class="p-3 sm:p-3.5 rounded-xl bg-slate-50/70 border border-slate-200">
+                            <div class="p-3 sm:p-3.5 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2">
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0">
                                         <span class="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">
@@ -3102,14 +3126,30 @@ function renderOrdersHistory() {
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-2 shrink-0">
-                                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                                            🛡️ ประกัน ${escapeHTML(item.warranty || '30 วัน')}
-                                        </span>
                                         <span class="font-black text-pink-600 text-xs sm:text-sm font-['Outfit']">฿${(item.price || 0).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                                     </div>
                                 </div>
 
                                 ${credBlock}
+
+                                <!-- Warranty Countdown & 1-Click Action Bar -->
+                                <div class="pt-2 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        ${warrantyBadgeHtml}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <button type="button" onclick="claimOrderWarranty('${escapeHTML(order.orderId)}', '${escapeHTML(item.productTitle)}', '${escapeHTML(credSnippet)}')"
+                                            class="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] border border-indigo-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95">
+                                            <i class="fa-solid fa-headset text-indigo-500"></i>
+                                            <span>แจ้งเคลมรหัส</span>
+                                        </button>
+                                        <button type="button" onclick="renewOrderProduct('${escapeHTML(item.productId || '')}', '${escapeHTML(order.orderId)}')"
+                                            class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 font-bold text-[11px] border border-pink-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95">
+                                            <i class="fa-solid fa-rotate text-pink-500"></i>
+                                            <span>ต่ออายุ (1-Click)</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         `;
             }).join('')}
@@ -3134,6 +3174,103 @@ function renderOrdersHistory() {
             </div>
         `;
     }).join('');
+}
+
+// ══════════════════════════════════════════
+// WARRANTY COUNTDOWN, 1-CLICK RENEW & CLAIM
+// ══════════════════════════════════════════
+function calculateWarrantyStatus(order, item) {
+    const rawWarranty = (item && item.warranty ? item.warranty : '30 วัน').toString().trim();
+    let durationDays = 30;
+    if (/ตลอดชีพ|lifetime/i.test(rawWarranty)) {
+        durationDays = 3650;
+    } else {
+        const match = rawWarranty.match(/(\d+)\s*(วัน|day|days|เดือน|month|months|ปี|year|years)?/i);
+        if (match) {
+            const val = parseInt(match[1], 10);
+            const unit = (match[2] || 'วัน').toLowerCase();
+            if (unit.includes('เดือน') || unit.includes('month')) {
+                durationDays = val * 30;
+            } else if (unit.includes('ปี') || unit.includes('year')) {
+                durationDays = val * 365;
+            } else {
+                durationDays = val;
+            }
+        }
+    }
+
+    const rawDate = (order && (order.createdAt || order.date || order.timestamp)) || null;
+    const orderTime = rawDate ? new Date(rawDate).getTime() : Date.now();
+    const expiryTime = orderTime + (durationDays * 24 * 60 * 60 * 1000);
+    const msRemaining = expiryTime - Date.now();
+    const daysRemaining = Math.max(0, Math.ceil(msRemaining / (24 * 60 * 60 * 1000)));
+
+    return {
+        durationDays,
+        daysRemaining,
+        isExpired: msRemaining <= 0,
+        isExpiringSoon: msRemaining > 0 && daysRemaining <= 5,
+        expiryDateStr: new Date(expiryTime).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
+    };
+}
+
+function renewOrderProduct(productId, orderId) {
+    let prod = (state.products || []).find(p => String(p.id) === String(productId));
+
+    if (!prod && orderId) {
+        const order = (state.orders || []).find(o => o.orderId === orderId);
+        const item = order ? (order.items || []).find(i => String(i.productId) === String(productId)) : null;
+        if (item) {
+            prod = (state.products || []).find(p => p.title.toLowerCase().trim() === item.productTitle.toLowerCase().trim());
+        }
+    }
+
+    if (prod) {
+        if (typeof addToCart === 'function') {
+            addToCart(prod.id);
+            const memberModal = document.getElementById('member-center-modal');
+            if (memberModal) memberModal.classList.add('hidden');
+            const ordersModal = document.getElementById('orders-modal');
+            if (ordersModal) ordersModal.classList.add('hidden');
+
+            if (typeof openCartDrawer === 'function') {
+                openCartDrawer();
+            } else if (typeof toggleCart === 'function') {
+                toggleCart();
+            }
+            showToast(`เพิ่ม "${prod.title}" ลงตะกร้าแล้วเพื่อต่ออายุเรียบร้อย! 🛒`, 'success');
+        }
+    } else {
+        showToast('ไม่พบสินค้ารายการนี้ในคลังปัจจุบัน กรุณาสอบถามทางแชทเพื่อต่ออายุ', 'warning');
+    }
+}
+
+function claimOrderWarranty(orderId, productTitle, credSnippet) {
+    const ticketText = `🚨 [แจ้งเคลมสินค้า/มีปัญหาการใช้งาน]\n• เลขที่คำสั่งซื้อ: #${orderId}\n• รายการ: ${productTitle}${credSnippet ? `\n• ข้อมูล: ${credSnippet}` : ''}\n• ปัญหา: เข้าใช้งานไม่ได้ / รหัสหลุด / ขอเคลมประกัน\n• เวลาที่แจ้ง: ${new Date().toLocaleString('th-TH')}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ticketText).catch(() => {});
+    }
+
+    const memberModal = document.getElementById('member-center-modal');
+    if (memberModal) memberModal.classList.add('hidden');
+    const ordersModal = document.getElementById('orders-modal');
+    if (ordersModal) ordersModal.classList.add('hidden');
+
+    const chatInput = document.getElementById('spk-chat-input');
+    if (chatInput) {
+        chatInput.value = ticketText;
+    }
+
+    const chatWidget = document.getElementById('spk-chat-widget');
+    const chatBtn = document.getElementById('spk-chat-btn');
+    if (chatWidget && chatWidget.classList.contains('hidden') && chatBtn) {
+        chatBtn.click();
+    } else if (typeof window.openChatWidget === 'function') {
+        window.openChatWidget();
+    }
+
+    showToast('คัดลอกข้อมูลแจ้งเคลมแล้ว! นำข้อมูลนี้ส่งให้แอดมินในแชทได้ทันที 💬', 'info');
 }
 
 // ══════════════════════════════════════════
@@ -3279,6 +3416,247 @@ function updateMemberBadges() {
 
     const tabCntWishlist = document.getElementById('tab-cnt-wishlist');
     if (tabCntWishlist) tabCntWishlist.textContent = wishlistCount;
+
+    // Header Notification Center badge
+    updateNotificationBadge();
+}
+
+// ══════════════════════════════════════════
+// IN-APP NOTIFICATION CENTER CONTROLLERS
+// ══════════════════════════════════════════
+function getReadNotificationIds() {
+    try {
+        const raw = localStorage.getItem('supinkly_read_notifs');
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? new Set(parsed) : new Set();
+    } catch {
+        return new Set();
+    }
+}
+
+function saveReadNotificationIds(idSet) {
+    try {
+        const arr = Array.from(idSet).slice(-200);
+        localStorage.setItem('supinkly_read_notifs', JSON.stringify(arr));
+    } catch (e) {}
+}
+
+function getMemberNotifications() {
+    const notifs = [];
+    const isLoggedIn = typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn();
+    const user = isLoggedIn ? USER_AUTH.getUser() : null;
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // 1. Daily Check-in Alert
+    if (isLoggedIn) {
+        if (user?.lastCheckInDate !== todayStr) {
+            notifs.push({
+                id: `checkin_${todayStr}`,
+                icon: 'fa-solid fa-gift text-amber-500',
+                iconBg: 'bg-amber-100',
+                title: 'อย่าลืมเช็คอินรับ Pink Coins วันนี้!',
+                desc: 'เข้าเช็คอินรายวันเพื่อรับเหรียญ Pink Coins ฟรี สะสมแลกส่วนลดได้เลย',
+                time: 'วันนี้',
+                actionType: 'checkin',
+                btnText: 'เช็คอินเลย'
+            });
+        }
+    } else {
+        notifs.push({
+            id: 'guest_welcome_coins',
+            icon: 'fa-solid fa-coins text-amber-500',
+            iconBg: 'bg-amber-100',
+            title: 'โบนัสต้อนรับ 20 Pink Coins ฟรี!',
+            desc: 'สมัครสมาชิกวันนี้รับ 20 Pink Coins ทันที ใช้ลดเงินสดในตะกร้าได้เลย',
+            time: 'สิทธิพิเศษ',
+            actionType: 'register',
+            btnText: 'สมัครสมาชิก'
+        });
+    }
+
+    // 2. Orders Warranty & Renewal Alerts
+    const allOrders = (state.orders || []);
+    allOrders.forEach(order => {
+        (order.items || []).forEach((item, itIdx) => {
+            const wStatus = calculateWarrantyStatus(order, item);
+            if (wStatus.isExpired) {
+                notifs.push({
+                    id: `warranty_exp_${order.orderId}_${item.productId || itIdx}`,
+                    icon: 'fa-solid fa-hourglass-end text-rose-500',
+                    iconBg: 'bg-rose-100',
+                    title: `ประกันหมดอายุ: ${item.productTitle}`,
+                    desc: `คำสั่งซื้อ #${order.orderId} หมดประกันแล้ว (${wStatus.expiryDateStr})`,
+                    time: wStatus.expiryDateStr,
+                    actionType: 'renew',
+                    productId: item.productId,
+                    orderId: order.orderId,
+                    btnText: 'ต่ออายุ (1-Click)'
+                });
+            } else if (wStatus.isExpiringSoon) {
+                notifs.push({
+                    id: `warranty_soon_${order.orderId}_${item.productId || itIdx}`,
+                    icon: 'fa-solid fa-triangle-exclamation text-amber-500',
+                    iconBg: 'bg-amber-100',
+                    title: `ใกล้หมดประกัน (เหลือ ${wStatus.daysRemaining} วัน): ${item.productTitle}`,
+                    desc: `คำสั่งซื้อ #${order.orderId} จะหมดประกันในวันที่ ${wStatus.expiryDateStr}`,
+                    time: `เหลือ ${wStatus.daysRemaining} วัน`,
+                    actionType: 'renew',
+                    productId: item.productId,
+                    orderId: order.orderId,
+                    btnText: 'ต่ออายุเลย'
+                });
+            }
+        });
+    });
+
+    // 3. Stock Alerts (for restocked items)
+    if (isLoggedIn && Array.isArray(user?.stockAlerts) && user.stockAlerts.length > 0) {
+        user.stockAlerts.forEach(pid => {
+            const prod = getMasterProduct(pid);
+            if (prod) {
+                const stock = (prod.stock || (state.inventory[pid] || []).length || 0);
+                if (stock > 0) {
+                    notifs.push({
+                        id: `stock_restocked_${pid}`,
+                        icon: 'fa-solid fa-boxes-stacked text-emerald-500',
+                        iconBg: 'bg-emerald-100',
+                        title: `สินค้าพร้อมส่ง: ${prod.title}`,
+                        desc: `สินค้าที่คุณตั้งเตือนไว้มีของแล้ว ฿${formatProductPrice(prod.price)}`,
+                        time: 'เพิ่งเติมสต็อก',
+                        actionType: 'cart',
+                        productId: prod.id,
+                        btnText: 'สั่งซื้อเลย'
+                    });
+                }
+            }
+        });
+    }
+
+    // 4. VIP Tier perk reminder
+    if (isLoggedIn && user?.vip) {
+        notifs.push({
+            id: `vip_tier_active_${user.vip.tier || 'bronze'}`,
+            icon: 'fa-solid fa-crown text-pink-500',
+            iconBg: 'bg-pink-100',
+            title: `สิทธิประโยชน์ ${user.vip.tierName || 'Bronze'} Member`,
+            desc: `คุณได้รับสิทธิ์ส่วนลด ${user.vip.discountPercent || 0}% ทุกบิล พร้อมรับ Pink Coins สะสม`,
+            time: 'สิทธิประโยชน์',
+            actionType: 'vip',
+            btnText: 'ดูสิทธิ VIP'
+        });
+    }
+
+    return notifs;
+}
+
+function updateNotificationBadge() {
+    const notifs = getMemberNotifications();
+    const readIds = getReadNotificationIds();
+    const unreadCount = notifs.filter(n => !readIds.has(n.id)).length;
+
+    const badge = document.getElementById('nav-notification-count-badge');
+    if (badge) {
+        badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+        badge.classList.toggle('hidden', unreadCount <= 0);
+    }
+
+    const unreadTag = document.getElementById('notification-unread-tag');
+    if (unreadTag) {
+        unreadTag.textContent = `${unreadCount} ใหม่`;
+        unreadTag.className = unreadCount > 0 
+            ? "px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-black"
+            : "px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black";
+    }
+}
+
+function renderNotificationCenter() {
+    const listEl = document.getElementById('notification-items-list');
+    if (!listEl) return;
+
+    const notifs = getMemberNotifications();
+    const readIds = getReadNotificationIds();
+
+    updateNotificationBadge();
+
+    if (notifs.length === 0) {
+        listEl.innerHTML = `
+            <div class="py-8 text-center text-slate-400 space-y-2">
+                <div class="w-12 h-12 rounded-full bg-slate-100 mx-auto flex items-center justify-center text-slate-400 text-xl">
+                    <i class="fa-solid fa-bell-slash"></i>
+                </div>
+                <div class="text-xs font-bold text-slate-700">ไม่มีการแจ้งเตือนในขณะนี้</div>
+                <p class="text-[11px] text-slate-400">เมื่อมีอัปเดตประกันสินค้าหรือโบนัสเหรียญ จะปรากฏที่นี่</p>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = notifs.map(n => {
+        const isRead = readIds.has(n.id);
+        let actionAttr = '';
+        if (n.actionType === 'checkin') {
+            actionAttr = `onclick="closeNotificationCenter(); openOrdersModal('coins');"`;
+        } else if (n.actionType === 'register') {
+            actionAttr = `onclick="closeNotificationCenter(); openAuthModal('register');"`;
+        } else if (n.actionType === 'renew') {
+            actionAttr = `onclick="closeNotificationCenter(); renewOrderProduct('${escapeHTML(n.productId || '')}', '${escapeHTML(n.orderId || '')}');"`;
+        } else if (n.actionType === 'cart') {
+            actionAttr = `onclick="closeNotificationCenter(); addToCart('${escapeHTML(n.productId || '')}'); if (typeof openCartDrawer === 'function') openCartDrawer();"`;
+        } else if (n.actionType === 'vip') {
+            actionAttr = `onclick="closeNotificationCenter(); openOrdersModal('vip');"`;
+        } else {
+            actionAttr = `onclick="closeNotificationCenter();"`;
+        }
+
+        return `
+            <div class="p-2.5 rounded-xl transition-all ${isRead ? 'bg-white opacity-80' : 'bg-amber-50/60 border border-amber-200/70 shadow-2xs'} hover:bg-slate-50">
+                <div class="flex items-start gap-2.5">
+                    <div class="w-8 h-8 rounded-xl ${n.iconBg || 'bg-amber-100'} flex items-center justify-center text-sm shrink-0 mt-0.5">
+                        <i class="${n.icon}"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-1">
+                            <span class="text-xs font-bold text-slate-900 truncate">${escapeHTML(n.title)}</span>
+                            ${!isRead ? '<span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>' : ''}
+                        </div>
+                        <p class="text-[11px] text-slate-600 leading-tight mt-0.5 line-clamp-2">${escapeHTML(n.desc)}</p>
+                        <div class="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-100 text-[10px]">
+                            <span class="text-slate-400 font-medium">${escapeHTML(n.time)}</span>
+                            <button type="button" ${actionAttr} class="font-bold text-pink-600 hover:text-pink-700 bg-pink-50 hover:bg-pink-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer">
+                                ${escapeHTML(n.btnText || 'ดูรายละเอียด')} &rarr;
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleNotificationCenter() {
+    const dropdown = document.getElementById('notification-center-dropdown');
+    if (!dropdown) return;
+    const isHidden = dropdown.classList.contains('hidden');
+    if (isHidden) {
+        dropdown.classList.remove('hidden');
+        renderNotificationCenter();
+    } else {
+        dropdown.classList.add('hidden');
+    }
+}
+
+function closeNotificationCenter() {
+    const dropdown = document.getElementById('notification-center-dropdown');
+    if (dropdown) dropdown.classList.add('hidden');
+}
+
+function markAllNotificationsRead() {
+    const notifs = getMemberNotifications();
+    const readIds = getReadNotificationIds();
+    notifs.forEach(n => readIds.add(n.id));
+    saveReadNotificationIds(readIds);
+    renderNotificationCenter();
+    showToast('ทำเครื่องหมายว่าอ่านทั้งหมดแล้ว', 'info');
 }
 
 function renderVipPane() {
@@ -3379,6 +3757,72 @@ function renderCoinsPane() {
     const bahtEl = document.getElementById('coins-pane-baht');
     if (bahtEl) bahtEl.textContent = coins.toFixed(2);
 
+    // 🗓️ Daily Check-in Streak & 7-Day Matrix
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const lastCheck = user?.lastCheckInDate || null;
+    const isCheckedInToday = isLoggedIn && lastCheck === todayStr;
+
+    let currentStreak = Number(user?.checkInStreak || 0);
+    if (!isCheckedInToday && lastCheck && lastCheck !== yesterdayStr) {
+        currentStreak = 0; // broken streak
+    }
+
+    const streakCountEl = document.getElementById('checkin-streak-count');
+    if (streakCountEl) {
+        streakCountEl.textContent = `${currentStreak} วันติด`;
+    }
+
+    const cycleDay = isCheckedInToday ? (((currentStreak - 1) % 7) + 1) : ((currentStreak % 7) + 1);
+    const rewards = [1, 1, 2, 2, 3, 3, 10];
+    const todayReward = rewards[cycleDay - 1];
+
+    const gridEl = document.getElementById('checkin-7days-grid');
+    if (gridEl) {
+        gridEl.innerHTML = rewards.map((rew, idx) => {
+            const dayNum = idx + 1;
+            let statusClasses = '';
+            let iconHtml = '';
+
+            if (dayNum < cycleDay || (isCheckedInToday && dayNum <= cycleDay)) {
+                statusClasses = 'bg-white/25 border border-white/50 text-white';
+                iconHtml = '<i class="fa-solid fa-check text-emerald-300 text-xs"></i>';
+            } else if (dayNum === cycleDay && !isCheckedInToday) {
+                statusClasses = 'bg-amber-300 text-slate-900 border-2 border-white shadow-lg ring-2 ring-amber-200 animate-pulse font-black scale-105';
+                iconHtml = '<i class="fa-solid fa-gift text-pink-600 text-xs"></i>';
+            } else {
+                statusClasses = 'bg-white/10 border border-white/20 text-white/70';
+                iconHtml = '<i class="fa-solid fa-coins text-white/50 text-[10px]"></i>';
+            }
+
+            return `
+                <div class="p-1.5 sm:p-2 rounded-xl flex flex-col items-center justify-between text-center transition-all ${statusClasses}">
+                    <span class="text-[9px] sm:text-[10px] font-bold block opacity-90">วันที่ ${dayNum}</span>
+                    <div class="my-1">${iconHtml}</div>
+                    <span class="text-[10px] sm:text-xs font-black block">+${rew}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    const checkinBtn = document.getElementById('daily-checkin-btn');
+    const checkinBtnText = document.getElementById('daily-checkin-btn-text');
+    if (checkinBtn && checkinBtnText) {
+        if (!isLoggedIn) {
+            checkinBtn.disabled = false;
+            checkinBtn.className = "w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-amber-50 text-slate-900 font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer";
+            checkinBtnText.textContent = "เข้าสู่ระบบเพื่อเช็คอินรับเหรียญฟรี (+1 Coin)";
+        } else if (isCheckedInToday) {
+            checkinBtn.disabled = true;
+            checkinBtn.className = "w-full py-2.5 px-4 rounded-2xl bg-white/30 text-white font-extrabold text-xs border border-white/40 flex items-center justify-center gap-2 cursor-not-allowed opacity-90";
+            checkinBtnText.innerHTML = `<span>✓ เช็คอินวันนี้แล้ว (รับ +${todayReward} Coins) พรุ่งนี้กลับมาใหม่นะ!</span>`;
+        } else {
+            checkinBtn.disabled = false;
+            checkinBtn.className = "w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-amber-50 text-slate-900 font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer";
+            checkinBtnText.innerHTML = `<i class="fa-solid fa-gift text-pink-600"></i> <span>กดรับเหรียญเช็คอินวันที่ ${cycleDay} (+${todayReward} Coins)</span>`;
+        }
+    }
+
     const historyList = document.getElementById('coins-history-list');
     if (historyList) {
         if (!isLoggedIn) {
@@ -3422,6 +3866,72 @@ function renderCoinsPane() {
             }
         }
     }
+}
+
+async function handleDailyCheckIn() {
+    if (typeof USER_AUTH === 'undefined' || !USER_AUTH.isLoggedIn()) {
+        showToast('กรุณาเข้าสู่ระบบเพื่อเช็คอินรับเหรียญ Pink Coins', 'info');
+        if (typeof openAuthModal === 'function') openAuthModal('login');
+        return;
+    }
+
+    const user = USER_AUTH.getUser() || {};
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    if (user.lastCheckInDate === todayStr) {
+        showToast('คุณได้เช็คอินรับเหรียญของวันนี้ไปแล้ว พรุ่งนี้กลับมาใหม่นะ!', 'info');
+        return;
+    }
+
+    let newStreak = 1;
+    if (user.lastCheckInDate === yesterdayStr) {
+        newStreak = Number(user.checkInStreak || 0) + 1;
+    }
+
+    const cycleDay = ((newStreak - 1) % 7) + 1;
+    const rewards = [1, 1, 2, 2, 3, 3, 10];
+    const rewardAmount = rewards[cycleDay - 1];
+
+    const currentCoins = Number(user.coins !== undefined ? user.coins : 20);
+    const newCoins = currentCoins + rewardAmount;
+    const history = Array.isArray(user.coinsHistory) ? [...user.coinsHistory] : [];
+    history.push({
+        amount: rewardAmount,
+        description: `เช็คอินรายวัน วันที่ ${cycleDay} (สถิติ ${newStreak} วันติด)`,
+        date: new Date().toISOString()
+    });
+
+    const updatedUser = {
+        ...user,
+        coins: newCoins,
+        lastCheckInDate: todayStr,
+        checkInStreak: newStreak,
+        coinsHistory: history
+    };
+
+    try {
+        localStorage.setItem('supinkly_user_info', JSON.stringify(updatedUser));
+        sessionStorage.setItem('supinkly_user_info', JSON.stringify(updatedUser));
+    } catch (e) {}
+
+    state.user = updatedUser;
+
+    if (typeof USER_AUTH.updateProfile === 'function') {
+        USER_AUTH.updateProfile({
+            coins: newCoins,
+            lastCheckInDate: todayStr,
+            checkInStreak: newStreak,
+            coinsHistory: history
+        }).catch(() => {});
+    }
+
+    renderCoinsPane();
+    updateMemberBadges();
+    renderNotificationCenter();
+    updateNotificationBadge();
+
+    showToast(`🎉 เช็คอินสำเร็จ! ได้รับ +${rewardAmount} Pink Coins (สถิติ ${newStreak} วันติด)`, 'success');
 }
 
 function renderReferralPane() {
@@ -8397,6 +8907,13 @@ function showToast(message, type = "info") {
 // Close modals, drawers, popups, and panels in hierarchical LIFO order
 // ==========================================
 function closeTopmostModal() {
+    // 0. Notification Center Dropdown (z-[80])
+    const notifDropdown = document.getElementById('notification-center-dropdown');
+    if (notifDropdown && !notifDropdown.classList.contains('hidden')) {
+        closeNotificationCenter();
+        return true;
+    }
+
     // 1. Admin Chat Panel (z-[200])
     const adminChat = document.getElementById('admin-chat-panel');
     if (adminChat && !adminChat.classList.contains('hidden')) {
@@ -9126,6 +9643,17 @@ window.updateMemberBadges = updateMemberBadges;
 window.getWishlistItems = getWishlistItems;
 window.isProductWishlisted = isProductWishlisted;
 
+// In-App Notification Center & Check-in & Warranty Controllers
+window.toggleNotificationCenter = toggleNotificationCenter;
+window.closeNotificationCenter = closeNotificationCenter;
+window.renderNotificationCenter = renderNotificationCenter;
+window.markAllNotificationsRead = markAllNotificationsRead;
+window.updateNotificationBadge = updateNotificationBadge;
+window.handleDailyCheckIn = handleDailyCheckIn;
+window.calculateWarrantyStatus = calculateWarrantyStatus;
+window.renewOrderProduct = renewOrderProduct;
+window.claimOrderWarranty = claimOrderWarranty;
+
 // Additional UI & Navigation Controllers
 window.selectBrand = selectBrand;
 window.selectType = selectType;
@@ -9143,6 +9671,28 @@ window.copyToClipboard = copyToClipboard;
 window.openG2GMarketLink = openG2GMarketLink;
 window.getG2GMarketLink = getG2GMarketLink;
 window.handleG2GSourcingClick = handleG2GSourcingClick;
+
+// Outside Click Dismissal for Notification Center Dropdown
+if (typeof document !== 'undefined') {
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('notification-center-dropdown');
+        const bellBtn = document.getElementById('nav-notification-btn');
+        if (!dropdown || dropdown.classList.contains('hidden')) return;
+        if (dropdown.contains(e.target) || (bellBtn && bellBtn.contains(e.target))) {
+            return;
+        }
+        closeNotificationCenter();
+    });
+
+    // Initial Badge Refresh
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            updateNotificationBadge();
+        });
+    } else {
+        setTimeout(updateNotificationBadge, 300);
+    }
+}
 
 // Auto-check for ?admin=1 query parameter on page load
 if (typeof window !== 'undefined' && window.location && window.location.search) {
