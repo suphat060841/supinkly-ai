@@ -219,7 +219,7 @@ const PRODUCTS = [
         duration: "18 เดือน (18 Months)",
         region: "Global (ใช้งานได้ทั่วโลก)",
         devices: "ทุกอุปกรณ์ (PC, Mac, Mobile)",
-        price: 99.00,
+        price: 250.00,
         originalPrice: 690.00,
         soldCount: 410,
         rating: 5.0,

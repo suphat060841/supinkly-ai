@@ -1459,6 +1459,7 @@ function renderHighlightProducts() {
                     </div>
                 </div>
             </div>
+        `;
     }).join('');
 
     // Safety cleanup: ensure no "Micros" text ever appears on MS highlight cards
@@ -1630,6 +1631,7 @@ function renderProducts() {
                     </div>
                 </div>
             </div>
+        `;
     }).join('');
 
     // Safety cleanup: ensure no "Micros" text ever appears on MS product cards
