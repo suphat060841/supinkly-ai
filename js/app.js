@@ -1122,16 +1122,16 @@ function updateUserHeaderUI() {
         section.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
                 <div class="flex items-center gap-1">
-                    <button onclick="openOrdersModal('orders')" class="h-9 sm:h-11 px-2.5 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 text-pink-700 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ศูนย์สมาชิก & คลังคีย์">
-                        <i class="fa-solid fa-circle-user text-pink-500"></i>
-                        <span class="max-w-[100px] truncate">${escapeHTML(user.displayName || user.name || 'สมาชิก')}</span>
+                    <button onclick="openOrdersModal('orders')" class="h-10 sm:h-11 px-2.5 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 hover:border-pink-300 text-pink-700 transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95" title="ศูนย์สมาชิก & คลังคีย์">
+                        <i class="fa-solid fa-circle-user text-pink-500 text-sm sm:text-base"></i>
+                        <span class="max-w-[85px] sm:max-w-[110px] truncate">${escapeHTML(user.displayName || user.name || 'สมาชิก')}</span>
                         <span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-black border ${vipBadgeClass}">
                             <i class="fa-solid fa-crown text-[9px] text-amber-500"></i>
                             <span>${escapeHTML(user.vip?.tierName || 'Bronze')}</span>
                         </span>
                     </button>
-                    <button onclick="handleUserLogout()" title="ออกจากระบบ" class="h-9 sm:h-11 px-2.5 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 transition-all flex items-center justify-center cursor-pointer">
-                        <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                    <button onclick="handleUserLogout()" title="ออกจากระบบ" class="h-10 sm:h-11 w-10 sm:w-11 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border-2 border-slate-200 hover:border-rose-300 transition-all flex items-center justify-center cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-right-from-bracket text-xs sm:text-sm"></i>
                     </button>
                 </div>
             </div>
@@ -1139,11 +1139,12 @@ function updateUserHeaderUI() {
     } else {
         section.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
-                <button onclick="openOrdersModal('orders')" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
-                    <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-                    <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
+                <button onclick="openOrdersModal('orders')" title="ประวัติการสั่งซื้อ & คีย์ของฉัน" class="h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 hover:bg-purple-100 border-2 border-purple-200/90 hover:border-purple-300 text-purple-700 transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95">
+                    <i class="fa-solid fa-box-open text-sm sm:text-base text-purple-600"></i>
+                    <span class="hidden lg:inline font-bold">คีย์ของฉัน</span>
+                    <span class="px-1.5 py-0.2 rounded-full bg-purple-200/80 text-purple-900 text-[10px] sm:text-xs font-black leading-none">(<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
                 </button>
-                <button onclick="openAuthModal('login')" class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 text-pink-700 border-2 border-pink-300 transition-all shadow-sm flex items-center justify-center gap-1 sm:gap-1.5 shrink-0 touch-active cursor-pointer">
+                <button onclick="openAuthModal('login')" title="เข้าสู่ระบบบัญชี" class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white transition-all shadow-sm hover:shadow-pink-500/25 flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer active:scale-95">
                     <i class="fa-solid fa-right-to-bracket text-xs sm:text-sm"></i>
                     <span class="inline font-bold">เข้าสู่ระบบ</span>
                 </button>
