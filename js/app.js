@@ -8759,7 +8759,14 @@ function openSlipViewModal(orderId) {
         statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ตรวจสอบผ่านแล้ว`;
     }
 
-    const slipUrl = order.slipUrl || order.slipImage || order.slipDataUrl || order.slipData || '';
+    // Prioritize embedded base64 slipData, and append admin auth token for server endpoints
+    let slipUrl = order.slipData || order.slipUrl || order.slipImage || order.slipDataUrl || '';
+    if (slipUrl && slipUrl.startsWith('/images/slips/')) {
+        const admToken = (typeof ADMIN_AUTH !== 'undefined' && ADMIN_AUTH.getToken()) || '';
+        if (admToken) {
+            slipUrl += (slipUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(admToken);
+        }
+    }
 
     // Reset states
     if (loadingEl) loadingEl.classList.add('hidden');

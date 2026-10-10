@@ -12,6 +12,44 @@ const path = require('path');
 const multer = require('multer');
 const mailService = require('./mail-service');
 
+// [ENVIRONMENT] Native Zero-Dependency .env Loader
+try {
+    const envPath = path.join(__dirname, '.env');
+    if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        envContent.split(/\r?\n/).forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return;
+            const eqIdx = trimmed.indexOf('=');
+            if (eqIdx > 0) {
+                const key = trimmed.slice(0, eqIdx).trim();
+                let val = trimmed.slice(eqIdx + 1).trim();
+                if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                    val = val.slice(1, -1);
+                }
+                if (!process.env[key]) {
+                    process.env[key] = val;
+                }
+            }
+        });
+    }
+} catch (e) {
+    console.warn('[ENV] Warning loading .env file:', e.message);
+}
+
+// [CRYPTOGRAPHY] Dynamic high-entropy secret fallback helper
+const _runtimeSecrets = new Map();
+function getSecureSecret(envVarName, byteLength = 32) {
+    const val = process.env[envVarName];
+    if (val && typeof val === 'string' && val.trim().length >= 16) {
+        return val.trim();
+    }
+    if (!_runtimeSecrets.has(envVarName)) {
+        _runtimeSecrets.set(envVarName, crypto.randomBytes(byteLength).toString('hex'));
+    }
+    return _runtimeSecrets.get(envVarName);
+}
+
 // [PROCESS SAFETY] Guard against unhandled promise rejections and exceptions
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[SERVER SAFETY] Unhandled Rejection at:', promise, 'reason:', reason);
@@ -82,6 +120,7 @@ app.use((req, res, next) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=(), payment=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
 
     // HSTS (HTTP Strict Transport Security) - enforce HTTPS for 1 year
     if (process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https') {
@@ -217,6 +256,30 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '1mb' }));
+
+// ─── [SECURITY] Prototype Pollution Sanitizer Middleware ────────────────────
+function sanitizePrototypePollution(target, depth = 0) {
+    if (!target || typeof target !== 'object' || depth > 10) return;
+    for (const key of Object.keys(target)) {
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            delete target[key];
+            continue;
+        }
+        if (typeof target[key] === 'object' && target[key] !== null) {
+            sanitizePrototypePollution(target[key], depth + 1);
+        }
+    }
+}
+
+app.use((req, res, next) => {
+    if (req.body && typeof req.body === 'object') {
+        sanitizePrototypePollution(req.body);
+    }
+    if (req.query && typeof req.query === 'object') {
+        sanitizePrototypePollution(req.query);
+    }
+    next();
+});
 
 // ─── [SECURITY FIX] Shield sensitive system and database files ─────────────
 // ป้องกันการเข้าถึงไฟล์ secure_database.json, .env, server.js, package.json ผ่านหน้าเว็บ
@@ -370,29 +433,74 @@ app.get(['/favicon.ico', '/favicon.png'], (req, res, next) => {
     next();
 });
 
-// Dedicated handler for slip images with automatic disk-recovery from database
-app.get('/images/slips/:filename', (req, res, next) => {
+// Dedicated protected handler for slip images with strict access authorization
+app.get('/images/slips/:filename', (req, res) => {
     const filename = path.basename(req.params.filename || '');
-    if (!filename) return next();
+    if (!filename || filename === '.' || filename === '..') {
+        return res.status(400).json({ success: false, message: "Invalid filename" });
+    }
 
     const slipsDir = path.join(__dirname, 'images', 'slips');
     const filePath = path.join(slipsDir, filename);
 
+    // [SECURITY] Strict Access Authorization Check
+    const db = getDb();
+    const order = (db.orders || []).find(o => 
+        (o.slipUrl && o.slipUrl.endsWith(filename)) ||
+        (o.slipHash && filename.startsWith(o.slipHash.slice(0, 16))) ||
+        (o.orderId && filename.includes(o.orderId))
+    );
+
+    // 1. Admin Verification (via headers or secure token query parameter for image tags)
+    const adminToken = req.headers['x-admin-token'] || req.query.adminToken || req.query.token;
+    const isAdmin = authenticateAdmin(req) || (adminToken && verifyAdminToken(adminToken));
+    let isAuthorized = isAdmin;
+
+    if (!isAuthorized && order) {
+        // 2. Member Verification (Logged in member owning the order)
+        const userToken = req.headers['x-user-token'] || req.query.userToken;
+        const userSession = authenticateUser(req) || (userToken && verifyUserToken(userToken));
+        if (userSession) {
+            if (order.userId && order.userId === userSession.userId) {
+                isAuthorized = true;
+            } else if (order.email && order.email.toLowerCase() === userSession.email.toLowerCase()) {
+                isAuthorized = true;
+            }
+        }
+        
+        // 3. Order Token verification (from checkout session or confirmation view)
+        const orderToken = (req.headers['x-order-token'] || req.query.token || '').trim();
+        if (orderToken && (orderToken === order.transRef || orderToken === order.slipHash)) {
+            isAuthorized = true;
+        }
+
+        // 4. Unlinked guest order email match
+        if (!isAuthorized && !order.userId) {
+            const clientEmail = (req.headers['x-order-email'] || req.query.email || '').trim().toLowerCase();
+            if (clientEmail && (order.email?.toLowerCase() === clientEmail || order.recipientEmail?.toLowerCase() === clientEmail)) {
+                isAuthorized = true;
+            }
+        }
+    }
+
+    if (!isAuthorized) {
+        return res.status(403).json({ success: false, message: "403 Forbidden: สิทธิ์การเข้าถึงรูปสลิปถูกปฏิเสธ" });
+    }
+
+    // Set secure private headers (prevent proxy / shared caching and sniffing)
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
     // 1. Direct disk hit
     if (fs.existsSync(filePath)) {
-        res.setHeader('Cache-Control', 'public, max-age=86400');
         res.setHeader('Content-Type', 'image/jpeg');
         return res.sendFile(filePath);
     }
 
     // 2. Database recovery fallback (handles ephemeral disk wipes and container redeploys)
     try {
-        const db = getDb();
-        const order = (db.orders || []).find(o => 
-            (o.slipUrl && o.slipUrl.endsWith(filename)) ||
-            (o.slipHash && filename.startsWith(o.slipHash.slice(0, 16))) ||
-            (o.orderId && filename.includes(o.orderId))
-        );
         if (order && order.slipData && typeof order.slipData === 'string') {
             const matches = order.slipData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
             if (matches && matches[2]) {
@@ -403,7 +511,6 @@ app.get('/images/slips/:filename', (req, res, next) => {
                     fs.writeFileSync(filePath, buffer);
                 } catch (e) {}
                 res.setHeader('Content-Type', mime);
-                res.setHeader('Cache-Control', 'public, max-age=86400');
                 return res.send(buffer);
             }
         }
@@ -411,7 +518,7 @@ app.get('/images/slips/:filename', (req, res, next) => {
         console.warn('[SLIP SERVE] Error resolving slip image:', e.message);
     }
 
-    next();
+    return res.status(404).json({ success: false, message: "ไม่พบรูปภาพสลิปในระบบ" });
 });
 
 // ── Maintenance Mode Middleware (ปิดเว็บชั่วคราว) ──
@@ -478,6 +585,11 @@ app.use((req, res, next) => {
 </html>`);
 });
 
+// [SECURITY HARDENED] Block direct static access to sensitive slips folder
+app.use('/images/slips', (req, res) => {
+    return res.status(403).json({ success: false, message: "403 Forbidden: ไม่อนุญาตให้เข้าถึงไฟล์สลิปโดยตรง" });
+});
+
 // [SECURITY HARDENED] Only serve specific public asset directories and index.html
 app.use('/css', express.static(path.join(__dirname, 'css'), { dotfiles: 'ignore', maxAge: '1d' }));
 app.use('/js', express.static(path.join(__dirname, 'js'), { dotfiles: 'ignore', maxAge: 0, etag: false }));
@@ -539,7 +651,7 @@ const sessionCheckRateLimit = rateLimit({
 // ❌ Before: PIN เก็บเป็น plaintext "8899"
 // ✅ After: เก็บเป็น SHA-256 hash (server-side)
 function hashPin(pin) {
-    const salt = process.env.PIN_SALT || 'supinkly_srv_salt_2026';
+    const salt = getSecureSecret('PIN_SALT', 32);
     return crypto.createHash('sha256').update(salt + String(pin).trim()).digest('hex');
 }
 
@@ -559,7 +671,7 @@ function verifyPin(enteredPin, storedHash) {
 }
 
 // ─── [FIX #3.1] Admin Session Token Management (Stateless HMAC & Memory Cache) ───
-const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'supinkly_admin_token_sec_2026';
+const ADMIN_TOKEN_SECRET = getSecureSecret('ADMIN_TOKEN_SECRET', 32);
 const adminSessions = new Map(); // token -> expiresAt (timestamp)
 
 function generateAdminToken(durationMs = 8 * 60 * 60 * 1000) {
@@ -3500,7 +3612,7 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
 // USER AUTHENTICATION SYSTEM (HARDENED HMAC TOKEN & ANTI-HIJACK)
 // ─────────────────────────────────────────────────────────────
 
-const USER_TOKEN_SECRET = process.env.USER_TOKEN_SECRET || 'supinkly_sec_user_token_2026';
+const USER_TOKEN_SECRET = getSecureSecret('USER_TOKEN_SECRET', 32);
 const revokedUserTokens = new Set();
 
 function isLocalRequest(req) {
@@ -3511,7 +3623,7 @@ function isLocalRequest(req) {
 }
 
 function hashPassword(password, userId) {
-    const salt = (process.env.USER_SALT || 'supinkly_user_salt_2026') + userId;
+    const salt = getSecureSecret('USER_SALT', 32) + userId;
     return crypto.createHash('sha256').update(salt + String(password).trim()).digest('hex');
 }
 
