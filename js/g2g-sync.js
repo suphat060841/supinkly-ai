@@ -5,27 +5,10 @@
  */
 
 const G2G_MARKET_FEED = {
-    // 19 Master Products mapped to G2G Market Category, Direct Sourcing URL & Benchmark Cost (USD)
+    // Master Products mapped to G2G Market Category, Direct Sourcing URL & Benchmark Cost (USD)
     benchmarks: {
-        "cpc-01": { serviceId: "G2G-CPC-PRO-PRIV", title: "CapCut Pro Account", baseCostUSD: 1.25, g2gStock: 142, g2gUrl: "https://www.g2g.com/categories/capcut" },
-        "cpc-02": { serviceId: "G2G-CPC-PRO-SHR",  title: "CapCut Pro Shared Account", baseCostUSD: 0.85, g2gStock: 89, g2gUrl: "https://www.g2g.com/categories/capcut" },
-        "cpc-03": { serviceId: "G2G-CPC-TEAM",     title: "CapCut Team Workspace", baseCostUSD: 1.95, g2gStock: 64, g2gUrl: "https://www.g2g.com/categories/capcut" },
-        "cpc-04": { serviceId: "G2G-CPC-VIP",      title: "CapCut VIP", baseCostUSD: 3.10, g2gStock: 35, g2gUrl: "https://www.g2g.com/categories/capcut" },
-        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google Gemini Advanced", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
-        "goo-ai-02": { serviceId: "G2G-GOO-AI-ULT", title: "Google AI Ultra", baseCostUSD: 49.50, g2gStock: 12, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+AI+Ultra" },
-        "goo-ai-03": { serviceId: "G2G-GOO-AI-SHR", title: "Google Gemini Shared", baseCostUSD: 0.85, g2gStock: 78, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Shared" },
-        "goo-01":    { serviceId: "G2G-GOO-5TB-PV", title: "Google Drive 5TB", baseCostUSD: 2.15, g2gStock: 95, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Drive+5TB" },
         "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google Gemini Activation Link", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Activation+Link" },
-        "grk-01":    { serviceId: "G2G-GRK-7D-PV",  title: "Grok Account", baseCostUSD: 3.80, g2gStock: 45, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Grok+Account" },
-        "grk-02":    { serviceId: "G2G-GRK-30D-PV", title: "Grok Subscription 1 Month", baseCostUSD: 14.20, g2gStock: 52, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Grok+Subscription" },
-        "grk-03":    { serviceId: "G2G-GRK-HEAVY",  title: "SuperGrok Heavy", baseCostUSD: 95.00, g2gStock: 8, g2gUrl: "https://www.google.com/search?q=site:g2g.com+SuperGrok+Heavy" },
-        "cld-01":    { serviceId: "G2G-CLD-PRO-PV", title: "Claude Pro Account", baseCostUSD: 13.80, g2gStock: 67, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Claude+Pro+Account" },
-        "cld-02":    { serviceId: "G2G-CLD-PRO-SH", title: "Claude Pro Shared Account", baseCostUSD: 3.60, g2gStock: 120, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Claude+Pro+Shared" },
-        "adb-01":    { serviceId: "G2G-ADB-ACRO",   title: "Adobe Acrobat Pro DC", baseCostUSD: 6.50, g2gStock: 41, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Adobe+Acrobat+Pro+DC" },
-        "adb-02":    { serviceId: "G2G-ADB-CC-ALL", title: "Adobe Creative Cloud All Apps", baseCostUSD: 10.80, g2gStock: 83, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Adobe+Creative+Cloud+All+Apps" },
-        "ms-01":     { serviceId: "G2G-MS-W11-OEM", title: "Windows 11 Pro OEM Key", baseCostUSD: 2.20, g2gStock: 350, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Windows+11+Pro+OEM+Key" },
-        "ms-02":     { serviceId: "G2G-MS-365-FAM", title: "Microsoft 365 Personal", baseCostUSD: 2.80, g2gStock: 115, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365+Personal" },
-        "ms-03":     { serviceId: "G2G-MS-COPILOT", title: "Microsoft Copilot Pro", baseCostUSD: 7.90, g2gStock: 58, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+Copilot+Pro" }
+        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google Gemini Advanced", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" }
     }
 };
 

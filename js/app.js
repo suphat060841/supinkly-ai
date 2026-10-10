@@ -349,17 +349,14 @@ function applyCustomPricesToProducts() {
 function syncStockCount() {
     if (typeof getAllMasterProducts === 'function') {
         const masters = getAllMasterProducts(false);
-        const masterMap = new Map(masters.map(m => [m.id, m]));
-        state.products.forEach(p => {
-            const m = masterMap.get(p.id);
-            if (m) {
-                p.isHighlight = !!m.isHighlight;
-                if (m.title) p.title = m.title;
-                if (m.badge) p.badge = m.badge;
-                if (typeof m.price === 'number') p.price = m.price;
-                if (typeof m.originalPrice === 'number') p.originalPrice = m.originalPrice;
-                if (m.deleted !== undefined) p.deleted = m.deleted;
-            }
+        state.products = masters.map(m => {
+            const existing = state.products.find(p => p.id === m.id) || {};
+            return {
+                ...m,
+                stock: existing.stock || 50,
+                vaultStock: existing.vaultStock || 0,
+                marketStock: existing.marketStock || 50
+            };
         });
     }
     applyCustomPricesToProducts();
@@ -545,6 +542,20 @@ async function syncCatalogWithServer() {
             for (const [pid, locProd] of Object.entries(localProducts)) {
                 if (locProd && (!data.customProducts || !data.customProducts[pid])) {
                     needsServerPush = true;
+                }
+            }
+
+            const ALLOWED_PRODUCT_IDS = new Set(["goo-02", "goo-ai-01"]);
+            for (const pid of Object.keys(mergedProducts)) {
+                if (!ALLOWED_PRODUCT_IDS.has(pid)) {
+                    delete mergedProducts[pid];
+                    updated = true;
+                }
+            }
+            for (const pid of Object.keys(mergedPrices)) {
+                if (!ALLOWED_PRODUCT_IDS.has(pid)) {
+                    delete mergedPrices[pid];
+                    updated = true;
                 }
             }
 

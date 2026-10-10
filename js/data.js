@@ -103,37 +103,49 @@ PRODUCTS.forEach(p => {
     }
 });
 
-// Auto-clean legacy broken G2G links from custom overrides in localStorage
+// Auto-clean and purge all legacy account-type products from browser localStorage
 try {
-    const rawPrices = localStorage.getItem('supinkly_custom_prices');
-    if (rawPrices) {
-        const parsed = JSON.parse(rawPrices);
-        let updated = false;
-        for (const k in parsed) {
-            if (parsed[k] && parsed[k].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[k].g2gUrl)) {
-                delete parsed[k].g2gUrl;
-                updated = true;
+    const ALLOWED_PRODUCT_IDS = new Set(["goo-02", "goo-ai-01"]);
+    const purgeKeys = ['supinkly_custom_products', 'supinkly_custom_prices'];
+    purgeKeys.forEach(k => {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            let updated = false;
+            for (const id in parsed) {
+                if (!ALLOWED_PRODUCT_IDS.has(id)) {
+                    delete parsed[id];
+                    updated = true;
+                } else if (parsed[id] && parsed[id].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[id].g2gUrl)) {
+                    delete parsed[id].g2gUrl;
+                    updated = true;
+                }
+            }
+            if (updated) localStorage.setItem(k, JSON.stringify(parsed));
+        }
+    });
+
+    const rawCart = localStorage.getItem('supinkly_cart');
+    if (rawCart) {
+        const cart = JSON.parse(rawCart);
+        if (Array.isArray(cart)) {
+            const filteredCart = cart.filter(item => item && ALLOWED_PRODUCT_IDS.has(item.productId));
+            if (filteredCart.length !== cart.length) {
+                localStorage.setItem('supinkly_cart', JSON.stringify(filteredCart));
             }
         }
-        if (updated) localStorage.setItem('supinkly_custom_prices', JSON.stringify(parsed));
-    }
-    const rawProds = localStorage.getItem('supinkly_custom_products');
-    if (rawProds) {
-        const parsed = JSON.parse(rawProds);
-        let updated = false;
-        for (const k in parsed) {
-            if (parsed[k] && parsed[k].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[k].g2gUrl)) {
-                delete parsed[k].g2gUrl;
-                updated = true;
-            }
-        }
-        if (updated) localStorage.setItem('supinkly_custom_products', JSON.stringify(parsed));
     }
 } catch (e) {}
 
 function getCustomProducts() {
     try {
-        return JSON.parse(localStorage.getItem('supinkly_custom_products') || '{}');
+        const parsed = JSON.parse(localStorage.getItem('supinkly_custom_products') || '{}');
+        const ALLOWED_PRODUCT_IDS = new Set(["goo-02", "goo-ai-01"]);
+        const clean = {};
+        for (const k in parsed) {
+            if (ALLOWED_PRODUCT_IDS.has(k)) clean[k] = parsed[k];
+        }
+        return clean;
     } catch (e) {
         return {};
     }
@@ -285,12 +297,14 @@ function getMasterProduct(productId) {
 }
 
 function getAllMasterProducts(includeDeleted = false) {
+    const ALLOWED_PRODUCT_IDS = new Set(["goo-02", "goo-ai-01"]);
     const customProducts = getCustomProducts();
     const result = [];
     const seenIds = new Set();
 
-    // 1. Base catalog PRODUCTS
+    // 1. Base catalog PRODUCTS (Exclusively Activation Link items)
     PRODUCTS.forEach(p => {
+        if (!ALLOWED_PRODUCT_IDS.has(p.id)) return;
         seenIds.add(p.id);
         const master = getMasterProduct(p.id);
         if (master) {
@@ -300,9 +314,9 @@ function getAllMasterProducts(includeDeleted = false) {
         }
     });
 
-    // 2. Newly added custom products
+    // 2. Newly added custom products (Only if explicitly allowed or typed as link)
     Object.keys(customProducts).forEach(id => {
-        if (!seenIds.has(id)) {
+        if (!seenIds.has(id) && ALLOWED_PRODUCT_IDS.has(id)) {
             const master = getMasterProduct(id);
             if (master) {
                 if (includeDeleted || !master.deleted) {
