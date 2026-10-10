@@ -480,7 +480,7 @@ app.use((req, res, next) => {
 
 // [SECURITY HARDENED] Only serve specific public asset directories and index.html
 app.use('/css', express.static(path.join(__dirname, 'css'), { dotfiles: 'ignore', maxAge: '1d' }));
-app.use('/js', express.static(path.join(__dirname, 'js'), { dotfiles: 'ignore', maxAge: '1h' }));
+app.use('/js', express.static(path.join(__dirname, 'js'), { dotfiles: 'ignore', maxAge: 0, etag: false }));
 app.use('/images', express.static(path.join(__dirname, 'images'), { dotfiles: 'ignore', maxAge: '1d' }));
 app.get(['/', '/index.html'], (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
