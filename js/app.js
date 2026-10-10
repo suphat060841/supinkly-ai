@@ -1354,10 +1354,10 @@ function renderHighlightProducts() {
                     <!-- Header of Card -->
                     <div class="flex items-center justify-between gap-1 mb-1.5 sm:mb-3">
                         <div class="flex items-center gap-1 sm:gap-2 min-w-0">
-                            <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
+                            <span title="${escapeHTML(product.brand || '')}" class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
                                 ${escapeHTML(product.brandCode || 'AI')}
                             </span>
-                            <span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>
+                            ${(product.brand === 'Microsoft' || product.brandCode === 'MS') ? '' : `<span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>`}
                         </div>
                         <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
                             <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
@@ -1521,10 +1521,10 @@ function renderProducts() {
                     <!-- Header of Card -->
                     <div class="flex items-center justify-between gap-1 mb-1.5 sm:mb-3">
                         <div class="flex items-center gap-1 sm:gap-2 min-w-0">
-                            <span class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
+                            <span title="${escapeHTML(product.brand || '')}" class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
                                 ${escapeHTML(product.brandCode || 'AI')}
                             </span>
-                            <span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>
+                            ${(product.brand === 'Microsoft' || product.brandCode === 'MS') ? '' : `<span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>`}
                         </div>
                         <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
                             <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
