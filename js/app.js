@@ -1343,10 +1343,7 @@ function renderHighlightProducts() {
         const isWishlisted = isProductWishlisted(product.id);
         const isAlerted = !!(cardUser && Array.isArray(cardUser.stockAlerts) && cardUser.stockAlerts.includes(product.id));
 
-                        const isMsHighlight = (product.brand && /micro/i.test(product.brand)) || 
-                                              (product.brandCode && /ms/i.test(product.brandCode)) ||
-                                              (product.id && /^ms-/i.test(product.id));
-                        return `
+        return `
             <div class="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
                  data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
@@ -1360,7 +1357,6 @@ function renderHighlightProducts() {
                             <span title="${escapeHTML(product.brand || '')}" class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
                                 ${escapeHTML(product.brandCode || 'AI')}
                             </span>
-                            ${isMsHighlight ? '' : `<span class="brand-name-text text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>`}
                         </div>
                         <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
                             <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
@@ -1462,15 +1458,8 @@ function renderHighlightProducts() {
         `;
     }).join('');
 
-    // Safety cleanup: ensure no "Micros" text ever appears on MS highlight cards
-    container.querySelectorAll('[data-product-id]').forEach(card => {
-        const pid = card.getAttribute('data-product-id') || '';
-        if (pid.startsWith('ms-')) {
-            card.querySelectorAll('span.truncate, .brand-name-text').forEach(s => {
-                if (/micro/i.test(s.textContent || '')) s.remove();
-            });
-        }
-    });
+    // Safety cleanup: ensure no trailing brand text ever appears on highlight cards
+    container.querySelectorAll('.brand-name-text').forEach(s => s.remove());
 
     container.removeEventListener('click', handleProductCardClick);
     container.addEventListener('click', handleProductCardClick);
@@ -1527,9 +1516,6 @@ function renderProducts() {
         const isWishlisted = isProductWishlisted(product.id);
         const isAlerted = !!(cardUser && Array.isArray(cardUser.stockAlerts) && cardUser.stockAlerts.includes(product.id));
 
-        const isMsProd = (product.brand && /micro/i.test(product.brand)) || 
-                         (product.brandCode && /ms/i.test(product.brandCode)) ||
-                         (product.id && /^ms-/i.test(product.id));
         return `
             <div class="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
@@ -1540,7 +1526,6 @@ function renderProducts() {
                             <span title="${escapeHTML(product.brand || '')}" class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
                                 ${escapeHTML(product.brandCode || 'AI')}
                             </span>
-                            ${isMsProd ? '' : `<span class="brand-name-text text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>`}
                         </div>
                         <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
                             <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
@@ -1634,15 +1619,8 @@ function renderProducts() {
         `;
     }).join('');
 
-    // Safety cleanup: ensure no "Micros" text ever appears on MS product cards
-    container.querySelectorAll('[data-product-id]').forEach(card => {
-        const pid = card.getAttribute('data-product-id') || '';
-        if (pid.startsWith('ms-')) {
-            card.querySelectorAll('span.truncate, .brand-name-text').forEach(s => {
-                if (/micro/i.test(s.textContent || '')) s.remove();
-            });
-        }
-    });
+    // Safety cleanup: ensure no trailing brand text ever appears on product cards
+    container.querySelectorAll('.brand-name-text').forEach(s => s.remove());
 
     // [FIX #6] Event delegation สำหรับ product cards ทั้งหมด
     container.removeEventListener('click', handleProductCardClick);
