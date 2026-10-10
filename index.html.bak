@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -184,7 +184,8 @@
                     <span>รายการสินค้า</span>
                 </button>
                 <button type="button" onclick="selectBrand('highlight'); scrollToProducts();"
-                    class="flex h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-amber-50/80 hover:bg-amber-100 border-2 border-amber-200/90 hover:border-amber-300 text-amber-900 transition-all shadow-xs items-center gap-1.5 cursor-pointer active:scale-95" title="ดูดีลเด็ดไฮไลท์">
+                    class="hidden lg:flex h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-amber-50/80 hover:bg-amber-100 border-2 border-amber-200/90 hover:border-amber-300 text-amber-900 transition-all shadow-xs items-center gap-1.5 cursor-pointer active:scale-95"
+                    title="ดูดีลเด็ดไฮไลท์">
                     <i class="fa-solid fa-star text-amber-500"></i>
                     <span>ดีลไฮไลท์</span>
                 </button>

@@ -59,7 +59,7 @@ const ADMIN_AUTH = {
             if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.getRandomValues === 'function') {
                 return Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('');
             }
-        } catch (e) { }
+        } catch (e) {}
         return 'token_' + Date.now() + '_' + Math.random().toString(36).substring(2);
     },
 
@@ -213,7 +213,7 @@ const ADMIN_AUTH = {
                             sessionStorage.setItem('supinkly_admin_server_token', d.token);
                             localStorage.setItem('supinkly_admin_server_token', d.token);
                         }
-                    }).catch(() => { });
+                    }).catch(() => {});
                 }
 
                 return true;
@@ -436,7 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 applyReferralCode(refParam.trim());
             }, 600);
         }
-    } catch { }
+    } catch {}
 
     if (typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) {
         USER_AUTH.verifySession().then(() => {
@@ -568,7 +568,7 @@ async function syncCatalogWithServer() {
                         customPrices: mergedPrices,
                         customProducts: mergedProducts
                     })
-                }).catch(() => { });
+                }).catch(() => {});
             }
         }
     } catch (e) { }
@@ -595,7 +595,7 @@ async function refreshUserOrders() {
             // Claim any local unlinked orders under this account
             const localOrderIds = (state.orders || []).map(o => o.orderId).filter(Boolean);
             if (localOrderIds.length > 0) {
-                try { await USER_AUTH.linkLocalOrders(localOrderIds); } catch { }
+                try { await USER_AUTH.linkLocalOrders(localOrderIds); } catch {}
             }
 
             const serverOrders = await USER_AUTH.fetchMyOrders();
@@ -617,7 +617,7 @@ async function refreshUserOrders() {
         try {
             const stored = localStorage.getItem('supinkly_orders');
             if (stored) state.orders = JSON.parse(stored) || [];
-        } catch { }
+        } catch {}
     }
 
     // Actively refresh any pending orders from server (works for both guests & members)
@@ -646,7 +646,7 @@ async function refreshUserOrders() {
                         }
                     }
                 }
-            } catch { }
+            } catch {}
         }
     }
 
@@ -1121,6 +1121,10 @@ function updateUserHeaderUI() {
 
         section.innerHTML = `
             <div class="flex items-center gap-1.5 sm:gap-2">
+                <button onclick="openOrdersModal('orders')" class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
+                    <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
+                    <span>คีย์ของฉัน (<span id="nav-orders-count">${(state.orders || []).length}</span>)</span>
+                </button>
                 <div class="flex items-center gap-1">
                     <button onclick="openOrdersModal('orders')" class="h-9 sm:h-11 px-2.5 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 text-pink-700 transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer" title="ศูนย์สมาชิก & คลังคีย์">
                         <i class="fa-solid fa-circle-user text-pink-500"></i>
@@ -1314,8 +1318,8 @@ function renderHighlightProducts() {
         if (product.typeKey === 'key') typeBadgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
 
         const inStock = product.stock > 0;
-        const discountPercent = product.originalPrice > product.price
-            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+        const discountPercent = product.originalPrice > product.price 
+            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) 
             : 0;
 
         const shortType = getShortTypeBadge(product.type, product.typeKey);
@@ -1462,8 +1466,8 @@ function renderProducts() {
         if (product.typeKey === 'key') typeBadgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
 
         const inStock = product.stock > 0;
-        const discountPercent = product.originalPrice > product.price
-            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+        const discountPercent = product.originalPrice > product.price 
+            ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) 
             : 0;
 
         const shortType = getShortTypeBadge(product.type, product.typeKey);
@@ -2371,8 +2375,8 @@ function openVaultModal(order) {
     if (totalEl) totalEl.textContent = `฿${(order.totalAmount || 0).toFixed(2)}`;
 
     // Check if order has items pending fulfillment
-    const isPending = (typeof isOrderPending === 'function')
-        ? isOrderPending(order)
+    const isPending = (typeof isOrderPending === 'function') 
+        ? isOrderPending(order) 
         : (order.items || []).some(item => !item.credentials || item.status === 'pending_fulfillment');
     modal.setAttribute('data-is-pending', isPending ? 'true' : 'false');
 
@@ -2571,8 +2575,8 @@ async function checkCustomerVaultServerStatus() {
         // 1. Live Poll Vault Modal for current order
         if (isVaultOpen && state.currentVaultOrderId) {
             const localOrder = (state.orders || []).find(o => o.orderId === state.currentVaultOrderId);
-            const customerEmail = (localOrder && (localOrder.recipientEmail || localOrder.email))
-                || (state.user && state.user.email)
+            const customerEmail = (localOrder && (localOrder.recipientEmail || localOrder.email)) 
+                || (state.user && state.user.email) 
                 || '';
             const queryParam = customerEmail ? `?email=${encodeURIComponent(customerEmail)}` : '';
 
@@ -2587,7 +2591,7 @@ async function checkCustomerVaultServerStatus() {
                 if (data && data.success && data.order) {
                     const serverOrder = data.order;
                     const wasPending = vaultModal.getAttribute('data-is-pending') === 'true';
-
+                    
                     const isNowDelivered = (serverOrder.status && (serverOrder.status.includes('จัดส่งสำเร็จ') || serverOrder.status.includes('delivered')))
                         || ((serverOrder.items || []).length > 0 && (serverOrder.items || []).every(it => (it.status === 'delivered' || it.credentials) && it.status !== 'pending_fulfillment'));
 
@@ -3090,7 +3094,7 @@ function getLocalWishlist() {
 function setLocalWishlist(list) {
     try {
         localStorage.setItem('supinkly_guest_wishlist', JSON.stringify(Array.isArray(list) ? list : []));
-    } catch { }
+    } catch {}
 }
 
 function getWishlistItems() {
@@ -3122,7 +3126,7 @@ async function openOrdersModal(initialTab = 'orders') {
                 if (state.activeMemberTab === 'referral') renderReferralPane();
                 if (state.activeMemberTab === 'wishlist') renderWishlistPane();
             }
-        }).catch(() => { });
+        }).catch(() => {});
     }
 
     await refreshUserOrders();
@@ -3177,7 +3181,7 @@ function switchMemberTab(tabName) {
             if (t === tabName) {
                 btn.className = "member-tab-btn px-3 py-2 rounded-xl bg-pink-500 text-white shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer font-bold";
                 if (typeof btn.scrollIntoView === 'function') {
-                    try { btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } catch (e) { }
+                    try { btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } catch (e) {}
                 }
             } else {
                 btn.className = "member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer font-bold";
@@ -3963,7 +3967,7 @@ async function handleAdminPinSubmit(e) {
 // ==========================================
 function getG2GMarketLink(productId) {
     const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
-
+    
     // 1. If admin provided a specific custom URL (and it's not a legacy broken format)
     if (master && master.g2gUrl && typeof isBrokenOrLegacyG2GUrl === 'function' && !isBrokenOrLegacyG2GUrl(master.g2gUrl)) {
         return master.g2gUrl;
@@ -3996,7 +4000,7 @@ function handleG2GSourcingClick(event, productId, targetUrl) {
 
     // Copy product search keyword to clipboard so admin can easily paste into G2G if needed
     if (searchKeyword && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(searchKeyword).catch(() => { });
+        navigator.clipboard.writeText(searchKeyword).catch(() => {});
     }
 
     const effectiveUrl = targetUrl || getG2GMarketLink(productId);
@@ -4015,7 +4019,7 @@ function openG2GMarketLink(productId) {
     const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
     const titleToCopy = (master && (master.g2gRawTitle || master.title)) || '';
     if (titleToCopy && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(titleToCopy).catch(() => { });
+        navigator.clipboard.writeText(titleToCopy).catch(() => {});
     }
     if (link && link !== '#' && link !== 'about:blank#blocked') {
         const win = window.open(link, '_blank', 'noopener,noreferrer');
@@ -4163,7 +4167,7 @@ function playNotificationSound() {
             osc.start();
             osc.stop(ctx.currentTime + 0.3);
         }
-    } catch (e) { }
+    } catch (e) {}
 }
 
 // Helper: Get authenticated headers for Admin API requests
@@ -4203,8 +4207,8 @@ function updateAdminNavBadges() {
     const ordersBadge = document.getElementById('admin-orders-count-badge') || document.getElementById('admin-pending-badge');
     if (ordersBadge) {
         ordersBadge.textContent = pendingCount;
-        ordersBadge.className = pendingCount > 0
-            ? "px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 text-xs font-black animate-pulse"
+        ordersBadge.className = pendingCount > 0 
+            ? "px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 text-xs font-black animate-pulse" 
             : "px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold";
     }
 
@@ -4213,14 +4217,14 @@ function updateAdminNavBadges() {
         const activeCouponsCount = promos.filter(p => p.active !== false).length;
         const couponBadge = document.getElementById('admin-coupons-badge');
         if (couponBadge) couponBadge.textContent = activeCouponsCount;
-    } catch (e) { }
+    } catch (e) {}
 
     try {
         const usersBadge = document.getElementById('admin-users-badge');
         if (usersBadge && Array.isArray(adminUsersList) && adminUsersList.length > 0) {
             usersBadge.textContent = adminUsersList.length;
         }
-    } catch (e) { }
+    } catch (e) {}
 }
 
 // Quick navigation from admin top stat cards
@@ -4271,16 +4275,16 @@ function quickAdminNavigate(tab, subFilter = null) {
 
         let msg = "";
         if (filterKey === 'pending') {
-            msg = pending > 0
-                ? `⚡ กรองออเดอร์: รอส่งมอบรหัส (${pending} รายการ)`
+            msg = pending > 0 
+                ? `⚡ กรองออเดอร์: รอส่งมอบรหัส (${pending} รายการ)` 
                 : `⚡ ขณะนี้ยังไม่มีออเดอร์ที่รอส่งมอบรหัส (0 รายการ)`;
         } else if (filterKey === 'delivered') {
-            msg = delivered > 0
-                ? `✅ กรองออเดอร์: ส่งมอบสำเร็จ (${delivered} รายการ)`
+            msg = delivered > 0 
+                ? `✅ กรองออเดอร์: ส่งมอบสำเร็จ (${delivered} รายการ)` 
                 : `✅ ขณะนี้ยังไม่มีออเดอร์ที่ส่งมอบสำเร็จ (0 รายการ)`;
         } else {
-            msg = total > 0
-                ? `📦 แสดงออเดอร์ทั้งหมด (${total} รายการ)`
+            msg = total > 0 
+                ? `📦 แสดงออเดอร์ทั้งหมด (${total} รายการ)` 
                 : `📦 ขณะนี้ยังไม่มีรายการคำสั่งซื้อในระบบ (0 รายการ)`;
         }
         showToast(msg, "info");
@@ -4691,7 +4695,7 @@ function renderActiveUsersList(users) {
     listEl.innerHTML = filtered.map(u => {
         const isMember = u.role === 'member';
         const activeColor = u.lastSeenSec < 30 ? 'bg-emerald-500' : 'bg-amber-400';
-        const roleBadge = isMember
+        const roleBadge = isMember 
             ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200"><i class="fa-solid fa-crown text-[9px] mr-1"></i>สมาชิก</span>`
             : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200"><i class="fa-solid fa-user text-[9px] mr-1"></i>ผู้เยี่ยมชม</span>`;
 
@@ -4853,7 +4857,7 @@ async function renderAdminCouponsList() {
 
     let filtered = adminCouponsList;
     if (adminCouponSearchQuery) {
-        filtered = filtered.filter(c =>
+        filtered = filtered.filter(c => 
             (c.code || '').toLowerCase().includes(adminCouponSearchQuery) ||
             (c.title || '').toLowerCase().includes(adminCouponSearchQuery) ||
             (c.description || '').toLowerCase().includes(adminCouponSearchQuery)
@@ -5058,7 +5062,7 @@ async function handleToggleAdminCoupon(code) {
             method: 'POST',
             headers: getAdminHeaders()
         });
-    } catch (e) { }
+    } catch (e) {}
 
     const promos = getStorePromotions();
     const target = promos.find(p => p.code === code);
@@ -5079,7 +5083,7 @@ async function handleDeleteAdminCoupon(code) {
             method: 'DELETE',
             headers: getAdminHeaders()
         });
-    } catch (e) { }
+    } catch (e) {}
 
     let promos = getStorePromotions();
     promos = promos.filter(p => p.code !== code);
@@ -5214,8 +5218,8 @@ async function renderAdminUsersList() {
                 </td>
                 <td class="py-3 px-3.5 text-center text-xs">
                     ${u.isEmailVerified !== false
-                ? '<span class="text-emerald-600 font-bold text-[11px]"><i class="fa-solid fa-circle-check"></i> ยืนยันแล้ว</span>'
-                : '<span class="text-amber-600 font-medium text-[11px]"><i class="fa-solid fa-clock"></i> รอยืนยัน</span>'}
+                        ? '<span class="text-emerald-600 font-bold text-[11px]"><i class="fa-solid fa-circle-check"></i> ยืนยันแล้ว</span>'
+                        : '<span class="text-amber-600 font-medium text-[11px]"><i class="fa-solid fa-clock"></i> รอยืนยัน</span>'}
                 </td>
                 <td class="py-3 px-3.5 text-center text-slate-500 text-xs font-medium">
                     ${regDate}
@@ -5390,7 +5394,7 @@ async function handleClearAllAdminUsers() {
         if (data && data.success) {
             showToast("ล้างข้อมูลสมาชิกทั้งหมดเรียบร้อยแล้ว", "success");
         }
-    } catch (e) { }
+    } catch (e) {}
 
     adminUsersList = [];
     renderAdminUsersList();
@@ -5484,7 +5488,7 @@ async function loadAdminSettingsIntoForm() {
                 }
             }
         }
-    } catch (e) { }
+    } catch (e) {}
 }
 
 function scrollToAdminSetting(sectionId) {
@@ -5806,7 +5810,7 @@ async function downloadDatabaseBackup() {
             showToast("ดาวน์โหลดไฟล์สำรองข้อมูลฐานข้อมูลสำเร็จ!", "success");
             return;
         }
-    } catch (e) { }
+    } catch (e) {}
 
     const localBackup = {
         exportedAt: new Date().toISOString(),
@@ -5856,7 +5860,7 @@ async function handleDatabaseRestore(fileInput) {
                     setTimeout(() => location.reload(), 1000);
                     return;
                 }
-            } catch (err) { }
+            } catch (err) {}
 
             if (Array.isArray(parsed.orders)) {
                 state.orders = parsed.orders;
@@ -6167,9 +6171,9 @@ async function renderAdminOrdersList(forceFetch = false) {
                     ${isFilterActive ? 'ไม่พบรายการคำสั่งซื้อตามตัวกรองที่เลือก' : 'ขณะนี้ยังไม่มีรายการคำสั่งซื้อในระบบ (0 รายการ)'}
                 </p>
                 <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                    ${isFilterActive
-                ? 'ลองเปลี่ยนตัวกรองเป็น "ทั้งหมด" หรือล้างคำค้นหาเพื่อดูรายการอื่นๆ'
-                : 'เมื่อลูกค้าชำระเงินเข้ามา รายการจะบันทึกเข้าเซิร์ฟเวอร์และแสดงที่นี่โดยอัตโนมัติ หรือกดปุ่มด้านล่างเพื่อทดลองสร้างออเดอร์จำลอง'}
+                    ${isFilterActive 
+                        ? 'ลองเปลี่ยนตัวกรองเป็น "ทั้งหมด" หรือล้างคำค้นหาเพื่อดูรายการอื่นๆ' 
+                        : 'เมื่อลูกค้าชำระเงินเข้ามา รายการจะบันทึกเข้าเซิร์ฟเวอร์และแสดงที่นี่โดยอัตโนมัติ หรือกดปุ่มด้านล่างเพื่อทดลองสร้างออเดอร์จำลอง'}
                 </p>
                 <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
                     <button onclick="createDemoOrder()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
@@ -6448,9 +6452,9 @@ async function handleFulfillSubmit(e) {
         return;
     }
 
-    const order = (adminOrdersList && adminOrdersList.find(o => (o.orderId || '').trim().toUpperCase() === orderId.trim().toUpperCase()))
+    const order = (adminOrdersList && adminOrdersList.find(o => (o.orderId || '').trim().toUpperCase() === orderId.trim().toUpperCase())) 
         || (state.orders || []).find(o => (o.orderId || '').trim().toUpperCase() === orderId.trim().toUpperCase());
-
+        
     if (!order || !order.items || !order.items[itemIndex]) {
         showToast("ไม่พบคำสั่งซื้อหรือรายการสินค้า", "warning");
         return;
@@ -6492,7 +6496,7 @@ async function handleFulfillSubmit(e) {
 
         if (res.ok && data && data.success && data.order) {
             const updatedOrder = data.order;
-
+            
             // Update in adminOrdersList
             const aIdx = (adminOrdersList || []).findIndex(o => (o.orderId || '').toUpperCase() === orderId.toUpperCase());
             if (aIdx !== -1) adminOrdersList[aIdx] = updatedOrder;
@@ -6716,7 +6720,7 @@ function renderAdminStockList() {
     }
 
     if (adminStockSearchQuery) {
-        prods = prods.filter(p =>
+        prods = prods.filter(p => 
             (p.title || '').toLowerCase().includes(adminStockSearchQuery) ||
             (p.brand || '').toLowerCase().includes(adminStockSearchQuery) ||
             (p.type || '').toLowerCase().includes(adminStockSearchQuery) ||
@@ -6797,8 +6801,8 @@ function renderAdminStockList() {
                     <div class="font-bold text-slate-700 text-xs font-mono">฿${costTHB.toFixed(2)}</div>
                     <div class="flex items-center justify-center gap-1 mt-1">
                         ${(() => {
-                const effectiveG2GUrl = getG2GMarketLink(p.id);
-                return `
+                            const effectiveG2GUrl = getG2GMarketLink(p.id);
+                            return `
                             <a href="${sanitizeUrl(effectiveG2GUrl)}" target="_blank" rel="noopener noreferrer"
                                onclick="handleG2GSourcingClick(event, '${escapeHTML(p.id)}', '${sanitizeUrl(effectiveG2GUrl)}')"
                                class="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold transition-all flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
@@ -6807,7 +6811,7 @@ function renderAdminStockList() {
                                 <span>ซื้อ G2G ↗</span>
                             </a>
                             `;
-            })()}
+                        })()}
                         <button type="button" 
                                 onclick="const t = '${escapeHTML(master.g2gRawTitle || master.title)}'; navigator.clipboard.writeText(t); showToast('คัดลอกชื่อภาษาอังกฤษสำหรับค้นหาใน G2G แล้ว: ' + t.slice(0, 32) + '...', 'info');"
                                 class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 border border-slate-200 text-[10px] cursor-pointer"
@@ -7327,7 +7331,7 @@ async function handleSaveEditedProduct() {
                     badge: badgeVal,
                     g2gUrl: g2gUrlVal
                 })
-            }).catch(() => { });
+            }).catch(() => {});
 
         } catch (syncErr) {
             console.warn('[ADMIN SYNC] Could not sync product to server:', syncErr.message);
@@ -7384,8 +7388,8 @@ function handleDeleteProduct(productId) {
                 method: 'POST',
                 headers: getAdminHeaders(),
                 body: JSON.stringify({ productId })
-            }).catch(() => { });
-        } catch (e) { }
+            }).catch(() => {});
+        } catch (e) {}
     }
 
     // Remove from active cart if customer has it
@@ -8336,7 +8340,7 @@ function closeTopmostModal() {
     // 4. Mobile Menu Navigation Drawer (z-[110])
     const mobileOverlay = document.getElementById('mobile-menu-overlay');
     const mobileDrawer = document.getElementById('mobile-menu-drawer');
-    if ((mobileOverlay && !mobileOverlay.classList.contains('hidden')) ||
+    if ((mobileOverlay && !mobileOverlay.classList.contains('hidden')) || 
         (mobileDrawer && !mobileDrawer.classList.contains('-translate-x-full'))) {
         closeMobileMenu();
         return true;
@@ -8429,7 +8433,7 @@ function closeTopmostModal() {
     // 17. Cart Drawer & Overlay (z-50)
     const cartOverlay = document.getElementById('drawer-overlay');
     const cartDrawer = document.getElementById('cart-drawer');
-    if ((cartOverlay && !cartOverlay.classList.contains('hidden')) ||
+    if ((cartOverlay && !cartOverlay.classList.contains('hidden')) || 
         (cartDrawer && !cartDrawer.classList.contains('translate-x-full'))) {
         closeCartDrawer();
         return true;
@@ -8457,7 +8461,7 @@ function closeTopmostModal() {
     }
 
     // 20. If an input or textarea is focused and no modal is open, blur it
-    if (document.activeElement && typeof document.activeElement.blur === 'function' &&
+    if (document.activeElement && typeof document.activeElement.blur === 'function' && 
         (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
         document.activeElement.blur();
         return true;
@@ -9067,7 +9071,7 @@ if (typeof window !== 'undefined' && window.location && window.location.search) 
                 if (typeof promptAdminLogin === 'function') promptAdminLogin();
             }, 300);
         }
-    } catch (e) { }
+    } catch (e) {}
 }
 
 // Immediate Telemetry initialization if page is already loaded
