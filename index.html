@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -1702,7 +1702,7 @@
             <div
                 class="flex items-center justify-between text-base font-bold text-slate-900 border-t border-slate-100 pt-2">
                 <span>ยอดชำระสุทธิ:</span>
-                <span id="cart-total" class="text-2xl font-bold text-pink-600">฿0.00</span>
+                <span id="cart-total" class="text-2xl font-black text-pink-600 font-['Outfit'] tracking-tight">฿0.00</span>
             </div>
             <button id="cart-checkout-btn" onclick="startCheckout()"
                 class="w-full py-3.5 rounded-2xl gradient-btn text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30 cursor-pointer active:scale-98">
@@ -1804,7 +1804,7 @@
                     </div>
                     <div>
                         <div class="text-xs text-slate-500 font-medium">ยอดที่ต้องโอนชำระตรงเป๊ะ:</div>
-                        <div id="checkout-total-amount" class="text-3xl font-bold text-pink-600">฿0.00</div>
+                        <div id="checkout-total-amount" class="text-3xl font-black text-pink-600 font-['Outfit'] tracking-tight">฿0.00</div>
                     </div>
                     <div id="qr-timer-text" class="text-xs font-mono font-bold text-amber-600">
                         กรุณาชำระเงินภายใน 15:00 นาที
@@ -5132,9 +5132,16 @@ user2@gmail.com:Pass5678
                 <!-- Modal Bottom Pricing & Action Bar -->
                 <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-2.5 sm:gap-4">
                     <div>
-                        <span id="modal-product-original-price"
-                            class="text-xs text-slate-400 line-through block font-medium"></span>
-                        <span id="modal-product-price" class="text-2xl sm:text-3xl font-bold text-pink-600"></span>
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            <span id="modal-product-original-price"
+                                class="text-xs sm:text-sm text-slate-400 line-through font-medium"></span>
+                            <span id="modal-product-discount-badge"
+                                class="hidden text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-200/80"></span>
+                        </div>
+                        <div class="flex items-baseline gap-1 text-pink-600">
+                            <span class="text-sm sm:text-base font-black">฿</span>
+                            <span id="modal-product-price" class="text-2xl sm:text-3xl font-black font-['Outfit'] tracking-tight"></span>
+                        </div>
                     </div>
                     <div class="flex items-center gap-2 flex-1 justify-end">
                         <button id="modal-wishlist-btn" type="button" title="บันทึกในรายการโปรด"

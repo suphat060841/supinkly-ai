@@ -1286,8 +1286,10 @@ function getShortTypeBadge(type, typeKey) {
 }
 
 function formatProductPrice(price) {
-    if (typeof price !== 'number' || isNaN(price)) return '0';
-    return (price % 1 === 0) ? price.toLocaleString() : price.toFixed(2);
+    if (price === undefined || price === null || price === '') return '0';
+    const num = typeof price === 'number' ? price : parseFloat(String(price).replace(/,/g, ''));
+    if (isNaN(num)) return '0';
+    return (num % 1 === 0) ? num.toLocaleString('th-TH') : num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Render Highlight Products Showcase Grid (⭐ ดีลเด็ดไฮไลท์คัดสรรพิเศษ)
@@ -1321,6 +1323,9 @@ function renderHighlightProducts() {
         const shortType = getShortTypeBadge(product.type, product.typeKey);
         const formattedPrice = formatProductPrice(product.price);
         const formattedOrigPrice = formatProductPrice(product.originalPrice);
+        const savings = (product.originalPrice > product.price)
+            ? formatProductPrice(product.originalPrice - product.price)
+            : '0';
 
         const cardUser = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
         const isWishlisted = isProductWishlisted(product.id);
@@ -1384,37 +1389,55 @@ function renderHighlightProducts() {
                     </div>
                 </div>
 
-                <!-- Price and Buttons -->
-                <div class="mt-2 sm:mt-3 pt-2 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-1.5 sm:gap-2">
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-1">
-                            <span class="text-[9px] sm:text-xs text-slate-400 line-through font-medium truncate">฿${formattedOrigPrice}</span>
-                            ${discountPercent > 0 ? `<span class="text-[8px] sm:text-[10px] font-black px-1 py-0.2 rounded bg-rose-100 text-rose-600 shrink-0">-${discountPercent}%</span>` : ''}
+                <!-- Price and Action Footer -->
+                <div class="mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-slate-100 flex flex-col gap-2">
+                    <!-- Price Display Row (100% full width, crystal clear, unclipped) -->
+                    <div class="flex items-end justify-between gap-1.5">
+                        <div class="min-w-0">
+                            ${discountPercent > 0 && formattedOrigPrice ? `
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="text-[10px] sm:text-xs text-slate-400 line-through font-medium">฿${formattedOrigPrice}</span>
+                                    <span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-md bg-rose-50 text-rose-600 border border-rose-200/80 shrink-0">-${discountPercent}%</span>
+                                </div>
+                            ` : ''}
+                            <div class="flex items-baseline gap-0.5 text-pink-600 leading-none">
+                                <span class="text-xs sm:text-sm font-black mr-0.5">฿</span>
+                                <span class="text-xl sm:text-2xl font-black font-['Outfit'] tracking-tight">${formattedPrice}</span>
+                            </div>
                         </div>
-                        <div class="text-base sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
-                            <span class="text-[11px] sm:text-sm font-bold">฿</span>${formattedPrice}
-                        </div>
+
+                        ${discountPercent > 0 ? `
+                            <div class="text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded-lg border border-emerald-200/70 shrink-0 mb-0.5">
+                                ประหยัด ฿${savings}
+                            </div>
+                        ` : `
+                            <div class="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-50 px-1.5 sm:px-2 py-0.5 rounded-lg border border-slate-200 shrink-0 mb-0.5">
+                                ราคาพิเศษ
+                            </div>
+                        `}
                     </div>
-                    <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+
+                    <!-- Action Buttons Row -->
+                    <div class="flex items-center gap-1.5 sm:gap-2 pt-0.5">
                         <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
-                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
                             <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
                         </button>
                         ${!inStock ? `
                         <button data-action="stock-alert" data-product-id="${escapeHTML(product.id)}" title="${isAlerted ? 'แจ้งเตือนเมื่อมีของ (เปิดแล้ว)' : 'แจ้งเตือนเมื่อมีสินค้า'}" 
-                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
                             <i class="fa-${isAlerted ? 'solid' : 'regular'} fa-bell"></i>
                         </button>
                         ` : ''}
                         <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
-                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-2 sm:px-4 h-7 sm:h-10 rounded-lg sm:rounded-2xl text-[10px] sm:text-sm font-extrabold flex items-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
-                            <i class="fa-solid fa-cart-plus text-[10px] sm:text-xs"></i>
-                            <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
+                            class="flex-1 h-8 sm:h-9 rounded-xl gradient-btn text-white text-[11px] sm:text-xs font-black flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 transition-transform shadow-xs ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            <i class="fa-solid fa-cart-plus text-xs"></i>
+                            <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
                     </div>
                 </div>
@@ -1469,6 +1492,9 @@ function renderProducts() {
         const shortType = getShortTypeBadge(product.type, product.typeKey);
         const formattedPrice = formatProductPrice(product.price);
         const formattedOrigPrice = formatProductPrice(product.originalPrice);
+        const savings = (product.originalPrice > product.price)
+            ? formatProductPrice(product.originalPrice - product.price)
+            : '0';
 
         const cardUser = (typeof USER_AUTH !== 'undefined') ? USER_AUTH.getUser() : null;
         const isWishlisted = isProductWishlisted(product.id);
@@ -1520,37 +1546,55 @@ function renderProducts() {
                     </div>
                 </div>
 
-                <!-- Price and Buttons -->
-                <div class="mt-2 sm:mt-3 pt-2 sm:pt-3.5 border-t border-slate-100 flex items-center justify-between gap-1.5 sm:gap-3">
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-1">
-                            <span class="text-[9px] sm:text-xs text-slate-400 line-through font-medium truncate">฿${formattedOrigPrice}</span>
-                            ${discountPercent > 0 ? `<span class="text-[8px] sm:text-[10px] font-black px-1 py-0.2 rounded bg-rose-100 text-rose-600 shrink-0">-${discountPercent}%</span>` : ''}
+                <!-- Price and Action Footer -->
+                <div class="mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-slate-100 flex flex-col gap-2">
+                    <!-- Price Display Row (100% full width, crystal clear, unclipped) -->
+                    <div class="flex items-end justify-between gap-1.5">
+                        <div class="min-w-0">
+                            ${discountPercent > 0 && formattedOrigPrice ? `
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="text-[10px] sm:text-xs text-slate-400 line-through font-medium">฿${formattedOrigPrice}</span>
+                                    <span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-md bg-rose-50 text-rose-600 border border-rose-200/80 shrink-0">-${discountPercent}%</span>
+                                </div>
+                            ` : ''}
+                            <div class="flex items-baseline gap-0.5 text-pink-600 leading-none">
+                                <span class="text-xs sm:text-sm font-black mr-0.5">฿</span>
+                                <span class="text-xl sm:text-2xl font-black font-['Outfit'] tracking-tight">${formattedPrice}</span>
+                            </div>
                         </div>
-                        <div class="text-base sm:text-2xl font-black text-pink-600 flex items-baseline gap-0.5">
-                            <span class="text-[11px] sm:text-sm font-bold">฿</span>${formattedPrice}
-                        </div>
+
+                        ${discountPercent > 0 ? `
+                            <div class="text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded-lg border border-emerald-200/70 shrink-0 mb-0.5">
+                                ประหยัด ฿${savings}
+                            </div>
+                        ` : `
+                            <div class="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-50 px-1.5 sm:px-2 py-0.5 rounded-lg border border-slate-200 shrink-0 mb-0.5">
+                                ราคาพิเศษ
+                            </div>
+                        `}
                     </div>
-                    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+
+                    <!-- Action Buttons Row -->
+                    <div class="flex items-center gap-1.5 sm:gap-2 pt-0.5">
                         <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
-                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
                             <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
                         </button>
                         ${!inStock ? `
                         <button data-action="stock-alert" data-product-id="${escapeHTML(product.id)}" title="${isAlerted ? 'แจ้งเตือนเมื่อมีของ (เปิดแล้ว)' : 'แจ้งเตือนเมื่อมีสินค้า'}" 
-                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
                             <i class="fa-${isAlerted ? 'solid' : 'regular'} fa-bell"></i>
                         </button>
                         ` : ''}
-                        <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียด" 
-                            class="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-slate-100 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-[11px] sm:text-sm transition-all shadow-xs cursor-pointer active:scale-90">
+                        <button data-action="detail" data-product-id="${escapeHTML(product.id)}" title="ดูรายละเอียดสินค้า" 
+                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-300 text-slate-600 hover:text-pink-600 flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="gradient-btn px-2 sm:px-4 h-7 sm:h-10 rounded-lg sm:rounded-2xl text-[10px] sm:text-sm font-extrabold flex items-center gap-1.5 cursor-pointer active:scale-95 ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
-                            <i class="fa-solid fa-cart-plus text-[10px] sm:text-xs"></i>
-                            <span class="hidden sm:inline">${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
+                            class="flex-1 h-8 sm:h-9 rounded-xl gradient-btn text-white text-[11px] sm:text-xs font-black flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 transition-transform shadow-xs ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            <i class="fa-solid fa-cart-plus text-xs"></i>
+                            <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
                     </div>
                 </div>
@@ -1812,8 +1856,8 @@ function updateCartUI() {
         mobileCountBadge.classList.toggle('hidden', totalCount <= 0);
     }
 
-    if (subtotalEl) subtotalEl.textContent = `฿${verifiedSubtotal.toFixed(2)}`;
-    if (totalEl) totalEl.textContent = `฿${finalTotal.toFixed(2)}`;
+    if (subtotalEl) subtotalEl.textContent = `฿${verifiedSubtotal.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    if (totalEl) totalEl.textContent = `฿${finalTotal.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
     // Earn Coins Preview
     if (earnCoinsPreview && earnCoinsVal) {
@@ -1893,8 +1937,11 @@ function updateCartUI() {
                             ${escapeHTML(master.brandCode)}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-xs font-normal text-slate-900 truncate">${escapeHTML(master.title)}</h4>
-                            <div class="text-xs text-pink-600 font-extrabold mt-0.5">฿${master.price.toFixed(2)}</div>
+                            <h4 class="text-xs font-semibold text-slate-900 truncate">${escapeHTML(master.title)}</h4>
+                            <div class="flex items-baseline gap-1.5 mt-0.5">
+                                <span class="text-xs sm:text-sm font-black text-pink-600 font-['Outfit']">฿${formatProductPrice(master.price)}</span>
+                                ${item.quantity > 1 ? `<span class="text-[10px] text-slate-500 font-medium">(รวม ฿${(master.price * item.quantity).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>` : ''}
+                            </div>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200">
                             <button onclick="updateCartQuantity('${master.id}', -1)" class="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-slate-900 text-xs font-bold">-</button>
@@ -2023,7 +2070,7 @@ function startCheckout() {
     }
 
     document.getElementById('checkout-ref-code').textContent = refCode;
-    document.getElementById('checkout-total-amount').textContent = `฿${verifiedTotal.toFixed(2)}`;
+    document.getElementById('checkout-total-amount').textContent = `฿${verifiedTotal.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const accEl = document.getElementById('checkout-account-name');
     if (accEl) accEl.textContent = STORE_CONFIG.promptPayAccountName || 'สุพัฒน์ มีสมบัติ';
 
@@ -2043,7 +2090,7 @@ function startCheckout() {
             return `
                 <div class="flex items-center justify-between text-xs py-1 text-slate-700 font-normal">
                     <span class="truncate flex-1 pr-2 font-normal">${escapeHTML(master.title)} (x${i.quantity})</span>
-                    <span class="font-bold text-slate-800">฿${(master.price * i.quantity).toFixed(2)}</span>
+                    <span class="font-black text-slate-900 font-['Outfit']">฿${(master.price * i.quantity).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
             `;
         }).join('');
@@ -3043,7 +3090,7 @@ function renderOrdersHistory() {
                                         <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
                                             🛡️ ประกัน ${escapeHTML(item.warranty || '30 วัน')}
                                         </span>
-                                        <span class="font-black text-pink-600 text-xs sm:text-sm">฿${(item.price || 0).toFixed(2)}</span>
+                                        <span class="font-black text-pink-600 text-xs sm:text-sm font-['Outfit']">฿${(item.price || 0).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                                     </div>
                                 </div>
 
@@ -3056,7 +3103,7 @@ function renderOrdersHistory() {
                 <!-- Order Footer -->
                 <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 mt-3 text-xs">
                     <div class="font-bold text-slate-600">
-                        ยอดรวมคำสั่งซื้อ: <span class="text-base font-black text-slate-900">฿${(order.totalAmount || 0).toFixed(2)}</span>
+                        ยอดรวมคำสั่งซื้อ: <span class="text-base font-black text-slate-900 font-['Outfit']">฿${(order.totalAmount || 0).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="copyOrderCustomerSummary('${escapeHTML(order.orderId)}')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1 shadow-xs">
@@ -3465,8 +3512,11 @@ function renderWishlistPane() {
                     </div>
                     <div class="min-w-0">
                         <h5 class="text-xs font-normal text-slate-900 truncate">${escapeHTML(product.title)}</h5>
-                        <div class="flex items-center gap-2 mt-0.5">
-                            <span class="text-xs font-black text-pink-600">฿${product.price.toFixed(2)}</span>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <span class="text-xs sm:text-sm font-black text-pink-600 font-['Outfit']">฿${formatProductPrice(product.price)}</span>
+                            ${product.originalPrice > product.price ? `
+                                <span class="text-[10px] text-slate-400 line-through font-medium">฿${formatProductPrice(product.originalPrice)}</span>
+                            ` : ''}
                             <span class="text-[10px] font-bold ${inStock ? 'text-emerald-600' : 'text-rose-500'}">
                                 ${inStock ? '🟢 มีของ' : '🔴 หมด'}
                             </span>
@@ -7825,8 +7875,28 @@ function openProductDetailModal(productId) {
     setElemText('modal-product-region', product.region || 'Global (ทั่วโลก)');
     setElemText('modal-product-stock', `${availableStock} ชิ้น`);
     setElemText('modal-product-sold', `${(product.soldCount || 0).toLocaleString()} ชิ้น`);
-    setElemText('modal-product-original-price', product.originalPrice ? `฿${product.originalPrice.toFixed(2)}` : '');
-    setElemText('modal-product-price', `฿${product.price.toFixed(2)}`);
+    const discountPercent = (product.originalPrice && product.originalPrice > product.price)
+        ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+        : 0;
+    const formattedPrice = formatProductPrice(product.price);
+    const formattedOrigPrice = product.originalPrice ? formatProductPrice(product.originalPrice) : '';
+
+    setElemText('modal-product-price', formattedPrice);
+    const origPriceEl = document.getElementById('modal-product-original-price');
+    if (origPriceEl) {
+        origPriceEl.textContent = (formattedOrigPrice && discountPercent > 0) ? `฿${formattedOrigPrice}` : '';
+        origPriceEl.style.display = (formattedOrigPrice && discountPercent > 0) ? 'inline' : 'none';
+    }
+    const discountBadgeEl = document.getElementById('modal-product-discount-badge');
+    if (discountBadgeEl) {
+        if (discountPercent > 0) {
+            const modalSavings = formatProductPrice(product.originalPrice - product.price);
+            discountBadgeEl.textContent = `-${discountPercent}% (ประหยัด ฿${modalSavings})`;
+            discountBadgeEl.classList.remove('hidden');
+        } else {
+            discountBadgeEl.classList.add('hidden');
+        }
+    }
 
     const featuresList = document.getElementById('modal-product-features-list');
     if (featuresList) {
