@@ -84,6 +84,14 @@
         window.closeVaultModal = window.closeVaultModal || function () { };
         window.selectBrand = window.selectBrand || function () { };
         window.selectType = window.selectType || function () { };
+        window.switchMemberTab = window.switchMemberTab || function () { };
+        window.copyReferralCode = window.copyReferralCode || function () { };
+        window.copyReferralLink = window.copyReferralLink || function () { };
+        window.addAllWishlistToCart = window.addAllWishlistToCart || function () { };
+        window.handleSaveProfileSettings = window.handleSaveProfileSettings || function () { };
+        window.handleChangePasswordSettings = window.handleChangePasswordSettings || function () { };
+        window.toggleProductWishlist = window.toggleProductWishlist || function () { };
+        window.toggleProductStockAlert = window.toggleProductStockAlert || function () { };
     </script>
 </head>
 
@@ -2290,7 +2298,7 @@
             <!-- ══════════════════════════════════════════════
                  TAB PANE 2: VIP TIER & PRIVILEGES
                  ══════════════════════════════════════════════ -->
-            <div id="member-pane-vip" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+            <div id="member-pane-vip" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
                 <!-- Metallic Tier Card -->
                 <div id="vip-metallic-card" class="p-5 rounded-3xl bg-gradient-to-br from-amber-500 via-amber-600 to-yellow-700 text-white shadow-xl relative overflow-hidden">
                     <div class="absolute -right-6 -bottom-6 text-8xl text-white/10 pointer-events-none">
@@ -2377,7 +2385,7 @@
             <!-- ══════════════════════════════════════════════
                  TAB PANE 3: PINK COINS & REWARDS
                  ══════════════════════════════════════════════ -->
-            <div id="member-pane-coins" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+            <div id="member-pane-coins" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
                 <!-- Coins Balance Banner -->
                 <div class="p-4 rounded-3xl bg-gradient-to-r from-amber-50 via-pink-50 to-amber-50 border-2 border-amber-300 flex flex-wrap items-center justify-between gap-3 shadow-sm">
                     <div class="flex items-center gap-3">
@@ -2427,7 +2435,7 @@
             <!-- ══════════════════════════════════════════════
                  TAB PANE 4: REFERRAL & AFFILIATE PROGRAM
                  ══════════════════════════════════════════════ -->
-            <div id="member-pane-referral" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+            <div id="member-pane-referral" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
                 <!-- Referral Hero Card -->
                 <div class="p-4.5 rounded-3xl bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 border-2 border-purple-200 text-slate-800 space-y-3 shadow-sm">
                     <div class="flex items-center gap-3">
@@ -2493,7 +2501,7 @@
             <!-- ══════════════════════════════════════════════
                  TAB PANE 5: WISHLIST (FAVORITES)
                  ══════════════════════════════════════════════ -->
-            <div id="member-pane-wishlist" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+            <div id="member-pane-wishlist" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                         <i class="fa-solid fa-heart text-rose-500"></i>
@@ -2512,7 +2520,7 @@
             <!-- ══════════════════════════════════════════════
                  TAB PANE 6: ACCOUNT PROFILE SETTINGS & SECURITY
                  ══════════════════════════════════════════════ -->
-            <div id="member-pane-settings" class="member-pane hidden flex-1 flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+            <div id="member-pane-settings" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
                 <!-- Personal Info Form Card -->
                 <div class="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
                     <h5 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -5513,7 +5521,7 @@ user2@gmail.com:Pass5678
             <span class="text-[10px] font-bold">คีย์ของฉัน</span>
         </button>
         <button type="button"
-            onclick="if(typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) { openOrdersModal(); } else { openAuthModal('login'); }"
+            onclick="openOrdersModal(typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn() ? 'orders' : 'vip')"
             class="flex flex-col items-center gap-0.5 text-slate-600 hover:text-pink-600 active:scale-95 transition-all cursor-pointer">
             <i class="fa-solid fa-circle-user text-base text-emerald-500"></i>
             <span class="text-[10px] font-bold">สมาชิก</span>
