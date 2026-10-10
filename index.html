@@ -1715,7 +1715,7 @@
     <!-- ==========================================
          CHECKOUT & PAYMENT MODAL (Bright White & Clear)
          ========================================== -->
-    <div id="checkout-modal"
+    <div id="checkout-modal" onclick="if(event.target === this) closeCheckoutModal()"
         class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-2 sm:p-4">
         <div
             class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 border border-pink-200 relative max-h-[94vh] overflow-y-auto shadow-2xl">
@@ -2126,7 +2126,7 @@
     <!-- ==========================================
          INSTANT DELIVERY VAULT MODAL (Bright & Clear)
          ========================================== -->
-    <div id="vault-modal"
+    <div id="vault-modal" onclick="if(event.target === this) closeVaultModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-2.5 sm:p-4">
         <div
             class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border-2 border-pink-400 relative max-h-[92vh] overflow-y-auto shadow-2xl">
@@ -2179,7 +2179,7 @@
     <!-- ==========================================
          MEMBER CENTER & KEY VAULT MODAL ("ศูนย์สมาชิก & คีย์ของฉัน")
          ========================================== -->
-    <div id="orders-modal"
+    <div id="orders-modal" onclick="if(event.target === this) closeOrdersModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4">
         <div
             class="bg-white max-w-3xl w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200 relative max-h-[94vh] flex flex-col shadow-2xl">
@@ -2594,7 +2594,7 @@
     <!-- ==========================================
          USER AUTHENTICATION MODAL (LOGIN / REGISTER / OTP / FORGOT)
          ========================================== -->
-    <div id="auth-modal"
+    <div id="auth-modal" onclick="if(event.target === this) closeAuthModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-2.5 sm:p-4">
         <div
             class="bg-white max-w-md w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border-2 border-pink-300 relative shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -2886,7 +2886,7 @@
     <!-- ==========================================
          ADMIN PIN AUTHENTICATION MODAL (SECURITY GATE)
          ========================================== -->
-    <div id="admin-pin-modal"
+    <div id="admin-pin-modal" onclick="if(event.target === this) closeAdminPinModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white max-w-sm w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl text-center">
             <div
@@ -2932,7 +2932,7 @@
     <!-- ==========================================
          SECURED ADMIN MODAL (Clean Bright Layout)
          ========================================== -->
-    <div id="admin-modal"
+    <div id="admin-modal" onclick="if(event.target === this) closeAdminModal()"
         class="hidden fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 md:p-6">
         <div
             class="bg-white max-w-7xl w-full rounded-3xl p-4 sm:p-6 lg:p-7 border-2 border-pink-200/80 relative max-h-[94vh] overflow-y-auto shadow-2xl">
@@ -4237,7 +4237,7 @@
     <!-- ==========================================
          ADMIN FULFILL ORDER MODAL (ON-DEMAND DISPATCH)
          ========================================== -->
-    <div id="admin-fulfill-modal"
+    <div id="admin-fulfill-modal" onclick="if(event.target === this) closeFulfillModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white max-w-lg w-full rounded-3xl p-6 border-2 border-pink-400 relative shadow-2xl">
             <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
@@ -4378,7 +4378,7 @@
     <!-- ==========================================
          EDIT & MANAGE PRODUCT MODAL (PRICE + DETAILS + DELETE)
          ========================================== -->
-    <div id="edit-price-modal"
+    <div id="edit-price-modal" onclick="if(event.target === this) closeEditPriceModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
         <div
             class="bg-white max-w-xl w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
@@ -4676,7 +4676,7 @@
     <!-- ==========================================
          ADD STOCK MODAL (ENHANCED BULK VAULT)
          ========================================== -->
-    <div id="add-stock-modal"
+    <div id="add-stock-modal" onclick="if(event.target === this) closeAddStockModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
         <div
             class="bg-white max-w-lg w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
@@ -4778,7 +4778,7 @@ user2@gmail.com:Pass5678
     <!-- ==========================================
          ADMIN RESET PASSWORD MODAL
          ========================================== -->
-    <div id="admin-reset-pw-modal"
+    <div id="admin-reset-pw-modal" onclick="if(event.target === this) closeAdminResetPwModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white max-w-md w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -4823,7 +4823,7 @@ user2@gmail.com:Pass5678
     <!-- ==========================================
          ADMIN SLIP VIEW MODAL (Zoom / Inspect Transfer Slip)
          ========================================== -->
-    <div id="admin-slip-view-modal"
+    <div id="admin-slip-view-modal" onclick="if(event.target === this) closeSlipViewModal()"
         class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[75] flex items-center justify-center p-3 sm:p-4">
         <div
             class="bg-white max-w-lg w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
@@ -4940,7 +4940,7 @@ user2@gmail.com:Pass5678
     <!-- ==========================================
          PRODUCT DETAILS MODAL (Bright & Readable)
          ========================================== -->
-    <div id="product-detail-modal"
+    <div id="product-detail-modal" onclick="if(event.target === this) closeProductDetailModal()"
         class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-2.5 sm:p-4">
         <div
             class="bg-white max-w-lg w-full rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 relative max-h-[92vh] overflow-y-auto shadow-2xl">
@@ -5539,7 +5539,7 @@ user2@gmail.com:Pass5678
     <script src="js/promptpay.js"></script>
     <script src="js/g2g-sync.js"></script>
     <script src="js/user-auth.js"></script>
-    <script src="js/app.js?v=2.2"></script>
+    <script src="js/app.js?v=2.3"></script>
     <!-- Live Chat Widget (Customer) — only loads when server is available -->
     <script src="js/chat-widget.js"></script>
 </body>

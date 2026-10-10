@@ -1225,9 +1225,20 @@ function initFilters() {
 
     if (searchInput) {
         searchInput.addEventListener('input', (e) => handleSearch(e.target.value, 'desktop'));
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                scrollToProducts();
+            }
+        });
     }
     if (mobileSearchInput) {
         mobileSearchInput.addEventListener('input', (e) => handleSearch(e.target.value, 'mobile'));
+        mobileSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                scrollToProducts();
+                mobileSearchInput.blur();
+            }
+        });
     }
 
     const sortSelect = document.getElementById('sort-select');
@@ -1347,10 +1358,16 @@ function renderHighlightProducts() {
                             </span>
                             <span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>
                         </div>
-                        <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap shrink-0">
-                            <span class="sm:hidden">${escapeHTML(shortType)}</span>
-                            <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
-                        </span>
+                        <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                            <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
+                                <span class="sm:hidden">${escapeHTML(shortType)}</span>
+                                <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
+                            </span>
+                            <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
+                                class="w-7 h-7 sm:w-8 sm:h-8 rounded-full ${isWishlisted ? 'bg-rose-500 text-white shadow-xs' : 'bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-300'} flex items-center justify-center text-xs transition-all cursor-pointer active:scale-90 shadow-2xs">
+                                <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Highlight Ribbon/Badge -->
@@ -1419,10 +1436,6 @@ function renderHighlightProducts() {
 
                     <!-- Action Buttons Row -->
                     <div class="flex items-center gap-1.5 sm:gap-2 pt-0.5">
-                        <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
-                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
-                            <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
-                        </button>
                         ${!inStock ? `
                         <button data-action="stock-alert" data-product-id="${escapeHTML(product.id)}" title="${isAlerted ? 'แจ้งเตือนเมื่อมีของ (เปิดแล้ว)' : 'แจ้งเตือนเมื่อมีสินค้า'}" 
                             class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
@@ -1435,7 +1448,7 @@ function renderHighlightProducts() {
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="flex-1 h-8 sm:h-9 rounded-xl gradient-btn text-white text-[11px] sm:text-xs font-black flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 transition-transform shadow-xs ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            class="flex-1 h-8 sm:h-9 rounded-xl gradient-btn text-white text-[11px] sm:text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-transform shadow-xs ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
                             <i class="fa-solid fa-cart-plus text-xs"></i>
                             <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
@@ -1512,10 +1525,16 @@ function renderProducts() {
                             </span>
                             <span class="text-[11px] sm:text-xs font-bold text-slate-700 truncate">${escapeHTML(product.brand || 'Supinkly')}</span>
                         </div>
-                        <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap shrink-0">
-                            <span class="sm:hidden">${escapeHTML(shortType)}</span>
-                            <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
-                        </span>
+                        <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                            <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
+                                <span class="sm:hidden">${escapeHTML(shortType)}</span>
+                                <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
+                            </span>
+                            <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
+                                class="w-7 h-7 sm:w-8 sm:h-8 rounded-full ${isWishlisted ? 'bg-rose-500 text-white shadow-xs' : 'bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-300'} flex items-center justify-center text-xs transition-all cursor-pointer active:scale-90 shadow-2xs">
+                                <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Title -->
@@ -1576,10 +1595,6 @@ function renderProducts() {
 
                     <!-- Action Buttons Row -->
                     <div class="flex items-center gap-1.5 sm:gap-2 pt-0.5">
-                        <button data-action="wishlist" data-product-id="${escapeHTML(product.id)}" title="${isWishlisted ? 'นำออกจากที่ชอบ' : 'บันทึกในรายการโปรด'}" 
-                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isWishlisted ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
-                            <i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-heart"></i>
-                        </button>
                         ${!inStock ? `
                         <button data-action="stock-alert" data-product-id="${escapeHTML(product.id)}" title="${isAlerted ? 'แจ้งเตือนเมื่อมีของ (เปิดแล้ว)' : 'แจ้งเตือนเมื่อมีสินค้า'}" 
                             class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${isAlerted ? 'bg-amber-50 border-amber-300 text-amber-600' : 'bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-500 hover:text-amber-500'} border flex items-center justify-center text-xs sm:text-sm transition-all shadow-2xs cursor-pointer active:scale-90 shrink-0">
@@ -1592,7 +1607,7 @@ function renderProducts() {
                         </button>
                         <button data-action="add-cart" data-product-id="${escapeHTML(product.id)}"
                             ${!inStock ? 'disabled' : ''}
-                            class="flex-1 h-8 sm:h-9 rounded-xl gradient-btn text-white text-[11px] sm:text-xs font-black flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95 transition-transform shadow-xs ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
+                            class="flex-1 h-8 sm:h-9 rounded-xl gradient-btn text-white text-[11px] sm:text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-transform shadow-xs ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}">
                             <i class="fa-solid fa-cart-plus text-xs"></i>
                             <span>${inStock ? 'ใส่ตะกร้า' : 'หมด'}</span>
                         </button>
@@ -9071,6 +9086,7 @@ window.renderProducts = renderProducts;
 window.openSlipViewModal = openSlipViewModal;
 window.closeSlipViewModal = closeSlipViewModal;
 window.handleAdminSlipReupload = handleAdminSlipReupload;
+window.clearSlip = () => (typeof SlipVerifier !== 'undefined' && SlipVerifier.clearSlip) ? SlipVerifier.clearSlip() : null;
 window.openOrdersModal = openOrdersModal;
 window.closeOrdersModal = closeOrdersModal;
 window.renderOrdersHistory = renderOrdersHistory;
