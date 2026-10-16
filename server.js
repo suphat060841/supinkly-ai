@@ -5012,12 +5012,12 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) return null;
     const cleanKey = apiKey.trim();
 
-    // Use official active models (gemini-1.5-flash and gemini-2.0-flash)
-    const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash'];
+    // Use official active models (gemini-3-flash-preview, gemini-3.5-flash, gemini-3.8-flash)
+    const modelsToTry = ['gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-3.8-flash'];
 
     for (const model of modelsToTry) {
         try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
             
             const reqHeaders = {
                 'Content-Type': 'application/json',
@@ -5051,7 +5051,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
             });
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
 
             let res = await fetch(url, {
                 method: 'POST',
@@ -5078,7 +5078,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
                 console.warn(`[GEMINI-AI] ${model} attempt 1 failed (${res.status}): ${errSnippet.slice(0, 120)}`);
                 
                 const fallbackCtrl = new AbortController();
-                const fbTimeout = setTimeout(() => fallbackCtrl.abort(), 6000);
+                const fbTimeout = setTimeout(() => fallbackCtrl.abort(), 15000);
                 res = await fetch(url, {
                     method: 'POST',
                     headers: reqHeaders,
@@ -5132,11 +5132,11 @@ async function getBotResponse(userMsg, sessionId) {
     const q = raw.toLowerCase();
     const db = getDb();
 
-    // ── 1. REAL-TIME ORDER TRACKING (เช็คสถานะออเดอร์ทันที) ──
+    // ── 1. REAL-TIME ORDER TRACKING (เช็คสถานะออเดอร์ทันทีจากฐานข้อมูล) ──
     const orderMatch = raw.match(/SPK[-_]?[0-9A-Z]{4,32}/i);
     const isAskingOrder = /เช็คออเดอร์|ตามออเดอร์|สถานะออเดอร์|เลขออเดอร์|ส่งของหรือยัง|ส่งหรือยัง|ของถึงไหน|ออเดอร์ถึงไหน|ยังไม่ได้ของ|ยังไม่ได้รหัส/i.test(q);
 
-    if (orderMatch || isAskingOrder) {
+    if (orderMatch || (isAskingOrder && !q.includes('ai') && !q.includes('แนะนำ'))) {
         let searchedId = orderMatch ? orderMatch[0].toUpperCase() : null;
 
         if (searchedId) {
@@ -5155,12 +5155,10 @@ async function getBotResponse(userMsg, sessionId) {
             }
 
             const cleanSearch = searchedId.replace(/[-_]/g, '');
-            // Minimum search length check to prevent scanning/wildcard probes
             if (cleanSearch.length < 8) {
                 return `🔍 **รหัสคำสั่งซื้อ "${searchedId}" สั้นเกินไปครับ**\n\nรหัสคำสั่งซื้อของร้าน Supinkly จะขึ้นต้นด้วย **SPK-** ตามด้วยรหัสอย่างน้อย 8 ตัวอักษร (เช่น \`SPK-12345678\`) กรุณาตรวจสอบอีกครั้งครับ`;
             }
 
-            // [SECURITY FIX] Strict EXACT match only — eliminates fuzzy .includes() which leaked other customers' orders
             const order = (db.orders || []).find(o => {
                 const cleanId = (o.orderId || '').toUpperCase().replace(/[-_]/g, '');
                 return cleanId === cleanSearch;
@@ -5189,7 +5187,39 @@ async function getBotResponse(userMsg, sessionId) {
         }
     }
 
-    // ── 2. DYNAMIC PRODUCT & PRICING LOOKUP (ค้นหาสินค้า & เช็คราคาจริง) ──
+    // ── 2. HUMAN HANDOVER (ติดต่อแอดมินคนจริง) ──
+    if (/^(แอดมิน|คนจริง|เจ้าหน้าที่|มนุษย์|ติดต่อแอดมิน|ขอคุยกับแอดมิน|ขอคุยกับคนจริง|admin)$/i.test(q) || /(ขอ|อยาก|จะ|ช่วย).*(คุย|ติดต่อ).*(แอดมิน|คนจริง|เจ้าหน้าที่|มนุษย์)/i.test(q)) {
+        return `🔔 **น้องพิงกี้ส่งสัญญาณแจ้งเตือนแอดมินคนจริงให้แล้วครับ!**\n\n` +
+            `ขณะนี้ระบบได้ส่งแจ้งเตือนไปยังแอดมินเรียบร้อยแล้ว แอดมินจะรีบเข้ามาตอบในแชทนี้โดยเร็วที่สุดครับ (คุณลูกค้าสามารถพิมพ์รายละเอียดหรือคำถามทิ้งไว้ได้เลยครับ)\n\n` +
+            `หรือหากเป็นเรื่องเร่งด่วน สามารถทักเพจ Facebook ได้ตลอด 24 ชม. ที่:\n` +
+            `👉 https://www.facebook.com/profile.php?id=61594837747580`;
+    }
+
+    // ── 3. SHORT GREETINGS & POLITE PHRASES ──
+    if (/^(สวัสดี|หวัดดี|ดีครับ|ดีค่ะ|hello|hi|hey|ดีจ้า|สวัสดีครับ|สวัสดีค่ะ)$/i.test(q.trim())) {
+        return `👋 สวัสดีครับ! น้องพิงกี้ AI ผู้ช่วยประจำร้าน Supinkly.AI ยินดีให้บริการครับ 💖\n\n` +
+            `คุณลูกค้าสามารถสอบถามข้อมูลสินค้า วิธีสั่งซื้อ รับประกัน ตรวจสอบเลขออเดอร์ หรือขอโค้ดส่วนลดได้เลยนะครับ หรือถามคำถามทั่วไป/ปรึกษาเรื่อง AI และเทคโนโลยีได้ตลอด 24 ชม. ครับ! ✨`;
+    }
+
+    if (/^(ขอบคุณ|ขอบคุณครับ|ขอบคุณค่ะ|thanks|thank you|ใจจ้า|ขอบใจ)$/i.test(q.trim())) {
+        return `ยินดีเป็นอย่างยิ่งเลยครับ! หากมีข้อสงสัยหรือต้องการความช่วยเหลือเพิ่มเติม ทักหาน้องพิงกี้หรือแอดมินได้ตลอด 24 ชม. เลยนะครับ ขอให้มีความสุขกับการใช้งานครับ 💖✨`;
+    }
+
+    // ── 4. GOOGLE GEMINI AI (SMART LLM ENGINE) ──
+    // หากมี GEMINI_API_KEY จะเรียก Gemini AI มาตอบทุกคำถาม ทั้งเรื่องสินค้าในร้านและคำถามทั่วไปรอบด้าน
+    const geminiKey = (process.env.GEMINI_API_KEY || db.geminiApiKey || "").trim();
+    if (geminiKey) {
+        try {
+            const geminiAnswer = await callGeminiAI(userMsg, sessionId, geminiKey);
+            if (geminiAnswer && typeof geminiAnswer === 'string' && geminiAnswer.trim().length > 0) {
+                return geminiAnswer.trim();
+            }
+        } catch (err) {
+            console.warn('[GEMINI-AI] Generation fallback:', err.message);
+        }
+    }
+
+    // ── 5. OFFLINE / FALLBACK RULE-BASED MATCHERS ──
     const customPrices = db.customPrices || {};
     const customProducts = db.customProducts || {};
     const getProductLivePrice = (id, defaultPrice) => {
@@ -5229,7 +5259,6 @@ async function getBotResponse(userMsg, sessionId) {
             `🛡️ ลิขสิทธิ์แท้ 100% จัดส่งทันทีหลังชำระเงิน พร้อมคู่มือใช้งานง่ายๆ ใน 1 นาทีครับ!`;
     }
 
-    // ── PROGRAM & SOFTWARE DETAILS (รายละเอียดโปรแกรม & ซอฟต์แวร์ทั้งหมด) ──
     if (/รายละเอียดโปรแกรม|เกี่ยวกับโปรแกรม|ข้อมูลโปรแกรม|มีโปรแกรม|โปรแกรมอะไร|แนะนำโปรแกรม|โปรแกรม|ซอฟต์แวร์|software|แอป|แอพ|app/i.test(q)) {
         const pGoo5TB = getProductLivePrice('goo-02', 250);
         const pGemini = getProductLivePrice('goo-ai-01', 150);
@@ -5260,8 +5289,9 @@ async function getBotResponse(userMsg, sessionId) {
             `✨ ทุกรายการเป็นลิงก์เปิดสิทธิ์ทางการและคีย์แท้ **ไม่มีบัญชีหาร และไม่มีบัญชีแชร์** ปลอดภัย 100% ครับ!`;
     }
 
-    // ── 3. LIVE PROMOTIONS & COUPONS (ดึงโค้ดส่วนลดจากฐานข้อมูลจริง) ──
-    if (/โค้ด|คูปอง|ส่วนลด|โปรโมชั่น|promo|coupon|code|ลดราคา|มีโปร|ลดได้|ลดกี่/i.test(q)) {
+    // Coupon check (exclude programming words)
+    const isCodeProgramming = /เขียนโค้ด|เขียน code|โค้ด (python|js|javascript|html|css|php|java|c\+\+|c#|sql)|(python|js|javascript|html|css|php|java|c\+\+|c#|sql) โค้ด|source code|ฟังก์ชัน|function|อัลกอริทึม|algorithm|ตัวอย่างโค้ด/i.test(q);
+    if (!isCodeProgramming && (/โค้ดส่วนลด|ขอโค้ด|คูปอง|ส่วนลด|โปรโมชั่น|promo|coupon|voucher|ลดราคา|มีโปร|ลดได้|ลดกี่/i.test(q) || /^(โค้ด|code)$/i.test(q.trim()))) {
         const activeCoupons = (db.coupons || []).filter(c => c.active !== false);
         let couponList = activeCoupons.map(c => {
             const isPercent = (c.type === 'percentage' || c.discountType === 'percent');
@@ -5278,7 +5308,6 @@ async function getBotResponse(userMsg, sessionId) {
             `💡 **วิธีใช้งาน:** เลือกสินค้าใส่ตะกร้า ➔ เข้าไปที่ตะกร้าสินค้า ➔ กรอกโค้ดในช่อง **"โค้ดส่วนลด"** แล้วกด **"ใช้โค้ด"** ยอดชำระจะลดลงทันทีครับ! ✨`;
     }
 
-    // ── 4. ORDER & DELIVERY FLOW (วิธีสั่งซื้อ & รับของ) ──
     if (/ซื้อ|สั่งซื้อ|ชำระเงิน|จ่ายเงิน|โอน|พร้อมเพย์|promptpay|qr|สลิป|ได้ของ|ส่งของ|รับของ|รับรหัส|รับคีย์|ขั้นตอน|vault/i.test(q)) {
         return `✨ **ขั้นตอนการสั่งซื้อและรับรหัสสินค้า (ง่ายๆ ใน 3 นาที):**\n\n` +
             `1️⃣ **เลือกสินค้า:** กดปุ่ม **"ใส่ตะกร้า"** สินค้าที่คุณต้องการ\n` +
@@ -5288,7 +5317,6 @@ async function getBotResponse(userMsg, sessionId) {
             `5️⃣ **รับสินค้าทันที:** รหัส/ลิงก์จะถูกส่งเข้าเมนู **"คีย์ของฉัน"** ด้านบน และส่งสำเนาเข้าอีเมลของคุณทันทีใน 5–15 นาทีครับ! 📦`;
     }
 
-    // ── 5. WARRANTY & TROUBLESHOOTING (รับประกัน & แก้ไขปัญหา) ──
     if (/เข้าไม่ได้|รหัสผิด|รหัสไม่ตรง|รหัสไม่ถูก|login ไม่ได้|พาสผิด|พาสเวิร์ดไม่ตรง/i.test(q)) {
         return `✨ **คำแนะนำการเปิดใช้งานสินค้า:**\n\n` +
             `• สำหรับ **Activation Link**: คลิกที่ลิงก์ที่ได้รับในระบบ แล้วกด 'ยอมรับ / เข้าร่วม' ด้วยบัญชี Gmail หรือ Microsoft ของคุณ สิทธิ์จะเปิดใช้งานทันที\n` +
@@ -5305,7 +5333,6 @@ async function getBotResponse(userMsg, sessionId) {
             `ทางร้านยินดีดูแลและแก้ไขให้อย่างรวดเร็วที่สุดครับ!`;
     }
 
-    // ── 6. ACCOUNT TYPES (Activation Link vs License Key) ──
     if (/ต่างกัน|ต่าง|private|shared|แชร์|หาร|ส่วนตัว|แบบไหน|link|invite/i.test(q)) {
         return `💡 **นโยบายประเภทสินค้าของทางร้าน Supinkly.AI:**\n\n` +
             `• ❌ **ไม่มีการจำหน่ายบัญชีหาร (Shared) หรือบัญชีแชร์ร่วมกับผู้อื่นเด็ดขาด** เพื่อความปลอดภัยของข้อมูลส่วนตัวคุณลูกค้า 100%\n` +
@@ -5313,7 +5340,6 @@ async function getBotResponse(userMsg, sessionId) {
             `• 🔑 **License Key (รหัสคีย์แท้):** คีย์ลิขสิทธิ์แท้ (เช่น Windows 11 Pro OEM) นำไป Activate ผูกติดกับคอมพิวเตอร์ของคุณ ใช้งานได้ถาวรตลอดชีพ`;
     }
 
-    // ── 7. TRUST & OPERATING HOURS ──
     if (/ของแท้ไหม|แท้ไหม|ปลอดภัยไหม|โกงไหม|เชื่อถือได้ไหม|มีเครดิตไหม|รีวิว|ไว้ใจได้ไหม/i.test(q)) {
         return `🛡️ **ความน่าเชื่อถือและความปลอดภัยที่ Supinkly.AI:**\n\n` +
             `1. **ของแท้ 100%:** สินค้าซอฟต์แวร์ คีย์แท้ OEM และบัญชีพรีเมียมถูกลิขสิทธิ์ ได้รับการตรวจสอบก่อนส่งมอบ\n` +
@@ -5330,36 +5356,7 @@ async function getBotResponse(userMsg, sessionId) {
             `• **แอดมินคนจริง:** สแตนด์บายคอยตอบแชทและดูแลเคสเร่งด่วนตลอดเวลาครับ`;
     }
 
-    // ── 8. HUMAN HANDOVER (ติดต่อแอดมินคนจริง) ──
-    if (/แอดมิน|คนจริง|เจ้าหน้าที่|มนุษย์|ติดต่อ|เบอร์|โทร|โทรศัพท์|admin/i.test(q)) {
-        return `🔔 **น้องพิงกี้ส่งสัญญาณแจ้งเตือนแอดมินคนจริงให้แล้วครับ!**\n\n` +
-            `ขณะนี้ระบบได้ส่งแจ้งเตือนไปยังแอดมินเรียบร้อยแล้ว แอดมินจะรีบเข้ามาตอบในแชทนี้โดยเร็วที่สุดครับ (คุณลูกค้าสามารถพิมพ์รายละเอียดหรือคำถามทิ้งไว้ได้เลยครับ)\n\n` +
-            `หรือหากเป็นเรื่องเร่งด่วน สามารถทักเพจ Facebook ได้ตลอด 24 ชม. ที่:\n` +
-            `👉 https://www.facebook.com/profile.php?id=61594837747580`;
-    }
-
-    // ── 9. GREETINGS & POLITE SMALL TALK ──
-    if (/^(สวัสดี|หวัดดี|ดีครับ|ดีค่ะ|hello|hi|hey|ดีจ้า|สอบถาม|รบกวน|มีใครอยู่ไหม)/i.test(q) || q === 'สวัสดี' || q === 'ดีครับ' || q === 'ดีค่ะ') {
-        return `👋 สวัสดีครับ! น้องพิงกี้ AI ผู้ช่วยประจำร้าน Supinkly.AI ยินดีให้บริการครับ 💖\n\n` +
-            `คุณลูกค้าสามารถสอบถามข้อมูลสินค้า วิธีสั่งซื้อ รับประกัน ตรวจสอบเลขออเดอร์ หรือขอโค้ดส่วนลดได้เลยนะครับ หรือสามารถกดปุ่มลัดด้านล่างเพื่อเริ่มสอบถามได้เลยครับ ✨`;
-    }
-
-    if (/ขอบคุณ|แต๊ง|thanks|thank you|ใจจ้า|ขอบใจ/i.test(q)) {
-        return `ยินดีเป็นอย่างยิ่งเลยครับ! หากมีข้อสงสัยหรือต้องการความช่วยเหลือเพิ่มเติม ทักหาน้องพิงกี้หรือแอดมินได้ตลอด 24 ชม. เลยนะครับ ขอให้มีความสุขกับการใช้งานครับ 💖✨`;
-    }
-
-    // ── 10. GOOGLE GEMINI AI CALL (หากมี GEMINI_API_KEY) ──
-    const geminiKey = (process.env.GEMINI_API_KEY || db.geminiApiKey || "").trim();
-    if (geminiKey) {
-        try {
-            const geminiAnswer = await callGeminiAI(userMsg, sessionId, geminiKey);
-            if (geminiAnswer) return geminiAnswer;
-        } catch (err) {
-            console.warn('[GEMINI-AI] Generation fallback:', err.message);
-        }
-    }
-
-    // ── 11. INTELLIGENT COMPREHENSIVE FALLBACK ──
+    // ── 6. INTELLIGENT COMPREHENSIVE FALLBACK MENU ──
     return `น้องพิงกี้ AI ผู้ช่วยร้าน Supinkly ยินดีให้บริการครับ! 💖\n\n` +
         `สำหรับข้อความที่คุณลูกค้าสอบถามเข้ามา น้องพิงกี้ขอแนะนำเมนูด่วนที่คุณลูกค้าสามารถสอบถามได้ทันทีครับ:\n\n` +
         `💻 **1. โปรแกรม & ซอฟต์แวร์:** พิมพ์ **"โปรแกรม"** เพื่อดูรายละเอียดซอฟต์แวร์ทั้งหมด (Windows 11, Office 365, Adobe CC, CapCut Pro)\n` +
