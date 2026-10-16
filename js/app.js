@@ -4996,12 +4996,12 @@ async function createDemoOrder() {
     const demoOrderId = "SPK-DEMO" + Math.floor(1000 + Math.random() * 9000);
     const demoItems = [
         {
-            productId: "capcut-pro",
-            productTitle: "CapCut Pro 1 ปี (บัญชีส่วนตัว)",
-            brand: "CapCut",
-            type: "App Premium",
-            price: 129,
-            warranty: "365 วัน",
+            productId: "ms-01",
+            productTitle: "Windows 11 Pro OEM License Key - แท้ตลอดชีพ",
+            brand: "Microsoft",
+            type: "รหัสคีย์ (License Key)",
+            price: 290,
+            warranty: "ตลอดชีพ",
             status: "pending_fulfillment",
             credentials: null
         }
@@ -5010,7 +5010,7 @@ async function createDemoOrder() {
     const demoOrder = {
         orderId: demoOrderId,
         date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
-        totalAmount: 129.00,
+        totalAmount: 290.00,
         paymentMethod: "Thai QR PromptPay (ทดสอบ)",
         recipientEmail: "demo.customer@gmail.com",
         transRef: "DEMO_" + Date.now().toString(36).toUpperCase(),
@@ -8180,7 +8180,7 @@ function getDefaultInstructionForMode(mode, product) {
     const title = (product?.title || '').toLowerCase();
     const type = (product?.type || '').toLowerCase();
     if (mode === 'link' || title.includes('link') || title.includes('invite') || type.includes('link')) {
-        return "คลิกเปิดลิงก์ทางการเพื่อรับสิทธิ์เข้าใช้งานบนบัญชีส่วนตัวเดิมของคุณได้ทันที ไม่ต้องแจ้งรหัสผ่าน";
+        return "คลิกเปิดลิงก์ทางการเพื่อรับสิทธิ์เข้าใช้งานบนบัญชีเดิมของคุณได้ทันที ไม่ต้องแจ้งรหัสผ่าน";
     }
     if (mode === 'key' || title.includes('key') || title.includes('windows') || type.includes('key')) {
         return "นำรหัสคีย์ 25 หลักไปเปิดใช้งาน (Activate) ในเมนู Settings > Activation ของระบบ";
@@ -8599,7 +8599,7 @@ async function handleSaveAddedStock() {
         if (line.startsWith('http://') || line.startsWith('https://')) {
             newItems.push({
                 link: line,
-                instructions: customInstructions || "คลิกเปิดลิงก์เพื่อรับสิทธิ์เข้าใช้งานบนบัญชีส่วนตัวเดิมทันที"
+                instructions: customInstructions || "คลิกเปิดลิงก์เพื่อรับสิทธิ์เข้าใช้งานบนบัญชีเดิมทันที"
             });
         } else if (line.includes(':') && (currentStockInputMode === 'account' || line.includes('@'))) {
             const parts = line.split(':');

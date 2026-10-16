@@ -259,7 +259,7 @@ function getMasterProduct(productId) {
             subtitle: customProd.subtitle || "",
             badge: customProd.badge || "",
             type: customProd.type || "ลิงก์เปิดสิทธิ์ (Link)",
-            typeKey: "private",
+            typeKey: "link",
             duration: customProd.duration || "1 เดือน (30 วัน)",
             region: "Global (ใช้งานได้ทั่วโลก)",
             devices: customProd.devices || "iOS • Android • PC",

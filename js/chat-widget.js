@@ -149,8 +149,8 @@ const CHAT = (() => {
                 <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="การรับประกัน">
                     🛡️ การรับประกัน 30 วัน
                 </button>
-                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="Private ต่างกับ Shared ยังไง">
-                    💡 Private vs Shared
+                <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="Activation Link คืออะไร">
+                    💡 ลิงก์เปิดสิทธิ์ & คีย์แท้
                 </button>
                 <button type="button" class="spk-chip px-2.5 py-1 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-2xs" data-q="ติดต่อแอดมิน">
                     👤 ติดต่อแอดมินคนจริง

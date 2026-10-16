@@ -2393,15 +2393,15 @@ app.post('/api/admin/orders/demo', adminRateLimit, (req, res) => {
         transRef: "DEMO_" + Date.now().toString(36).toUpperCase(),
         slipHash: "demo_hash_" + Math.random().toString(36).substring(2, 10),
         slipUrl: "",
-        slipData: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="460" viewBox="0 0 360 460"><rect width="100%" height="100%" fill="%23f8fafc"/><rect x="16" y="16" width="328" height="428" rx="20" fill="white" stroke="%23e2e8f0" stroke-width="2"/><circle cx="180" cy="70" r="28" fill="%23ec4899"/><path d="M168 70 l8 8 l16 -16" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><text x="180" y="125" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="%230f172a">ชำระเงินสำเร็จ (สลิปจำลอง)</text><text x="180" y="145" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%2364748b">PromptPay QR Verification</text><line x1="40" y1="165" x2="320" y2="165" stroke="%23e2e8f0" stroke-dasharray="4 4"/><text x="40" y="200" font-family="sans-serif" font-size="12" fill="%2364748b">จำนวนเงิน</text><text x="320" y="200" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="20" fill="%23db2777">฿129.00</text><text x="40" y="240" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้โอน</text><text x="320" y="240" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">นายลูกค้า ทดสอบ (Demo)</text><text x="40" y="275" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้รับเงิน</text><text x="320" y="275" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">Supinkly.AI Store</text><text x="40" y="310" font-family="sans-serif" font-size="12" fill="%2364748b">รหัสอ้างอิง</text><text x="320" y="310" text-anchor="end" font-family="monospace" font-size="11" fill="%23475569">${demoOrderId}</text><rect x="40" y="340" width="280" height="70" rx="12" fill="%23fdf2f8" stroke="%23fbcfe8"/><text x="180" y="370" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="12" fill="%23be185d">ตรวจสอบสลิปอัตโนมัติผ่านแล้ว</text><text x="180" y="392" text-anchor="middle" font-family="sans-serif" font-size="11" fill="%23db2777">SlipOK / PromptPay Hash Verified</text></svg>`,
+        slipData: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="460" viewBox="0 0 360 460"><rect width="100%" height="100%" fill="%23f8fafc"/><rect x="16" y="16" width="328" height="428" rx="20" fill="white" stroke="%23e2e8f0" stroke-width="2"/><circle cx="180" cy="70" r="28" fill="%23ec4899"/><path d="M168 70 l8 8 l16 -16" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><text x="180" y="125" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="%230f172a">ชำระเงินสำเร็จ (สลิปจำลอง)</text><text x="180" y="145" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%2364748b">PromptPay QR Verification</text><line x1="40" y1="165" x2="320" y2="165" stroke="%23e2e8f0" stroke-dasharray="4 4"/><text x="40" y="200" font-family="sans-serif" font-size="12" fill="%2364748b">จำนวนเงิน</text><text x="320" y="200" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="20" fill="%23db2777">฿290.00</text><text x="40" y="240" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้โอน</text><text x="320" y="240" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">นายลูกค้า ทดสอบ (Demo)</text><text x="40" y="275" font-family="sans-serif" font-size="12" fill="%2364748b">ผู้รับเงิน</text><text x="320" y="275" text-anchor="end" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23334155">Supinkly.AI Store</text><text x="40" y="310" font-family="sans-serif" font-size="12" fill="%2364748b">รหัสอ้างอิง</text><text x="320" y="310" text-anchor="end" font-family="monospace" font-size="11" fill="%23475569">${demoOrderId}</text><rect x="40" y="340" width="280" height="70" rx="12" fill="%23fdf2f8" stroke="%23fbcfe8"/><text x="180" y="370" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="12" fill="%23be185d">ตรวจสอบสลิปอัตโนมัติผ่านแล้ว</text><text x="180" y="392" text-anchor="middle" font-family="sans-serif" font-size="11" fill="%23db2777">SlipOK / PromptPay Hash Verified</text></svg>`,
         items: [
             {
-                productId: "capcut-pro",
-                productTitle: "CapCut Pro 1 ปี (บัญชีส่วนตัว)",
-                brand: "CapCut",
-                type: "App Premium",
-                price: 129,
-                warranty: "365 วัน",
+                productId: "ms-01",
+                productTitle: "Windows 11 Pro OEM License Key - แท้ตลอดชีพ",
+                brand: "Microsoft",
+                type: "รหัสคีย์ (License Key)",
+                price: 290,
+                warranty: "ตลอดชีพ",
                 status: "pending_fulfillment",
                 credentials: null
             }
@@ -5057,13 +5057,20 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 
     const systemInstruction =
         `คุณคือ "น้องพิงกี้" (Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI)
-ร้าน Supinkly.AI เป็นแพลตฟอร์มจำหน่ายบัญชี AI พรีเมียม, ลิขสิทธิ์ดิจิทัล, คลาวด์ไดรฟ์ และคีย์ซอฟต์แวร์แท้ 100%
+ร้าน Supinkly.AI เป็นแพลตฟอร์มจำหน่ายลิขสิทธิ์ดิจิทัลทางการ ลิงก์เปิดสิทธิ์ และคีย์ซอฟต์แวร์แท้ 100%
 บุคลิกของคุณ: สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" และลงท้ายด้วย "ครับ/ผม" เสมอ
 
 ข้อมูลสำคัญของร้าน:
-- สินค้าหลัก: CapCut Pro (Private ฿129 / Shared ฿79), Claude Pro (Private ฿850 / Shared ฿290), Google AI Pro (฿150), Google Drive 5TB (฿229), Grok (฿290-฿950), Windows 11 Pro OEM Key แท้ตลอดชีพ (฿290), Microsoft 365 (฿259), Adobe CC All Apps (฿790)
-- รับประกัน: สินค้าทุกชิ้นรับประกัน 30 วันเต็ม (Windows OEM รับประกันตลอดชีพ) มีปัญหาเปลี่ยนชุดใหม่ให้ทันที
-- ประเภทสินค้า: Private (ส่วนตัว 100% ไม่แชร์ใคร), Shared (หารโปรไฟล์แยก ประหยัด), Link (Invite เข้าเมลตัวเอง), Key (คีย์เปิดสิทธิ์)
+- สินค้าที่วางจำหน่าย (มีเฉพาะ 4 รายการนี้เท่านั้น):
+  1. Google One Subscription Pro 5TB (18 เดือน) - Activation Link (฿250.00) - เปิดสิทธิ์ตรงเข้า Gmail เดิม ไม่ต้องย้ายข้อมูล คลาวด์ 5TB ยาวนาน 18 เดือน เฉลี่ยเพียง 0.46 บาท/วัน
+  2. Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link (฿150.00) - อัปเกรดตรงเข้า Gmail ของคุณ ปลอดภัย 100% ได้โมเดลเรือธง Gemini Advanced + พื้นที่ 2TB
+  3. Windows 11 Pro OEM License Key (แท้ตลอดชีพ) (฿290.00) - คีย์แท้ 25 หลัก ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ตลอดชีพ
+  4. Microsoft 365 Personal (1 เดือน) - Activation Link (฿259.00) - ปลดล็อก Office ครบวงจร Word, Excel, PowerPoint + OneDrive 1TB ใช้งานได้ 5 เครื่อง
+- นโยบายสินค้าสำคัญ:
+  ❌ ทางร้าน "ไม่มีการจำหน่ายบัญชีส่วนตัว (Private Account)" หรือ "บัญชีหาร (Shared Account)" เด็ดขาด 100%
+  ✅ สินค้าของร้านเป็น "ลิงก์เปิดสิทธิ์ทางการ (Activation Link)" เพื่อเปิดสิทธิ์บนบัญชีเดิมของลูกค้า และ "รหัสคีย์แท้ (OEM Key)" เท่านั้น ปลอดภัย 100% ไม่ต้องส่งรหัสผ่าน ไม่มีความเสี่ยงโดนดึงคืน
+- รับประกัน: สินค้า Subscription รับประกัน 30 วันเต็ม (Windows OEM รับประกันตลอดชีพ) มีปัญหาเปลี่ยนชุดใหม่ให้ทันที
+- ประเภทสินค้า: Activation Link (ลิงก์เปิดสิทธิ์ทางการเข้าบัญชีเดิม), License Key (รหัสคีย์แท้ OEM)
 - ระบบส่งมอบ: จัดเตรียมและส่งมอบรหัสเข้าเมนู "คีย์ของฉัน" และอีเมลภายใน 5-15 นาทีหลังชำระเงิน
 - การชำระเงิน: สแกน PromptPay QR Code ตรวจสลิปด้วย AI อัตโนมัติ ปลอดภัย 100%
 - โค้ดส่วนลดปัจจุบัน: ${activeCoupons || 'SUPINKLY10 (ลด 10%), PINKLOVE50 (ลด ฿50)'}
@@ -5071,8 +5078,8 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 
 คำแนะนำการตอบ:
 - ตอบให้กระชับ ชัดเจน เข้าใจง่าย ใช้ภาษาไทยที่สุภาพ น่ารัก และมีอิโมจิประกอบพอเหมาะ
-- หากลูกค้าถามเรื่องสถานะคำสั่งซื้อ ให้แนะนำให้แจ้งเลขออเดอร์ SPK-xxxxxx
-- ห้ามให้ข้อมูลเท็จ หากไม่แน่ใจให้แนะนำให้ติดต่อแอดมินคนจริงในแชทนี้`;
+- หากลูกค้าถามเรื่องบัญชีส่วนตัว (Private) หรือบัญชีหาร (Shared) ให้ตอบชัดเจนและสุภาพว่าทางร้านไม่มีการจำหน่ายบัญชีส่วนตัวหรือบัญชีหาร แต่เน้นจำหน่ายเฉพาะลิงก์เปิดสิทธิ์ทางการเข้าบัญชีเดิมของลูกค้า (Activation Link) และรหัสคีย์แท้ (OEM Key) เพื่อความปลอดภัยสูงสุดของลูกค้าครับ
+- หากลูกค้าถามเรื่องสถานะคำสั่งซื้อ ให้แนะนำให้แจ้งเลขออเดอร์ SPK-xxxxxx`;
 
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) return null;
     const cleanKey = apiKey.trim();
@@ -5089,7 +5096,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
                 'X-goog-api-key': cleanKey
             };
 
-            const fullPromptText = `[คำสั่งระบบ: คุณคือ "น้องพิงกี้" Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" ลงท้าย "ครับ/ผม" เสมอ ตอบคำถามได้ทุกเรื่องอย่างชาญฉลาดและถูกต้อง ทั้งเรื่องสินค้าในร้าน, การใช้งาน AI, การเขียนโปรแกรม (Programming/Coding), เทคโนโลยี และคำถามทั่วไป]\n\nคำถามจากลูกค้า: ${userMsg}`;
+            const fullPromptText = `[คำสั่งระบบ: คุณคือ "น้องพิงกี้" Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" ลงท้าย "ครับ/ผม" เสมอ ตอบคำถามได้ทุกเรื่องอย่างชาญฉลาดและถูกต้อง ทั้งเรื่องสินค้าในร้าน, การใช้งาน AI, การเขียนโปรแกรม (Programming/Coding), เทคโนโลยี และคำถามทั่วไป นโยบายร้านคือไม่มีการขายบัญชีส่วนตัว (Private) หรือบัญชีหาร (Shared) เด็ดขาด จำหน่ายเฉพาะ Activation Link ทางการ และ License Key แท้เท่านั้น]\n\nคำถามจากลูกค้า: ${userMsg}`;
 
             // Build conversation history ensuring valid alternating turns for Gemini API
             const contents = [];
@@ -5303,10 +5310,11 @@ async function getBotResponse(userMsg, sessionId) {
         return defaultPrice;
     };
 
-    if (/capcut|แคปคัท|claude|โคลด|grok|เกร็อก/i.test(q)) {
+    if (/capcut|แคปคัท|claude|โคลด|grok|เกร็อก|บัญชีส่วนตัว|บัญชีหาร|private|shared/i.test(q)) {
         return `💡 **นโยบายสินค้าของร้าน Supinkly.AI:**\n\n` +
-            `ทางร้านเน้นจำหน่ายเฉพาะ **ลิงก์เปิดสิทธิ์ทางการ (Activation Link)** และ **รหัสคีย์แท้ (OEM Key)** ที่เปิดสิทธิ์บนบัญชีส่วนตัวเดิมของลูกค้าโดยตรง 100% **ไม่มีการจำหน่ายบัญชีหาร (Shared) หรือบัญชีแชร์ร่วมกับผู้อื่น** เพื่อความปลอดภัยสูงสุดของข้อมูลลูกค้าครับ ✨\n\n` +
-            `📌 **สินค้าพร้อมส่งมอบในระบบขณะนี้:**\n` +
+            `❌ ทางร้าน**ไม่มีการจำหน่ายบัญชีส่วนตัว (Private Account) หรือบัญชีหาร (Shared Account)** เด็ดขาดครับ!\n\n` +
+            `✅ ทางร้านเน้นจำหน่ายเฉพาะ **ลิงก์เปิดสิทธิ์ทางการ (Activation Link)** และ **รหัสคีย์แท้ (OEM Key)** ที่เปิดสิทธิ์บนบัญชีเดิมของลูกค้าโดยตรง 100% ปลอดภัย ไม่ต้องบอกรหัสผ่าน หมดปัญหาบัญชีโดนดึงคืนครับ ✨\n\n` +
+            `📌 **สินค้าพร้อมส่งมอบในระบบขณะนี้ (4 รายการ):**\n` +
             `• 🔗 **Google One Pro 5TB (18 เดือน) - Activation Link:** **฿250.00**\n` +
             `• 🔗 **Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link:** **฿150.00**\n` +
             `• 🪟 **Windows 11 Pro OEM License Key (แท้ตลอดชีพ):** **฿290.00**\n` +
@@ -5384,7 +5392,7 @@ async function getBotResponse(userMsg, sessionId) {
     if (/ซื้อ|สั่งซื้อ|ชำระเงิน|จ่ายเงิน|โอน|พร้อมเพย์|promptpay|qr|สลิป|ได้ของ|ส่งของ|รับของ|รับรหัส|รับคีย์|ขั้นตอน|vault/i.test(q)) {
         return `✨ **ขั้นตอนการสั่งซื้อและรับรหัสสินค้า (ง่ายๆ ใน 3 นาที):**\n\n` +
             `1️⃣ **เลือกสินค้า:** กดปุ่ม **"ใส่ตะกร้า"** สินค้าที่คุณต้องการ\n` +
-            `2️⃣ **เข้าสู่ระบบ / สมัครสมาชิก:** เพื่อให้ระบบบันทึกคีย์เข้าบัญชีส่วนตัวของคุณ\n` +
+            `2️⃣ **เข้าสู่ระบบ / สมัครสมาชิก:** เพื่อให้ระบบบันทึกประวัติและคีย์ไว้ในระบบของคุณ\n` +
             `3️⃣ **สแกนชำระเงิน:** ผ่าน **Thai QR PromptPay** ได้ทุกแอปธนาคารและ TrueMoney (ฟรีค่าธรรมเนียม)\n` +
             `4️⃣ **แนบสลิป:** ระบบใช้ AI ตรวจสอบสลิปอัตโนมัติภายในไม่กี่วินาที\n` +
             `5️⃣ **รับสินค้าทันที:** รหัส/ลิงก์จะถูกส่งเข้าเมนู **"คีย์ของฉัน"** ด้านบน และส่งสำเนาเข้าอีเมลของคุณทันทีใน 5–15 นาทีครับ! 📦`;
@@ -5408,9 +5416,9 @@ async function getBotResponse(userMsg, sessionId) {
 
     if (/ต่างกัน|ต่าง|private|shared|แชร์|หาร|ส่วนตัว|แบบไหน|link|invite/i.test(q)) {
         return `💡 **นโยบายประเภทสินค้าของทางร้าน Supinkly.AI:**\n\n` +
-            `• ❌ **ไม่มีการจำหน่ายบัญชีหาร (Shared) หรือบัญชีแชร์ร่วมกับผู้อื่นเด็ดขาด** เพื่อความปลอดภัยของข้อมูลส่วนตัวคุณลูกค้า 100%\n` +
-            `• 🔗 **Activation Link (ลิงก์เปิดสิทธิ์):** ทางร้านส่งลิงก์ทางการให้อัปเกรดเข้าสู่บัญชีส่วนตัวเดิมของคุณ (เช่น Google One, Gemini, Microsoft 365) โดยไม่ต้องบอกรหัสผ่าน\n` +
-            `• 🔑 **License Key (รหัสคีย์แท้):** คีย์ลิขสิทธิ์แท้ (เช่น Windows 11 Pro OEM) นำไป Activate ผูกติดกับคอมพิวเตอร์ของคุณ ใช้งานได้ถาวรตลอดชีพ`;
+            `• ❌ **ไม่มีการจำหน่ายบัญชีส่วนตัว (Private) หรือบัญชีหาร (Shared) เด็ดขาด** เพื่อความปลอดภัยสูงสุดของลูกค้า 100%\n` +
+            `• 🔗 **Activation Link (ลิงก์เปิดสิทธิ์ทางการ):** ทางร้านส่งลิงก์ทางการให้อัปเกรดเข้าสู่บัญชีเดิมของคุณ (เช่น Google One, Gemini, Microsoft 365) โดยไม่ต้องบอกรหัสผ่าน ปลอดภัย ไร้กังวล\n` +
+            `• 🔑 **License Key (รหัสคีย์แท้ OEM):** คีย์ลิขสิทธิ์แท้ (เช่น Windows 11 Pro OEM) นำไป Activate ผูกติดกับคอมพิวเตอร์ของคุณ ใช้งานได้ถาวรตลอดชีพ`;
     }
 
     if (/ของแท้ไหม|แท้ไหม|ปลอดภัยไหม|โกงไหม|เชื่อถือได้ไหม|มีเครดิตไหม|รีวิว|ไว้ใจได้ไหม/i.test(q)) {
@@ -5431,13 +5439,15 @@ async function getBotResponse(userMsg, sessionId) {
 
     // ── 6. INTELLIGENT COMPREHENSIVE FALLBACK MENU ──
     return `น้องพิงกี้ AI ผู้ช่วยร้าน Supinkly ยินดีให้บริการครับ! 💖\n\n` +
-        `สำหรับข้อความที่คุณลูกค้าสอบถามเข้ามา น้องพิงกี้ขอแนะนำเมนูด่วนที่คุณลูกค้าสามารถสอบถามได้ทันทีครับ:\n\n` +
-        `💻 **1. โปรแกรม & ซอฟต์แวร์:** พิมพ์ **"โปรแกรม"** เพื่อดูรายละเอียดซอฟต์แวร์ทั้งหมด (Windows 11, Office 365, Adobe CC, CapCut Pro)\n` +
-        `👨‍💻 **2. งานเขียนโปรแกรม:** พิมพ์ **"เขียนโค้ด"** เพื่อดู AI แนะนำสำหรับโปรแกรมเมอร์ (Claude Pro, Gemini, Grok)\n` +
-        `🛍️ **3. เช็คราคาสินค้า:** พิมพ์ชื่อสินค้า เช่น **CapCut**, **Claude**, **Google Drive** ได้ทันที\n` +
-        `📦 **4. ตรวจสอบสถานะออเดอร์:** พิมพ์รหัสคำสั่งซื้อ เช่น \`SPK-12345678\`\n` +
-        `🎟️ **5. โค้ดส่วนลด:** พิมพ์ **"ขอโค้ดส่วนลด"** เพื่อรับคูปองลด 10-20%\n` +
-        `👤 **6. คุยกับแอดมินคนจริง:** พิมพ์ **"ติดต่อแอดมิน"** ได้ตลอด 24 ชม. ครับ!`;
+        `สำหรับข้อความที่คุณลูกค้าสอบถามเข้ามา น้องพิงกี้ขอแนะนำรายการสินค้าลิขสิทธิ์แท้ของทางร้านครับ:\n\n` +
+        `• 🔗 **Google One Pro 5TB (18 เดือน) - Activation Link:** ฿250.00\n` +
+        `• 🔗 **Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link:** ฿150.00\n` +
+        `• 🪟 **Windows 11 Pro OEM License Key (แท้ตลอดชีพ):** ฿290.00\n` +
+        `• 📄 **Microsoft 365 Personal (1 เดือน) - Activation Link:** ฿259.00\n\n` +
+        `💡 *ทางร้านจำหน่ายเฉพาะลิงก์เปิดสิทธิ์ทางการและคีย์แท้ ไม่มีการจำหน่ายบัญชีส่วนตัวหรือบัญชีหารครับ*\n\n` +
+        `📦 **ตรวจสอบสถานะออเดอร์:** พิมพ์รหัสคำสั่งซื้อ เช่น \`SPK-12345678\`\n` +
+        `🎟️ **โค้ดส่วนลด:** พิมพ์ **"ขอโค้ดส่วนลด"**\n` +
+        `👤 **ติดต่อแอดมิน:** พิมพ์ **"ติดต่อแอดมิน"** ได้ตลอด 24 ชม. ครับ!`;
 }
 
 // ─── [GLOBAL EXPRESS ERROR HANDLER & RESILIENCE] ────────────────────────────
