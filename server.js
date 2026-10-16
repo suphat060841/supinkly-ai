@@ -5264,20 +5264,14 @@ async function getBotResponse(userMsg, sessionId) {
             `👉 https://www.facebook.com/profile.php?id=61594837747580`;
     }
 
-    // ── 3. SHORT GREETINGS & POLITE PHRASES ──
-    if (/^(สวัสดี|หวัดดี|ดีครับ|ดีค่ะ|hello|hi|hey|ดีจ้า|สวัสดีครับ|สวัสดีค่ะ)$/i.test(q.trim())) {
-        return `👋 สวัสดีครับ! น้องพิงกี้ AI ผู้ช่วยประจำร้าน Supinkly.AI ยินดีให้บริการครับ 💖\n\n` +
-            `คุณลูกค้าสามารถสอบถามข้อมูลสินค้า วิธีสั่งซื้อ รับประกัน ตรวจสอบเลขออเดอร์ หรือขอโค้ดส่วนลดได้เลยนะครับ หรือถามคำถามทั่วไป/ปรึกษาเรื่อง AI และเทคโนโลยีได้ตลอด 24 ชม. ครับ! ✨`;
-    }
+    // ── 3. GOOGLE GEMINI AI (SMART LLM ENGINE) ──
+    // พยายามเรียก Gemini AI เป็นอันดับแรก เพื่อให้บอทตอบคำถาม ทักทาย และแนะนำสินค้าได้อย่างเป็นธรรมชาติ
+    const candidateKeys = [
+        (process.env.GEMINI_API_KEY || "").trim(),
+        (db.geminiApiKey || "").trim()
+    ].filter((k, idx, arr) => k && k.length >= 15 && arr.indexOf(k) === idx);
 
-    if (/^(ขอบคุณ|ขอบคุณครับ|ขอบคุณค่ะ|thanks|thank you|ใจจ้า|ขอบใจ)$/i.test(q.trim())) {
-        return `ยินดีเป็นอย่างยิ่งเลยครับ! หากมีข้อสงสัยหรือต้องการความช่วยเหลือเพิ่มเติม ทักหาน้องพิงกี้หรือแอดมินได้ตลอด 24 ชม. เลยนะครับ ขอให้มีความสุขกับการใช้งานครับ 💖✨`;
-    }
-
-    // ── 4. GOOGLE GEMINI AI (SMART LLM ENGINE) ──
-    // หากมี GEMINI_API_KEY จะเรียก Gemini AI มาตอบทุกคำถาม ทั้งเรื่องสินค้าในร้านและคำถามทั่วไปรอบด้าน
-    const geminiKey = (process.env.GEMINI_API_KEY || db.geminiApiKey || "").trim();
-    if (geminiKey) {
+    for (const geminiKey of candidateKeys) {
         try {
             const geminiAnswer = await callGeminiAI(userMsg, sessionId, geminiKey);
             if (geminiAnswer && typeof geminiAnswer === 'string' && geminiAnswer.trim().length > 0) {
@@ -5286,6 +5280,16 @@ async function getBotResponse(userMsg, sessionId) {
         } catch (err) {
             console.warn('[GEMINI-AI] Generation fallback:', err.message);
         }
+    }
+
+    // ── 4. OFFLINE / FALLBACK GREETINGS & POLITE PHRASES (เมื่อ AI ออฟไลน์) ──
+    if (/^(สวัสดี|หวัดดี|ดีครับ|ดีค่ะ|hello|hi|hey|ดีจ้า|สวัสดีครับ|สวัสดีค่ะ)$/i.test(q.trim())) {
+        return `👋 สวัสดีครับ! น้องพิงกี้ AI ผู้ช่วยประจำร้าน Supinkly.AI ยินดีให้บริการครับ 💖\n\n` +
+            `คุณลูกค้าสามารถสอบถามข้อมูลสินค้า วิธีสั่งซื้อ รับประกัน ตรวจสอบเลขออเดอร์ หรือขอโค้ดส่วนลดได้เลยนะครับ หรือถามคำถามทั่วไป/ปรึกษาเรื่อง AI และเทคโนโลยีได้ตลอด 24 ชม. ครับ! ✨`;
+    }
+
+    if (/^(ขอบคุณ|ขอบคุณครับ|ขอบคุณค่ะ|thanks|thank you|ใจจ้า|ขอบใจ)$/i.test(q.trim())) {
+        return `ยินดีเป็นอย่างยิ่งเลยครับ! หากมีข้อสงสัยหรือต้องการความช่วยเหลือเพิ่มเติม ทักหาน้องพิงกี้หรือแอดมินได้ตลอด 24 ชม. เลยนะครับ ขอให้มีความสุขกับการใช้งานครับ 💖✨`;
     }
 
     // ── 5. OFFLINE / FALLBACK RULE-BASED MATCHERS ──
