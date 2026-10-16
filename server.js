@@ -274,6 +274,12 @@ app.use((req, res, next) => {
         cleanPath = decodeURIComponent(req.path);
         cleanPath = path.posix.normalize(cleanPath.replace(/\0/g, ''));
     } catch { }
+
+    // Allow legitimate Admin API endpoints
+    if (cleanPath.startsWith('/api/admin/backups') || cleanPath.startsWith('/api/admin/backup-db') || cleanPath.startsWith('/api/admin/restore-db')) {
+        return next();
+    }
+
     const forbidden = [
         /(^|\/)secure_database/i,
         /(^|\/)database\.json/i,
