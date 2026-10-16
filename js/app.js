@@ -8111,7 +8111,96 @@ function handleDeleteCurrentProduct() {
     handleDeleteProduct(productId);
 }
 
-function openAddStockModal(productId) {
+// ─────────────────────────────────────────────────────────────
+// 📦 MODERN SECURE STOCK VAULT & RESTOCK MANAGEMENT
+// ─────────────────────────────────────────────────────────────
+let currentStockInputMode = 'link'; // 'link' | 'key' | 'account' | 'batch'
+let currentStockActiveTab = 'add'; // 'add' | 'vault'
+const currentStockHiddenKeys = new Set(); // index -> visible unmasked
+
+function switchStockModalTab(tab) {
+    currentStockActiveTab = tab;
+    const paneAdd = document.getElementById('stock-pane-add');
+    const paneVault = document.getElementById('stock-pane-vault');
+    const btnAdd = document.getElementById('stock-tab-btn-add');
+    const btnVault = document.getElementById('stock-tab-btn-vault');
+    const saveBtn = document.getElementById('btn-save-added-stock');
+
+    if (tab === 'vault') {
+        paneAdd?.classList.add('hidden');
+        paneVault?.classList.remove('hidden');
+        btnAdd?.classList.remove('bg-white', 'text-pink-600', 'shadow-2xs');
+        btnAdd?.classList.add('text-slate-600');
+        btnVault?.classList.add('bg-white', 'text-pink-600', 'shadow-2xs');
+        btnVault?.classList.remove('text-slate-600');
+        saveBtn?.classList.add('hidden');
+        const productId = document.getElementById('add-stock-product-id')?.value;
+        if (productId) renderVaultItems(productId);
+    } else {
+        paneAdd?.classList.remove('hidden');
+        paneVault?.classList.add('hidden');
+        btnAdd?.classList.add('bg-white', 'text-pink-600', 'shadow-2xs');
+        btnAdd?.classList.remove('text-slate-600');
+        btnVault?.classList.remove('bg-white', 'text-pink-600', 'shadow-2xs');
+        btnVault?.classList.add('text-slate-600');
+        saveBtn?.classList.remove('hidden');
+    }
+}
+
+function selectStockInputMode(mode) {
+    currentStockInputMode = mode;
+    const modes = ['link', 'key', 'account', 'batch'];
+    modes.forEach(m => {
+        const btn = document.getElementById(`stock-mode-${m}`);
+        if (!btn) return;
+        if (m === mode) {
+            btn.className = "stock-mode-btn p-2 rounded-xl border border-pink-300 bg-pink-50 text-pink-700 text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer shadow-2xs";
+        } else {
+            btn.className = "stock-mode-btn p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer";
+        }
+    });
+
+    const textarea = document.getElementById('add-stock-textarea');
+    if (textarea) {
+        if (mode === 'link') {
+            textarea.placeholder = "วางลิงก์เปิดสิทธิ์ 1 บรรทัด = 1 ชิ้น เช่น:\nhttps://one.google.com/invite/xxxx\nhttps://one.google.com/invite/yyyy\nhttps://one.google.com/invite/zzzz";
+        } else if (mode === 'key') {
+            textarea.placeholder = "วางรหัสคีย์ 1 บรรทัด = 1 ชิ้น เช่น:\nW11PR-XXXXX-XXXXX-XXXXX-XXXXX\nW11PR-YYYYY-YYYYY-YYYYY-YYYYY";
+        } else if (mode === 'account') {
+            textarea.placeholder = "วางบัญชีผู้ใช้ 1 บรรทัด = 1 บัญชี เช่น:\nuser1@gmail.com:Password123\nuser2@gmail.com:Secret456";
+        } else {
+            textarea.placeholder = "วางข้อมูลอะไรก็ได้ 1 บรรทัด = 1 ชิ้น (ระบบจะแยกประเภทให้อัตโนมัติ):\nhttps://...\nuser@domain.com:password\nLICENSE-KEY-XXXXX";
+        }
+    }
+    resetDefaultStockInstructions();
+    updateStockTextCounter();
+}
+
+function getDefaultInstructionForMode(mode, product) {
+    const title = (product?.title || '').toLowerCase();
+    const type = (product?.type || '').toLowerCase();
+    if (mode === 'link' || title.includes('link') || title.includes('invite') || type.includes('link')) {
+        return "คลิกเปิดลิงก์ทางการเพื่อรับสิทธิ์เข้าใช้งานบนบัญชีส่วนตัวเดิมของคุณได้ทันที ไม่ต้องแจ้งรหัสผ่าน";
+    }
+    if (mode === 'key' || title.includes('key') || title.includes('windows') || type.includes('key')) {
+        return "นำรหัสคีย์ 25 หลักไปเปิดใช้งาน (Activate) ในเมนู Settings > Activation ของระบบ";
+    }
+    if (mode === 'account' || title.includes('shared') || title.includes('private')) {
+        return "เข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่ได้รับนี้ได้ทันที ข้อมูลส่วนตัว 100% รับประกัน 30 วันเต็ม";
+    }
+    return "เข้าสู่ระบบและเริ่มใช้งานได้ทันที มีการรับประกันดูแลตลอดอายุการใช้งาน 30 วัน";
+}
+
+function resetDefaultStockInstructions() {
+    const input = document.getElementById('add-stock-instructions');
+    const productId = document.getElementById('add-stock-product-id')?.value;
+    const master = productId ? getMasterProduct(productId) : null;
+    if (input) {
+        input.value = getDefaultInstructionForMode(currentStockInputMode, master);
+    }
+}
+
+async function openAddStockModal(productId) {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("กรุณาเข้าสู่ระบบแอดมินก่อนดำเนินการ", "warning");
         promptAdminLogin();
@@ -8124,31 +8213,304 @@ function openAddStockModal(productId) {
     const modal = document.getElementById('add-stock-modal');
     if (!modal) return;
 
-    const pool = state.inventory[productId] || [];
     document.getElementById('add-stock-product-id').value = productId;
-    document.getElementById('add-stock-product-title').textContent = `${master.title} (คลังปัจจุบัน: ${pool.length} ชิ้น)`;
-    document.getElementById('add-stock-textarea').value = '';
-    updateStockTextCounter();
+    
+    // Header brand & title
+    const brandBadge = document.getElementById('add-stock-brand-badge');
+    if (brandBadge) brandBadge.textContent = master.brand || 'SUPINKLY';
+    
+    const prodTitle = document.getElementById('add-stock-product-title');
+    if (prodTitle) prodTitle.textContent = master.title;
+
+    // Detect smartest mode based on product
+    const titleLower = (master.title || '').toLowerCase();
+    let detectedMode = 'link';
+    if (titleLower.includes('key') || titleLower.includes('license') || titleLower.includes('windows') || master.type === 'Key') {
+        detectedMode = 'key';
+    } else if (titleLower.includes('email') || titleLower.includes('account') || master.type === 'Shared') {
+        detectedMode = 'account';
+    } else {
+        detectedMode = 'link';
+    }
+    selectStockInputMode(detectedMode);
+
+    // Clear textarea & live preview
+    const textarea = document.getElementById('add-stock-textarea');
+    if (textarea) textarea.value = '';
+
+    // Switch to Add Tab by default
+    switchStockModalTab('add');
+
+    // Fetch live stock from backend server
+    await syncProductStockFromServer(productId);
 
     modal.classList.remove('hidden');
+}
+
+async function syncProductStockFromServer(productId) {
+    if (!productId) return;
+    try {
+        const res = await fetch(`/api/admin/stock?productId=${encodeURIComponent(productId)}`, {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.items)) {
+                state.inventory[productId] = data.items;
+                saveSecureInventory(state.inventory);
+            }
+        }
+    } catch (e) {
+        console.warn("[STOCK] Sync error:", e.message);
+    }
+    updateStockModalVaultBadges(productId);
+}
+
+function updateStockModalVaultBadges(productId) {
+    const pool = state.inventory[productId] || [];
+    const count = pool.length;
+    const badge = document.getElementById('stock-current-badge');
+    if (badge) badge.textContent = count;
+    const listCount = document.getElementById('vault-list-count');
+    if (listCount) listCount.textContent = count;
+}
+
+function renderVaultItems(productId) {
+    const container = document.getElementById('vault-items-container');
+    if (!container) return;
+    const pool = state.inventory[productId] || [];
+    updateStockModalVaultBadges(productId);
+
+    if (pool.length === 0) {
+        container.innerHTML = `
+            <div class="py-10 text-center text-slate-400 bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200 p-6">
+                <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-2 text-xl shadow-2xs">
+                    <i class="fa-solid fa-box-open"></i>
+                </div>
+                <h4 class="font-bold text-slate-700 text-xs sm:text-sm">คลังสินค้านี้ยังว่างอยู่ (0 ชิ้น)</h4>
+                <p class="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+                    เมื่อมีคำสั่งซื้อเข้ามา ออเดอร์จะเข้าสู่คิวรอส่งมอบ (On-Demand 5-15 นาที) หรือคุณสามารถเติมสต็อกเพื่อให้ระบบจัดส่งอัตโนมัติทันทีได้
+                </p>
+                <button type="button" onclick="switchStockModalTab('add')"
+                    class="mt-3 px-4 py-2 rounded-xl gradient-btn text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-1.5 active:scale-95 transition-all">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>เริ่มเติมสต็อกเข้าคลังตอนนี้</span>
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = pool.map((item, idx) => {
+        let displayType = 'รหัสคีย์';
+        let typeIcon = 'fa-key text-amber-500';
+        let primaryText = item.key || '';
+        let isLink = false;
+
+        if (item.link) {
+            displayType = 'ลิงก์เปิดสิทธิ์';
+            typeIcon = 'fa-link text-pink-500';
+            primaryText = item.link;
+            isLink = true;
+        } else if (item.email) {
+            displayType = 'บัญชี';
+            typeIcon = 'fa-user-shield text-indigo-500';
+            primaryText = `${item.email}:${item.password || '******'}`;
+        }
+
+        const isVisible = currentStockHiddenKeys.has(idx);
+        const maskedText = (!isVisible && !isLink) ? (primaryText.length > 8 ? primaryText.slice(0, 4) + '••••••••' + primaryText.slice(-4) : '••••••••') : primaryText;
+
+        return `
+            <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-pink-300 transition-all shadow-2xs flex items-center justify-between gap-2.5">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs text-slate-500 font-mono font-bold shrink-0">
+                        #${idx + 1}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 mb-0.5">
+                            <i class="fa-solid ${typeIcon}"></i>
+                            <span>${displayType}</span>
+                        </div>
+                        <div class="font-mono text-xs font-bold text-slate-900 truncate">
+                            ${escapeHTML(maskedText)}
+                        </div>
+                        ${item.instructions ? `<div class="text-[10px] text-slate-400 truncate mt-0.5">${escapeHTML(item.instructions)}</div>` : ''}
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-1 shrink-0">
+                    ${!isLink ? `
+                    <button type="button" onclick="toggleStockVaultMask(${idx})"
+                        class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs transition-all cursor-pointer"
+                        title="${isVisible ? 'ซ่อนรหัสผ่าน/คีย์' : 'แสดงรหัสผ่าน/คีย์'}">
+                        <i class="fa-regular ${isVisible ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    </button>` : ''}
+                    <button type="button" onclick="copyStockVaultItem('${escapeHTML(primaryText)}')"
+                        class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-pink-100 hover:text-pink-600 text-slate-500 flex items-center justify-center text-xs transition-all cursor-pointer"
+                        title="คัดลอกข้อมูลชิ้นนี้">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                    <button type="button" onclick="handleDeleteVaultItem('${escapeHTML(productId)}', ${idx})"
+                        class="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-500 hover:text-white text-rose-500 flex items-center justify-center text-xs transition-all cursor-pointer"
+                        title="ลบรายการนี้ออกจากคลัง">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleStockVaultMask(idx) {
+    if (currentStockHiddenKeys.has(idx)) {
+        currentStockHiddenKeys.delete(idx);
+    } else {
+        currentStockHiddenKeys.add(idx);
+    }
+    const productId = document.getElementById('add-stock-product-id')?.value;
+    if (productId) renderVaultItems(productId);
+}
+
+function copyStockVaultItem(text) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        showToast("คัดลอกข้อมูลเรียบร้อยแล้ว 📋", "success");
+    }).catch(() => {
+        showToast("ไม่สามารถคัดลอกได้", "warning");
+    });
+}
+
+async function handleDeleteVaultItem(productId, index) {
+    if (!productId || typeof index !== 'number') return;
+    if (!confirm(`ยืนยันการลบรายการที่ #${index + 1} ออกจากคลังสต็อกหรือไม่?`)) return;
+
+    try {
+        const res = await fetch('/api/admin/stock/delete-item', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ productId, index })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                state.inventory[productId] = data.items || [];
+                saveSecureInventory(state.inventory);
+            }
+        } else {
+            if (state.inventory[productId]) {
+                state.inventory[productId].splice(index, 1);
+                saveSecureInventory(state.inventory);
+            }
+        }
+        renderVaultItems(productId);
+        syncStockCount();
+        renderProducts();
+        renderAdminStockList();
+        showToast("ลบรายการออกจากคลังเรียบร้อยแล้ว", "success");
+    } catch (e) {
+        if (state.inventory[productId]) {
+            state.inventory[productId].splice(index, 1);
+            saveSecureInventory(state.inventory);
+        }
+        renderVaultItems(productId);
+        syncStockCount();
+        renderProducts();
+        renderAdminStockList();
+        showToast("ลบรายการออกจากคลังแล้ว", "info");
+    }
+}
+
+async function handleClearCurrentProductVault() {
+    const productId = document.getElementById('add-stock-product-id')?.value;
+    if (!productId) return;
+    const pool = state.inventory[productId] || [];
+    if (pool.length === 0) {
+        showToast("คลังสินค้านี้ไม่มีข้อมูลให้ล้าง", "info");
+        return;
+    }
+    if (!confirm(`⚠️ คำเตือน: คุณต้องการล้างสต็อกทั้งหมด (${pool.length} ชิ้น) ของสินค้านี้ใช่หรือไม่? (จะไม่สามารถกู้คืนได้)`)) return;
+
+    try {
+        const res = await fetch('/api/admin/stock/clear', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ productId })
+        });
+        if (res.ok) {
+            state.inventory[productId] = [];
+            saveSecureInventory(state.inventory);
+        }
+    } catch (e) {
+        state.inventory[productId] = [];
+        saveSecureInventory(state.inventory);
+    }
+    renderVaultItems(productId);
+    syncStockCount();
+    renderProducts();
+    renderAdminStockList();
+    showToast("ล้างคลังสต็อกสินค้านี้เรียบร้อยแล้ว", "success");
+}
+
+async function refreshVaultItemList() {
+    const productId = document.getElementById('add-stock-product-id')?.value;
+    if (!productId) return;
+    showToast("กำลังรีเฟรชข้อมูลคลัง...", "info");
+    await syncProductStockFromServer(productId);
+    renderVaultItems(productId);
 }
 
 function updateStockTextCounter() {
     const text = (document.getElementById('add-stock-textarea')?.value || '').trim();
     const badge = document.getElementById('add-stock-counter-badge');
-    if (!badge) return;
+    const previewContainer = document.getElementById('stock-parsed-preview-container');
+    const previewList = document.getElementById('stock-parsed-preview-list');
+    const previewCount = document.getElementById('stock-preview-count');
+    const saveBtnText = document.getElementById('btn-save-stock-text');
+
     if (!text) {
-        badge.innerHTML = `<i class="fa-solid fa-barcode text-slate-400"></i><span>ยังไม่มีข้อมูล (0 ชิ้น)</span>`;
+        if (badge) badge.innerHTML = `<i class="fa-solid fa-barcode text-slate-400"></i><span>ยังไม่มีข้อมูล (0 ชิ้น)</span>`;
+        if (previewContainer) previewContainer.classList.add('hidden');
+        if (saveBtnText) saveBtnText.textContent = "ยืนยันบันทึกเข้าคลัง";
         return;
     }
+
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     let accounts = 0, links = 0, keys = 0;
+    const parsedItems = [];
+
     lines.forEach(l => {
-        if (l.includes(':')) accounts++;
-        else if (l.startsWith('http')) links++;
-        else keys++;
+        if (l.startsWith('http://') || l.startsWith('https://')) {
+            links++;
+            parsedItems.push({ type: 'ลิงก์', val: l });
+        } else if (l.includes(':') && (currentStockInputMode === 'account' || l.includes('@'))) {
+            accounts++;
+            parsedItems.push({ type: 'บัญชี', val: l });
+        } else {
+            keys++;
+            parsedItems.push({ type: 'คีย์', val: l });
+        }
     });
-    badge.innerHTML = `<i class="fa-solid fa-check text-emerald-600"></i><span class="text-emerald-700 font-bold">ตรวจพบ ${lines.length} ชิ้น</span> <span class="text-slate-500 font-normal">(${accounts ? `บัญชี: ${accounts} ` : ''}${keys ? `คีย์: ${keys} ` : ''}${links ? `ลิงก์: ${links}` : ''})</span>`;
+
+    if (badge) {
+        badge.innerHTML = `<i class="fa-solid fa-check text-emerald-600"></i><span class="text-emerald-700 font-bold">ตรวจพบ ${lines.length} ชิ้น</span> <span class="text-slate-500 font-normal">(${links ? `ลิงก์: ${links} ` : ''}${keys ? `คีย์: ${keys} ` : ''}${accounts ? `บัญชี: ${accounts}` : ''})</span>`;
+    }
+
+    if (saveBtnText) {
+        saveBtnText.textContent = `ยืนยันบันทึกเข้าคลัง (+${lines.length} ชิ้น)`;
+    }
+
+    if (previewContainer && previewList && previewCount) {
+        previewCount.textContent = lines.length;
+        previewContainer.classList.remove('hidden');
+        previewList.innerHTML = parsedItems.slice(0, 5).map((it) => `
+            <div class="flex items-center gap-2 text-slate-700 py-0.5 border-b border-slate-100 last:border-0 truncate">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold shrink-0">${it.type}</span>
+                <span class="truncate">${escapeHTML(it.val)}</span>
+            </div>
+        `).join('') + (parsedItems.length > 5 ? `<div class="text-[10px] text-slate-400 text-center pt-1 font-sans">... และอีก ${parsedItems.length - 5} รายการ</div>` : '');
+    }
 }
 
 function clearStockTextarea() {
@@ -8159,19 +8521,37 @@ function clearStockTextarea() {
     }
 }
 
-function insertStockSampleFormat(type) {
+function insertCurrentStockSample() {
     const textarea = document.getElementById('add-stock-textarea');
     if (!textarea) return;
     let sample = '';
-    if (type === 'account') {
-        sample = `user_${Date.now().toString().slice(-4)}@domain.com:Pass_${Math.random().toString(36).slice(-6)}`;
-    } else if (type === 'key') {
-        sample = `KEY-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    } else if (type === 'link') {
-        sample = `https://invite.example.com/join/${Math.random().toString(36).substring(2, 10)}`;
+    if (currentStockInputMode === 'link') {
+        sample = `https://one.google.com/invite/sample-${Math.random().toString(36).substring(2, 8)}`;
+    } else if (currentStockInputMode === 'key') {
+        sample = `W11PR-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    } else if (currentStockInputMode === 'account') {
+        sample = `account_${Date.now().toString().slice(-4)}@domain.com:Pass_${Math.random().toString(36).slice(-6)}`;
+    } else {
+        sample = `https://invite.sample.com/${Math.random().toString(36).substring(2, 8)}`;
     }
     textarea.value = (textarea.value.trim() ? textarea.value.trim() + '\n' : '') + sample;
     updateStockTextCounter();
+}
+
+async function pasteFromClipboardToStock() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            const textarea = document.getElementById('add-stock-textarea');
+            if (textarea) {
+                textarea.value = (textarea.value.trim() ? textarea.value.trim() + '\n' : '') + text.trim();
+                updateStockTextCounter();
+                showToast("วางข้อมูลจากคลิปบอร์ดเรียบร้อยแล้ว", "success");
+            }
+        }
+    } catch (err) {
+        showToast("กรุณากด Ctrl+V เพื่อวางข้อความในช่อง", "info");
+    }
 }
 
 function handleStockFileUpload(event) {
@@ -8196,7 +8576,7 @@ function closeAddStockModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-function handleSaveAddedStock() {
+async function handleSaveAddedStock() {
     if (!ADMIN_AUTH.checkSession()) {
         showToast("เซสชันแอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่", "warning");
         closeAddStockModal();
@@ -8207,42 +8587,99 @@ function handleSaveAddedStock() {
     const productId = document.getElementById('add-stock-product-id').value;
     const text = document.getElementById('add-stock-textarea').value.trim();
     if (!text) {
-        showToast("กรุณากรอกข้อมูลบัญชีหรือคีย์", "warning");
+        showToast("กรุณากรอกข้อมูลสินค้าอย่างน้อย 1 รายการ", "warning");
         return;
     }
 
+    const customInstructions = (document.getElementById('add-stock-instructions')?.value || '').trim();
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    if (!state.inventory[productId]) {
-        state.inventory[productId] = [];
-    }
+    const newItems = [];
 
     lines.forEach(line => {
-        if (line.includes(':')) {
+        if (line.startsWith('http://') || line.startsWith('https://')) {
+            newItems.push({
+                link: line,
+                instructions: customInstructions || "คลิกเปิดลิงก์เพื่อรับสิทธิ์เข้าใช้งานบนบัญชีส่วนตัวเดิมทันที"
+            });
+        } else if (line.includes(':') && (currentStockInputMode === 'account' || line.includes('@'))) {
             const parts = line.split(':');
-            state.inventory[productId].push({
+            newItems.push({
                 email: parts[0].trim(),
                 password: parts.slice(1).join(':').trim(),
-                instructions: "เข้าสู่ระบบและใช้งานได้ทันที"
-            });
-        } else if (line.startsWith('http')) {
-            state.inventory[productId].push({
-                link: line,
-                instructions: "คลิกเปิดลิงก์เพื่อรับสิทธิ์ใช้งานทันที"
+                instructions: customInstructions || "เข้าสู่ระบบและเริ่มใช้งานได้ทันที"
             });
         } else {
-            state.inventory[productId].push({
+            newItems.push({
                 key: line,
-                instructions: "นำคีย์ไปเปิดใช้งานในโปรแกรม"
+                instructions: customInstructions || "นำรหัสคีย์ไปเปิดใช้งาน (Activate) ในระบบ"
             });
         }
     });
 
-    saveSecureInventory(state.inventory);
-    syncStockCount();
-    renderProducts();
-    renderAdminStockList();
-    closeAddStockModal();
-    showToast(`เติมสต็อกสำเร็จ +${lines.length} ชิ้น!`, "success");
+    if (newItems.length === 0) {
+        showToast("ไม่พบข้อมูลสินค้าที่ถูกต้อง", "warning");
+        return;
+    }
+
+    const btn = document.getElementById('btn-save-added-stock');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>กำลังบันทึก...</span>`;
+    }
+
+    try {
+        // Save to Backend Server API
+        const res = await fetch('/api/admin/stock', {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({
+                productId,
+                newCredentials: newItems
+            })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                if (!state.inventory[productId]) state.inventory[productId] = [];
+                state.inventory[productId] = data.items || [...state.inventory[productId], ...newItems];
+                saveSecureInventory(state.inventory);
+            }
+        } else {
+            // Local fallback
+            if (!state.inventory[productId]) state.inventory[productId] = [];
+            state.inventory[productId].push(...newItems);
+            saveSecureInventory(state.inventory);
+        }
+
+        // Clean input
+        document.getElementById('add-stock-textarea').value = '';
+        updateStockTextCounter();
+        syncStockCount();
+        renderProducts();
+        renderAdminStockList();
+
+        showToast(`🎉 เติมสต็อกสำเร็จ +${newItems.length} ชิ้น! ระบบพร้อมจัดส่งอัตโนมัติทันที`, "success");
+
+        // Switch to Vault tab so admin can immediately see the added items
+        switchStockModalTab('vault');
+    } catch (err) {
+        console.error("Save stock error:", err);
+        // Fallback local save
+        if (!state.inventory[productId]) state.inventory[productId] = [];
+        state.inventory[productId].push(...newItems);
+        saveSecureInventory(state.inventory);
+        syncStockCount();
+        renderProducts();
+        renderAdminStockList();
+        showToast(`เติมสต็อกในเครื่องสำเร็จ +${newItems.length} ชิ้น`, "info");
+        switchStockModalTab('vault');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-check"></i><span id="btn-save-stock-text">ยืนยันบันทึกเข้าคลัง</span>`;
+        }
+    }
 }
 
 async function saveAdminSettings() {
@@ -9689,7 +10126,17 @@ window.closeAddStockModal = closeAddStockModal;
 window.handleSaveAddedStock = handleSaveAddedStock;
 window.updateStockTextCounter = updateStockTextCounter;
 window.clearStockTextarea = clearStockTextarea;
-window.insertStockSampleFormat = insertStockSampleFormat;
+window.switchStockModalTab = switchStockModalTab;
+window.selectStockInputMode = selectStockInputMode;
+window.insertCurrentStockSample = insertCurrentStockSample;
+window.pasteFromClipboardToStock = pasteFromClipboardToStock;
+window.resetDefaultStockInstructions = resetDefaultStockInstructions;
+window.renderVaultItems = renderVaultItems;
+window.handleDeleteVaultItem = handleDeleteVaultItem;
+window.handleClearCurrentProductVault = handleClearCurrentProductVault;
+window.refreshVaultItemList = refreshVaultItemList;
+window.toggleStockVaultMask = toggleStockVaultMask;
+window.copyStockVaultItem = copyStockVaultItem;
 window.handleStockFileUpload = handleStockFileUpload;
 
 // Admin Navigation & Orders Management Controllers

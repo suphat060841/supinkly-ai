@@ -4742,25 +4742,32 @@
     <!-- ==========================================
          ADD STOCK MODAL (ENHANCED BULK VAULT)
          ========================================== -->
+    <!-- ==========================================
+         ADD STOCK MODAL (ENHANCED BULK VAULT & INSPECTOR)
+         ========================================== -->
     <div id="add-stock-modal" onclick="if(event.target === this) closeAddStockModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
         <div
-            class="bg-white max-w-lg w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
+            class="bg-white max-w-xl w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3 shrink-0">
-                <div class="flex items-center gap-2.5">
+            <div class="flex items-start justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-3">
                     <div
-                        class="w-9 h-9 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-base shadow-2xs">
-                        <i class="fa-solid fa-boxes-stacked"></i>
+                        class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 text-white flex items-center justify-center text-lg shadow-md shadow-pink-500/20 shrink-0">
+                        <i class="fa-solid fa-vault"></i>
                     </div>
                     <div>
-                        <h3 class="text-sm sm:text-base font-bold text-slate-900">เติมสต็อกสินค้า & คลังปลอดภัย</h3>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base sm:text-lg font-black text-slate-900">เติมสต็อกสินค้า & คลังปลอดภัย</h3>
+                            <span id="add-stock-brand-badge"
+                                class="px-2 py-0.5 rounded-full text-[10px] font-black bg-pink-100 text-pink-700 border border-pink-200"></span>
+                        </div>
                         <p id="add-stock-product-title"
-                            class="text-xs font-bold text-pink-600 truncate max-w-xs sm:max-w-md"></p>
+                            class="text-xs font-bold text-slate-600 truncate max-w-xs sm:max-w-md mt-0.5"></p>
                     </div>
                 </div>
                 <button type="button" onclick="closeAddStockModal()"
-                    class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm transition-all cursor-pointer">
+                    class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm transition-all cursor-pointer shrink-0">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -4769,74 +4776,175 @@
             <input type="file" id="add-stock-file-input" accept=".txt,.csv" onchange="handleStockFileUpload(event)"
                 class="hidden">
 
-            <!-- Toolbar & Live Counter -->
-            <div class="flex items-center justify-between gap-2 mb-2 text-xs">
-                <div id="add-stock-counter-badge"
-                    class="text-[11px] font-bold text-pink-600 bg-pink-50 px-2.5 py-1 rounded-xl border border-pink-200 flex items-center gap-1.5 shadow-2xs">
-                    <i class="fa-solid fa-barcode text-pink-500"></i>
-                    <span>ยังไม่มีข้อมูล (0 ชิ้น)</span>
+            <!-- Tab Switcher: ➕ เติมสต็อกใหม่ vs 📦 คลังปัจจุบัน -->
+            <div class="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl my-3 shrink-0">
+                <button type="button" id="stock-tab-btn-add" onclick="switchStockModalTab('add')"
+                    class="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-white text-pink-600 shadow-2xs">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>เติมสต็อกใหม่</span>
+                </button>
+                <button type="button" id="stock-tab-btn-vault" onclick="switchStockModalTab('vault')"
+                    class="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-600 hover:text-slate-900">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    <span>คลังปัจจุบัน (<span id="stock-current-badge">0</span> ชิ้น)</span>
+                </button>
+            </div>
+
+            <!-- TAB 1: PANE ADD STOCK -->
+            <div id="stock-pane-add" class="flex-1 overflow-y-auto space-y-3 pr-1">
+                <!-- Preset Format Selector -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                        <span class="flex items-center gap-1">
+                            <i class="fa-solid fa-shapes text-pink-500"></i> เลือกรูปแบบสินค้าที่ต้องการเติม:
+                        </span>
+                        <span class="text-[10px] text-slate-400 font-normal">ระบบจะช่วยจัดรูปแบบให้อัตโนมัติ</span>
+                    </label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        <button type="button" onclick="selectStockInputMode('link')" id="stock-mode-link"
+                            class="stock-mode-btn p-2 rounded-xl border border-pink-300 bg-pink-50 text-pink-700 text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer shadow-2xs">
+                            <i class="fa-solid fa-link text-sm"></i>
+                            <span class="text-[11px]">ลิงก์เปิดสิทธิ์</span>
+                        </button>
+                        <button type="button" onclick="selectStockInputMode('key')" id="stock-mode-key"
+                            class="stock-mode-btn p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer">
+                            <i class="fa-solid fa-key text-sm text-amber-500"></i>
+                            <span class="text-[11px]">รหัสคีย์แท้</span>
+                        </button>
+                        <button type="button" onclick="selectStockInputMode('account')" id="stock-mode-account"
+                            class="stock-mode-btn p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer">
+                            <i class="fa-solid fa-user-shield text-sm text-indigo-500"></i>
+                            <span class="text-[11px]">Email : Pass</span>
+                        </button>
+                        <button type="button" onclick="selectStockInputMode('batch')" id="stock-mode-batch"
+                            class="stock-mode-btn p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer">
+                            <i class="fa-solid fa-paste text-sm text-emerald-500"></i>
+                            <span class="text-[11px]">วางหลายรายการ</span>
+                        </button>
+                    </div>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <button type="button" onclick="document.getElementById('add-stock-file-input').click()"
-                        class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold border border-slate-200 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
-                        title="เลือกไฟล์ .txt หรือ .csv เพื่อนำเข้าสต็อก">
-                        <i class="fa-solid fa-file-arrow-up text-pink-600"></i>
-                        <span>นำเข้าไฟล์ TXT</span>
-                    </button>
-                    <button type="button" onclick="clearStockTextarea()"
-                        class="px-2 py-1 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 text-[11px] font-medium transition-colors cursor-pointer"
-                        title="ล้างข้อความทั้งหมดในช่อง">
-                        ล้างช่อง
-                    </button>
+
+                <!-- Input Toolbar & Detection Badge -->
+                <div class="flex items-center justify-between gap-2 pt-1 text-xs">
+                    <div id="add-stock-counter-badge"
+                        class="text-[11px] font-bold text-slate-600 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200 flex items-center gap-1.5 shadow-2xs">
+                        <i class="fa-solid fa-barcode text-slate-400"></i>
+                        <span>ยังไม่มีข้อมูล (0 ชิ้น)</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="pasteFromClipboardToStock()"
+                            class="px-2 py-1 rounded-xl bg-slate-100 hover:bg-pink-50 text-slate-700 hover:text-pink-600 text-[11px] font-bold border border-slate-200 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                            title="วางข้อความจากคลิปบอร์ด">
+                            <i class="fa-regular fa-clipboard"></i>
+                            <span>วาง</span>
+                        </button>
+                        <button type="button" onclick="document.getElementById('add-stock-file-input').click()"
+                            class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold border border-slate-200 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                            title="เลือกไฟล์ .txt หรือ .csv เพื่อนำเข้าสต็อก">
+                            <i class="fa-solid fa-file-arrow-up text-pink-600"></i>
+                            <span>นำเข้าไฟล์</span>
+                        </button>
+                        <button type="button" onclick="insertCurrentStockSample()"
+                            class="px-2 py-1 rounded-xl bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-700 text-[11px] font-bold border border-slate-200 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                            title="แทรกตัวอย่างข้อมูล 1 ชิ้น">
+                            <i class="fa-solid fa-lightbulb text-amber-500"></i>
+                            <span>ตัวอย่าง</span>
+                        </button>
+                        <button type="button" onclick="clearStockTextarea()"
+                            class="px-2 py-1 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 text-[11px] font-medium transition-colors cursor-pointer"
+                            title="ล้างข้อความทั้งหมดในช่อง">
+                            ล้าง
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Textarea -->
+                <div>
+                    <textarea id="add-stock-textarea" rows="6" oninput="updateStockTextCounter()"
+                        placeholder="วางข้อมูลสินค้าที่นี่ (1 บรรทัด = 1 ชิ้น)"
+                        class="w-full p-3 rounded-2xl bg-slate-50 border-2 border-slate-200 text-xs font-bold text-slate-900 font-mono outline-none focus:border-pink-500 focus:bg-white leading-relaxed resize-none transition-all"></textarea>
+                </div>
+
+                <!-- Customer Usage Instructions -->
+                <div class="p-3 rounded-2xl bg-pink-50/50 border border-pink-200 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-circle-info text-pink-500"></i>
+                            <span>คำแนะนำการใช้งานที่จะส่งให้ลูกค้า (ในอีเมลและเมนูคีย์ของฉัน):</span>
+                        </label>
+                        <button type="button" onclick="resetDefaultStockInstructions()"
+                            class="text-[10px] text-pink-600 hover:underline font-bold cursor-pointer">
+                            คืนค่าเริ่มต้น
+                        </button>
+                    </div>
+                    <input type="text" id="add-stock-instructions"
+                        class="w-full px-3 py-2 rounded-xl bg-white border border-pink-200 text-xs font-medium text-slate-800 outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-300"
+                        placeholder="คำแนะนำ เช่น คลิกเปิดลิงก์เพื่อรับสิทธิ์ใช้งานเข้าบัญชีส่วนตัวเดิมของคุณ">
+                </div>
+
+                <!-- Live Preview Mini-List -->
+                <div id="stock-parsed-preview-container" class="hidden">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                            <i class="fa-solid fa-list-check text-emerald-500"></i>
+                            <span>ตัวอย่างรายการที่จะถูกบันทึกเข้าคลัง (<span id="stock-preview-count">0</span> ชิ้น):</span>
+                        </span>
+                    </div>
+                    <div id="stock-parsed-preview-list"
+                        class="max-h-28 overflow-y-auto space-y-1 p-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-[11px]">
+                    </div>
                 </div>
             </div>
 
-            <!-- Textarea -->
-            <div class="flex-1 min-h-[140px] mb-2">
-                <textarea id="add-stock-textarea" rows="7" oninput="updateStockTextCounter()" placeholder="กรอกข้อมูลสินค้า 1 บรรทัด = 1 ชิ้น:
-user1@gmail.com:Pass1234
-user2@gmail.com:Pass5678
-หรือ License Key: W11PR-XXXX-XXXX-XXXX
-หรือ ลิงก์ Invite: https://..."
-                    class="w-full h-full p-3 rounded-2xl bg-slate-50 border-2 border-slate-200 text-xs font-bold text-slate-900 font-mono outline-none focus:border-pink-500 focus:bg-white leading-relaxed resize-none"></textarea>
-            </div>
-
-            <!-- Format Presets -->
-            <div
-                class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 mb-4 text-[11px] text-slate-600 space-y-1.5">
-                <div class="flex items-center justify-between">
-                    <span class="font-bold text-slate-700 flex items-center gap-1">
-                        <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> รูปแบบที่รองรับอัตโนมัติ:
-                    </span>
-                    <span class="text-slate-400 text-[10px]">คลิกเพื่อแทรกรูปแบบตัวอย่าง</span>
+            <!-- TAB 2: PANE VAULT INSPECTOR (ดูคลังปัจจุบัน) -->
+            <div id="stock-pane-vault" class="hidden flex-1 overflow-y-auto space-y-3 pr-1">
+                <!-- Vault Action Bar -->
+                <div class="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-xs font-bold text-slate-700">
+                            คงเหลือพร้อมจัดส่งทันที: <b id="vault-list-count" class="text-emerald-600 font-mono text-sm">0</b> ชิ้น
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="refreshVaultItemList()"
+                            class="px-2.5 py-1 rounded-xl bg-white hover:bg-slate-100 text-slate-600 text-[11px] font-bold border border-slate-200 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                            title="รีเฟรชข้อมูลคลัง">
+                            <i class="fa-solid fa-rotate text-slate-400"></i>
+                            <span>รีเฟรช</span>
+                        </button>
+                        <button type="button" onclick="handleClearCurrentProductVault()"
+                            class="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold border border-rose-200 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                            title="ล้างข้อมูลสต็อกคลังสินค้านี้ทั้งหมด">
+                            <i class="fa-solid fa-trash-can text-rose-500"></i>
+                            <span>ล้างคลังทั้งหมด</span>
+                        </button>
+                    </div>
                 </div>
-                <div class="flex flex-wrap gap-1.5">
-                    <button type="button" onclick="insertStockSampleFormat('account')"
-                        class="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 text-slate-700 hover:text-pink-600 border border-slate-200 text-[10px] font-mono font-medium transition-all cursor-pointer">
-                        + Email:Password
-                    </button>
-                    <button type="button" onclick="insertStockSampleFormat('key')"
-                        class="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 text-slate-700 hover:text-pink-600 border border-slate-200 text-[10px] font-mono font-medium transition-all cursor-pointer">
-                        + LICENSE-KEY-XXXX
-                    </button>
-                    <button type="button" onclick="insertStockSampleFormat('link')"
-                        class="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 text-slate-700 hover:text-pink-600 border border-slate-200 text-[10px] font-mono font-medium transition-all cursor-pointer">
-                        + https://invite.link/...
-                    </button>
+
+                <!-- Vault Item Cards Container -->
+                <div id="vault-items-container" class="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    <!-- Populated dynamically -->
                 </div>
             </div>
 
             <!-- Modal Footer -->
-            <div class="flex items-center gap-2 pt-2 border-t border-slate-100 shrink-0">
-                <button onclick="handleSaveAddedStock()"
-                    class="flex-1 py-2.5 rounded-2xl gradient-btn text-white text-xs font-bold shadow-md shadow-pink-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
-                    <i class="fa-solid fa-check"></i>
-                    <span>ยืนยันบันทึกเข้าคลัง</span>
-                </button>
-                <button onclick="closeAddStockModal()"
-                    class="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer">
-                    ยกเลิก
-                </button>
+            <div class="flex items-center justify-between pt-3 border-t border-slate-100 mt-2 shrink-0">
+                <div class="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <i class="fa-solid fa-shield-halved text-emerald-500"></i>
+                    <span class="hidden sm:inline">จัดเก็บใน Secure Vault พร้อมส่งทันที</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="closeAddStockModal()"
+                        class="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer">
+                        ปิด
+                    </button>
+                    <button type="button" id="btn-save-added-stock" onclick="handleSaveAddedStock()"
+                        class="px-5 py-2.5 rounded-2xl gradient-btn text-white text-xs font-bold shadow-md shadow-pink-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
+                        <i class="fa-solid fa-check"></i>
+                        <span id="btn-save-stock-text">ยืนยันบันทึกเข้าคลัง</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
