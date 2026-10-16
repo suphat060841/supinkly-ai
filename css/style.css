@@ -436,35 +436,15 @@ input[type="search"]::-webkit-search-results-decoration {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Resilient explicit styling for slide images regardless of Tailwind CDN */
+/* Hero Banner Image - clean responsive scaling */
 #hero-showcase-slider img,
 #banner-slideshow-container img {
     width: 100% !important;
-    height: 420px;
-    max-height: 430px;
+    height: auto !important;
+    max-height: 480px;
     object-fit: cover !important;
     display: block !important;
     opacity: 1 !important;
     visibility: visible !important;
 }
 
-@media (max-width: 1024px) {
-    #hero-showcase-slider img,
-    #banner-slideshow-container img {
-        height: 340px;
-    }
-}
-
-@media (max-width: 768px) {
-    #hero-showcase-slider img,
-    #banner-slideshow-container img {
-        height: 250px;
-    }
-}
-
-@media (max-width: 480px) {
-    #hero-showcase-slider img,
-    #banner-slideshow-container img {
-        height: 145px;
-    }
-}
