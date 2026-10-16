@@ -73,11 +73,36 @@ body {
 }
 
 .glass-header {
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(244, 114, 182, 0.2);
+    border-bottom: 1px solid rgba(244, 114, 182, 0.22);
     box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.04);
+}
+
+/* Navigation Search Bar Optimization (Clear & High Contrast) */
+#search-input {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+}
+
+#search-input:focus {
+    background-color: #FFFFFF !important;
+    border-color: #FF2E7E !important;
+    box-shadow: 0 0 0 3px rgba(255, 46, 126, 0.15), inset 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Floating Badges on Navbar Action Icons */
+#nav-notification-count-badge,
+#nav-wishlist-count-badge,
+#cart-count-badge {
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+    line-height: 1;
+    pointer-events: none;
 }
 
 /* Gradient Text */
@@ -377,3 +402,69 @@ input[type="search"]::-webkit-search-results-decoration {
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
 }
 
+/* Mobile Product Card Enhancements */
+@media (max-width: 640px) {
+    [data-action="card"] {
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+    }
+    [data-action="detail"],
+    [data-action="add-cart"] {
+        touch-action: manipulation;
+    }
+}
+
+
+
+/* Featured Hero Showcase Slider Enhancements (Adblock-Safe) */
+#hero-showcase-slider,
+#banner-slideshow-container {
+    box-shadow: 0 15px 35px -5px rgba(255, 46, 126, 0.22), 0 0 25px rgba(139, 92, 246, 0.15);
+    background-color: #0f172a;
+}
+#hero-showcase-slider:hover,
+#banner-slideshow-container:hover {
+    box-shadow: 0 20px 45px -5px rgba(255, 46, 126, 0.32), 0 0 35px rgba(139, 92, 246, 0.25);
+}
+#hero-slider-track,
+#banner-slides-track {
+    transition: transform 0.65s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.slider-dot,
+.banner-dot {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Resilient explicit styling for slide images regardless of Tailwind CDN */
+#hero-showcase-slider img,
+#banner-slideshow-container img {
+    width: 100% !important;
+    height: 420px;
+    max-height: 430px;
+    object-fit: cover !important;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+@media (max-width: 1024px) {
+    #hero-showcase-slider img,
+    #banner-slideshow-container img {
+        height: 340px;
+    }
+}
+
+@media (max-width: 768px) {
+    #hero-showcase-slider img,
+    #banner-slideshow-container img {
+        height: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    #hero-showcase-slider img,
+    #banner-slideshow-container img {
+        height: 145px;
+    }
+}

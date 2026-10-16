@@ -23,3 +23,7 @@ secure_database.json.bak
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Backups & Local Scratch
+backups/
+scratch/

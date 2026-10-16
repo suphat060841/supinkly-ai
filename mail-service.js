@@ -165,7 +165,7 @@ class MailService {
                                     รหัสยืนยัน OTP (รหัสมีอายุ 10 นาที)
                                 </div>
                                 <div style="font-family: 'Courier New', Courier, monospace, sans-serif; font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #BE123C; padding: 6px 0;">
-                                    ${otp}
+                                    ${safeOtp}
                                 </div>
                                 <div style="font-size: 12px; color: #9F1239; margin-top: 8px;">
                                     ห้ามแชร์รหัสนี้ให้ผู้อื่นเด็ดขาด เพื่อความปลอดภัยของบัญชี
@@ -255,7 +255,7 @@ class MailService {
                 port: config.port || 465,
                 servername: config.host,
                 family: 4, // Force IPv4 to prevent hanging on cloud Docker IPv6 blackholes
-                rejectUnauthorized: false
+                rejectUnauthorized: process.env.SMTP_IGNORE_TLS === 'true' ? false : true
             });
 
             let buffer = '';
@@ -457,7 +457,7 @@ class MailService {
                                 host: config.host,
                                 servername: config.host,
                                 family: 4,
-                                rejectUnauthorized: false
+                                rejectUnauthorized: process.env.SMTP_IGNORE_TLS === 'true' ? false : true
                             }, () => {
                                 phase = 'EHLO2';
                                 activeSocket = tlsSocket;
@@ -1236,7 +1236,7 @@ class MailService {
                     <table width="100%" cellspacing="0" cellpadding="0" border="0">
                         <tr>
                             <td style="vertical-align: top;">
-                                <div style="font-size: 14px; font-weight: bold; color: #0F172A;">${idx + 1}. ${title}</div>
+                                <div style="font-size: 14px; font-weight: normal; color: #0F172A;">${idx + 1}. ${title}</div>
                                 <div style="font-size: 11px; color: #64748B; margin-top: 2px;">
                                     การรับประกัน: <span style="color: #059669; font-weight: bold;">${warranty}</span>
                                 </div>

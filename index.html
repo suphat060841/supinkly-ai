@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supinkly.AI - ศูนย์รวมบริการบัญชี AI และสินค้าดิจิทัลแท้ ครบวงจร</title>
+    <title>Supinkly.AI - ศูนย์รวม Activation Link แท้ 100% สำหรับ Google One & Gemini Pro</title>
 
     <!-- Favicon & App Icons (Browser Tab Logo) -->
     <link rel="icon" type="image/png" sizes="32x32" href="images/pop_new.png">
@@ -40,7 +40,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=3.6">
 
     <!-- Safe Global Function Pre-declarations to prevent ReferenceError during page load -->
     <script>
@@ -68,6 +68,16 @@
         window.openSlipViewModal = window.openSlipViewModal || function () { };
         window.closeSlipViewModal = window.closeSlipViewModal || function () { };
         window.handleAdminSlipReupload = window.handleAdminSlipReupload || function () { };
+        window.nextHeroSlide = window.nextHeroSlide || function () { };
+        window.prevHeroSlide = window.prevHeroSlide || function () { };
+        window.goToHeroSlide = window.goToHeroSlide || function () { };
+        window.handleHeroSlideClick = window.handleHeroSlideClick || function () { };
+        window.nextBannerSlide = window.nextBannerSlide || function () { };
+        window.prevBannerSlide = window.prevBannerSlide || function () { };
+        window.goToBannerSlide = window.goToBannerSlide || function () { };
+        window.handleBannerSlideClick = window.handleBannerSlideClick || function () { };
+        window.openAnnouncementModal = window.openAnnouncementModal || function () { };
+        window.closeAnnouncementModal = window.closeAnnouncementModal || function () { };
         window.closeAdminResetPwModal = window.closeAdminResetPwModal || function () { };
         window.submitAdminResetPassword = window.submitAdminResetPassword || function () { };
         window.createDemoOrder = window.createDemoOrder || function () { };
@@ -84,6 +94,14 @@
         window.closeVaultModal = window.closeVaultModal || function () { };
         window.selectBrand = window.selectBrand || function () { };
         window.selectType = window.selectType || function () { };
+        window.switchMemberTab = window.switchMemberTab || function () { };
+        window.copyReferralCode = window.copyReferralCode || function () { };
+        window.copyReferralLink = window.copyReferralLink || function () { };
+        window.addAllWishlistToCart = window.addAllWishlistToCart || function () { };
+        window.handleSaveProfileSettings = window.handleSaveProfileSettings || function () { };
+        window.handleChangePasswordSettings = window.handleChangePasswordSettings || function () { };
+        window.toggleProductWishlist = window.toggleProductWishlist || function () { };
+        window.toggleProductStockAlert = window.toggleProductStockAlert || function () { };
     </script>
 </head>
 
@@ -167,67 +185,113 @@
                 </a>
             </div>
 
-            <!-- Product Catalog Navigation (Desktop & Tablet) -->
-            <nav class="hidden md:flex items-center gap-1.5 lg:gap-2 shrink-0">
+            <!-- Desktop Quick Nav (Visible only on very wide screens 2xl: >= 1536px) -->
+            <div class="hidden 2xl:flex items-center gap-1.5 shrink-0">
                 <button type="button" id="nav-products-catalog-btn" onclick="selectBrand('all'); scrollToProducts();"
-                    class="h-10 sm:h-11 px-3.5 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-white hover:bg-pink-50 border-2 border-pink-200 hover:border-pink-400 text-slate-800 hover:text-pink-600 transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
-                    title="ดูรายการสินค้าทั้งหมด">
-                    <i class="fa-solid fa-shapes text-pink-500"></i>
-                    <span>รายการสินค้า</span>
+                    class="h-10 px-3 rounded-xl text-xs font-bold text-slate-700 hover:text-pink-600 hover:bg-pink-50 border border-slate-200/80 hover:border-pink-300 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                    title="ดูสินค้าทั้งหมด">
+                    <i class="fa-solid fa-shapes text-pink-500 text-xs"></i>
+                    <span>สินค้าทั้งหมด</span>
                 </button>
                 <button type="button" onclick="selectBrand('highlight'); scrollToProducts();"
-                    class="hidden lg:flex h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-amber-50/80 hover:bg-amber-100 border-2 border-amber-200/90 hover:border-amber-300 text-amber-900 transition-all shadow-xs items-center gap-1.5 cursor-pointer active:scale-95"
+                    class="h-10 px-3 rounded-xl text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 hover:border-amber-300 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
                     title="ดูดีลเด็ดไฮไลท์">
-                    <i class="fa-solid fa-star text-amber-500"></i>
+                    <i class="fa-solid fa-star text-amber-500 text-xs"></i>
                     <span>ดีลไฮไลท์</span>
                 </button>
-            </nav>
+            </div>
 
-            <!-- Search Bar (Desktop) -->
-            <div class="hidden md:flex flex-1 max-w-sm lg:max-w-md xl:max-w-lg mx-2 lg:mx-4">
-                <div class="relative w-full">
+            <!-- Prominent Search Bar (Desktop) -->
+            <div class="hidden lg:flex flex-1 min-w-0 max-w-xs xl:max-w-md 2xl:max-w-lg mx-2 lg:mx-3 shrink">
+                <div class="relative w-full min-w-0">
                     <i
-                        class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm"></i>
-                    <input type="text" id="search-input" name="spk_search_q" placeholder="ค้นหา เช่น CapCut, Grok..."
-                        autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly
+                        class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500 text-sm pointer-events-none"></i>
+                    <input type="text" id="search-input" name="spk_search_q"
+                        placeholder="ค้นหา เช่น Google One, Gemini Pro..."
+                        autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
                         data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
-                        data-form-type="other" aria-autocomplete="none" onfocus="this.removeAttribute('readonly');"
-                        onpointerdown="this.removeAttribute('readonly');"
-                        ontouchstart="this.removeAttribute('readonly');"
-                        class="w-full pl-9 pr-9 py-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs sm:text-sm text-slate-900 placeholder-slate-400 outline-none transition-all shadow-inner font-medium">
+                        data-form-type="other" aria-autocomplete="none"
+                        class="w-full h-10 sm:h-11 pl-10 pr-9 rounded-xl sm:rounded-2xl bg-slate-50/90 hover:bg-white focus:bg-white border-2 border-slate-200/90 focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 font-semibold outline-none transition-all shadow-inner">
                     <button type="button" id="desktop-search-clear"
                         onclick="const di = document.getElementById('search-input'); if(di){di.value=''; state.searchQuery=''; const mi = document.getElementById('mobile-search-input'); if(mi) mi.value=''; this.classList.add('hidden'); const mc = document.getElementById('mobile-search-clear'); if(mc) mc.classList.add('hidden'); applyFilters();}"
-                        class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                        class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer transition-colors"
                         title="ล้างการค้นหา">
-                        <i class="fa-solid fa-circle-xmark"></i>
+                        <i class="fa-solid fa-circle-xmark text-sm"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Actions: Cart & User Account -->
-            <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <!-- Actions: Notifications, Wishlist, Cart & User Account -->
+            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
 
-                <!-- Cart Button -->
-                <button onclick="openCartDrawer()"
-                    class="relative p-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white border-2 border-pink-200 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-sm flex items-center gap-1.5 sm:gap-2 cursor-pointer touch-active">
-                    <i class="fa-solid fa-cart-shopping text-sm sm:text-base text-pink-500"></i>
-                    <span class="text-xs font-bold text-slate-800 hidden sm:inline">ตะกร้า</span>
-                    <span id="cart-count-badge"
-                        class="hidden absolute -top-1.5 -right-1.5 sm:static sm:w-auto sm:h-auto px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-[9px] sm:text-xs flex items-center justify-center shadow-md">
+                <!-- Notification Center Bell -->
+                <div class="relative">
+                    <button id="nav-notification-btn" onclick="toggleNotificationCenter()" title="ศูนย์การแจ้งเตือน"
+                        class="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white hover:bg-amber-50 border-2 border-amber-200/80 hover:border-amber-400 text-slate-700 hover:text-amber-600 transition-all shadow-xs flex items-center justify-center cursor-pointer touch-active active:scale-95">
+                        <i class="fa-solid fa-bell text-sm sm:text-base text-amber-500"></i>
+                        <span id="nav-notification-count-badge"
+                            class="hidden absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md animate-pulse">
+                            0
+                        </span>
+                    </button>
+
+                    <!-- Notification Center Dropdown -->
+                    <div id="notification-center-dropdown"
+                        class="hidden absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-amber-200/90 z-[80] overflow-hidden">
+                        <div class="p-3.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-pink-50">
+                            <div class="flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-xs">
+                                    <i class="fa-solid fa-bell"></i>
+                                </span>
+                                <span class="font-bold text-slate-900 text-sm">การแจ้งเตือน</span>
+                                <span id="notification-unread-tag" class="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-black">0 ใหม่</span>
+                            </div>
+                            <button type="button" onclick="markAllNotificationsRead()" class="text-[11px] font-bold text-pink-600 hover:text-pink-700 hover:underline cursor-pointer">
+                                อ่านทั้งหมด
+                            </button>
+                        </div>
+                        <div id="notification-items-list" class="max-h-80 overflow-y-auto divide-y divide-slate-100 p-2 space-y-1">
+                            <!-- Populated dynamically via app.js -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wishlist Button -->
+                <button onclick="openOrdersModal('wishlist')" title="รายการสินค้าที่ชอบ"
+                    class="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white hover:bg-rose-50 border-2 border-rose-200/80 hover:border-rose-400 text-slate-700 hover:text-rose-600 transition-all shadow-xs flex items-center justify-center cursor-pointer touch-active active:scale-95">
+                    <i class="fa-solid fa-heart text-sm sm:text-base text-rose-500"></i>
+                    <span id="nav-wishlist-count-badge"
+                        class="hidden absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md">
                         0
                     </span>
+                </button>
+
+                <!-- Cart Button -->
+                <button onclick="openCartDrawer()" title="ตะกร้าสินค้า"
+                    class="relative h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-white hover:bg-pink-50 border-2 border-pink-200/90 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer touch-active active:scale-95">
+                    <div class="relative">
+                        <i class="fa-solid fa-cart-shopping text-sm sm:text-base text-pink-500"></i>
+                        <span id="cart-count-badge"
+                            class="hidden absolute -top-2.5 -right-3 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-black text-[10px] flex items-center justify-center shadow-md">
+                            0
+                        </span>
+                    </div>
+                    <span class="text-xs font-bold text-slate-800 hidden 2xl:inline">ตะกร้า</span>
                 </button>
 
                 <!-- User Section -->
                 <div id="user-header-section">
                     <div class="flex items-center gap-1.5 sm:gap-2">
-                        <button onclick="openOrdersModal()"
-                            class="hidden sm:flex h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-all shadow-sm items-center justify-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer">
-                            <i class="fa-solid fa-box-open text-sm sm:text-base text-pink-500"></i>
-                            <span>คีย์ของฉัน (<span id="nav-orders-count">0</span>)</span>
+                        <!-- My Keys / Orders -->
+                        <button onclick="openOrdersModal('orders')" title="ประวัติการสั่งซื้อ & คีย์ของฉัน"
+                            class="h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 hover:bg-purple-100 border-2 border-purple-200/90 hover:border-purple-300 text-purple-700 transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-box-open text-sm sm:text-base text-purple-600"></i>
+                            <span class="hidden xl:inline font-bold">คีย์ของฉัน</span>
+                            <span class="px-1.5 py-0.2 rounded-full bg-purple-200/80 text-purple-900 text-[10px] sm:text-xs font-black leading-none">(<span id="nav-orders-count">0</span>)</span>
                         </button>
-                        <button onclick="openAuthModal('login')"
-                            class="h-9 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-pink-500 hover:bg-pink-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 sm:gap-1.5 shrink-0 touch-active cursor-pointer">
+                        <!-- Login Button (Gradient CTA) -->
+                        <button onclick="openAuthModal('login')" title="เข้าสู่ระบบบัญชี"
+                            class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white transition-all shadow-sm hover:shadow-pink-500/25 flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer active:scale-95">
                             <i class="fa-solid fa-right-to-bracket text-xs sm:text-sm"></i>
                             <span class="inline font-bold">เข้าสู่ระบบ</span>
                         </button>
@@ -236,27 +300,111 @@
             </div>
         </div>
 
-        <!-- Search Bar (Mobile) -->
-        <div class="md:hidden px-3 sm:px-4 pb-2">
+        <!-- Search Bar (Mobile & Tablet) -->
+        <div class="lg:hidden px-3 sm:px-4 pb-2.5">
             <div class="relative w-full">
                 <i
-                    class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 text-xs"></i>
+                    class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 text-xs pointer-events-none"></i>
                 <input type="text" id="mobile-search-input" name="spk_m_search_q"
-                    placeholder="ค้นหา เช่น CapCut, Grok, Claude..." autocomplete="off" autocorrect="off"
-                    autocapitalize="none" spellcheck="false" readonly data-lpignore="true" data-1p-ignore="true"
+                    placeholder="ค้นหา เช่น CapCut, Grok, Claude, Canva..." autocomplete="off" autocorrect="off"
+                    autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true"
                     data-bwignore="true" data-dashlane-ignore="true" data-form-type="other" aria-autocomplete="none"
-                    onfocus="this.removeAttribute('readonly');" onpointerdown="this.removeAttribute('readonly');"
-                    ontouchstart="this.removeAttribute('readonly');"
-                    class="w-full pl-8 pr-8 py-1.5 rounded-xl bg-slate-100 border border-slate-200/90 focus:border-pink-500 focus:bg-white text-xs text-slate-900 placeholder-slate-400 outline-none transition-all font-medium">
+                    class="w-full pl-8 pr-8 py-2 rounded-xl bg-slate-100 hover:bg-white focus:bg-white border border-slate-200/90 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 text-xs text-slate-900 placeholder-slate-400 outline-none transition-all font-semibold">
                 <button type="button" id="mobile-search-clear"
                     onclick="const mi = document.getElementById('mobile-search-input'); if(mi){mi.value=''; state.searchQuery=''; const di = document.getElementById('search-input'); if(di) di.value=''; this.classList.add('hidden'); const dc = document.getElementById('desktop-search-clear'); if(dc) dc.classList.add('hidden'); applyFilters();}"
-                    class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                    class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer transition-colors"
                     title="ล้างการค้นหา">
                     <i class="fa-solid fa-circle-xmark"></i>
                 </button>
             </div>
         </div>
     </header>
+
+    <!-- ==========================================
+         TOP HERO SHOWCASE SLIDER (Prominent Background Showcase)
+         ========================================== -->
+    <section id="hero-slider-section" class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-2">
+        <div id="hero-showcase-slider"
+            class="relative overflow-hidden rounded-2xl sm:rounded-3xl border-2 border-pink-300 shadow-2xl shadow-pink-500/15 bg-slate-900 group select-none min-h-[140px] sm:min-h-[240px] md:min-h-[320px]">
+
+            <!-- Slides Track (300% width, 33.333% per slide) -->
+            <div id="hero-slider-track"
+                class="flex transition-transform duration-700 ease-out will-change-transform"
+                style="width: 300%; transform: translateX(0%);">
+
+                <!-- Slide 1: Google Gemini Argon (New Release) -->
+                <div class="relative cursor-pointer overflow-hidden"
+                    style="width: 33.333333%; flex: 0 0 33.333333%;"
+                    onclick="handleHeroSlideClick(0)">
+                    <img src="images/background-argon.jpg?v=5.0"
+                        alt="Google Gemini Argon เร็วกว่า Pro x4 เท่า! - เปิดตัวแล้ว พร้อมให้บริการที่ Supinkly AI"
+                        class="w-full h-[140px] sm:h-[260px] md:h-[350px] lg:h-[430px] object-cover block select-none hover:scale-[1.01] transition-transform duration-500"
+                        onerror="this.onerror=null; this.src='images/background-argon.png?v=5.0';">
+                </div>
+
+                <!-- Slide 2: Supinkly AI Creative Suite -->
+                <div class="relative cursor-pointer overflow-hidden"
+                    style="width: 33.333333%; flex: 0 0 33.333333%;"
+                    onclick="handleHeroSlideClick(1)">
+                    <img src="images/background.jpg?v=5.0"
+                        alt="Supinkly AI Creative Suite - ตัวช่วยสุดล้ำ สร้างงานง่ายๆ ด้วย AI ไม่ต้องเก่งกราฟิก ก็ทำได้!"
+                        class="w-full h-[140px] sm:h-[260px] md:h-[350px] lg:h-[430px] object-cover block select-none hover:scale-[1.01] transition-transform duration-500"
+                        onerror="this.onerror=null; this.src='images/background.png?v=5.0';">
+                </div>
+
+                <!-- Slide 3: ประกาศสำคัญ / Anti-Scam Notice -->
+                <div class="relative cursor-pointer overflow-hidden"
+                    style="width: 33.333333%; flex: 0 0 33.333333%;"
+                    onclick="handleHeroSlideClick(2)">
+                    <img src="images/background-notice.jpg?v=5.0"
+                        alt="ประกาศสำคัญ Supinkly.AI - ระวังบุคคลแอบอ้าง ติดต่อผ่านเพจนี้โดยตรงเท่านั้น"
+                        class="w-full h-[140px] sm:h-[260px] md:h-[350px] lg:h-[430px] object-cover block select-none hover:scale-[1.01] transition-transform duration-500"
+                        onerror="this.onerror=null; this.src='images/background-notice.png?v=5.0';">
+                </div>
+            </div>
+
+            <!-- Floating Slide Badge Tag & Counter -->
+            <div class="absolute top-2.5 sm:top-4 right-2.5 sm:right-5 z-20 flex items-center gap-2 pointer-events-none">
+                <span id="slider-slide-badge"
+                    class="hidden xs:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/75 backdrop-blur-md text-white text-[11px] sm:text-xs font-bold border border-pink-400/40 shadow-lg">
+                    <span class="w-2 h-2 rounded-full bg-pink-500 animate-ping"></span>
+                    <span id="slider-slide-badge-text">🔥 เปิดตัวใหม่! Gemini Argon x4</span>
+                </span>
+                <span id="slider-slide-counter"
+                    class="px-2.5 py-0.5 sm:py-1 rounded-full bg-slate-950/75 backdrop-blur-md text-pink-300 text-[10px] sm:text-xs font-extrabold border border-white/10 shadow-lg">
+                    1 / 3
+                </span>
+            </div>
+
+            <!-- Navigation Arrow Buttons -->
+            <button type="button" onclick="prevHeroSlide(event)" aria-label="สไลด์ก่อนหน้า"
+                class="absolute left-1.5 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-slate-950/50 hover:bg-pink-600 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all duration-300 opacity-70 sm:opacity-0 group-hover:opacity-100 hover:scale-110 shadow-xl cursor-pointer">
+                <i class="fa-solid fa-chevron-left text-xs sm:text-sm"></i>
+            </button>
+            <button type="button" onclick="nextHeroSlide(event)" aria-label="สไลด์ถัดไป"
+                class="absolute right-1.5 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-slate-950/50 hover:bg-pink-600 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all duration-300 opacity-70 sm:opacity-0 group-hover:opacity-100 hover:scale-110 shadow-xl cursor-pointer">
+                <i class="fa-solid fa-chevron-right text-xs sm:text-sm"></i>
+            </button>
+
+            <!-- Navigation Dots Indicator -->
+            <div
+                class="absolute bottom-2 sm:bottom-3.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-slate-950/55 backdrop-blur-md border border-white/15 shadow-xl">
+                <button type="button" onclick="goToHeroSlide(0, event)" aria-label="ไปที่สไลด์ 1"
+                    class="slider-dot w-6 sm:w-8 h-2 sm:h-2.5 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 shadow-sm transition-all duration-300 cursor-pointer"></button>
+                <button type="button" onclick="goToHeroSlide(1, event)" aria-label="ไปที่สไลด์ 2"
+                    class="slider-dot w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-white/50 hover:bg-white transition-all duration-300 cursor-pointer"></button>
+                <button type="button" onclick="goToHeroSlide(2, event)" aria-label="ไปที่สไลด์ 3"
+                    class="slider-dot w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-white/50 hover:bg-white transition-all duration-300 cursor-pointer"></button>
+            </div>
+
+            <!-- Auto-play progress bar on top -->
+            <div class="absolute top-0 left-0 right-0 h-1 bg-white/10 z-20 pointer-events-none">
+                <div id="slider-progress-bar"
+                    class="h-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 w-0 transition-all duration-100 ease-linear">
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- ==========================================
          HERO SECTION (Vibrant, Friendly, Clean)
@@ -278,7 +426,7 @@
                     </div>
                 </div>
                 <h1 class="text-xs sm:text-sm font-normal text-slate-600 leading-relaxed max-w-3xl">
-                    ศูนย์รวมบัญชีและคีย์แท้ CapCut, Google AI, Google, Grok, Claude, Adobe และ Microsoft
+                    ศูนย์รวม Activation Link แท้ 100% เปิดสิทธิ์บนบัญชี Google One และ Google Gemini Pro โดยตรง
                     พร้อมระบบตรวจสอบและจัดส่งอัตโนมัติ มาตรฐานการให้บริการ พร้อมรับประกันทุกคำสั่งซื้อ
                 </h1>
 
@@ -734,18 +882,7 @@
         </div>
     </section>
 
-    <!-- ==========================================
-         FEATURE BANNER SHOWCASE (Creative AI Suite)
-         ========================================== -->
-    <section id="featured-ai" class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2.5 sm:pt-6 pb-2">
-        <div
-            class="relative overflow-hidden rounded-2xl sm:rounded-3xl border-2 border-pink-300 shadow-xl shadow-pink-500/10 bg-slate-900 group">
-            <img src="images/background.png"
-                alt="Supinkly AI Creative Suite - ตัวช่วยสุดล้ำ สร้างงานง่ายๆ ด้วย AI ไม่ต้องเก่งกราฟิก ก็ทำได้!"
-                class="w-full h-auto object-cover max-h-[140px] sm:max-h-[440px] cursor-pointer hover:scale-[1.01] transition-transform duration-500"
-                onclick="openLogoPopup()">
-        </div>
-    </section>
+
 
     <!-- ==========================================
          VOUCHER HUB SHOWCASE (High-Conversion Promo Tickets)
@@ -1056,7 +1193,7 @@
          ========================================== -->
     <section id="highlight-section" class="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 pt-2 sm:pt-4 pb-4 sm:pb-6">
         <div
-            class="relative bg-gradient-to-br from-white via-amber-50/40 to-pink-50/40 rounded-2xl sm:rounded-[32px] p-3.5 sm:p-7 md:p-8 border-2 border-pink-200/90 shadow-xl shadow-pink-500/5 overflow-hidden">
+            class="relative bg-gradient-to-br from-white via-amber-50/40 to-pink-50/40 rounded-2xl sm:rounded-[32px] p-2.5 sm:p-7 md:p-8 border-2 border-pink-200/90 shadow-xl shadow-pink-500/5 overflow-hidden">
             <!-- Decorative Background Glows -->
             <div class="absolute -top-16 -left-16 w-56 h-56 bg-amber-400/15 rounded-full blur-3xl pointer-events-none">
             </div>
@@ -1066,37 +1203,36 @@
 
             <!-- Header Row -->
             <div
-                class="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-4 pb-4 sm:pb-5 border-b border-pink-100/80">
+                class="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-pink-100/80">
                 <div>
                     <div
-                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-100 to-pink-100 text-pink-700 text-xs font-bold mb-2 shadow-2xs border border-pink-200">
-                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                        <i class="fa-solid fa-crown text-amber-500"></i>
-                        <span>SELECTION PICKS • สินค้าไฮไลท์ประจำสัปดาห์</span>
+                        class="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-gradient-to-r from-amber-100 to-pink-100 text-pink-700 text-[10px] sm:text-xs font-bold mb-1.5 sm:mb-2 shadow-2xs border border-pink-200">
+                        <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <i class="fa-solid fa-crown text-amber-500 text-[10px] sm:text-xs"></i>
+                        <span>SELECTION PICKS • ไฮไลท์ประจำสัปดาห์</span>
                     </div>
                     <h2
-                        class="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
+                        class="text-lg sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         <span>⭐ ดีลเด็ดไฮไลท์</span>
                         <span class="gradient-supinkly font-['Outfit']">Supinkly.AI</span>
-                        <span class="text-amber-500 text-lg sm:text-2xl">🔥 ขายดีติดเทรนด์</span>
+                        <span class="text-amber-500 text-base sm:text-2xl">🔥 ขายดีติดเทรนด์</span>
                     </h2>
-                    <p class="text-xs sm:text-sm text-slate-600 font-medium mt-1">
+                    <p class="text-[11px] sm:text-sm text-slate-600 font-medium mt-1">
                         รวมบัญชี AI และซอฟต์แวร์ของแท้ 100% ตัวท็อปที่ลูกค้าเลือกใช้มากที่สุด การันตีส่งมอบใน 24 ชม.
                         พร้อมประกันเต็มอายุการใช้งาน
                     </p>
                 </div>
 
-                <div class="flex items-center gap-2 shrink-0">
+                <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     <button type="button" onclick="selectBrand('highlight')"
-                        class="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white hover:bg-pink-50 text-pink-600 border-2 border-pink-200 font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">
-                        <i class="fa-solid fa-star text-amber-500"></i>
-                        <span>ดูไฮไลท์ทั้งหมด</span>
+                        class="px-2.5 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white hover:bg-pink-50 text-pink-600 border-2 border-pink-200 font-bold text-[11px] sm:text-sm shadow-xs transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-star text-amber-500 text-xs"></i>
+                        <span>ดูไฮไลท์</span>
                     </button>
                     <a href="#products-section"
-                        class="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl gradient-btn text-white font-bold text-xs sm:text-sm shadow-md shadow-pink-500/25 flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all">
-                        <i class="fa-solid fa-shapes"></i>
-                        <span class="hidden sm:inline">ดูแคตตาล็อกทั้งหมด</span>
-                        <span class="sm:hidden">สินค้าทั้งหมด</span>
+                        class="px-2.5 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl gradient-btn text-white font-bold text-[11px] sm:text-sm shadow-md shadow-pink-500/25 flex items-center gap-1 sm:gap-1.5 hover:scale-105 active:scale-95 transition-all">
+                        <i class="fa-solid fa-shapes text-xs"></i>
+                        <span>สินค้าทั้งหมด</span>
                     </a>
                 </div>
             </div>
@@ -1133,17 +1269,8 @@
                             class="fa-solid fa-filter text-pink-500"></i> รูปแบบ:</span>
                     <button onclick="selectType('all')" data-type="all"
                         class="type-filter-btn px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-sm font-bold bg-pink-500 text-white shadow-md shadow-pink-500/30 transition-all shrink-0">ทั้งหมด</button>
-                    <button onclick="selectType('private')" data-type="private"
-                        class="type-filter-btn px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all shrink-0">บัญชีส่วนตัว</button>
-                    <button onclick="selectType('shared')" data-type="shared"
-                        class="type-filter-btn px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all shrink-0">บัญชีแชร์</button>
                     <button onclick="selectType('link')" data-type="link"
-                        class="type-filter-btn px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all shrink-0">ลิงก์เปิดใช้งาน</button>
-                    <button onclick="selectType('key')" data-type="key"
-                        class="type-filter-btn px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all shrink-0">คีย์แท้
-                        (License)</button>
-                    <button onclick="selectType('topup')" data-type="topup"
-                        class="type-filter-btn px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all shrink-0">เติมเงิน</button>
+                        class="type-filter-btn px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-sm font-bold bg-white text-slate-700 hover:text-pink-600 border border-slate-200 shadow-sm transition-all shrink-0"><i class="fa-solid fa-link text-pink-500 mr-1"></i>ลิงก์เปิดสิทธิ์ (Activation Link)</button>
                 </div>
 
                 <!-- Sort & Counter -->
@@ -1166,7 +1293,7 @@
     <!-- ==========================================
          PRODUCT CATALOG GRID
          ========================================== -->
-    <main class="flex-1 max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-3 sm:py-8 w-full">
+    <main class="flex-1 max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-3 sm:py-8 pb-28 sm:pb-12 w-full">
         <div id="products-grid" class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-6">
             <!-- Product Cards Rendered Dynamically via app.js -->
         </div>
@@ -1335,17 +1462,16 @@
                         <span class="flex items-center gap-3">
                             <span
                                 class="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs shrink-0">Q4</span>
-                            <span>บัญชีประเภท Private Account กับ Shared Account ต่างกันอย่างไร?</span>
+                            <span>ลิงก์เปิดสิทธิ์ (Activation Link) และรหัสคีย์ (License Key) ปลอดภัยอย่างไร?</span>
                         </span>
                         <i
                             class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition-transform text-xs"></i>
                     </summary>
                     <div
                         class="mt-3.5 pt-3 border-t border-slate-200 text-xs sm:text-sm text-slate-600 leading-relaxed pl-10">
-                        • <b>Private (บัญชีส่วนตัว):</b> คุณคือผู้ใช้งานคนเดียว สามารถเปลี่ยนรหัสและจัดการโปรไฟล์ได้
-                        เหมาะสำหรับงานสำคัญ<br>
-                        • <b>Shared (บัญชีแชร์):</b> เป็นบัญชีร่วมตามโควตาที่กำหนด แยกโปรไฟล์การใช้งาน ราคาประหยัด
-                        คุ้มค่าที่สุด
+                        • <b>ไม่มีการขายบัญชีหาร (Shared) หรือบัญชีแชร์ร่วม:</b> เพื่อความปลอดภัยสูงสุดของข้อมูลลูกค้า 100%<br>
+                        • <b>Activation Link (ลิงก์เปิดสิทธิ์):</b> อัปเกรดเข้าสู่บัญชีเดิมของคุณโดยตรง (เช่น Google One, Gemini, Microsoft 365) ไม่ต้องแจ้งรหัสผ่าน<br>
+                        • <b>OEM License Key (รหัสคีย์แท้):</b> คีย์ลิขสิทธิ์แท้ 25 หลัก นำไปเปิดใช้งานถาวรผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ได้ตลอดชีพ
                     </div>
                 </details>
             </div>
@@ -1398,7 +1524,7 @@
                     <li><a href="javascript:void(0)" onclick="selectBrand('Adobe')"
                             class="hover:text-pink-600 transition-colors">Adobe Creative Cloud & Acrobat</a></li>
                     <li><a href="javascript:void(0)" onclick="selectBrand('Microsoft')"
-                            class="hover:text-pink-600 transition-colors">Windows 11 & Copilot Pro</a></li>
+                            class="hover:text-pink-600 transition-colors">Windows 11 & Microsoft 365</a></li>
                 </ul>
             </div>
             <div>
@@ -1591,24 +1717,101 @@
                 </button>
             </div>
 
+            <!-- VIP Member Auto Discount Row (Hidden if Bronze or Guest) -->
+            <div id="cart-vip-discount-row"
+                class="hidden p-2 rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 text-xs flex items-center justify-between font-bold text-amber-900">
+                <span class="flex items-center gap-1.5 truncate">
+                    <i id="cart-vip-icon" class="fa-solid fa-crown text-amber-500"></i>
+                    <span id="cart-vip-title">ส่วนลดสมาชิก VIP</span>
+                </span>
+                <span id="cart-vip-amount" class="text-amber-800 font-black">-฿0.00</span>
+            </div>
+
+            <!-- Referral Friend Discount Row (Hidden by default) -->
+            <div id="cart-referral-discount-row"
+                class="hidden p-2 rounded-xl bg-purple-50 border border-purple-200 text-xs flex items-center justify-between font-bold text-purple-900">
+                <span class="flex items-center gap-1.5 truncate">
+                    <i class="fa-solid fa-user-group text-purple-500"></i>
+                    <span id="cart-referral-title">ส่วนลดแนะนำเพื่อน (5%)</span>
+                </span>
+                <div class="flex items-center gap-1">
+                    <span id="cart-referral-amount" class="text-purple-800 font-black">-฿0.00</span>
+                    <button type="button" onclick="removeReferralCode()" class="text-rose-500 hover:text-rose-700 ml-1 cursor-pointer" title="ลบโค้ดแนะนำ">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pink Coins Redemption Wrap (Member Only) -->
+            <div id="cart-coins-wrap"
+                class="hidden p-2.5 rounded-2xl bg-gradient-to-r from-amber-50/80 via-white to-pink-50/80 border border-amber-200/90 text-xs space-y-1.5 shadow-2xs">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-coins text-amber-500"></i>
+                        <span>ใช้ Pink Coins ลดเงินสด:</span>
+                    </span>
+                    <span class="text-[11px] font-bold text-amber-800">
+                        มี <span id="cart-coins-balance">0</span> เหรียญ (฿<span id="cart-coins-baht">0.00</span>)
+                    </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <input type="number" id="cart-coins-input" min="0" placeholder="0 เหรียญ" oninput="handleCoinsInputChange(this.value)"
+                        class="w-24 px-2 py-1.5 rounded-lg border border-amber-300 font-bold text-xs bg-white text-slate-800 outline-none focus:border-pink-500 text-center">
+                    <button type="button" onclick="applyMaxCoins()"
+                        class="px-2.5 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[11px] cursor-pointer transition-colors">
+                        ใช้สูงสุด
+                    </button>
+                    <button type="button" onclick="clearCoins()"
+                        class="px-2 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] cursor-pointer transition-colors">
+                        ล้าง
+                    </button>
+                </div>
+                <div id="cart-coins-error" class="hidden text-[10px] text-rose-600 font-bold"></div>
+            </div>
+
+            <!-- Referral Code Input Toggle / Form -->
+            <div id="cart-referral-input-wrap" class="space-y-1">
+                <div class="flex items-center gap-1.5">
+                    <input type="text" id="cart-referral-input" placeholder="รหัสแนะนำเพื่อน (เช่น SPK-REF...)"
+                        class="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold uppercase outline-none focus:border-purple-400 bg-slate-50 focus:bg-white transition-all">
+                    <button type="button" onclick="applyReferralCode()"
+                        class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold cursor-pointer transition-all active:scale-95">
+                        ใช้รหัส
+                    </button>
+                </div>
+            </div>
+
             <!-- Pricing Breakdown -->
             <div class="space-y-1.5 pt-1">
                 <div class="flex items-center justify-between text-xs text-slate-600 font-medium">
                     <span>ราคารวมสินค้า:</span>
                     <span id="cart-subtotal" class="font-bold text-slate-900">฿0.00</span>
                 </div>
-                <!-- Discount Row (Hidden if no discount) -->
+                <!-- Promotion Discount Row -->
                 <div id="cart-discount-row"
                     class="hidden flex items-center justify-between text-xs text-emerald-600 font-bold">
                     <span>ส่วนลดโปรโมชั่น:</span>
                     <span id="cart-discount-amount" class="font-bold">-฿0.00</span>
                 </div>
+                <!-- Coins Discount Row -->
+                <div id="cart-coins-discount-row"
+                    class="hidden flex items-center justify-between text-xs text-amber-600 font-bold">
+                    <span>ลดด้วย Pink Coins:</span>
+                    <span id="cart-coins-discount-amount" class="font-bold">-฿0.00</span>
+                </div>
+            </div>
+
+            <!-- Earn Coins Preview Badge -->
+            <div id="cart-earn-coins-preview"
+                class="text-[11px] text-pink-600 font-bold text-center bg-pink-50 py-1.5 px-2 rounded-xl border border-pink-100 flex items-center justify-center gap-1.5 shadow-2xs">
+                <i class="fa-solid fa-gift text-pink-500"></i>
+                <span>สั่งซื้อออเดอร์นี้ รับเพิ่ม +<span id="cart-coins-earned-val">0</span> Pink Coins!</span>
             </div>
 
             <div
                 class="flex items-center justify-between text-base font-bold text-slate-900 border-t border-slate-100 pt-2">
                 <span>ยอดชำระสุทธิ:</span>
-                <span id="cart-total" class="text-2xl font-bold text-pink-600">฿0.00</span>
+                <span id="cart-total" class="text-2xl font-black text-pink-600 font-['Outfit'] tracking-tight">฿0.00</span>
             </div>
             <button id="cart-checkout-btn" onclick="startCheckout()"
                 class="w-full py-3.5 rounded-2xl gradient-btn text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30 cursor-pointer active:scale-98">
@@ -1621,7 +1824,7 @@
     <!-- ==========================================
          CHECKOUT & PAYMENT MODAL (Bright White & Clear)
          ========================================== -->
-    <div id="checkout-modal"
+    <div id="checkout-modal" onclick="if(event.target === this) closeCheckoutModal()"
         class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-2 sm:p-4">
         <div
             class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 border border-pink-200 relative max-h-[94vh] overflow-y-auto shadow-2xl">
@@ -1710,7 +1913,7 @@
                     </div>
                     <div>
                         <div class="text-xs text-slate-500 font-medium">ยอดที่ต้องโอนชำระตรงเป๊ะ:</div>
-                        <div id="checkout-total-amount" class="text-3xl font-bold text-pink-600">฿0.00</div>
+                        <div id="checkout-total-amount" class="text-3xl font-black text-pink-600 font-['Outfit'] tracking-tight">฿0.00</div>
                     </div>
                     <div id="qr-timer-text" class="text-xs font-mono font-bold text-amber-600">
                         กรุณาชำระเงินภายใน 15:00 นาที
@@ -2032,7 +2235,7 @@
     <!-- ==========================================
          INSTANT DELIVERY VAULT MODAL (Bright & Clear)
          ========================================== -->
-    <div id="vault-modal"
+    <div id="vault-modal" onclick="if(event.target === this) closeVaultModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-2.5 sm:p-4">
         <div
             class="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border-2 border-pink-400 relative max-h-[92vh] overflow-y-auto shadow-2xl">
@@ -2082,96 +2285,452 @@
     <!-- ==========================================
          ORDERS HISTORY & MY KEYS MODAL ("คีย์ของฉัน")
          ========================================== -->
-    <div id="orders-modal"
-        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+    <!-- ==========================================
+         MEMBER CENTER & KEY VAULT MODAL ("ศูนย์สมาชิก & คีย์ของฉัน")
+         ========================================== -->
+    <div id="orders-modal" onclick="if(event.target === this) closeOrdersModal()"
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4">
         <div
-            class="bg-white max-w-2xl w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200 relative max-h-[92vh] flex flex-col shadow-2xl">
+            class="bg-white max-w-3xl w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200 relative max-h-[94vh] flex flex-col shadow-2xl">
 
             <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-4 border-b border-slate-200 shrink-0">
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-200 shrink-0">
                 <div class="flex items-center gap-3">
                     <div
-                        class="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-50 via-white to-pink-100 border-2 border-pink-300 p-1 flex items-center justify-center shadow-md shadow-pink-500/15 overflow-hidden shrink-0">
+                        class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-pink-50 via-white to-pink-100 border-2 border-pink-300 p-1 flex items-center justify-center shadow-md shadow-pink-500/15 overflow-hidden shrink-0">
                         <img src="images/pop_new.png" alt="Supinkly Mascot Logo" class="w-full h-full object-contain"
                             onerror="this.src='images/logo.jpg'">
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <h3 class="text-base sm:text-lg font-bold text-slate-900">คีย์และบัญชีของฉัน</h3>
+                            <h3 id="member-center-modal-title" class="text-base sm:text-lg font-bold text-slate-900">ศูนย์สมาชิก & คลังคีย์</h3>
                             <span id="customer-keys-count-badge"
                                 class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-100 text-pink-700">0
                                 รายการ</span>
                         </div>
-                        <p class="text-xs text-slate-500 font-medium">ประวัติคำสั่งซื้อและรหัสใช้งานของคุณ
-                            ดูและคัดลอกรหัสเข้าใช้งานได้ทันที</p>
+                        <p class="text-xs text-slate-500 font-medium">จัดการคีย์ รหัสบัญชี สิทธิพิเศษ VIP แต้มพ้อยท์ และข้อมูลส่วนตัว</p>
                     </div>
                 </div>
                 <button onclick="closeOrdersModal()"
-                    class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-base transition-colors shrink-0"
+                    class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-base transition-colors shrink-0 cursor-pointer"
                     title="ปิดหน้าต่าง">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
-            <!-- Guarantee & Support Reassurance Banner -->
-            <div
-                class="mt-3 p-3 rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-blue-50 border border-pink-200 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
-                <div class="flex items-center gap-2 text-slate-700 font-bold">
-                    <span
-                        class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
-                        <i class="fa-solid fa-shield-halved"></i>
+            <!-- Member Center Navigation Tabs Bar -->
+            <div class="mt-3 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0 text-xs font-bold">
+                <button id="member-tab-btn-orders" onclick="switchMemberTab('orders')"
+                    class="member-tab-btn px-3 py-2 rounded-xl bg-pink-500 text-white shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-key"></i>
+                    <span>คีย์ของฉัน</span>
+                    <span id="tab-cnt-orders" class="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">0</span>
+                </button>
+                <button id="member-tab-btn-vip" onclick="switchMemberTab('vip')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-crown text-amber-500"></i>
+                    <span>ระดับ VIP</span>
+                    <span id="tab-badge-vip" class="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[10px]">Bronze</span>
+                </button>
+                <button id="member-tab-btn-coins" onclick="switchMemberTab('coins')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-coins text-amber-500"></i>
+                    <span>Pink Coins</span>
+                    <span id="tab-cnt-coins" class="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[10px]">20</span>
+                </button>
+                <button id="member-tab-btn-referral" onclick="switchMemberTab('referral')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-user-group text-purple-500"></i>
+                    <span>แนะนำเพื่อน</span>
+                </button>
+                <button id="member-tab-btn-wishlist" onclick="switchMemberTab('wishlist')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-heart text-rose-500"></i>
+                    <span>ที่ชอบ</span>
+                    <span id="tab-cnt-wishlist" class="px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700 text-[10px]">0</span>
+                </button>
+                <button id="member-tab-btn-settings" onclick="switchMemberTab('settings')"
+                    class="member-tab-btn px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer">
+                    <i class="fa-solid fa-gear text-slate-500"></i>
+                    <span>ตั้งค่าบัญชี</span>
+                </button>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 1: MY KEYS & ORDERS (Existing Orders)
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-orders" class="member-pane flex-1 flex flex-col min-h-0">
+                <!-- Customer Account Profile & Sync Status Card -->
+                <div id="customer-profile-card" class="mt-3 shrink-0"></div>
+
+                <!-- Search Bar & Filter Chips -->
+                <div class="mt-3 space-y-2 shrink-0">
+                    <div class="relative">
+                        <i
+                            class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="customer-keys-search" name="spk_ck_search_q"
+                            oninput="handleCustomerKeysSearch(this.value)"
+                            placeholder="🔍 ค้นหาชื่อสินค้า, อีเมล, เลขที่คำสั่งซื้อ (เช่น CapCut, Windows, ORD-)..."
+                            autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly
+                            data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
+                            data-form-type="other" aria-autocomplete="none" onfocus="this.removeAttribute('readonly');"
+                            onpointerdown="this.removeAttribute('readonly');"
+                            ontouchstart="this.removeAttribute('readonly');"
+                            class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-pink-500 outline-none transition-all font-medium">
+                        <button id="customer-keys-clear-search" onclick="clearCustomerKeysSearch()"
+                            class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                        <button onclick="setCustomerKeysFilter('all')" id="ck-filter-all"
+                            class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-pink-500 text-white shadow-xs">
+                            ทั้งหมด (<span id="ck-cnt-all">0</span>)
+                        </button>
+                        <button onclick="setCustomerKeysFilter('delivered')" id="ck-filter-delivered"
+                            class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
+                            🟢 พร้อมใช้งาน (<span id="ck-cnt-delivered">0</span>)
+                        </button>
+                        <button onclick="setCustomerKeysFilter('pending')" id="ck-filter-pending"
+                            class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
+                            🟡 รอจัดเตรียม (<span id="ck-cnt-pending">0</span>)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scrollable Orders / Keys List -->
+                <div id="orders-history-list" class="mt-3 space-y-3 overflow-y-auto flex-1 pr-1"></div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 2: VIP TIER & PRIVILEGES
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-vip" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Metallic Tier Card -->
+                <div id="vip-metallic-card" class="p-5 rounded-3xl bg-gradient-to-br from-amber-500 via-amber-600 to-yellow-700 text-white shadow-xl relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 text-8xl text-white/10 pointer-events-none">
+                        <i class="fa-solid fa-crown"></i>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-xs">
+                                Supinkly Loyalty Program
+                            </span>
+                            <h4 id="vip-card-tier-name" class="text-2xl font-black mt-1 flex items-center gap-2">
+                                <span>🥉 Bronze Member</span>
+                            </h4>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[11px] text-white/80 block">ส่วนลดอัตโนมัติ</span>
+                            <span id="vip-card-discount-rate" class="text-2xl font-black text-amber-200">0%</span>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar to Next Tier -->
+                    <div class="mt-4 pt-4 border-t border-white/20 space-y-1.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span id="vip-card-progress-text" class="font-medium">ช้อปอีก ฿500.00 เพื่อเลื่อนขั้นเป็น Silver Member</span>
+                            <span id="vip-card-progress-pct" class="font-black">0%</span>
+                        </div>
+                        <div class="w-full h-2.5 rounded-full bg-black/20 overflow-hidden">
+                            <div id="vip-card-progress-bar" class="h-full bg-white rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-white/80 pt-0.5">
+                            <span>ยอดใช้จ่ายสะสม: ฿<span id="vip-card-total-spent">0.00</span></span>
+                            <span id="vip-card-next-tier-label">ขั้นถัดไป: Silver Member (ลด 3%)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tier Comparison Benefits Grid -->
+                <div class="space-y-2">
+                    <h5 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-award text-pink-500"></i>
+                        <span>สิทธิประโยชน์ระดับสมาชิกทั้งหมด:</span>
+                    </h5>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <!-- Bronze -->
+                        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                            <div class="font-bold text-slate-800 flex items-center gap-1">
+                                <span>🥉 Bronze</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500">ยอดสะสม ฿0 - ฿499</div>
+                            <div class="text-xs font-black text-slate-700">ส่วนลด 0%</div>
+                            <p class="text-[10px] text-slate-500">บันทึกคีย์ถาวรในคลัง</p>
+                        </div>
+                        <!-- Silver -->
+                        <div class="p-3 rounded-2xl bg-slate-100 border border-slate-300 space-y-1">
+                            <div class="font-bold text-slate-800 flex items-center gap-1">
+                                <span>🥈 Silver</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500">ยอดสะสม ฿500+</div>
+                            <div class="text-xs font-black text-slate-800">ลด 3% ทุกบิล</div>
+                            <p class="text-[10px] text-slate-500">ประหยัดทันทีอัตโนมัติ</p>
+                        </div>
+                        <!-- Gold -->
+                        <div class="p-3 rounded-2xl bg-amber-50 border border-amber-300 space-y-1">
+                            <div class="font-bold text-amber-900 flex items-center gap-1">
+                                <span>🥇 Gold VIP</span>
+                            </div>
+                            <div class="text-[10px] text-amber-700">ยอดสะสม ฿1,500+</div>
+                            <div class="text-xs font-black text-amber-900">ลด 5% ทุกบิล</div>
+                            <p class="text-[10px] text-amber-800">คุ้มค่ายอดนิยม ⭐</p>
+                        </div>
+                        <!-- Diamond -->
+                        <div class="p-3 rounded-2xl bg-cyan-50 border border-cyan-300 space-y-1">
+                            <div class="font-bold text-cyan-900 flex items-center gap-1">
+                                <span>💎 Diamond</span>
+                            </div>
+                            <div class="text-[10px] text-cyan-700">ยอดสะสม ฿3,000+</div>
+                            <div class="text-xs font-black text-cyan-900">ลด 7% ทุกบิล</div>
+                            <p class="text-[10px] text-cyan-800">ส่งมอบด่วนคิวแรก</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 3: PINK COINS & REWARDS
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-coins" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Coins Balance Banner -->
+                <div class="p-4 rounded-3xl bg-gradient-to-r from-amber-50 via-pink-50 to-amber-50 border-2 border-amber-300 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-600 text-white flex items-center justify-center text-2xl shadow-md shadow-amber-500/30">
+                            <i class="fa-solid fa-coins"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs text-amber-800 font-bold">ยอดเหรียญสะสมของคุณ</span>
+                            <div class="text-2xl sm:text-3xl font-black text-slate-900 flex items-baseline gap-1.5">
+                                <span id="coins-pane-balance">20</span>
+                                <span class="text-sm font-bold text-pink-600">Pink Coins</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white px-3.5 py-2 rounded-2xl border border-amber-200 text-right">
+                        <span class="text-[10px] text-slate-500 block font-medium">มูลค่าใช้ลดเงินสด</span>
+                        <span class="text-lg font-black text-emerald-600">฿<span id="coins-pane-baht">20.00</span></span>
+                    </div>
+                </div>
+
+                <!-- Daily Check-in Card (🗓️ เช็คอินรายวันรับ Pink Coins ฟรี) -->
+                <div id="daily-checkin-card" class="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-md space-y-3 relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 text-7xl text-white/10 pointer-events-none">
+                        <i class="fa-solid fa-calendar-check"></i>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-xs">
+                                🗓️ DAILY STREAK BONUS
+                            </span>
+                            <h4 class="text-base sm:text-lg font-black mt-1 flex items-center gap-1.5">
+                                <span>เช็คอินรายวันรับ Pink Coins ฟรี!</span>
+                            </h4>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-white/80 block">สถิติเช็คอิน</span>
+                            <span id="checkin-streak-count" class="text-lg font-black text-amber-200">0 วันติด</span>
+                        </div>
+                    </div>
+
+                    <!-- 7-Day Streak Badges Grid -->
+                    <div id="checkin-7days-grid" class="grid grid-cols-7 gap-1 sm:gap-1.5 text-center">
+                        <!-- Populated dynamically via renderCoinsPane() -->
+                    </div>
+
+                    <!-- Checkin Action Button -->
+                    <div class="pt-1">
+                        <button id="daily-checkin-btn" type="button" onclick="handleDailyCheckIn()"
+                            class="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-amber-50 text-slate-900 font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-gift text-pink-600"></i>
+                            <span id="daily-checkin-btn-text">กดรับเหรียญเช็คอินวันนี้ (+1 Coin)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- How to Earn Info Box -->
+                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                    <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-question text-pink-500"></i>
+                        <span>วิธีสะสมและใช้งาน Pink Coins:</span>
+                    </div>
+                    <ul class="text-[11px] text-slate-600 space-y-1 list-disc list-inside">
+                        <li><b>ช้อปสินค้า:</b> ทุกยอดซื้อ 10 บาท จะได้รับ 1 Pink Coin สะสมเข้ากระเป๋าทันที</li>
+                        <li><b>โบนัสต้อนรับ:</b> สมัครสมาชิกใหม่ รับฟรีทันที 20 Pink Coins</li>
+                        <li><b>แนะนำเพื่อน:</b> เมื่อเพื่อนสั่งซื้อผ่านรหัสของคุณ คุณจะได้รับ 5% ของยอดสั่งซื้อเป็น Pink Coins</li>
+                        <li><b>วิธีใช้:</b> เปิดตะกร้าสินค้า แล้วกรอกจำนวน Pink Coins ในช่อง "ใช้ Pink Coins ลดเงินสด"</li>
+                    </ul>
+                </div>
+
+                <!-- Coins History Ledger -->
+                <div class="space-y-2">
+                    <h5 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-clock-rotate-left text-pink-500"></i>
+                        <span>ประวัติการรับและใช้งานเหรียญ:</span>
+                    </h5>
+                    <div id="coins-history-list" class="space-y-1.5 max-h-48 overflow-y-auto">
+                        <div class="p-3 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">กำลังโหลดข้อมูล...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 4: REFERRAL & AFFILIATE PROGRAM
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-referral" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Referral Hero Card -->
+                <div class="p-4.5 rounded-3xl bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 border-2 border-purple-200 text-slate-800 space-y-3 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-500 to-pink-500 text-white flex items-center justify-center text-xl shadow-md shadow-purple-500/25">
+                            <i class="fa-solid fa-gift"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-base font-black text-slate-900">ชวนเพื่อนรับส่วนลด & คุณรับค่าคอมมิชชั่น</h4>
+                            <p class="text-xs text-slate-600 font-medium">เพื่อนได้ลด 5% ทุกออเดอร์ • คุณได้รับ Pink Coins 5% จากยอดซื้อเพื่อน</p>
+                        </div>
+                    </div>
+
+                    <!-- Personal Referral Code Display -->
+                    <div class="p-3 rounded-2xl bg-white border border-purple-200 space-y-2">
+                        <label class="text-[11px] font-bold text-slate-600 block">รหัสแนะนำเพื่อนของคุณ:</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="referral-code-display" readonly
+                                class="flex-1 px-3 py-2 rounded-xl bg-purple-50 border-2 border-purple-300 font-mono font-black text-sm sm:text-base text-purple-900 text-center tracking-wider outline-none select-all">
+                            <button type="button" onclick="copyReferralCode()"
+                                class="px-4 py-2 rounded-xl gradient-btn text-white font-bold text-xs shadow-md shadow-pink-500/20 flex items-center gap-1.5 cursor-pointer active:scale-95">
+                                <i class="fa-solid fa-copy"></i>
+                                <span>คัดลอกรหัส</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Shareable URL -->
+                    <div class="p-3 rounded-2xl bg-white border border-purple-200 space-y-2">
+                        <label class="text-[11px] font-bold text-slate-600 block">ลิงก์ชวนเพื่อนอัตโนมัติ (เพื่อนคลิกแล้วได้ส่วนลดทันที):</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="referral-link-display" readonly
+                                class="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 outline-none truncate select-all">
+                            <button type="button" onclick="copyReferralLink()"
+                                class="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-xs flex items-center gap-1 cursor-pointer active:scale-95">
+                                <i class="fa-solid fa-link"></i>
+                                <span>คัดลอกลิงก์</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Referral Stats Cards -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                        <span class="text-xs text-slate-500 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-users text-purple-500"></i> เพื่อนที่แนะนำสำเร็จ
+                        </span>
+                        <div class="text-xl font-black text-slate-900 mt-1.5">
+                            <span id="referral-stats-friends">0</span> คน
+                        </div>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+                        <span class="text-xs text-amber-800 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-coins text-amber-500"></i> แต้มคอมมิชชั่นสะสม
+                        </span>
+                        <div class="text-xl font-black text-amber-900 mt-1.5">
+                            <span id="referral-stats-coins">0</span> Coins
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 5: WISHLIST (FAVORITES)
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-wishlist" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-heart text-rose-500"></i>
+                        <span>สินค้าที่คุณบันทึกไว้ (<span id="wishlist-pane-count">0</span> รายการ):</span>
                     </span>
-                    <span>รับประกันสินค้า 30 วัน เคลมง่าย บริการ 24 ชม.</span>
-                </div>
-                <a href="https://www.facebook.com/profile.php?id=61594837747580" target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-blue-200 text-[#1877F2] font-bold hover:bg-blue-50 transition-colors shadow-xs">
-                    <i class="fa-brands fa-facebook"></i>
-                    <span>ติดต่อขอความช่วยเหลือ</span>
-                </a>
-            </div>
-
-            <!-- Customer Account Profile & Sync Status Card -->
-            <div id="customer-profile-card" class="mt-3 shrink-0"></div>
-
-            <!-- Search Bar & Filter Chips -->
-            <div class="mt-3 space-y-2 shrink-0">
-                <div class="relative">
-                    <i
-                        class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                    <input type="text" id="customer-keys-search" name="spk_ck_search_q"
-                        oninput="handleCustomerKeysSearch(this.value)"
-                        placeholder="🔍 ค้นหาชื่อสินค้า, อีเมล, เลขที่คำสั่งซื้อ (เช่น CapCut, Windows, ORD-)..."
-                        autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly
-                        data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-dashlane-ignore="true"
-                        data-form-type="other" aria-autocomplete="none" onfocus="this.removeAttribute('readonly');"
-                        onpointerdown="this.removeAttribute('readonly');"
-                        ontouchstart="this.removeAttribute('readonly');"
-                        class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-pink-500 outline-none transition-all font-medium">
-                    <button id="customer-keys-clear-search" onclick="clearCustomerKeysSearch()"
-                        class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
-                        <i class="fa-solid fa-circle-xmark"></i>
+                    <button type="button" onclick="addAllWishlistToCart()"
+                        class="text-xs font-bold text-pink-600 hover:text-pink-700 hover:underline cursor-pointer">
+                        ใส่ตะกร้าทั้งหมด
                     </button>
                 </div>
-
-                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-                    <button onclick="setCustomerKeysFilter('all')" id="ck-filter-all"
-                        class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-pink-500 text-white shadow-xs">
-                        ทั้งหมด (<span id="ck-cnt-all">0</span>)
-                    </button>
-                    <button onclick="setCustomerKeysFilter('delivered')" id="ck-filter-delivered"
-                        class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
-                        🟢 พร้อมใช้งาน (<span id="ck-cnt-delivered">0</span>)
-                    </button>
-                    <button onclick="setCustomerKeysFilter('pending')" id="ck-filter-pending"
-                        class="customer-key-filter-btn px-3 py-1.5 rounded-xl font-bold transition-all bg-slate-100 hover:bg-slate-200 text-slate-600">
-                        🟡 รอจัดเตรียม (<span id="ck-cnt-pending">0</span>)
-                    </button>
+                <div id="wishlist-items-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <!-- Populated dynamically by renderWishlistPane() -->
                 </div>
             </div>
 
-            <!-- Scrollable Orders / Keys List -->
-            <div id="orders-history-list" class="mt-3 space-y-3 overflow-y-auto flex-1 pr-1"></div>
+            <!-- ══════════════════════════════════════════════
+                 TAB PANE 6: ACCOUNT PROFILE SETTINGS & SECURITY
+                 ══════════════════════════════════════════════ -->
+            <div id="member-pane-settings" class="member-pane hidden flex-1 flex flex-col min-h-0 overflow-y-auto mt-3 space-y-3 pr-1">
+                <!-- Personal Info Form Card -->
+                <div class="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                    <h5 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-user-pen text-pink-500"></i>
+                        <span>ข้อมูลโปรไฟล์ผู้ใช้งาน</span>
+                    </h5>
+                    <div id="settings-profile-status" class="hidden p-2.5 rounded-xl text-xs font-bold"></div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">อีเมลบัญชี (ไม่สามารถแก้ไขได้):</label>
+                            <input type="email" id="settings-email" readonly
+                                class="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 outline-none cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">ชื่อที่แสดง (Display Name):</label>
+                            <input type="text" id="settings-display-name" placeholder="ชื่อของคุณ"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-pink-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">เบอร์โทรศัพท์ (ทางเลือก):</label>
+                            <input type="tel" id="settings-phone" placeholder="08x-xxx-xxxx"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-pink-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">LINE ID สำหรับรับคีย์ด่วน (ทางเลือก):</label>
+                            <input type="text" id="settings-line-id" placeholder="@lineid หรือ id"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-pink-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                    </div>
+                    <button type="button" onclick="handleSaveProfileSettings()"
+                        class="px-5 py-2.5 rounded-xl gradient-btn text-white text-xs font-bold shadow-md shadow-pink-500/20 cursor-pointer active:scale-95 transition-all">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูลโปรไฟล์
+                    </button>
+                </div>
+
+                <!-- Change Password Form Card -->
+                <div class="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                    <h5 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-lock text-purple-500"></i>
+                        <span>เปลี่ยนรหัสผ่าน (Change Password)</span>
+                    </h5>
+                    <div id="settings-password-status" class="hidden p-2.5 rounded-xl text-xs font-bold"></div>
+
+                    <div class="space-y-2.5 max-w-md">
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">รหัสผ่านปัจจุบัน:</label>
+                            <input type="password" id="settings-old-pass" placeholder="กรอกรหัสผ่านปัจจุบัน"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-purple-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">รหัสผ่านใหม่:</label>
+                            <input type="password" id="settings-new-pass" placeholder="รหัสผ่านใหม่อย่างน้อย 6 ตัวอักษร"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-purple-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-700 block mb-1">ยืนยันรหัสผ่านใหม่:</label>
+                            <input type="password" id="settings-confirm-pass" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-purple-500 focus:bg-white text-xs text-slate-900 outline-none transition-all">
+                        </div>
+                        <button type="button" onclick="handleChangePasswordSettings()"
+                            class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 cursor-pointer active:scale-95 transition-all">
+                            <i class="fa-solid fa-key mr-1"></i> เปลี่ยนรหัสผ่านทันที
+                        </button>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </div>
@@ -2179,7 +2738,7 @@
     <!-- ==========================================
          USER AUTHENTICATION MODAL (LOGIN / REGISTER / OTP / FORGOT)
          ========================================== -->
-    <div id="auth-modal"
+    <div id="auth-modal" onclick="if(event.target === this) closeAuthModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-2.5 sm:p-4">
         <div
             class="bg-white max-w-md w-full rounded-2xl sm:rounded-3xl p-4 sm:p-7 border-2 border-pink-300 relative shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -2197,7 +2756,7 @@
                             <span
                                 class="text-[11px] font-bold text-pink-600 bg-pink-50 border border-pink-200 px-2 py-0.5 rounded-full">Supinkly.AI</span>
                         </div>
-                        <p class="text-xs text-slate-500 font-medium">เข้าสู่ระบบ / สมัครสมาชิก เพื่อดูคีย์ของคุณ</p>
+                        <p class="text-xs text-slate-500 font-medium">เข้าสู่ระบบ / สมัครสมาชิก</p>
                     </div>
                 </div>
                 <button type="button" onclick="closeAuthModal()"
@@ -2228,7 +2787,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">อีเมล (Email):</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">อีเมล:</label>
                     <div class="relative">
                         <i
                             class="fa-solid fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -2239,7 +2798,7 @@
 
                 <div>
                     <div class="flex items-center justify-between mb-1">
-                        <label class="text-xs font-bold text-slate-700">รหัสผ่าน (Password):</label>
+                        <label class="text-xs font-bold text-slate-700">รหัสผ่าน:</label>
                         <button type="button" onclick="switchAuthTab('forgot-request')"
                             class="text-[11px] text-pink-600 hover:text-pink-700 font-bold hover:underline cursor-pointer">
                             ลืมรหัสผ่าน?
@@ -2275,7 +2834,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อหรือชื่อเล่นที่ใช้เรียก:</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อเล่น:</label>
                     <div class="relative">
                         <i
                             class="fa-solid fa-id-card absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -2285,7 +2844,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">อีเมล (จะใช้รับรหัสสินค้า & OTP):</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">อีเมล:</label>
                     <div class="relative">
                         <i
                             class="fa-solid fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -2471,7 +3030,7 @@
     <!-- ==========================================
          ADMIN PIN AUTHENTICATION MODAL (SECURITY GATE)
          ========================================== -->
-    <div id="admin-pin-modal"
+    <div id="admin-pin-modal" onclick="if(event.target === this) closeAdminPinModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white max-w-sm w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl text-center">
             <div
@@ -2479,12 +3038,16 @@
                 <i class="fa-solid fa-shield-halved"></i>
             </div>
             <h3 class="text-base font-bold text-slate-900 mb-1">ยืนยันสิทธิ์ผู้ดูแลระบบ (Admin)</h3>
-            <p class="text-xs text-slate-500 mb-4 font-medium">กรุณากรอกรหัส PIN
+            <p class="text-xs text-slate-500 mb-2 font-medium">กรุณากรอกรหัส PIN
                 เพื่อเข้าจัดการสต็อกและการตั้งค่าร้านค้า</p>
+            <div class="mb-3.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold">
+                <i class="fa-solid fa-key text-amber-500"></i>
+                <span>รหัสเริ่มต้นจากระบบ: <span class="font-mono text-pink-600 font-extrabold">8899</span></span>
+            </div>
 
             <form onsubmit="handleAdminPinSubmit(event)" class="space-y-3">
                 <div class="relative">
-                    <input type="password" id="admin-pin-input" maxlength="32" placeholder="กรอกรหัส PIN หรือรหัสผ่าน"
+                    <input type="password" id="admin-pin-input" maxlength="32" placeholder="กรอกรหัส PIN (เริ่มต้น: 8899)"
                         required autofocus autocomplete="off"
                         class="w-full text-center tracking-widest text-xl font-mono px-3 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-pink-600 font-bold focus:border-pink-500 outline-none pr-10">
                     <button type="button" onclick="toggleAdminPinVisibility()"
@@ -2517,7 +3080,7 @@
     <!-- ==========================================
          SECURED ADMIN MODAL (Clean Bright Layout)
          ========================================== -->
-    <div id="admin-modal"
+    <div id="admin-modal" onclick="if(event.target === this) closeAdminModal()"
         class="hidden fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 md:p-6">
         <div
             class="bg-white max-w-7xl w-full rounded-3xl p-4 sm:p-6 lg:p-7 border-2 border-pink-200/80 relative max-h-[94vh] overflow-y-auto shadow-2xl">
@@ -3822,7 +4385,7 @@
     <!-- ==========================================
          ADMIN FULFILL ORDER MODAL (ON-DEMAND DISPATCH)
          ========================================== -->
-    <div id="admin-fulfill-modal"
+    <div id="admin-fulfill-modal" onclick="if(event.target === this) closeFulfillModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white max-w-lg w-full rounded-3xl p-6 border-2 border-pink-400 relative shadow-2xl">
             <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
@@ -3857,7 +4420,7 @@
                 </div>
                 <div class="flex items-center justify-between">
                     <span class="text-slate-500 font-bold">สินค้าที่สั่ง:</span>
-                    <span id="fulfill-product-title-label" class="font-bold text-slate-900"></span>
+                    <span id="fulfill-product-title-label" class="font-normal text-slate-900"></span>
                 </div>
                 <div class="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-pink-200/60 mt-1">
                     <div class="flex items-center gap-1.5 text-[11px] text-slate-600 max-w-[70%] truncate">
@@ -3963,7 +4526,7 @@
     <!-- ==========================================
          EDIT & MANAGE PRODUCT MODAL (PRICE + DETAILS + DELETE)
          ========================================== -->
-    <div id="edit-price-modal"
+    <div id="edit-price-modal" onclick="if(event.target === this) closeEditPriceModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
         <div
             class="bg-white max-w-xl w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
@@ -4226,7 +4789,9 @@
                         <input type="url" id="edit-price-g2g-url"
                             placeholder="เช่น https://www.g2g.com/categories/.../offer/group?..."
                             class="w-full p-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-xs font-mono text-slate-800 outline-none focus:border-pink-500 focus:bg-white">
-                        <p class="text-[10px] text-slate-400 mt-1">💡 หากเว้นว่างไว้ ระบบจะเชื่อมโยงหน้ารายการสินค้าเพื่อสั่งซื้อบน G2G ให้อัตโนมัติ (เปิดได้ 100% ไม่ติด 404)</p>
+                        <p class="text-[10px] text-slate-400 mt-1">💡 หากเว้นว่างไว้
+                            ระบบจะเชื่อมโยงหน้ารายการสินค้าเพื่อสั่งซื้อบน G2G ให้อัตโนมัติ (เปิดได้ 100% ไม่ติด 404)
+                        </p>
                     </div>
                 </div>
             </div>
@@ -4259,7 +4824,7 @@
     <!-- ==========================================
          ADD STOCK MODAL (ENHANCED BULK VAULT)
          ========================================== -->
-    <div id="add-stock-modal"
+    <div id="add-stock-modal" onclick="if(event.target === this) closeAddStockModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
         <div
             class="bg-white max-w-lg w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
@@ -4361,7 +4926,7 @@ user2@gmail.com:Pass5678
     <!-- ==========================================
          ADMIN RESET PASSWORD MODAL
          ========================================== -->
-    <div id="admin-reset-pw-modal"
+    <div id="admin-reset-pw-modal" onclick="if(event.target === this) closeAdminResetPwModal()"
         class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white max-w-md w-full rounded-3xl p-6 border-2 border-pink-300 relative shadow-2xl">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -4406,7 +4971,7 @@ user2@gmail.com:Pass5678
     <!-- ==========================================
          ADMIN SLIP VIEW MODAL (Zoom / Inspect Transfer Slip)
          ========================================== -->
-    <div id="admin-slip-view-modal"
+    <div id="admin-slip-view-modal" onclick="if(event.target === this) closeSlipViewModal()"
         class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[75] flex items-center justify-center p-3 sm:p-4">
         <div
             class="bg-white max-w-lg w-full rounded-3xl p-5 sm:p-6 border-2 border-pink-300 relative shadow-2xl flex flex-col max-h-[92vh]">
@@ -4523,7 +5088,7 @@ user2@gmail.com:Pass5678
     <!-- ==========================================
          PRODUCT DETAILS MODAL (Bright & Readable)
          ========================================== -->
-    <div id="product-detail-modal"
+    <div id="product-detail-modal" onclick="if(event.target === this) closeProductDetailModal()"
         class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-2.5 sm:p-4">
         <div
             class="bg-white max-w-lg w-full rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 relative max-h-[92vh] overflow-y-auto shadow-2xl">
@@ -4713,17 +5278,34 @@ user2@gmail.com:Pass5678
                 </div>
 
                 <!-- Modal Bottom Pricing & Action Bar -->
-                <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-4">
+                <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-2.5 sm:gap-4">
                     <div>
-                        <span id="modal-product-original-price"
-                            class="text-xs text-slate-400 line-through block font-medium"></span>
-                        <span id="modal-product-price" class="text-2xl sm:text-3xl font-bold text-pink-600"></span>
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            <span id="modal-product-original-price"
+                                class="text-xs sm:text-sm text-slate-400 line-through font-medium"></span>
+                            <span id="modal-product-discount-badge"
+                                class="hidden text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-200/80"></span>
+                        </div>
+                        <div class="flex items-baseline gap-1 text-pink-600">
+                            <span class="text-sm sm:text-base font-black">฿</span>
+                            <span id="modal-product-price" class="text-2xl sm:text-3xl font-black font-['Outfit'] tracking-tight"></span>
+                        </div>
                     </div>
-                    <button id="modal-add-cart-btn"
-                        class="flex-1 py-3.5 rounded-2xl gradient-btn text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-95 transition-transform cursor-pointer">
-                        <i class="fa-solid fa-cart-plus"></i>
-                        <span>ใส่ตะกร้าสินค้า</span>
-                    </button>
+                    <div class="flex items-center gap-2 flex-1 justify-end">
+                        <button id="modal-wishlist-btn" type="button" title="บันทึกในรายการโปรด"
+                            class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200 flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs">
+                            <i class="fa-regular fa-heart"></i>
+                        </button>
+                        <button id="modal-stock-alert-btn" type="button" title="แจ้งเตือนเมื่อมีของ"
+                            class="hidden w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center text-base sm:text-lg cursor-pointer transition-all active:scale-95 shadow-xs">
+                            <i class="fa-regular fa-bell"></i>
+                        </button>
+                        <button id="modal-add-cart-btn"
+                            class="flex-1 max-w-xs py-3.5 rounded-2xl gradient-btn text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-95 transition-transform cursor-pointer">
+                            <i class="fa-solid fa-cart-plus"></i>
+                            <span>ใส่ตะกร้าสินค้า</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -4973,6 +5555,36 @@ user2@gmail.com:Pass5678
     </div>
 
     <!-- ==========================================
+         SECURITY ANNOUNCEMENT POPUP MODAL (announcement.jpg)
+         ========================================== -->
+    <div id="announcement-popup-modal"
+        class="hidden fixed inset-0 z-[160] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/80 backdrop-blur-md transition-all">
+        <div
+            class="relative w-full max-w-lg sm:max-w-xl bg-white rounded-2xl sm:rounded-[32px] p-4 sm:p-7 shadow-2xl border-2 border-pink-300 text-center auth-modal-card max-h-[94vh] overflow-y-auto">
+            <!-- Close Button -->
+            <button onclick="closeAnnouncementModal()" type="button"
+                class="absolute top-4 right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer z-10"
+                title="ปิดหน้าต่าง">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <!-- Announcement Poster Image -->
+            <div class="relative mx-auto rounded-2xl overflow-hidden shadow-xl border border-pink-100 mb-4 mt-2">
+                <img src="images/announcement.jpg?v=5.0" alt="ประกาศสำคัญ Supinkly.AI"
+                    class="w-full h-auto object-contain select-none"
+                    onerror="this.src='images/background-notice.jpg?v=5.0'">
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                <button onclick="closeAnnouncementModal()" type="button"
+                    class="w-full sm:w-auto px-7 py-3 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold text-sm shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40 transition-all cursor-pointer">
+                    <i class="fa-solid fa-check mr-1.5"></i> รับทราบข้อมูลเรียบร้อย
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
          MOBILE SLIDE-OUT MENU DRAWER
          ========================================== -->
     <div id="mobile-menu-overlay" onclick="closeMobileMenu()"
@@ -5093,7 +5705,7 @@ user2@gmail.com:Pass5678
             <span class="text-[10px] font-bold">คีย์ของฉัน</span>
         </button>
         <button type="button"
-            onclick="if(typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn()) { openOrdersModal(); } else { openAuthModal('login'); }"
+            onclick="openOrdersModal(typeof USER_AUTH !== 'undefined' && USER_AUTH.isLoggedIn() ? 'orders' : 'vip')"
             class="flex flex-col items-center gap-0.5 text-slate-600 hover:text-pink-600 active:scale-95 transition-all cursor-pointer">
             <i class="fa-solid fa-circle-user text-base text-emerald-500"></i>
             <span class="text-[10px] font-bold">สมาชิก</span>
@@ -5101,13 +5713,15 @@ user2@gmail.com:Pass5678
     </div>
 
     <!-- Application Scripts -->
-    <script src="js/data.js"></script>
-    <script src="js/promptpay.js"></script>
-    <script src="js/g2g-sync.js"></script>
-    <script src="js/user-auth.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/data.js?v=3.5"></script>
+    <script src="js/promptpay.js?v=3.5"></script>
+    <script src="js/g2g-sync.js?v=3.5"></script>
+    <script src="js/user-auth.js?v=3.5"></script>
+    <script src="js/app.js?v=3.5"></script>
+    <script src="js/banner-slideshow.js?v=4.2"></script>
+    <script src="js/hero-slider.js?v=4.2"></script>
     <!-- Live Chat Widget (Customer) — only loads when server is available -->
-    <script src="js/chat-widget.js"></script>
+    <script src="js/chat-widget.js?v=3.5"></script>
 </body>
 
 </html>

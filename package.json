@@ -16,10 +16,15 @@
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "multer": "^1.4.5-lts.1",
-    "uuid": "^9.0.1",
+    "uuid": "^11.1.1",
     "ws": "^8.16.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.3"
+    "nodemon": "^3.1.14"
+  },
+  "overrides": {
+    "chokidar": {
+      "braces": ">=3.0.3"
+    }
   }
 }

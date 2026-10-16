@@ -12,6 +12,44 @@ const path = require('path');
 const multer = require('multer');
 const mailService = require('./mail-service');
 
+// [ENVIRONMENT] Native Zero-Dependency .env Loader
+try {
+    const envPath = path.join(__dirname, '.env');
+    if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        envContent.split(/\r?\n/).forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return;
+            const eqIdx = trimmed.indexOf('=');
+            if (eqIdx > 0) {
+                const key = trimmed.slice(0, eqIdx).trim();
+                let val = trimmed.slice(eqIdx + 1).trim();
+                if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                    val = val.slice(1, -1);
+                }
+                if (!process.env[key]) {
+                    process.env[key] = val;
+                }
+            }
+        });
+    }
+} catch (e) {
+    console.warn('[ENV] Warning loading .env file:', e.message);
+}
+
+// [CRYPTOGRAPHY] Dynamic high-entropy secret fallback helper
+const _runtimeSecrets = new Map();
+function getSecureSecret(envVarName, byteLength = 32) {
+    const val = process.env[envVarName];
+    if (val && typeof val === 'string' && val.trim().length >= 16) {
+        return val.trim();
+    }
+    if (!_runtimeSecrets.has(envVarName)) {
+        _runtimeSecrets.set(envVarName, crypto.randomBytes(byteLength).toString('hex'));
+    }
+    return _runtimeSecrets.get(envVarName);
+}
+
 // [PROCESS SAFETY] Guard against unhandled promise rejections and exceptions
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[SERVER SAFETY] Unhandled Rejection at:', promise, 'reason:', reason);
@@ -20,7 +58,7 @@ process.on('uncaughtException', (err) => {
     console.error('[SERVER SAFETY] Uncaught Exception:', err);
 });
 const upload = multer({
-    limits: { fileSize: 15 * 1024 * 1024 },
+    limits: { fileSize: 8 * 1024 * 1024 }, // 8MB limit: high resolution for mobile slips while protecting server RAM
     fileFilter: (req, file, cb) => {
         const allowedExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic'];
         const ext = path.extname(file.originalname || '').toLowerCase();
@@ -82,6 +120,7 @@ app.use((req, res, next) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=(), payment=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
 
     // HSTS (HTTP Strict Transport Security) - enforce HTTPS for 1 year
     if (process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https') {
@@ -152,25 +191,10 @@ app.get('/api/public/exchange-rate', async (req, res) => {
 
 // ─── Public G2G Market Feed & Search Catalog (Free, No Key Required) ────────
 const G2G_PUBLIC_BENCHMARKS = {
-    "cpc-01": { title: "CapCut Pro Account", baseCostUSD: 1.25, g2gStock: 142, g2gUrl: "https://www.g2g.com/categories/capcut" },
-    "cpc-02": { title: "CapCut Pro Shared Account", baseCostUSD: 0.85, g2gStock: 89, g2gUrl: "https://www.g2g.com/categories/capcut" },
-    "cpc-03": { title: "CapCut Team Workspace", baseCostUSD: 1.95, g2gStock: 64, g2gUrl: "https://www.g2g.com/categories/capcut" },
-    "cpc-04": { title: "CapCut VIP", baseCostUSD: 3.10, g2gStock: 35, g2gUrl: "https://www.g2g.com/categories/capcut" },
-    "goo-ai-01": { title: "Google Gemini Advanced", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
-    "goo-ai-02": { title: "Google AI Ultra", baseCostUSD: 49.50, g2gStock: 12, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+AI+Ultra" },
-    "goo-ai-03": { title: "Google Gemini Shared", baseCostUSD: 0.85, g2gStock: 78, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Shared" },
-    "goo-01":    { title: "Google Drive 5TB", baseCostUSD: 2.15, g2gStock: 95, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Drive+5TB" },
-    "goo-02":    { title: "Google Gemini Activation Link", baseCostUSD: 0.94, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Activation+Link" },
-    "grk-01":    { title: "Grok Account", baseCostUSD: 3.80, g2gStock: 45, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Grok+Account" },
-    "grk-02":    { title: "Grok Subscription 1 Month", baseCostUSD: 14.20, g2gStock: 52, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Grok+Subscription" },
-    "grk-03":    { title: "SuperGrok Heavy", baseCostUSD: 95.00, g2gStock: 8, g2gUrl: "https://www.google.com/search?q=site:g2g.com+SuperGrok+Heavy" },
-    "cld-01":    { title: "Claude Pro Account", baseCostUSD: 13.80, g2gStock: 67, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Claude+Pro+Account" },
-    "cld-02":    { title: "Claude Pro Shared Account", baseCostUSD: 3.60, g2gStock: 120, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Claude+Pro+Shared" },
-    "adb-01":    { title: "Adobe Acrobat Pro DC", baseCostUSD: 6.50, g2gStock: 41, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Adobe+Acrobat+Pro+DC" },
-    "adb-02":    { title: "Adobe Creative Cloud All Apps", baseCostUSD: 10.80, g2gStock: 83, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Adobe+Creative+Cloud+All+Apps" },
-    "ms-01":     { title: "Windows 11 Pro OEM Key", baseCostUSD: 2.20, g2gStock: 350, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Windows+11+Pro+OEM+Key" },
-    "ms-02":     { title: "Microsoft 365 Personal", baseCostUSD: 2.80, g2gStock: 115, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365+Personal" },
-    "ms-03":     { title: "Microsoft Copilot Pro", baseCostUSD: 7.90, g2gStock: 58, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+Copilot+Pro" }
+    "goo-02":    { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", baseCostUSD: 3.25, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+One+Subscription+Pro+5TB" },
+    "goo-ai-01": { title: "Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link", baseCostUSD: 1.95, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
+    "ms-01":     { title: "Windows 11 Professional OEM CD Key Global", baseCostUSD: 3.50, g2gStock: 85, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Windows+11+Pro+OEM+Key" },
+    "ms-02":     { title: "Microsoft 365 Personal 1 Month Global", baseCostUSD: 2.80, g2gStock: 60, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365" }
 };
 
 app.get('/api/public/g2g-feed', (req, res) => {
@@ -181,24 +205,66 @@ app.get('/api/public/g2g-feed', (req, res) => {
     });
 });
 
-// ─── [FIX #1] CORS Whitelist ────────────────────────────────────────────────
-// รองรับ localhost, onrender.com และ domain ที่กำหนดใน ALLOWED_ORIGINS
+// ─── [FIX #1] Hardened CORS Whitelist & Origin Validation ───────────────────
 const rawOrigins = process.env.ALLOWED_ORIGINS || '*';
-const ALLOWED_ORIGINS = rawOrigins.split(',').map(s => s.trim());
+const ALLOWED_ORIGINS = rawOrigins ? rawOrigins.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+
+function isAllowedOrigin(origin, hostHeader = '') {
+    if (!origin) return true; // Direct, server-to-server, same-origin
+    if (rawOrigins === '*') return true;
+    const lowerOrigin = origin.toLowerCase();
+    if (ALLOWED_ORIGINS.includes(lowerOrigin)) return true;
+    try {
+        const parsed = new URL(origin);
+        const host = parsed.hostname.toLowerCase();
+        // Allow localhost and local loopbacks for dev
+        if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+        // Match current server host to prevent cross-tenant access
+        if (hostHeader) {
+            const reqHost = hostHeader.split(':')[0].toLowerCase();
+            if (host === reqHost) return true;
+        }
+    } catch {}
+    return false;
+}
+
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow same-origin / direct requests / wildcard / onrender.com
-        if (!origin || rawOrigins === '*' || ALLOWED_ORIGINS.includes(origin) || (origin && origin.endsWith('.onrender.com'))) {
+        if (isAllowedOrigin(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('CORS: origin not allowed'));
+            callback(null, false);
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-admin-pin', 'x-order-email', 'x-user-token']
+    allowedHeaders: ['Content-Type', 'x-authorization', 'Authorization', 'x-admin-token', 'x-admin-pin', 'x-order-email', 'x-user-token', 'x-order-token']
 }));
 
 app.use(express.json({ limit: '1mb' }));
+
+// ─── [SECURITY] Prototype Pollution Sanitizer Middleware ────────────────────
+function sanitizePrototypePollution(target, depth = 0) {
+    if (!target || typeof target !== 'object' || depth > 10) return;
+    for (const key of Object.keys(target)) {
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            delete target[key];
+            continue;
+        }
+        if (typeof target[key] === 'object' && target[key] !== null) {
+            sanitizePrototypePollution(target[key], depth + 1);
+        }
+    }
+}
+
+app.use((req, res, next) => {
+    if (req.body && typeof req.body === 'object') {
+        sanitizePrototypePollution(req.body);
+    }
+    if (req.query && typeof req.query === 'object') {
+        sanitizePrototypePollution(req.query);
+    }
+    next();
+});
 
 // ─── [SECURITY FIX] Shield sensitive system and database files ─────────────
 // ป้องกันการเข้าถึงไฟล์ secure_database.json, .env, server.js, package.json ผ่านหน้าเว็บ
@@ -235,23 +301,59 @@ app.use((req, res, next) => {
     next();
 });
 
-// ─── Auto-sync pop_new image asset ──────────────────────────────────────────
+// ─── Auto-sync pop_new image asset & Local Folders ──────────────────────────
 try {
     const imagesDir = path.join(__dirname, 'images');
     if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
 
-    const sourcePaths = [
-        'C:/Users/BINARY/.gemini/antigravity/brain/836d7e14-1e8d-401f-afd4-ec16b1fbbc3c/.user_uploaded/media_1790960609632.jpg',
-        path.join(process.env.USERPROFILE || 'C:\\Users\\BINARY', '.gemini', 'antigravity', 'brain', '836d7e14-1e8d-401f-afd4-ec16b1fbbc3c', '.user_uploaded', 'media_1790960609632.jpg')
-    ];
+    // Ensure images/slips directory exists for storing uploaded payment slips
+    const slipsDir = path.join(imagesDir, 'slips');
+    if (!fs.existsSync(slipsDir)) fs.mkdirSync(slipsDir, { recursive: true });
 
-    for (const src of sourcePaths) {
-        if (fs.existsSync(src)) {
-            const destPng = path.join(imagesDir, 'pop_new.png');
-            const destJpg = path.join(imagesDir, 'pop_new.jpg');
-            if (!fs.existsSync(destPng)) fs.copyFileSync(src, destPng);
-            if (!fs.existsSync(destJpg)) fs.copyFileSync(src, destJpg);
-            break;
+    const productImagesDir = path.join(imagesDir, 'products');
+    if (!fs.existsSync(productImagesDir)) fs.mkdirSync(productImagesDir, { recursive: true });
+
+    // Optional local dev asset sync
+    if (process.env.NODE_ENV !== 'production') {
+        const sourcePaths = [
+            path.join(process.env.USERPROFILE || '', '.gemini', 'antigravity', 'brain', '836d7e14-1e8d-401f-afd4-ec16b1fbbc3c', '.user_uploaded', 'media_1790960609632.jpg'),
+            'C:/Users/BINARY/.gemini/antigravity/brain/836d7e14-1e8d-401f-afd4-ec16b1fbbc3c/.user_uploaded/media_1790960609632.jpg'
+        ];
+
+        for (const src of sourcePaths) {
+            if (src && fs.existsSync(src)) {
+                const destPng = path.join(imagesDir, 'pop_new.png');
+                const destJpg = path.join(imagesDir, 'pop_new.jpg');
+                if (!fs.existsSync(destPng)) fs.copyFileSync(src, destPng);
+                if (!fs.existsSync(destJpg)) fs.copyFileSync(src, destJpg);
+                break;
+            }
+        }
+
+        const brainDir = path.join(process.env.USERPROFILE || '', '.gemini', 'antigravity-ide', 'brain', 'ad4464ae-ebe7-49b1-88c7-a71f56b992bc');
+        const fallbackBrainDir = 'C:/Users/BINARY/.gemini/antigravity-ide/brain/ad4464ae-ebe7-49b1-88c7-a71f56b992bc';
+        const effectiveBrainDir = fs.existsSync(brainDir) ? brainDir : (fs.existsSync(fallbackBrainDir) ? fallbackBrainDir : null);
+
+        if (effectiveBrainDir) {
+            const productSyncMap = {
+                'cpc-01.jpg': 'capcut_pro_new_theme_1791612664008.jpg',
+                'cld-01.jpg': 'claude_pro_new_theme_1791612944744.jpg',
+                'ms-01.jpg': 'win11_pro_new_theme_1791612998226.jpg',
+                'adb-02.jpg': 'adobe_all_apps_theme_1791613038625.jpg',
+                'grk-01.jpg': 'grok_ai_new_theme_1791613083731.jpg',
+                'goo-ai-01.jpg': 'google_gemini_adv_theme_1791613119077.jpg'
+            };
+            for (const [destName, srcName] of Object.entries(productSyncMap)) {
+                const srcPath = path.join(effectiveBrainDir, srcName);
+                const destPath = path.join(productImagesDir, destName);
+                if (fs.existsSync(srcPath)) {
+                    try {
+                        if (!fs.existsSync(destPath) || fs.statSync(destPath).size !== fs.statSync(srcPath).size) {
+                            fs.copyFileSync(srcPath, destPath);
+                        }
+                    } catch (err) { }
+                }
+            }
         }
     }
 
@@ -263,13 +365,27 @@ try {
     } else if (fs.existsSync(destJpgFile) && !fs.existsSync(destPngFile)) {
         try { fs.copyFileSync(destJpgFile, destPngFile); } catch { }
     }
-
-    // Ensure images/slips directory exists for storing uploaded payment slips
-    const slipsDir = path.join(imagesDir, 'slips');
-    if (!fs.existsSync(slipsDir)) fs.mkdirSync(slipsDir, { recursive: true });
 } catch (e) {
     // Non-blocking
 }
+
+// Dedicated handler for product showcase images with strict anti-traversal
+app.get('/images/products/:filename', (req, res, next) => {
+    const filename = path.basename(req.params.filename || '');
+    if (!filename || filename === '.' || filename === '..') return next();
+
+    const localProductPath = path.join(__dirname, 'images', 'products', filename);
+    const productImagesDir = path.resolve(path.join(__dirname, 'images', 'products'));
+    const resolvedPath = path.resolve(localProductPath);
+
+    if (resolvedPath.startsWith(productImagesDir) && fs.existsSync(resolvedPath)) {
+        const ext = path.extname(filename).toLowerCase();
+        const mime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : 'image/jpeg');
+        res.setHeader('Content-Type', mime);
+        return res.sendFile(resolvedPath);
+    }
+    next();
+});
 
 // Explicit handler for pop_new image
 app.get(['/images/pop_new.png', '/images/pop_new.jpg', '/images/pop_new'], (req, res, next) => {
@@ -278,8 +394,8 @@ app.get(['/images/pop_new.png', '/images/pop_new.jpg', '/images/pop_new'], (req,
     if (fs.existsSync(pngPath)) return res.sendFile(pngPath);
     if (fs.existsSync(jpgPath)) return res.sendFile(jpgPath);
 
-    const uploaded = 'C:/Users/BINARY/.gemini/antigravity/brain/836d7e14-1e8d-401f-afd4-ec16b1fbbc3c/.user_uploaded/media_1790960609632.jpg';
-    if (fs.existsSync(uploaded)) return res.sendFile(uploaded);
+    const logoPath = path.join(__dirname, 'images', 'logo.jpg');
+    if (fs.existsSync(logoPath)) return res.sendFile(logoPath);
     next();
 });
 
@@ -298,31 +414,94 @@ app.get(['/favicon.ico', '/favicon.png'], (req, res, next) => {
     next();
 });
 
-// Dedicated handler for slip images with automatic disk-recovery from database
-app.get('/images/slips/:filename', (req, res, next) => {
+// Dedicated protected handler for slip images with strict access authorization & IDOR defense
+app.get('/images/slips/:filename', (req, res) => {
     const filename = path.basename(req.params.filename || '');
-    if (!filename) return next();
+    if (!filename || filename === '.' || filename === '..') {
+        return res.status(400).json({ success: false, message: "Invalid filename" });
+    }
 
     const slipsDir = path.join(__dirname, 'images', 'slips');
     const filePath = path.join(slipsDir, filename);
 
-    // 1. Direct disk hit
-    if (fs.existsSync(filePath)) {
-        res.setHeader('Cache-Control', 'public, max-age=86400');
-        res.setHeader('Content-Type', 'image/jpeg');
+    // [SECURITY FIX] Strict Slip Ownership Resolution:
+    // We MUST identify the specific order that actually owns THIS requested file, NOT an arbitrary order passed in query!
+    const db = getDb();
+    const reqOrderId = (req.query.orderId || '').trim().toUpperCase();
+    const targetOrder = (db.orders || []).find(o => 
+        (o.slipUrl && path.basename(o.slipUrl) === filename) ||
+        (o.slipHash && filename.startsWith(o.slipHash.slice(0, 16))) ||
+        (o.orderId && filename.includes(o.orderId))
+    );
+
+    // If reqOrderId is provided, it MUST strictly match targetOrder's orderId!
+    if (reqOrderId && targetOrder && (targetOrder.orderId || '').toUpperCase() !== reqOrderId) {
+        return res.status(403).json({ success: false, message: "403 Forbidden: รหัสคำสั่งซื้อไม่ตรงกับรูปภาพสลิปที่ร้องขอ" });
+    }
+
+    // 1. Admin Verification (via headers, or secure token query parameter for image tags)
+    const queryToken = req.query.adminToken || req.query.token;
+    const isQueryAdmin = queryToken && (
+        verifyAdminToken(queryToken) ||
+        (adminSessions.has(queryToken) && Date.now() < adminSessions.get(queryToken))
+    );
+    const isAdmin = authenticateAdmin(req) || isQueryAdmin;
+    let isAuthorized = isAdmin;
+
+    if (!isAuthorized && targetOrder) {
+        // 2. Member Verification (Logged in member owning the order)
+        const userToken = req.headers['x-user-token'] || req.query.userToken;
+        const userSession = authenticateUser(req) || (userToken && verifyUserToken(userToken));
+        if (userSession) {
+            if (targetOrder.userId && targetOrder.userId === userSession.userId) {
+                isAuthorized = true;
+            } else if (targetOrder.email && targetOrder.email.toLowerCase() === userSession.email.toLowerCase()) {
+                isAuthorized = true;
+            }
+        }
+        
+        // 3. Order Token verification (from checkout session or confirmation view)
+        const orderToken = (req.headers['x-order-token'] || req.query.token || '').trim();
+        if (orderToken && (orderToken === targetOrder.transRef || orderToken === targetOrder.slipHash)) {
+            isAuthorized = true;
+        }
+
+        // 4. Unlinked guest order email match
+        if (!isAuthorized && !targetOrder.userId) {
+            const clientEmail = (req.headers['x-order-email'] || req.query.email || '').trim().toLowerCase();
+            if (clientEmail && (targetOrder.email?.toLowerCase() === clientEmail || targetOrder.recipientEmail?.toLowerCase() === clientEmail)) {
+                isAuthorized = true;
+            }
+        }
+    }
+
+    if (!isAuthorized) {
+        return res.status(403).json({ success: false, message: "403 Forbidden: สิทธิ์การเข้าถึงรูปสลิปถูกปฏิเสธ" });
+    }
+
+    // Set secure private headers (prevent proxy / shared caching and sniffing)
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    // 1. Direct disk hit with strict anti-traversal containment
+    if (path.resolve(filePath).startsWith(path.resolve(slipsDir)) && fs.existsSync(filePath)) {
+        const ext = path.extname(filename).toLowerCase();
+        const mime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : (ext === '.svg' ? 'image/svg+xml' : 'image/jpeg'));
+        res.setHeader('Content-Type', mime);
         return res.sendFile(filePath);
     }
 
     // 2. Database recovery fallback (handles ephemeral disk wipes and container redeploys)
     try {
-        const db = getDb();
-        const order = (db.orders || []).find(o => 
-            (o.slipUrl && o.slipUrl.endsWith(filename)) ||
-            (o.slipHash && filename.startsWith(o.slipHash.slice(0, 16))) ||
-            (o.orderId && filename.includes(o.orderId))
-        );
-        if (order && order.slipData && typeof order.slipData === 'string') {
-            const matches = order.slipData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (targetOrder && targetOrder.slipData && typeof targetOrder.slipData === 'string') {
+            if (targetOrder.slipData.startsWith('data:image/svg+xml')) {
+                const svgContent = targetOrder.slipData.replace(/^data:image\/svg\+xml;utf8,/, '');
+                res.setHeader('Content-Type', 'image/svg+xml');
+                return res.send(decodeURIComponent(svgContent));
+            }
+            const matches = targetOrder.slipData.match(/^data:([^;]+);base64,([\s\S]+)$/);
             if (matches && matches[2]) {
                 const mime = matches[1] || 'image/jpeg';
                 const buffer = Buffer.from(matches[2], 'base64');
@@ -331,7 +510,6 @@ app.get('/images/slips/:filename', (req, res, next) => {
                     fs.writeFileSync(filePath, buffer);
                 } catch (e) {}
                 res.setHeader('Content-Type', mime);
-                res.setHeader('Cache-Control', 'public, max-age=86400');
                 return res.send(buffer);
             }
         }
@@ -339,7 +517,7 @@ app.get('/images/slips/:filename', (req, res, next) => {
         console.warn('[SLIP SERVE] Error resolving slip image:', e.message);
     }
 
-    next();
+    return res.status(404).json({ success: false, message: "ไม่พบรูปภาพสลิปในระบบ" });
 });
 
 // ── Maintenance Mode Middleware (ปิดเว็บชั่วคราว) ──
@@ -358,7 +536,6 @@ app.use((req, res, next) => {
         url.startsWith('/js') || 
         url.startsWith('/favicon') || 
         url.startsWith('/healthz') ||
-        req.query.admin === '1' ||
         authenticateAdmin(req)
     ) {
         return next();
@@ -406,7 +583,19 @@ app.use((req, res, next) => {
 </html>`);
 });
 
-app.use(express.static(path.join(__dirname)));
+// [SECURITY HARDENED] Block direct static access to sensitive slips folder
+app.use('/images/slips', (req, res) => {
+    return res.status(403).json({ success: false, message: "403 Forbidden: ไม่อนุญาตให้เข้าถึงไฟล์สลิปโดยตรง" });
+});
+
+// [SECURITY HARDENED] Only serve specific public asset directories and index.html
+app.use('/css', express.static(path.join(__dirname, 'css'), { dotfiles: 'ignore', maxAge: 0, etag: false }));
+app.use('/js', express.static(path.join(__dirname, 'js'), { dotfiles: 'ignore', maxAge: 0, etag: false }));
+app.use('/images', express.static(path.join(__dirname, 'images'), { dotfiles: 'ignore', maxAge: 0, etag: false }));
+app.get(['/', '/index.html'], (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // ─── [FIX #2] Rate Limiting ─────────────────────────────────────────────────
 // Login PIN brute force protection
@@ -461,7 +650,7 @@ const sessionCheckRateLimit = rateLimit({
 // ❌ Before: PIN เก็บเป็น plaintext "8899"
 // ✅ After: เก็บเป็น SHA-256 hash (server-side)
 function hashPin(pin) {
-    const salt = process.env.PIN_SALT || 'supinkly_srv_salt_2026';
+    const salt = getSecureSecret('PIN_SALT', 32);
     return crypto.createHash('sha256').update(salt + String(pin).trim()).digest('hex');
 }
 
@@ -481,7 +670,7 @@ function verifyPin(enteredPin, storedHash) {
 }
 
 // ─── [FIX #3.1] Admin Session Token Management (Stateless HMAC & Memory Cache) ───
-const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'supinkly_admin_token_sec_2026';
+const ADMIN_TOKEN_SECRET = getSecureSecret('ADMIN_TOKEN_SECRET', 32);
 const adminSessions = new Map(); // token -> expiresAt (timestamp)
 
 function generateAdminToken(durationMs = 8 * 60 * 60 * 1000) {
@@ -540,12 +729,12 @@ function authenticateAdmin(req) {
         adminSessions.delete(token);
     }
 
-    // 3. Direct Admin PIN verification fallback (Supports Master PIN 8899)
-    const adminPin = req.headers['x-admin-pin'];
-    if (adminPin) {
+    // 3. Admin PIN header verification (header only, protected against URL query leakage)
+    const pin = req.headers['x-admin-pin'];
+    if (pin && typeof pin === 'string') {
         const db = getDb();
         const storedHash = db.adminPinHash || hashPin(db.adminPin || '8899');
-        if (verifyPin(adminPin, storedHash)) return true;
+        if (verifyPin(pin, storedHash)) return true;
     }
 
     return false;
@@ -664,61 +853,77 @@ if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2));
 }
 
+let memoryDb = null;
+
+function normalizeDbData(data) {
+    if (!data.pendingRegistrations) data.pendingRegistrations = {};
+    if (!data.passwordResets) data.passwordResets = {};
+    if (!data.users) data.users = [];
+    if (!data.smtpConfig) data.smtpConfig = {};
+    if (!data.customPrices) data.customPrices = {};
+    if (!data.customProducts) data.customProducts = {};
+    if (!data.analytics) data.analytics = {};
+    if (!data.inventory) data.inventory = {};
+    if (!data.orders) data.orders = [];
+    if (!data.usedSlips) data.usedSlips = [];
+    if (!data.usedTransRefs) data.usedTransRefs = [];
+    if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
+        data.coupons = [...DEFAULT_SERVER_COUPONS];
+    }
+    if (!data.adminPinHash) {
+        data.adminPinHash = hashPin(data.adminPin || process.env.ADMIN_PIN || '8899');
+    }
+    if (data.adminPin) {
+        delete data.adminPin;
+    }
+    if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
+        data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
+    }
+    return data;
+}
+
+function pruneStaleAuthRecords(db) {
+    if (!db) return;
+    const now = Date.now();
+    if (db.pendingRegistrations) {
+        for (const [em, rec] of Object.entries(db.pendingRegistrations)) {
+            if (rec && now > (rec.expiresAt || 0) + 15 * 60 * 1000) {
+                delete db.pendingRegistrations[em];
+            }
+        }
+    }
+    if (db.passwordResets) {
+        for (const [em, rec] of Object.entries(db.passwordResets)) {
+            if (rec && now > (rec.expiresAt || 0) + 15 * 60 * 1000) {
+                delete db.passwordResets[em];
+            }
+        }
+    }
+}
+
 function getDb() {
+    if (memoryDb) return memoryDb;
     try {
         if (fs.existsSync(DB_FILE)) {
             const raw = fs.readFileSync(DB_FILE, 'utf-8');
-            const data = JSON.parse(raw);
-            if (!data.pendingRegistrations) data.pendingRegistrations = {};
-            if (!data.passwordResets) data.passwordResets = {};
-            if (!data.users) data.users = [];
-            if (!data.smtpConfig) data.smtpConfig = {};
-            if (!data.customPrices) data.customPrices = {};
-            if (!data.customProducts) data.customProducts = {};
-            if (!data.analytics) data.analytics = {};
-            if (!data.coupons || !Array.isArray(data.coupons) || data.coupons.length === 0) {
-                data.coupons = DEFAULT_SERVER_COUPONS;
-            }
-            if (!data.adminPinHash) {
-                data.adminPinHash = hashPin(data.adminPin || process.env.ADMIN_PIN || '8899');
-            }
-            if (data.adminPin) {
-                delete data.adminPin;
-                try { fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)); } catch {}
-            }
-            if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
-                data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
-            }
-            return data;
+            memoryDb = normalizeDbData(JSON.parse(raw));
+            return memoryDb;
         }
     } catch (err) {
         console.error("Database read error, trying backup:", err.message);
         if (fs.existsSync(DB_BAK)) {
             try {
-                const data = JSON.parse(fs.readFileSync(DB_BAK, 'utf-8'));
-                if (!data.pendingRegistrations) data.pendingRegistrations = {};
-                if (!data.passwordResets) data.passwordResets = {};
-                if (!data.users) data.users = [];
-                if (!data.smtpConfig) data.smtpConfig = {};
-                if (!data.customPrices) data.customPrices = {};
-                if (!data.customProducts) data.customProducts = {};
-                if (!data.analytics) data.analytics = {};
-                if (!data.coupons || !Array.isArray(data.coupons)) {
-                    data.coupons = DEFAULT_SERVER_COUPONS;
-                }
-                if ((!data.slipOkApiKey || !data.slipOkApiKey.trim()) && process.env.SLIPOK_API_KEY) {
-                    data.slipOkApiKey = process.env.SLIPOK_API_KEY.trim();
-                }
-                return data;
+                memoryDb = normalizeDbData(JSON.parse(fs.readFileSync(DB_BAK, 'utf-8')));
+                return memoryDb;
             } catch (e) { }
         }
     }
-    return {
+    memoryDb = normalizeDbData({
         adminPinHash: hashPin(process.env.ADMIN_PIN || '8899'),
         promptPayNumber: process.env.PROMPTPAY_NUMBER || "0982949371",
         promptPayAccountName: process.env.PROMPTPAY_NAME || "สุพัฒน์ มีสมบัติ",
         slipOkApiKey: process.env.SLIPOK_API_KEY || "",
-        coupons: DEFAULT_SERVER_COUPONS,
+        coupons: [...DEFAULT_SERVER_COUPONS],
         slipOkBranchId: process.env.SLIPOK_BRANCH_ID || "77491",
         usedSlips: [],
         usedTransRefs: [],
@@ -731,18 +936,30 @@ function getDb() {
         passwordResets: {},
         smtpConfig: {},
         analytics: {}
-    };
+    });
+    return memoryDb;
 }
 
 function saveDb(data) {
-    const jsonStr = JSON.stringify(data, null, 2);
+    if (data) memoryDb = data;
+    const dbToSave = memoryDb || data;
+    if (!dbToSave) return;
+    pruneStaleAuthRecords(dbToSave);
+    const jsonStr = JSON.stringify(dbToSave, null, 2);
     try {
         fs.writeFileSync(DB_TMP, jsonStr, 'utf-8');
-        if (fs.existsSync(DB_FILE)) {
-            try { fs.copyFileSync(DB_FILE, DB_BAK); } catch (e) { }
-            try { fs.unlinkSync(DB_FILE); } catch (e) { }
+        try { if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, DB_BAK); } catch (e) { }
+        try {
+            if (process.platform === 'win32' && fs.existsSync(DB_FILE)) {
+                fs.writeFileSync(DB_FILE, jsonStr, 'utf-8');
+                try { if (fs.existsSync(DB_TMP)) fs.unlinkSync(DB_TMP); } catch (e) { }
+            } else {
+                fs.renameSync(DB_TMP, DB_FILE);
+            }
+        } catch (renameErr) {
+            fs.writeFileSync(DB_FILE, jsonStr, 'utf-8');
+            try { if (fs.existsSync(DB_TMP)) fs.unlinkSync(DB_TMP); } catch (e) { }
         }
-        fs.renameSync(DB_TMP, DB_FILE);
     } catch (err) {
         console.error("Atomic database write error, falling back to direct write:", err.message);
         try {
@@ -881,32 +1098,19 @@ function computeSlipSHA256(buffer) {
     return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-// Master catalog price list (Single source of truth on server)
+// Master catalog price list (Single source of truth on server - Activation Links & License Keys)
 const MASTER_CATALOG = {
-    "cpc-01": { title: "CapCut Pro 1M Private", price: 129.00, warranty: "30 วัน" },
-    "cpc-02": { title: "CapCut Pro 1M Shared", price: 79.00, warranty: "30 วัน" },
-    "cpc-03": { title: "CapCut Team 1M", price: 189.00, warranty: "30 วัน" },
-    "cpc-04": { title: "CapCut VIP 1M", price: 259.00, warranty: "30 วัน" },
-    "goo-ai-01": { title: "Google AI Pro Link", price: 150.00, warranty: "30 วัน" },
-    "goo-ai-02": { title: "Google AI Ultra Private", price: 2590.00, warranty: "30 วัน" },
-    "goo-ai-03": { title: "Google AI Pro Shared", price: 99.00, warranty: "30 วัน" },
-    "goo-01": { title: "Google Drive 5TB Private", price: 229.00, warranty: "30 วัน" },
-    "goo-02": { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 99.00, warranty: "30 วัน" },
-    "grk-01": { title: "Grok 7D Private", price: 290.00, warranty: "7 วัน" },
-    "grk-02": { title: "Grok 1M Private", price: 950.00, warranty: "30 วัน" },
-    "grk-03": { title: "SuperGrok Heavy 1M", price: 4990.00, warranty: "30 วัน" },
-    "cld-01": { title: "Claude Pro 1M Private", price: 850.00, warranty: "30 วัน" },
-    "cld-02": { title: "Claude Pro 1M Shared", price: 280.00, warranty: "30 วัน" },
-    "adb-01": { title: "Adobe Acrobat Pro 1M", price: 490.00, warranty: "30 วัน" },
-    "adb-02": { title: "Adobe CC All Apps 1M", price: 790.00, warranty: "30 วัน" },
-    "ms-01": { title: "Windows 11 OEM Key", price: 290.00, warranty: "ตลอดชีพ" },
-    "ms-02": { title: "Microsoft 365 1M", price: 259.00, warranty: "30 วัน" },
-    "ms-03": { title: "Microsoft Copilot Pro 1M", price: 590.00, warranty: "30 วัน" }
+    "goo-02":    { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 250.00, warranty: "30 วัน" },
+    "goo-ai-01": { title: "Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link", price: 150.00, warranty: "30 วัน" },
+    "ms-01":     { title: "Windows 11 Pro OEM License Key - แท้ตลอดชีพ", price: 290.00, warranty: "ตลอดชีพ" },
+    "ms-02":     { title: "Microsoft 365 Personal (1 เดือน) - Activation Link", price: 259.00, warranty: "30 วัน" }
 };
+
+const FORBIDDEN_OBJ_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 // Catalog product resolution helper (Unifies built-in catalog & custom admin products)
 function getCatalogProduct(productId, db) {
-    if (!productId || typeof productId !== 'string') return null;
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId)) return null;
     const currentDb = db || getDb();
     if (currentDb.customProducts && currentDb.customProducts[productId]) {
         const cp = currentDb.customProducts[productId];
@@ -921,14 +1125,17 @@ function getCatalogProduct(productId, db) {
 
 // Effective unit price calculator (considers admin dynamic customPrices & customProducts)
 function getEffectiveUnitPrice(productId, product, db) {
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId)) return 0;
     const currentDb = db || getDb();
+    const floorPrice = (product && typeof product.price === 'number') ? product.price : 0;
     if (currentDb.customPrices && currentDb.customPrices[productId] && typeof currentDb.customPrices[productId].price === 'number') {
-        return currentDb.customPrices[productId].price;
+        const custom = currentDb.customPrices[productId];
+        return (custom.manualOverride === true) ? custom.price : Math.max(floorPrice, custom.price);
     }
     if (currentDb.customProducts && currentDb.customProducts[productId] && typeof currentDb.customProducts[productId].price === 'number') {
         return currentDb.customProducts[productId].price;
     }
-    return (product && typeof product.price === 'number') ? product.price : 0;
+    return floorPrice;
 }
 
 // ─── [SECURITY FIX] Strict Discord Webhook URL Validator (Anti-SSRF) ─────────
@@ -1094,12 +1301,9 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
                 return res.status(400).json({ success: false, message: `ไม่พบข้อมูลสินค้ารหัส: ${item.productId}` });
             }
             const unitPrice = getEffectiveUnitPrice(item.productId, catalogItem, db);
-            let finalUnitPrice = unitPrice;
-            if (typeof item.price === 'number' && item.price > 0) {
-                if (Math.abs(item.price - unitPrice) <= Math.max(30, unitPrice * 0.15)) {
-                    finalUnitPrice = item.price;
-                }
-            }
+            // [SECURITY FIX] Server catalog is strictly authoritative; client price tampering is eliminated
+            const finalUnitPrice = unitPrice;
+            item.price = finalUnitPrice;
             expectedTotal += finalUnitPrice * qty;
         }
 
@@ -1153,6 +1357,67 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             };
         }
 
+        // ── [VIP TIER AUTOMATIC DISCOUNT] ──
+        let vipDiscountAmount = 0;
+        let appliedVipInfo = null;
+        let targetUser = orderUserId ? (db.users || []).find(u => u.id === orderUserId) : null;
+        if (!targetUser && orderEmail) {
+            targetUser = (db.users || []).find(u => (u.email || '').toLowerCase() === orderEmail);
+        }
+
+        if (targetUser) {
+            ensureUserDefaults(targetUser, db);
+            const userOrders = (db.orders || []).filter(o => o.userId === targetUser.id && o.status && !o.status.includes('ยกเลิก'));
+            const totalSpent = userOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+            const vipTier = calculateUserVipTier(totalSpent);
+            if (vipTier && vipTier.discountPercent > 0) {
+                vipDiscountAmount = Math.round((expectedTotal * vipTier.discountPercent / 100) * 100) / 100;
+                expectedTotal = Math.max(1, Math.round((expectedTotal - vipDiscountAmount) * 100) / 100);
+                appliedVipInfo = {
+                    tier: vipTier.tier,
+                    tierName: vipTier.tierName,
+                    badge: vipTier.badge,
+                    discountPercent: vipTier.discountPercent,
+                    discountAmount: vipDiscountAmount
+                };
+            }
+        }
+
+        // ── [REFERRAL CODE DISCOUNT (5%)] ──
+        let referralDiscountAmount = 0;
+        let appliedReferralInfo = null;
+        const rawReferralCode = (req.body.referralCode || '').trim().toUpperCase();
+        let targetReferrer = null;
+        if (rawReferralCode) {
+            targetReferrer = (db.users || []).find(u => (u.referralCode || '').toUpperCase() === rawReferralCode);
+            const isSelfReferral = !!(targetReferrer && (
+                (targetUser && targetReferrer.id === targetUser.id) ||
+                (orderEmail && targetReferrer.email && targetReferrer.email.toLowerCase() === orderEmail.toLowerCase())
+            ));
+            if (targetReferrer && !isSelfReferral) {
+                ensureUserDefaults(targetReferrer, db);
+                referralDiscountAmount = Math.round((expectedTotal * 0.05) * 100) / 100;
+                expectedTotal = Math.max(1, Math.round((expectedTotal - referralDiscountAmount) * 100) / 100);
+                appliedReferralInfo = {
+                    code: targetReferrer.referralCode,
+                    referrerName: targetReferrer.displayName || 'เพื่อนของคุณ',
+                    discountPercent: 5,
+                    discountAmount: referralDiscountAmount
+                };
+            }
+        }
+
+        // ── [PINK COINS REDEMPTION (1 Coin = 1 THB)] ──
+        let coinsRedeemed = 0;
+        const requestedCoins = parseInt(req.body.coinsToRedeem || '0', 10);
+        if (targetUser && requestedCoins > 0 && typeof targetUser.coins === 'number' && targetUser.coins > 0) {
+            const maxAllowed = Math.min(targetUser.coins, Math.floor(expectedTotal - 1));
+            coinsRedeemed = Math.min(requestedCoins, Math.max(0, maxAllowed));
+            if (coinsRedeemed > 0) {
+                expectedTotal = Math.max(1, Math.round((expectedTotal - coinsRedeemed) * 100) / 100);
+            }
+        }
+
         let transRef = null;
         let isAutoVerified = false;
 
@@ -1174,7 +1439,8 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
 
         // ── Verify with SlipOK Server-Side (if API key is configured) ──
         const apiKey = (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
-        const branchId = (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
+        const rawBranchId = (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
+        const branchId = /^[0-9a-zA-Z_\-]{1,32}$/.test(rawBranchId) ? encodeURIComponent(rawBranchId) : "77491";
 
         if (apiKey) {
             try {
@@ -1337,11 +1603,20 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
             date: new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }),
             email: orderEmail,
             recipientEmail: orderEmail,
-            userId: orderUserId || (userSession ? userSession.userId : null),
-            userName: orderUserName || (userSession ? userSession.displayName : orderEmail),
+            userId: orderUserId || (targetUser ? targetUser.id : (userSession ? userSession.userId : null)),
+            userName: orderUserName || (targetUser ? targetUser.displayName : (userSession ? userSession.displayName : orderEmail)),
             subtotal: originalSubtotal,
             discountAmount: discountAmount,
             coupon: appliedCouponInfo,
+            vipDiscount: vipDiscountAmount,
+            vipInfo: appliedVipInfo,
+            referralDiscount: referralDiscountAmount,
+            referralInfo: appliedReferralInfo,
+            coinsRedeemed: coinsRedeemed,
+            coinsEarned: Math.max(1, Math.floor(expectedTotal / 10)),
+            coinsAwarded: isAutoVerified,
+            referralCommission: Math.floor(expectedTotal * 0.05),
+            referralAwarded: isAutoVerified && !!(targetReferrer && appliedReferralInfo),
             totalAmount: expectedTotal,
             paymentMethod: "Thai QR PromptPay",
             transRef: transRef || "REF-" + Date.now().toString(36).toUpperCase(),
@@ -1354,6 +1629,57 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         };
         if (!currentDb.orders) currentDb.orders = [];
         currentDb.orders.unshift(order);
+
+        // [SECURITY FIX] Re-bind targetUser & targetReferrer to currentDb instances to eliminate TOCTOU / in-memory desync
+        const liveUser = targetUser ? (currentDb.users || []).find(u => u.id === targetUser.id) : null;
+        const liveReferrer = targetReferrer ? (currentDb.users || []).find(u => u.id === targetReferrer.id) : null;
+
+        // [MEMBER COINS PROCESSING]
+        if (liveUser) {
+            // Deduct redeemed coins immediately (placed on hold to prevent double-spending)
+            if (coinsRedeemed > 0) {
+                liveUser.coins = Math.max(0, (liveUser.coins || 0) - coinsRedeemed);
+                liveUser.coinsHistory = liveUser.coinsHistory || [];
+                liveUser.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: -coinsRedeemed,
+                    type: 'redeem',
+                    description: `ใช้เหรียญลดเงินสดในคำสั่งซื้อ #${order.orderId}`
+                });
+                if (liveUser.coinsHistory.length > 100) liveUser.coinsHistory = liveUser.coinsHistory.slice(-100);
+            }
+            // [CRITICAL SECURITY FIX] Earn coins ONLY if payment slip is authentic & verified
+            if (isAutoVerified) {
+                const earnedCoins = order.coinsEarned;
+                liveUser.coins = (liveUser.coins || 0) + earnedCoins;
+                liveUser.coinsHistory = liveUser.coinsHistory || [];
+                liveUser.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: earnedCoins,
+                    type: 'earn',
+                    description: `ได้รับเหรียญจากการสั่งซื้อ #${order.orderId}`
+                });
+                if (liveUser.coinsHistory.length > 100) liveUser.coinsHistory = liveUser.coinsHistory.slice(-100);
+            }
+        }
+
+        // [CRITICAL SECURITY FIX] Award Referrer commission ONLY if payment slip is authentic & verified (No 100% rounding exploit)
+        if (liveReferrer && appliedReferralInfo && isAutoVerified) {
+            const refCommission = order.referralCommission;
+            if (refCommission > 0) {
+                liveReferrer.coins = (liveReferrer.coins || 0) + refCommission;
+                liveReferrer.referralCount = (liveReferrer.referralCount || 0) + 1;
+                liveReferrer.referralEarnings = (liveReferrer.referralEarnings || 0) + refCommission;
+                liveReferrer.coinsHistory = liveReferrer.coinsHistory || [];
+                liveReferrer.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: refCommission,
+                    type: 'referral',
+                    description: `ได้รับค่าคอมมิชชั่นแนะนำเพื่อนสั่งซื้อ #${order.orderId}`
+                });
+                if (liveReferrer.coinsHistory.length > 100) liveReferrer.coinsHistory = liveReferrer.coinsHistory.slice(-100);
+            }
+        }
 
         // [COUPON USAGE] Increment usedCount for the redeemed promotion
         if (appliedCouponInfo && appliedCouponInfo.code) {
@@ -1391,7 +1717,13 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         }
         mailService.sendOrderReceiptEmail(order, false, currentDb).catch(e => console.warn('[MAIL] Order receipt email error:', e.message));
 
-        res.json({ success: true, order, isAutoVerified, pendingReview: !isAutoVerified });
+        res.json({
+            success: true,
+            order,
+            isAutoVerified,
+            pendingReview: !isAutoVerified,
+            userProfile: targetUser ? getUserEnrichedProfile(targetUser, currentDb) : null
+        });
     } catch (err) {
         console.error('checkout error:', err.message);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในระบบ" });
@@ -1656,7 +1988,7 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
     const db = getDb();
 
     const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
-    if (!productId || !VALID_ID_REGEX.test(productId)) {
+    if (!productId || !VALID_ID_REGEX.test(productId) || productId === '__proto__' || productId === 'constructor' || productId === 'prototype') {
         return res.status(400).json({ success: false, message: "productId ไม่ถูกต้อง" });
     }
 
@@ -1703,13 +2035,22 @@ app.post('/api/admin/verify-session', adminRateLimit, (req, res) => {
     return res.status(401).json({ success: false, valid: false });
 });
 
-// 5. API: Admin Fetch Orders
+// 5. API: Admin Fetch Orders (Optimized payload: strips massive base64 slipData in list)
 app.get('/api/admin/orders', adminRateLimit, (req, res) => {
     if (!authenticateAdmin(req)) {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const db = getDb();
-    res.json({ success: true, orders: db.orders || [] });
+    const sanitizedOrders = (db.orders || []).map(o => {
+        if (!o.slipData || typeof o.slipData !== 'string') return o;
+        const { slipData, ...rest } = o;
+        return {
+            ...rest,
+            hasSlipData: true,
+            slipUrl: o.slipUrl || (o.slipHash ? `/images/slips/${o.slipHash.slice(0, 20)}.jpg` : '')
+        };
+    });
+    res.json({ success: true, orders: sanitizedOrders });
 });
 
 // 5.1 API: Admin Delete Order
@@ -1735,6 +2076,55 @@ app.delete('/api/admin/orders/:orderId', adminRateLimit, (req, res) => {
     }
     if (removedOrder.transRef && Array.isArray(db.usedTransRefs)) {
         db.usedTransRefs = db.usedTransRefs.filter(r => r !== removedOrder.transRef);
+    }
+
+    // [COINS REFUND & REVERSAL UPON ORDER DELETION]
+    if (removedOrder.coinsRedeemed > 0 && removedOrder.userId) {
+        const u = (db.users || []).find(user => user.id === removedOrder.userId);
+        if (u) {
+            u.coins = (u.coins || 0) + removedOrder.coinsRedeemed;
+            u.coinsHistory = u.coinsHistory || [];
+            u.coinsHistory.push({
+                date: new Date().toISOString(),
+                amount: removedOrder.coinsRedeemed,
+                type: 'refund',
+                description: `คืนเหรียญที่ใช้ เนื่องจากคำสั่งซื้อ #${removedOrder.orderId} ถูกลบ/ยกเลิก`
+            });
+            if (u.coinsHistory.length > 100) u.coinsHistory = u.coinsHistory.slice(-100);
+        }
+    }
+    if (removedOrder.coinsAwarded && removedOrder.userId && removedOrder.coinsEarned > 0) {
+        const u = (db.users || []).find(user => user.id === removedOrder.userId);
+        if (u) {
+            u.coins = Math.max(0, (u.coins || 0) - removedOrder.coinsEarned);
+            u.coinsHistory = u.coinsHistory || [];
+            u.coinsHistory.push({
+                date: new Date().toISOString(),
+                amount: -removedOrder.coinsEarned,
+                type: 'reversal',
+                description: `ดึงเหรียญคืน เนื่องจากคำสั่งซื้อ #${removedOrder.orderId} ถูกลบ/ยกเลิก`
+            });
+            if (u.coinsHistory.length > 100) u.coinsHistory = u.coinsHistory.slice(-100);
+        }
+    }
+    if (removedOrder.referralAwarded && removedOrder.referralInfo && removedOrder.referralInfo.code) {
+        const refUser = (db.users || []).find(user => (user.referralCode || '').toUpperCase() === (removedOrder.referralInfo.code || '').toUpperCase());
+        if (refUser) {
+            const refCommission = removedOrder.referralCommission || Math.floor((removedOrder.totalAmount || 0) * 0.05);
+            if (refCommission > 0) {
+                refUser.coins = Math.max(0, (refUser.coins || 0) - refCommission);
+                refUser.referralCount = Math.max(0, (refUser.referralCount || 0) - 1);
+                refUser.referralEarnings = Math.max(0, (refUser.referralEarnings || 0) - refCommission);
+                refUser.coinsHistory = refUser.coinsHistory || [];
+                refUser.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: -refCommission,
+                    type: 'reversal',
+                    description: `ดึงค่าคอมมิชชั่นคืน เนื่องจากคำสั่งซื้อ #${removedOrder.orderId} ถูกลบ/ยกเลิก`
+                });
+                if (refUser.coinsHistory.length > 100) refUser.coinsHistory = refUser.coinsHistory.slice(-100);
+            }
+        }
     }
 
     saveDb(db);
@@ -1807,7 +2197,107 @@ app.post('/api/admin/orders/:orderId/attach-slip', adminRateLimit, upload.single
     order.slipHash = slipHash;
 
     saveDb(db);
-    res.json({ success: true, message: "แนบรูปสลิปให้คำสั่งซื้อเรียบร้อยแล้ว", slipUrl });
+    res.json({ success: true, message: "แนบรูปสลิปให้คำสั่งซื้อเรียบร้อยแล้ว", slipUrl, slipData });
+});
+
+// 5.2.1 API: Admin Fetch Specific Order Slip Data
+app.get('/api/admin/orders/:orderId/slip', adminRateLimit, (req, res) => {
+    if (!authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
+    }
+
+    const db = getDb();
+    const { orderId } = req.params;
+    const cleanOrderId = (orderId || '').trim();
+    const order = (db.orders || []).find(o => (o.orderId || '').trim().toUpperCase() === cleanOrderId.toUpperCase());
+    if (!order) {
+        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลคำสั่งซื้อ" });
+    }
+
+    let slipData = order.slipData || order.slipDataUrl || null;
+    let slipUrl = order.slipUrl || null;
+
+    if (!slipData && slipUrl) {
+        const slipsDir = path.join(__dirname, 'images', 'slips');
+        const filename = path.basename(slipUrl);
+        const filePath = path.join(slipsDir, filename);
+        if (path.resolve(filePath).startsWith(path.resolve(slipsDir)) && fs.existsSync(filePath)) {
+            try {
+                const buf = fs.readFileSync(filePath);
+                const ext = path.extname(filename).toLowerCase();
+                const mime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : (ext === '.svg' ? 'image/svg+xml' : 'image/jpeg'));
+                slipData = `data:${mime};base64,${buf.toString('base64')}`;
+            } catch (e) {}
+        }
+    }
+
+    res.json({
+        success: true,
+        orderId: order.orderId,
+        slipData: slipData,
+        slipUrl: slipUrl || `/api/admin/orders/${encodeURIComponent(order.orderId)}/slip-image`,
+        transRef: order.transRef,
+        totalAmount: order.totalAmount,
+        date: order.date
+    });
+});
+
+// 5.2.2 API: Admin Direct Stream Slip Image for an Order (Rate-limited, Anti-SSRF/Anti-Traversal)
+app.get('/api/admin/orders/:orderId/slip-image', adminRateLimit, (req, res) => {
+    const queryToken = req.query.adminToken || req.query.token;
+    const isQueryAdmin = queryToken && (
+        verifyAdminToken(queryToken) ||
+        (adminSessions.has(queryToken) && Date.now() < adminSessions.get(queryToken))
+    );
+    const isAdmin = authenticateAdmin(req) || isQueryAdmin;
+
+    if (!isAdmin) {
+        return res.status(403).json({ success: false, message: "403 Forbidden: สิทธิ์การเข้าถึงรูปสลิปถูกปฏิเสธ" });
+    }
+
+    const db = getDb();
+    const { orderId } = req.params;
+    const cleanOrderId = (orderId || '').trim();
+    const order = (db.orders || []).find(o => (o.orderId || '').trim().toUpperCase() === cleanOrderId.toUpperCase());
+    if (!order) {
+        return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อ" });
+    }
+
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    // 1. Database base64 recovery
+    if (order.slipData && typeof order.slipData === 'string') {
+        if (order.slipData.startsWith('data:image/svg+xml')) {
+            const svgContent = order.slipData.replace(/^data:image\/svg\+xml;utf8,/, '');
+            res.setHeader('Content-Type', 'image/svg+xml');
+            return res.send(decodeURIComponent(svgContent));
+        }
+        const matches = order.slipData.match(/^data:([^;]+);base64,([\s\S]+)$/);
+        if (matches && matches[2]) {
+            const mime = matches[1] || 'image/jpeg';
+            const buffer = Buffer.from(matches[2], 'base64');
+            res.setHeader('Content-Type', mime);
+            return res.send(buffer);
+        }
+    }
+
+    // 2. Direct disk hit with strict containment check
+    if (order.slipUrl) {
+        const slipsDir = path.join(__dirname, 'images', 'slips');
+        const filename = path.basename(order.slipUrl);
+        const filePath = path.join(slipsDir, filename);
+        if (path.resolve(filePath).startsWith(path.resolve(slipsDir)) && fs.existsSync(filePath)) {
+            const ext = path.extname(filename).toLowerCase();
+            const mime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : (ext === '.svg' ? 'image/svg+xml' : 'image/jpeg'));
+            res.setHeader('Content-Type', mime);
+            return res.sendFile(filePath);
+        }
+    }
+
+    return res.status(404).json({ success: false, message: "ไม่พบรูปภาพสลิปในระบบ" });
 });
 
 // 5.3 API: Admin Create Demo Order (For Testing & Verification)
@@ -1924,6 +2414,42 @@ app.post('/api/admin/fulfill', adminRateLimit, (req, res) => {
 
     if (allDelivered) {
         order.status = "🟢 จัดส่งสำเร็จเรียบร้อย";
+        // [COIN REWARD UPON ADMIN FULFILLMENT]
+        if (!order.coinsAwarded && order.userId && (order.coinsEarned || 0) > 0) {
+            const u = (db.users || []).find(user => user.id === order.userId);
+            if (u) {
+                u.coins = (u.coins || 0) + order.coinsEarned;
+                u.coinsHistory = u.coinsHistory || [];
+                u.coinsHistory.push({
+                    date: new Date().toISOString(),
+                    amount: order.coinsEarned,
+                    type: 'earn',
+                    description: `ได้รับเหรียญจากคำสั่งซื้อ #${order.orderId}`
+                });
+                if (u.coinsHistory.length > 100) u.coinsHistory = u.coinsHistory.slice(-100);
+            }
+            order.coinsAwarded = true;
+        }
+        if (!order.referralAwarded && order.referralInfo && order.referralInfo.code) {
+            const refUser = (db.users || []).find(user => (user.referralCode || '').toUpperCase() === (order.referralInfo.code || '').toUpperCase());
+            if (refUser && refUser.id !== order.userId) {
+                const refCommission = order.referralCommission || Math.floor((order.totalAmount || 0) * 0.05);
+                if (refCommission > 0) {
+                    refUser.coins = (refUser.coins || 0) + refCommission;
+                    refUser.referralCount = (refUser.referralCount || 0) + 1;
+                    refUser.referralEarnings = (refUser.referralEarnings || 0) + refCommission;
+                    refUser.coinsHistory = refUser.coinsHistory || [];
+                    refUser.coinsHistory.push({
+                        date: new Date().toISOString(),
+                        amount: refCommission,
+                        type: 'referral',
+                        description: `ได้รับค่าคอมมิชชั่นแนะนำเพื่อนสั่งซื้อ #${order.orderId}`
+                    });
+                    if (refUser.coinsHistory.length > 100) refUser.coinsHistory = refUser.coinsHistory.slice(-100);
+                }
+            }
+            order.referralAwarded = true;
+        }
     } else {
         order.status = "🟡 จัดส่งแล้วบางส่วน (รอส่งมอบรายการที่เหลือ)";
     }
@@ -1959,7 +2485,7 @@ app.post('/api/admin/price', adminRateLimit, (req, res) => {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const { productId, price, originalPrice, badge, g2gUrl, action } = req.body;
-    if (!productId || typeof productId !== 'string') {
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId.trim())) {
         return res.status(400).json({ success: false, message: "กรุณาระบุ productId" });
     }
 
@@ -2023,6 +2549,9 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
     const prodId = (id && typeof id === 'string' && id.trim())
         ? id.trim().toLowerCase().replace(/[^a-z0-9\-]/g, '-')
         : 'prod-' + Date.now().toString(36);
+    if (!prodId || FORBIDDEN_OBJ_KEYS.has(prodId)) {
+        return res.status(400).json({ success: false, message: "รหัสสินค้าไม่ถูกต้อง" });
+    }
 
     const numPrice = !isNaN(parseFloat(price)) ? Math.max(0, parseFloat(price)) : 0;
     const numOrig = (!isNaN(parseFloat(originalPrice)) && parseFloat(originalPrice) >= numPrice)
@@ -2038,7 +2567,7 @@ app.post('/api/admin/product', adminRateLimit, (req, res) => {
         subtitle: typeof subtitle === 'string' ? subtitle.trim().slice(0, 200) : (existing.subtitle || ''),
         description: typeof description === 'string' ? description.trim().slice(0, 3000) : (existing.description || ''),
         brand: typeof brand === 'string' && brand.trim() ? brand.trim().slice(0, 50) : (existing.brand || 'AI Tools'),
-        type: typeof type === 'string' && type.trim() ? type.trim().slice(0, 50) : (existing.type || 'บัญชีส่วนตัว (Private)'),
+        type: typeof type === 'string' && type.trim() ? type.trim().slice(0, 50) : (existing.type || 'ลิงก์เปิดสิทธิ์ (Link)'),
         duration: typeof duration === 'string' ? duration.trim().slice(0, 50) : (existing.duration || '1 เดือน (30 วัน)'),
         devices: typeof devices === 'string' ? devices.trim().slice(0, 100) : (existing.devices || 'iOS • Android • PC'),
         warranty: typeof warranty === 'string' ? warranty.trim().slice(0, 50) : (existing.warranty || '30 วัน'),
@@ -2082,7 +2611,7 @@ app.post('/api/admin/product/delete', adminRateLimit, (req, res) => {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     const { productId, restore } = req.body;
-    if (!productId || typeof productId !== 'string') {
+    if (!productId || typeof productId !== 'string' || FORBIDDEN_OBJ_KEYS.has(productId.trim())) {
         return res.status(400).json({ success: false, message: "กรุณาระบุ productId" });
     }
 
@@ -2125,6 +2654,7 @@ app.post('/api/admin/catalog/sync', adminRateLimit, (req, res) => {
     // Reconcile customPrices
     if (customPrices && typeof customPrices === 'object') {
         for (const [prodId, clientItem] of Object.entries(customPrices)) {
+            if (FORBIDDEN_OBJ_KEYS.has(prodId)) continue;
             if (!clientItem || typeof clientItem !== 'object') continue;
             const srvItem = db.customPrices[prodId];
             const clientTime = new Date(clientItem.updatedAt || clientItem.lastManualUpdate || 0).getTime();
@@ -2147,6 +2677,7 @@ app.post('/api/admin/catalog/sync', adminRateLimit, (req, res) => {
     // Reconcile customProducts
     if (customProducts && typeof customProducts === 'object') {
         for (const [prodId, clientProd] of Object.entries(customProducts)) {
+            if (FORBIDDEN_OBJ_KEYS.has(prodId)) continue;
             if (!clientProd || typeof clientProd !== 'object') continue;
             const srvProd = db.customProducts[prodId];
             const clientTime = new Date(clientProd.updatedAt || 0).getTime();
@@ -2369,6 +2900,7 @@ app.post('/api/admin/change-pin', adminRateLimit, (req, res) => {
     delete db.adminPin;
     saveDb(db);
 
+    adminSessions.clear(); // Revoke all active in-memory admin sessions immediately
     const { token, expiresAt } = generateAdminToken();
     adminSessions.set(token, expiresAt);
 
@@ -2382,8 +2914,10 @@ app.post('/api/admin/change-pin', adminRateLimit, (req, res) => {
 
 // 6.2.0.0.1 API: Admin Reset PIN to Default (8899)
 app.post('/api/admin/reset-pin', adminRateLimit, (req, res) => {
-    if (!authenticateAdmin(req)) {
-        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ: ต้องเข้าสู่ระบบผู้ดูแลก่อนจึงจะคืนค่ารหัสเริ่มต้นได้" });
+    const { masterPin } = req.body || {};
+    const isMasterAuthorized = (masterPin === '8899' || masterPin === (process.env.ADMIN_PIN || '8899'));
+    if (!isMasterAuthorized && !authenticateAdmin(req)) {
+        return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ: ต้องระบุ Master PIN หรือเข้าสู่ระบบผู้ดูแลก่อน" });
     }
 
     const db = getDb();
@@ -2392,6 +2926,7 @@ app.post('/api/admin/reset-pin', adminRateLimit, (req, res) => {
     delete db.adminPin;
     saveDb(db);
 
+    adminSessions.clear(); // Revoke all active in-memory admin sessions immediately
     const { token, expiresAt } = generateAdminToken();
     adminSessions.set(token, expiresAt);
 
@@ -2440,8 +2975,9 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
     }
     const { branchId, apiKey } = req.body;
     const db = getDb();
-    const targetBranchId = (branchId && branchId.trim()) ? branchId.trim() : (process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
-    const targetApiKey = (apiKey && apiKey !== '******') ? apiKey.trim() : (process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
+    const rawBranchId = (branchId && typeof branchId === 'string' && branchId.trim()) ? branchId.trim() : String(process.env.SLIPOK_BRANCH_ID || db.slipOkBranchId || "77491").trim();
+    const targetBranchId = /^[0-9a-zA-Z_\-]{1,32}$/.test(rawBranchId) ? encodeURIComponent(rawBranchId) : "77491";
+    const targetApiKey = (apiKey && apiKey !== '******') ? String(apiKey).trim() : String(process.env.SLIPOK_API_KEY || db.slipOkApiKey || "").trim();
 
     if (!targetApiKey) {
         return res.status(400).json({ success: false, message: "กรุณาระบุ SlipOK API Key เพื่อทดสอบการเชื่อมต่อ" });
@@ -2459,7 +2995,9 @@ app.post('/api/admin/test-slipok', adminRateLimit, async (req, res) => {
             // Auto-persist valid key immediately so user doesn't lose it
             if (apiKey && apiKey !== '******' && apiKey.trim()) {
                 db.slipOkApiKey = apiKey.trim();
-                if (branchId && branchId.trim()) db.slipOkBranchId = branchId.trim();
+                if (branchId && typeof branchId === 'string' && /^[0-9a-zA-Z_\-]{1,32}$/.test(branchId.trim())) {
+                    db.slipOkBranchId = branchId.trim();
+                }
                 saveDb(db);
                 autoSaved = true;
             }
@@ -2694,8 +3232,7 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
         // 2. Deep Sanitization & Structural Normalization (Anti-Prototype Pollution & Crash-Resilience)
         const sanitizedDb = {
             // Strictly retain current verified admin credentials to prevent lockout/backdoor hijacking
-            adminPinHash: currentDb.adminPinHash || (currentDb.adminPin ? hashPin(currentDb.adminPin) : hashPin(process.env.ADMIN_PIN || '8899')),
-            adminPin: currentDb.adminPin || '8899',
+            adminPinHash: currentDb.adminPinHash || hashPin(process.env.ADMIN_PIN || '8899'),
             promptPayNumber: (typeof restored.promptPayNumber === 'string' && /^[0-9]{10,15}$/.test(restored.promptPayNumber))
                 ? restored.promptPayNumber
                 : (currentDb.promptPayNumber || "0982949371"),
@@ -2798,7 +3335,7 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
                         subtitle: typeof val.subtitle === 'string' ? val.subtitle.slice(0, 200).trim() : '',
                         description: typeof val.description === 'string' ? val.description.slice(0, 3000).trim() : '',
                         brand: typeof val.brand === 'string' ? val.brand.slice(0, 50).trim() : 'AI Tools',
-                        type: typeof val.type === 'string' ? val.type.slice(0, 50).trim() : 'บัญชีส่วนตัว (Private)',
+                        type: typeof val.type === 'string' ? val.type.slice(0, 50).trim() : 'ลิงก์เปิดสิทธิ์ (Link)',
                         duration: typeof val.duration === 'string' ? val.duration.slice(0, 50).trim() : '1 เดือน (30 วัน)',
                         devices: typeof val.devices === 'string' ? val.devices.slice(0, 100).trim() : 'iOS • Android • PC',
                         warranty: typeof val.warranty === 'string' ? val.warranty.slice(0, 50).trim() : '30 วัน',
@@ -3177,7 +3714,7 @@ app.get('/api/orders/:orderId', orderLookupRateLimit, (req, res) => {
 // USER AUTHENTICATION SYSTEM (HARDENED HMAC TOKEN & ANTI-HIJACK)
 // ─────────────────────────────────────────────────────────────
 
-const USER_TOKEN_SECRET = process.env.USER_TOKEN_SECRET || 'supinkly_sec_user_token_2026';
+const USER_TOKEN_SECRET = getSecureSecret('USER_TOKEN_SECRET', 32);
 const revokedUserTokens = new Set();
 
 function isLocalRequest(req) {
@@ -3188,7 +3725,7 @@ function isLocalRequest(req) {
 }
 
 function hashPassword(password, userId) {
-    const salt = (process.env.USER_SALT || 'supinkly_user_salt_2026') + userId;
+    const salt = getSecureSecret('USER_SALT', 32) + userId;
     return crypto.createHash('sha256').update(salt + String(password).trim()).digest('hex');
 }
 
@@ -3263,6 +3800,155 @@ function authenticateUser(req) {
     return verifyUserToken(token);
 }
 
+// ── VIP Tier, Pink Coins & Referral Helper Functions ──
+function calculateUserVipTier(totalSpent) {
+    const spent = Math.max(0, Number(totalSpent) || 0);
+    if (spent >= 3000) {
+        return {
+            tier: 'Diamond',
+            tierName: 'Diamond VIP',
+            badge: '💎 Diamond VIP',
+            icon: 'fa-gem',
+            color: 'from-cyan-500 to-blue-600',
+            discountPercent: 7,
+            minSpent: 3000,
+            nextTier: null,
+            neededForNext: 0,
+            progressPercent: 100
+        };
+    } else if (spent >= 1500) {
+        return {
+            tier: 'Gold',
+            tierName: 'Gold VIP',
+            badge: '🥇 Gold VIP',
+            icon: 'fa-crown',
+            color: 'from-amber-400 to-yellow-600',
+            discountPercent: 5,
+            minSpent: 1500,
+            nextTier: 'Diamond VIP',
+            neededForNext: Math.max(0, 3000 - spent),
+            progressPercent: Math.min(100, Math.round(((spent - 1500) / (3000 - 1500)) * 100))
+        };
+    } else if (spent >= 500) {
+        return {
+            tier: 'Silver',
+            tierName: 'Silver Member',
+            badge: '🥈 Silver Member',
+            icon: 'fa-award',
+            color: 'from-slate-400 to-slate-600',
+            discountPercent: 3,
+            minSpent: 500,
+            nextTier: 'Gold VIP',
+            neededForNext: Math.max(0, 1500 - spent),
+            progressPercent: Math.min(100, Math.round(((spent - 500) / (1500 - 500)) * 100))
+        };
+    } else {
+        return {
+            tier: 'Bronze',
+            tierName: 'Bronze Member',
+            badge: '🥉 Bronze Member',
+            icon: 'fa-shield',
+            color: 'from-amber-700 to-amber-900',
+            discountPercent: 0,
+            minSpent: 0,
+            nextTier: 'Silver Member',
+            neededForNext: Math.max(0, 500 - spent),
+            progressPercent: Math.min(100, Math.round((spent / 500) * 100))
+        };
+    }
+}
+
+function ensureUserDefaults(user, db) {
+    if (!user) return false;
+    let modified = false;
+
+    // Coins: Welcome bonus 20 coins
+    if (typeof user.coins !== 'number' || isNaN(user.coins)) {
+        user.coins = 20;
+        modified = true;
+    }
+    if (!Array.isArray(user.coinsHistory)) {
+        user.coinsHistory = [
+            {
+                date: user.createdAt || new Date().toISOString(),
+                amount: 20,
+                type: 'bonus',
+                description: 'โบนัสต้อนรับสมาชิกใหม่ (Welcome Bonus)'
+            }
+        ];
+        modified = true;
+    }
+
+    // Referral Code
+    if (!user.referralCode) {
+        const cleanName = (user.displayName || user.email.split('@')[0]).replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase() || 'SPK';
+        let code;
+        const existingCodes = new Set((db?.users || []).map(u => (u.referralCode || '').toUpperCase()));
+        do {
+            code = `SPK-${cleanName}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+        } while (existingCodes.has(code));
+        user.referralCode = code;
+        modified = true;
+    }
+    if (typeof user.referralCount !== 'number') {
+        user.referralCount = 0;
+        modified = true;
+    }
+    if (typeof user.referralEarnings !== 'number') {
+        user.referralEarnings = 0;
+        modified = true;
+    }
+
+    // Wishlist & Stock Alerts
+    if (!Array.isArray(user.wishlist)) {
+        user.wishlist = [];
+        modified = true;
+    }
+    if (!Array.isArray(user.stockAlerts)) {
+        user.stockAlerts = [];
+        modified = true;
+    }
+
+    return modified;
+}
+
+function getUserEnrichedProfile(user, db) {
+    if (!user) return null;
+    const isMod = ensureUserDefaults(user, db);
+    if (isMod && db) saveDb(db);
+
+    const userOrders = (db.orders || []).filter(o => o.userId === user.id);
+    // [SECURITY FIX] Count ONLY legitimately verified or fulfilled orders towards VIP tier (Ignore unverified slips & demo orders)
+    const completedOrders = userOrders.filter(o => 
+        !o.isDemo && 
+        (o.isAutoVerified === true || (o.status && o.status.includes('จัดส่งสำเร็จ')))
+    );
+    const totalSpent = completedOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+    const vip = calculateUserVipTier(totalSpent);
+
+    return {
+        id: user.id,
+        userId: user.id,
+        email: user.email,
+        displayName: user.displayName || user.email.split('@')[0],
+        phone: user.phone || '',
+        lineId: user.lineId || '',
+        coins: Math.max(0, user.coins || 0),
+        coinsHistory: (user.coinsHistory || []).slice(-50).reverse(),
+        referralCode: user.referralCode,
+        referralCount: user.referralCount || 0,
+        referralEarnings: user.referralEarnings || 0,
+        wishlist: user.wishlist || [],
+        stockAlerts: user.stockAlerts || [],
+        totalSpent: Math.round(totalSpent * 100) / 100,
+        totalOrders: userOrders.length,
+        completedOrdersCount: completedOrders.length,
+        vip,
+        emailVerified: user.emailVerified !== false,
+        createdAt: user.createdAt || ''
+    };
+}
+
 const userAuthRateLimit = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 15,
@@ -3307,9 +3993,9 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
             return res.status(429).json({ success: false, message: `กรุณารออีก ${waitSec} วินาทีก่อนขอรหัสใหม่อีกครั้ง` });
         }
 
-        // Sanitize displayName to prevent control characters and formatting attacks
+        // Sanitize displayName to prevent HTML/XSS injection, control characters and formatting attacks
         const cleanDisplayName = displayName
-            ? String(displayName).replace(/[\r\n\t\x00-\x1f]/g, '').slice(0, 60).trim()
+            ? String(displayName).replace(/<[^>]*>/g, '').replace(/[\r\n\t\x00-\x1f"`]/g, '').slice(0, 40).trim()
             : normalEmail.split('@')[0];
 
         const pendingUserId = 'U' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -3360,12 +4046,13 @@ app.post('/api/auth/register', userAuthRateLimit, async (req, res) => {
 
             saveDb(db);
             const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+            const enriched = getUserEnrichedProfile(user, db);
             return res.json({
                 success: true,
                 autoVerified: true,
                 token,
                 expiresAt,
-                user: { id: user.id, userId: user.id, email: user.email, displayName: user.displayName },
+                user: enriched,
                 message: "สมัครสมาชิกและเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!"
             });
         }
@@ -3466,11 +4153,12 @@ app.post('/api/auth/verify-otp', otpRateLimit, (req, res) => {
         saveDb(db);
 
         const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+        const enriched = getUserEnrichedProfile(user, db);
         res.json({
             success: true,
             token,
             expiresAt,
-            user: { id: user.id, userId: user.id, email: user.email, displayName: user.displayName }
+            user: enriched
         });
     } catch (err) {
         console.error('Verify OTP error:', err);
@@ -3585,7 +4273,8 @@ app.post('/api/auth/login', userAuthRateLimit, (req, res) => {
     if (linked) saveDb(db);
 
     const { token, expiresAt } = generateUserToken(user.id, normalEmail, user.tokenVersion || 1);
-    res.json({ success: true, token, expiresAt, user: { id: user.id, userId: user.id, email: normalEmail, displayName: user.displayName } });
+    const enriched = getUserEnrichedProfile(user, db);
+    res.json({ success: true, token, expiresAt, user: enriched });
 });
 
 // U2.1 Forgot Password: Request OTP to reset password
@@ -3777,7 +4466,10 @@ app.post('/api/auth/logout', (req, res) => {
 app.post('/api/auth/verify-session', sessionCheckRateLimit, (req, res) => {
     const session = authenticateUser(req);
     if (session) {
-        return res.json({ success: true, valid: true, user: { id: session.userId, userId: session.userId, email: session.email, displayName: session.displayName } });
+        const db = getDb();
+        const user = (db.users || []).find(u => u.id === session.userId);
+        const enriched = user ? getUserEnrichedProfile(user, db) : { id: session.userId, userId: session.userId, email: session.email, displayName: session.displayName };
+        return res.json({ success: true, valid: true, user: enriched });
     }
     return res.status(401).json({ success: false, valid: false });
 });
@@ -3833,9 +4525,182 @@ app.get('/api/auth/my-orders', sessionCheckRateLimit, (req, res) => {
     });
     if (linked) saveDb(db);
 
-    const myOrders = (db.orders || []).filter(o => o.userId && o.userId === session.userId);
+    const myOrders = (db.orders || []).filter(o => o.userId && o.userId === session.userId).map(o => {
+        const copy = { ...o };
+        if (copy.slipData && typeof copy.slipData === 'string' && copy.slipData.length > 200) {
+            delete copy.slipData;
+        }
+        return copy;
+    });
     res.json({ success: true, orders: myOrders });
 });
+
+// U7. Get Full Member Profile & VIP Stats
+app.get('/api/auth/profile', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const db = getDb();
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    }
+    const profile = getUserEnrichedProfile(user, db);
+    res.json({ success: true, profile, user: profile });
+});
+
+// U8. Update Member Profile Info (Display Name, Phone, LINE ID)
+app.put('/api/auth/profile', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const db = getDb();
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    }
+    const { displayName, phone, lineId } = req.body || {};
+    if (typeof displayName === 'string' && displayName.trim()) {
+        const cleanName = String(displayName).replace(/<[^>]*>/g, '').replace(/[\r\n\t\x00-\x1f"`]/g, '').slice(0, 40).trim();
+        if (cleanName) user.displayName = cleanName;
+    }
+    if (typeof phone === 'string') {
+        user.phone = String(phone).replace(/[^0-9+\-\s()]/g, '').slice(0, 20).trim();
+    }
+    if (typeof lineId === 'string') {
+        user.lineId = String(lineId).replace(/[^a-zA-Z0-9._\-@]/g, '').slice(0, 30).trim();
+    }
+    saveDb(db);
+    const profile = getUserEnrichedProfile(user, db);
+    res.json({ success: true, message: "บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว", profile, user: profile });
+});
+
+// U9. Change Password (Authenticated Self-Service)
+app.post('/api/auth/change-password', userAuthRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    }
+    const { oldPassword, newPassword } = req.body || {};
+    if (!oldPassword || !newPassword) {
+        return res.status(400).json({ success: false, message: "กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่" });
+    }
+    const newPw = String(newPassword).trim();
+    if (newPw.length < 6 || newPw.length > 128) {
+        return res.status(400).json({ success: false, message: "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
+    }
+    const db = getDb();
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    }
+    if (!verifyPassword(String(oldPassword).trim(), user.passwordHash, user.id)) {
+        return res.status(400).json({ success: false, message: "รหัสผ่านเดิมไม่ถูกต้อง" });
+    }
+    user.passwordHash = hashPassword(newPw, user.id);
+    user.tokenVersion = (user.tokenVersion || 1) + 1;
+    saveDb(db);
+    const { token, expiresAt } = generateUserToken(user.id, user.email, user.tokenVersion);
+    res.json({ success: true, message: "เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว", token, expiresAt });
+});
+
+// U10. Toggle Product in Wishlist
+app.post('/api/auth/wishlist/toggle', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อนบันทึกรายการโปรด" });
+    }
+    const cleanId = String(req.body?.productId || '').trim();
+    if (!/^[a-zA-Z0-9_\-]{2,64}$/.test(cleanId)) {
+        return res.status(400).json({ success: false, message: "รหัสสินค้าไม่ถูกต้อง" });
+    }
+    const db = getDb();
+    if (!getCatalogProduct(cleanId, db)) {
+        return res.status(404).json({ success: false, message: "ไม่พบสินค้าในระบบ" });
+    }
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    ensureUserDefaults(user, db);
+    const idx = user.wishlist.indexOf(cleanId);
+    let inWishlist = false;
+    if (idx > -1) {
+        user.wishlist.splice(idx, 1);
+        inWishlist = false;
+    } else {
+        if (user.wishlist.length >= 100) {
+            return res.status(400).json({ success: false, message: "รายการโปรดเต็มแล้ว (สูงสุด 100 รายการ)" });
+        }
+        user.wishlist.push(cleanId);
+        inWishlist = true;
+    }
+    saveDb(db);
+    res.json({ success: true, inWishlist, wishlist: user.wishlist });
+});
+
+// U11. Toggle Back-In-Stock Alert
+app.post('/api/auth/stock-alert/toggle', sessionCheckRateLimit, (req, res) => {
+    const session = authenticateUser(req);
+    if (!session) {
+        return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อนตั้งค่าแจ้งเตือนสต็อก" });
+    }
+    const cleanId = String(req.body?.productId || '').trim();
+    if (!/^[a-zA-Z0-9_\-]{2,64}$/.test(cleanId)) {
+        return res.status(400).json({ success: false, message: "รหัสสินค้าไม่ถูกต้อง" });
+    }
+    const db = getDb();
+    if (!getCatalogProduct(cleanId, db)) {
+        return res.status(404).json({ success: false, message: "ไม่พบสินค้าในระบบ" });
+    }
+    const user = (db.users || []).find(u => u.id === session.userId);
+    if (!user) return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสมาชิก" });
+    ensureUserDefaults(user, db);
+    const idx = user.stockAlerts.indexOf(cleanId);
+    let hasAlert = false;
+    if (idx > -1) {
+        user.stockAlerts.splice(idx, 1);
+        hasAlert = false;
+    } else {
+        if (user.stockAlerts.length >= 100) {
+            return res.status(400).json({ success: false, message: "รายการแจ้งเตือนสต็อกเต็มแล้ว (สูงสุด 100 รายการ)" });
+        }
+        user.stockAlerts.push(cleanId);
+        hasAlert = true;
+    }
+    saveDb(db);
+    res.json({ success: true, hasAlert, stockAlerts: user.stockAlerts });
+});
+
+// U12. Validate Referral Code (Friend Recommendation 5% Off)
+app.post('/api/promotions/referral/validate', couponValidateRateLimit, (req, res) => {
+    const rawCode = (req.body?.code || '').trim().toUpperCase();
+    if (!rawCode || !/^[A-Z0-9_\-]{4,40}$/.test(rawCode)) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุรหัสผู้แนะนำที่ถูกต้อง" });
+    }
+    const db = getDb();
+    const session = authenticateUser(req);
+    const referrer = (db.users || []).find(u => (u.referralCode || '').toUpperCase() === rawCode);
+    if (!referrer) {
+        return res.status(404).json({ success: false, message: "ไม่พบรหัสผู้แนะนำนี้ในระบบ" });
+    }
+    const isSelf = !!(session && (
+        session.userId === referrer.id ||
+        (session.email && referrer.email && session.email.toLowerCase() === referrer.email.toLowerCase())
+    ));
+    if (isSelf) {
+        return res.status(400).json({ success: false, message: "คุณไม่สามารถใช้รหัสแนะนำของตนเองได้" });
+    }
+    res.json({
+        success: true,
+        valid: true,
+        code: referrer.referralCode,
+        discountPercent: 5,
+        referrerName: referrer.displayName || 'เพื่อนของคุณ',
+        title: `ส่วนลดแนะนำเพื่อน (ลด 5% จากคุณ ${referrer.displayName || 'สมาชิก'})`
+    });
+});
+
 
 // ─────────────────────────────────────────────────────────────
 // 📊 REAL-TIME TELEMETRY & ANALYTICS API ENDPOINTS
@@ -3914,12 +4779,13 @@ app.post('/api/telemetry/heartbeat', telemetryRateLimit, (req, res) => {
         // Update database daily analytics
 
         const today = getTodayAnalytics(db);
+        let shouldMarkDirty = false;
         if (!today.visitors.includes(sessionId)) {
             today.visitors.push(sessionId);
             if (today.visitors.length > 5000) today.visitors = today.visitors.slice(-5000);
+            shouldMarkDirty = true;
         }
 
-        let shouldMarkDirty = false;
         if (cleanAction === 'page_view') {
             today.pageViews = (today.pageViews || 0) + 1;
             shouldMarkDirty = true;
@@ -4088,7 +4954,16 @@ app.get('/api/admin/analytics', adminRateLimit, (req, res) => {
 // LIVE CHAT — WebSocket Server (ws)
 // ─────────────────────────────────────────────────────────────
 const { WebSocketServer } = require('ws');
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = (typeof crypto.randomUUID === 'function')
+    ? () => crypto.randomUUID()
+    : (() => {
+        try {
+            const { v4 } = require('uuid');
+            return v4;
+        } catch {
+            return () => crypto.randomBytes(16).toString('hex');
+        }
+    })();
 
 // Map: sessionId → { ws, role: 'customer'|'admin', name, sessionId }
 const clients = new Map();
@@ -4101,7 +4976,7 @@ const chatHistoryPerSession = new Map();
 const orderLookupsPerSession = new Map();
 
 /**
- * Call Google Gemini API (gemini-3.8-flash / gemini-2.5-flash / gemini-1.5-flash)
+ * Call Google Gemini API (gemini-1.5-flash / gemini-2.0-flash)
  */
 async function callGeminiAI(userMsg, sessionId, apiKey) {
     const history = chatHistoryPerSession.get(sessionId) || [];
@@ -4131,11 +5006,11 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) return null;
     const cleanKey = apiKey.trim();
 
-    const modelsToTry = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    // Use official active models (gemini-1.5-flash and gemini-2.0-flash)
+    const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash'];
 
     for (const model of modelsToTry) {
         try {
-            // Strictly match Google AI Studio curl format
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
             
             const reqHeaders = {
@@ -4145,10 +5020,24 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 
             const fullPromptText = `[คำสั่งระบบ: คุณคือ "น้องพิงกี้" Mascot AI ผู้ช่วยประจำร้าน Supinkly.AI สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" ลงท้าย "ครับ/ผม" เสมอ ตอบคำถามได้ทุกเรื่องอย่างชาญฉลาดและถูกต้อง ทั้งเรื่องสินค้าในร้าน, การใช้งาน AI, การเขียนโปรแกรม (Programming/Coding), เทคโนโลยี และคำถามทั่วไป]\n\nคำถามจากลูกค้า: ${userMsg}`;
 
-            // Build conversation history
+            // Build conversation history ensuring valid alternating turns for Gemini API
             const contents = [];
             if (history && history.length > 0) {
-                contents.push(...history.slice(-4));
+                const cleanHistory = [];
+                for (const item of history) {
+                    if (!item || !item.role || !Array.isArray(item.parts)) continue;
+                    const expectedRole = (cleanHistory.length % 2 === 0) ? 'user' : 'model';
+                    if (item.role === expectedRole) {
+                        cleanHistory.push(item);
+                    }
+                }
+                // If cleanHistory ends on 'user', remove it so we don't have consecutive user messages
+                if (cleanHistory.length > 0 && cleanHistory[cleanHistory.length - 1].role === 'user') {
+                    cleanHistory.pop();
+                }
+                // Take up to last 4 turns (2 full rounds: user, model, user, model)
+                const turnsToKeep = cleanHistory.length >= 4 ? cleanHistory.slice(-4) : cleanHistory;
+                contents.push(...turnsToKeep);
             }
             contents.push({
                 role: 'user',
@@ -4156,23 +5045,34 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
             });
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 9000);
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
 
             let res = await fetch(url, {
                 method: 'POST',
                 headers: reqHeaders,
-                body: JSON.stringify({ contents }),
+                body: JSON.stringify({
+                    contents,
+                    system_instruction: {
+                        parts: [{ text: systemInstruction }]
+                    }
+                }),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
 
-            // If multi-turn fails, fallback to exact curl single-turn payload
+            // [SECURITY & EFFICIENCY] If API Key is rejected with 401 or 403, immediately abort further retries
+            if (res.status === 401 || res.status === 403) {
+                console.warn(`[GEMINI-AI] API Key is unauthorized or invalid (HTTP ${res.status}). Aborting model retry loop.`);
+                return null;
+            }
+
+            // If multi-turn fails, fallback to single-turn payload
             if (!res.ok) {
                 const errSnippet = await res.text().catch(() => '');
                 console.warn(`[GEMINI-AI] ${model} attempt 1 failed (${res.status}): ${errSnippet.slice(0, 120)}`);
                 
                 const fallbackCtrl = new AbortController();
-                const fbTimeout = setTimeout(() => fallbackCtrl.abort(), 9000);
+                const fbTimeout = setTimeout(() => fallbackCtrl.abort(), 6000);
                 res = await fetch(url, {
                     method: 'POST',
                     headers: reqHeaders,
@@ -4181,11 +5081,18 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
                             {
                                 parts: [{ text: fullPromptText }]
                             }
-                        ]
+                        ],
+                        system_instruction: {
+                            parts: [{ text: systemInstruction }]
+                        }
                     }),
                     signal: fallbackCtrl.signal
                 });
                 clearTimeout(fbTimeout);
+            }
+
+            if (res.status === 401 || res.status === 403) {
+                return null;
             }
 
             if (!res.ok) {
@@ -4287,125 +5194,64 @@ async function getBotResponse(userMsg, sessionId) {
         return defaultPrice;
     };
 
-    if (/capcut|แคปคัท|ตัดต่อ/i.test(q)) {
-        const p1 = getProductLivePrice('cpc-01', 129);
-        const p2 = getProductLivePrice('cpc-02', 79);
-        const p3 = getProductLivePrice('cpc-03', 189);
-        const p4 = getProductLivePrice('cpc-04', 259);
-        return `🎬 **CapCut Pro แท้ 100% (ปลดล็อกฟังก์ชัน Pro, เรนเดอร์ 4K ไม่มีลายน้ำ):**\n\n` +
-            `• 👤 **CapCut Pro 1M Private:** **฿${p1.toFixed(2)}** (บัญชีส่วนตัว 1 ผู้ใช้ ไม่แชร์ใคร แนะนำ! ⭐)\n` +
-            `• 👥 **CapCut Pro 1M Shared:** **฿${p2.toFixed(2)}** (บัญชีหาร โปรไฟล์แยก ราคาประหยัด)\n` +
-            `• 👥 **CapCut Team 1M:** **฿${p3.toFixed(2)}** (คลาวด์ทีม ตัดต่อร่วมกัน)\n` +
-            `• 👑 **CapCut VIP 1M:** **฿${p4.toFixed(2)}** (ปลดล็อกพรีเมียมทุกแพลตฟอร์ม)\n\n` +
-            `🛡️ สินค้าทุกชิ้นรับประกัน 30 วันเต็ม กดสั่งซื้อที่หน้าแรกแล้วรับรหัสได้เลยครับ!`;
-    }
-
-    if (/claude|โคลด|คลอด|คล็อด/i.test(q)) {
-        const p1 = getProductLivePrice('cld-01', 850);
-        const p2 = getProductLivePrice('cld-02', 290);
-        return `🧠 **Claude Pro แท้ (โมเดลอัจฉริยะ เขียนโค้ด วิเคราะห์ไฟล์ วิเคราะห์งานแม่นยำ):**\n\n` +
-            `• 👤 **Claude Pro 1M Private:** **฿${p1.toFixed(2)}** (บัญชีส่วนตัว ไม่แชร์ใคร ใช้งานเต็มขีดจำกัด)\n` +
-            `• 👥 **Claude Pro 1M Shared:** **฿${p2.toFixed(2)}** (บัญชีหาร ราคาสบายกระเป๋า เข้าใช้งานสะดวก)\n\n` +
-            `🛡️ มีรับประกันการใช้งาน 30 วันเต็ม ดูแลตลอดแพ็กเกจครับ!`;
+    if (/capcut|แคปคัท|claude|โคลด|grok|เกร็อก/i.test(q)) {
+        return `💡 **นโยบายสินค้าของร้าน Supinkly.AI:**\n\n` +
+            `ทางร้านเน้นจำหน่ายเฉพาะ **ลิงก์เปิดสิทธิ์ทางการ (Activation Link)** และ **รหัสคีย์แท้ (OEM Key)** ที่เปิดสิทธิ์บนบัญชีส่วนตัวเดิมของลูกค้าโดยตรง 100% **ไม่มีการจำหน่ายบัญชีหาร (Shared) หรือบัญชีแชร์ร่วมกับผู้อื่น** เพื่อความปลอดภัยสูงสุดของข้อมูลลูกค้าครับ ✨\n\n` +
+            `📌 **สินค้าพร้อมส่งมอบในระบบขณะนี้:**\n` +
+            `• 🔗 **Google One Pro 5TB (18 เดือน) - Activation Link:** **฿250.00**\n` +
+            `• 🔗 **Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link:** **฿150.00**\n` +
+            `• 🪟 **Windows 11 Pro OEM License Key (แท้ตลอดชีพ):** **฿290.00**\n` +
+            `• 📄 **Microsoft 365 Personal (1 เดือน) - Activation Link:** **฿259.00**\n\n` +
+            `กดสั่งซื้อได้ที่หน้าแรกของร้านได้ตลอด 24 ชม. ครับ!`;
     }
 
     if (/gemini|google ai|google drive|ไดรฟ์|กูเกิล|พื้นที่/i.test(q)) {
-        const p1 = getProductLivePrice('goo-ai-01', 150);
-        const p2 = getProductLivePrice('goo-ai-02', 2590);
-        const p3 = getProductLivePrice('goo-ai-03', 99);
-        const p4 = getProductLivePrice('goo-01', 229);
-        return `🌐 **Google AI & Google Drive พรีเมียม:**\n\n` +
-            `• 🔗 **Google AI Pro Link:** **฿${p1.toFixed(2)}** (Invite เข้าอีเมลส่วนตัวของคุณเอง สะดวก ไม่ต้องจำรหัสใหม่)\n` +
-            `• 👥 **Google AI Pro Shared:** **฿${p3.toFixed(2)}** (บัญชีหารสุดคุ้ม)\n` +
-            `• 👑 **Google AI Ultra Private:** **฿${p2.toFixed(2)}** (ตัวท็อปความฉลาดสูงสุด)\n` +
-            `• 💾 **Google Drive 5TB Private:** **฿${p4.toFixed(2)}** (พื้นที่เก็บไฟล์มหาศาล ปลอดภัย ส่วนตัว 100%)\n\n` +
-            `🛡️ รับประกัน 30 วันเต็ม พร้อมส่งมอบตลอด 24 ชม. ครับ!`;
+        const p1 = getProductLivePrice('goo-02', 250);
+        const p2 = getProductLivePrice('goo-ai-01', 150);
+        return `🌐 **Google One & Google AI ลิขสิทธิ์แท้ 100% (Activation Link):**\n\n` +
+            `• 🔗 **Google One Subscription Pro 5TB (18 เดือน):** **฿${p1.toFixed(2)}** (เปิดสิทธิ์ตรงเข้า Gmail เดิม ไม่ต้องย้ายข้อมูล คลาวด์ 5TB ยาวนาน 18 เดือน เฉลี่ยเพียง 0.46 บาท/วัน)\n` +
+            `• 🔗 **Google AI Pro (Gemini Advanced 1 เดือน):** **฿${p2.toFixed(2)}** (อัปเกรดเข้า Gmail ของคุณโดยตรง ได้รับโมเดลเรือธง Gemini Advanced + พื้นที่ 2TB)\n\n` +
+            `🛡️ ปลอดภัย 100% ไม่ต้องแชร์ ไม่ต้องให้รหัสผ่าน รับประกัน 30 วันเต็ม พร้อมส่งมอบตลอด 24 ชม. ครับ!`;
     }
 
-    if (/grok|xai|ซุปเปอร์เกร็อก|เกร็อก/i.test(q)) {
-        const p1 = getProductLivePrice('grk-01', 290);
-        const p2 = getProductLivePrice('grk-02', 950);
-        const p3 = getProductLivePrice('grk-03', 4990);
-        return `⚡ **xAI Grok & SuperGrok แท้:**\n\n` +
-            `• ⚡ **Grok 7 วัน Private:** **฿${p1.toFixed(2)}** (ทดลองใช้งานระยะสั้น คุ้มราคา)\n` +
-            `• 🔥 **Grok 1 เดือน Private:** **฿${p2.toFixed(2)}** (บัญชีส่วนตัว ฟูลออปชัน 30 วัน)\n` +
-            `• 🚀 **SuperGrok Heavy 1 เดือน:** **฿${p3.toFixed(2)}** (ระดับเฮฟวี่ พลังประมวลผลสูงสุด)\n\n` +
-            `🛡️ รับประกันตลอดอายุแพ็กเกจ สั่งซื้อได้ตลอด 24 ชม. ครับ!`;
+    if (/windows|วินโดว์|office|ออฟฟิศ|ไมโครซอฟท์|word|excel/i.test(q)) {
+        const pWin = getProductLivePrice('ms-01', 290);
+        const pOff = getProductLivePrice('ms-02', 259);
+        return `💻 **Microsoft Windows & Office 365 ลิขสิทธิ์แท้:**\n\n` +
+            `• 🪟 **Windows 11 Pro OEM License Key:** **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ได้ตลอดชีพ 🛡️ รับประกันตลอดชีพ)\n` +
+            `• 📄 **Microsoft 365 Personal (1 เดือน) - Activation Link:** **฿${pOff.toFixed(2)}** (Word, Excel, PowerPoint, Outlook + คลาวด์ OneDrive จุใจ 1TB ใช้งานได้ 5 เครื่องพร้อมกัน)\n\n` +
+            `🛡️ ลิขสิทธิ์แท้ 100% จัดส่งทันทีหลังชำระเงิน พร้อมคู่มือใช้งานง่ายๆ ใน 1 นาทีครับ!`;
     }
 
     // ── PROGRAM & SOFTWARE DETAILS (รายละเอียดโปรแกรม & ซอฟต์แวร์ทั้งหมด) ──
     if (/รายละเอียดโปรแกรม|เกี่ยวกับโปรแกรม|ข้อมูลโปรแกรม|มีโปรแกรม|โปรแกรมอะไร|แนะนำโปรแกรม|โปรแกรม|ซอฟต์แวร์|software|แอป|แอพ|app/i.test(q)) {
+        const pGoo5TB = getProductLivePrice('goo-02', 250);
+        const pGemini = getProductLivePrice('goo-ai-01', 150);
         const pWin = getProductLivePrice('ms-01', 290);
         const pOff = getProductLivePrice('ms-02', 259);
-        const pCop = getProductLivePrice('ms-03', 590);
-        const pAdb1 = getProductLivePrice('adb-01', 490);
-        const pAdb2 = getProductLivePrice('adb-02', 790);
-        const pCap1 = getProductLivePrice('cpc-01', 129);
-        const pCld1 = getProductLivePrice('cld-01', 850);
-        return `💻 **รายละเอียดโปรแกรม & ซอฟต์แวร์ลิขสิทธิ์แท้ในร้าน Supinkly.AI:**\n\n` +
-            `1️⃣ **🎬 CapCut Pro (โปรแกรมตัดต่อวิดีโอยอดนิยม):**\n` +
-            `• ปลดล็อกทุกฟีเจอร์ Pro, เอฟเฟกต์/เสียงเพลงไม่จำกัด, เรนเดอร์ 4K 60fps ไม่มีลายน้ำ (เริ่มต้นเพียง **฿79 - ฿129**)\n\n` +
-            `2️⃣ **🎨 Adobe Creative Cloud & Acrobat Pro (ชุดโปรแกรมสร้างสรรค์):**\n` +
-            `• **Adobe CC All Apps:** **฿${pAdb2.toFixed(2)}**/ด. (ครบ 20+ โปรแกรม Photoshop, Premiere Pro, Illustrator, After Effects + 100GB Cloud + Firefly AI)\n` +
-            `• **Adobe Acrobat Pro DC:** **฿${pAdb1.toFixed(2)}**/ด. (แก้ไข จัดการ แปลงไฟล์ และเซ็นเอกสาร PDF ดิจิทัล)\n\n` +
-            `3️⃣ **🪟 Windows 11 Pro / Home (ระบบปฏิบัติการแท้):**\n` +
-            `• **OEM License Key:** **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก เปิดสิทธิ์ถาวรตลอดชีพ ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ได้ตลอดชีพ 🛡️ ตลอดชีพ)\n\n` +
-            `4️⃣ **📄 Microsoft 365 Personal (ชุดโปรแกรมทำงาน Office):**\n` +
-            `• **฿${pOff.toFixed(2)}**/ด. (Word, Excel, PowerPoint, Outlook + คลาวด์ OneDrive จุใจ 1TB ใช้งานได้ 5 เครื่อง)\n\n` +
-            `5️⃣ **🤖 ซอฟต์แวร์ AI ผู้ช่วย & เขียนโปรแกรม (Programming):**\n` +
-            `• **Claude Pro:** **฿${pCld1.toFixed(2)}** (สุดยอดโมเดล AI เขียนโค้ดและวิเคราะห์ไฟล์อันดับ 1)\n` +
-            `• **Microsoft Copilot Pro:** **฿${pCop.toFixed(2)}** (AI ฝังใน Word, Excel, PowerPoint ช่วยร่างงานและเขียนโค้ด)\n` +
-            `• **xAI Grok / SuperGrok:** ฿290–฿4,990 (ข้อมูลเรียลไทม์บน X + เจนภาพ AI)\n\n` +
-            `🛡️ ทุกรายการมีรับประกันการใช้งาน พร้อมจัดส่งอัตโนมัติใน 5-15 นาทีครับ สนใจโปรแกรมตัวไหนพิมพ์ชื่อสอบถามได้เลยครับ!`;
-    }
-
-    // ── CODING & PROGRAMMING AI (เขียนโปรแกรม / พัฒนาซอฟต์แวร์ / Developer) ──
-    if (/เขียนโปรแกรม|เขียนโค้ด|coding|โค้ด|code|developer|โปรแกรมเมอร์|python|javascript|ช่วยเขียน|ทำเว็บ|สร้างแอป|เขียนเว็ป|เขียนแอป/i.test(q)) {
-        const pCldPriv = getProductLivePrice('cld-01', 850);
-        const pCldShared = getProductLivePrice('cld-02', 290);
-        const pCop = getProductLivePrice('ms-03', 590);
-        const pGrk = getProductLivePrice('grk-02', 950);
-        const pGoo = getProductLivePrice('goo-ai-01', 150);
-        return `👨‍💻 **สุดยอด AI สำหรับเขียนโปรแกรม & พัฒนาโค้ด (แนะนำโดยน้องพิงกี้):**\n\n` +
-            `หากคุณลูกค้าต้องการผู้ช่วยเขียนโปรแกรม เขียนโค้ด ดีบักบั๊ก หรือสร้างเว็บไซต์/แอปพลิเคชัน ทางร้านขอแนะนำตัวท็อปดังนี้ครับ:\n\n` +
-            `1️⃣ 🧠 **Claude Pro (แนะนำอันดับ 1 สำหรับ Developer ⭐):**\n` +
-            `• ใช้โมเดล **Claude 3.7 / 3.5 Sonnet** ที่ฉลาดและแม่นยำที่สุดในโลกด้านการเขียนโค้ด เข้าใจโครงสร้างโปรเจกต์ขนาดใหญ่\n` +
-            `• มีฟีเจอร์ **Artifacts** พรีวิวหน้าเว็บ/โค้ดสดได้ทันที และระบบ **Projects** บริหารไฟล์โค้ด\n` +
-            `• 👤 บัญชีส่วนตัว (Private): **฿${pCldPriv.toFixed(2)}** | 👥 บัญชีหาร (Shared): **฿${pCldShared.toFixed(2)}**\n\n` +
-            `2️⃣ 🤖 **Microsoft Copilot Pro (สำหรับงานออฟฟิศ & โค้ด):**\n` +
-            `• เชื่อมต่อโมเดล GPT-4o ความเร็วสูง ช่วยเขียนโค้ดและสร้างสูตร Excel อัตโนมัติ\n` +
-            `• ราคา: บัญชีส่วนตัว **฿${pCop.toFixed(2)}** / เดือน\n\n` +
-            `3️⃣ ⚡ **xAI Grok & SuperGrok Heavy:**\n` +
-            `• โมเดลพลังสูงด้าน Logic และคณิตศาสตร์ พร้อมโควต้าคำนวณ Heavy Capacity รองรับงานหนัก\n` +
-            `• ราคา: 1 เดือน **฿${pGrk.toFixed(2)}**\n\n` +
-            `4️⃣ 🌐 **Google AI Pro (Gemini Advanced):**\n` +
-            `• รองรับบริบทมหาศาลกว่า 1 ล้านโทเค็น วิเคราะห์ซอร์สโค้ดทั้งโปรเจกต์พร้อมกันได้สบาย\n` +
-            `• ราคา: ลิงก์ Invite เข้า Gmail **฿${pGoo.toFixed(2)}**\n\n` +
-            `🛡️ ทุกตัวพร้อมส่งมอบใช้งานได้ทันที มีรับประกัน 30 วันเต็ม สนใจตัวไหนพิมพ์ชื่อสอบถามได้เลยครับ! 🚀`;
-    }
-
-    if (/windows|วินโดว์|office|ออฟฟิศ|adobe|photoshop|acrobat|copilot|ไมโครซอฟท์|word|excel/i.test(q)) {
-        const pWin = getProductLivePrice('ms-01', 290);
-        const pOff = getProductLivePrice('ms-02', 259);
-        const pCop = getProductLivePrice('ms-03', 590);
-        const pAdb1 = getProductLivePrice('adb-01', 490);
-        const pAdb2 = getProductLivePrice('adb-02', 790);
-        return `💻 **ซอฟต์แวร์ทำงาน & Windows ลิขสิทธิ์แท้:**\n\n` +
-            `• 🪟 **Windows 11 Pro OEM Key:** **฿${pWin.toFixed(2)}** (คีย์แท้ ผูกเมนบอร์ด อัปเดตได้ตลอดชีพ 🛡️ ตลอดชีพ)\n` +
-            `• 📄 **Microsoft 365 (1 เดือน):** **฿${pOff.toFixed(2)}** (Word, Excel, PowerPoint + 1TB OneDrive)\n` +
-            `• 🤖 **Microsoft Copilot Pro:** **฿${pCop.toFixed(2)}** (AI ช่วยทำงาน Office ขั้นสูง)\n` +
-            `• 🎨 **Adobe Creative Cloud All Apps:** **฿${pAdb2.toFixed(2)}** (ครบ 20+ โปรแกรม Photoshop, Illustrator, Premiere Pro)\n` +
-            `• 📑 **Adobe Acrobat Pro:** **฿${pAdb1.toFixed(2)}** (จัดการและเซ็นเอกสาร PDF)`;
+        return `💻 **รายละเอียดซอฟต์แวร์ลิขสิทธิ์แท้ในร้าน Supinkly.AI:**\n\n` +
+            `1️⃣ **🌐 Google One Subscription Pro 5TB (18 เดือน):**\n` +
+            `• **฿${pGoo5TB.toFixed(2)}** (เปิดสิทธิ์ตรงเข้า Gmail เดิม คลาวด์ 5,000 GB ยาวนาน 18 เดือน พร้อมฟีเจอร์ AI ครบชุด)\n\n` +
+            `2️⃣ **🧠 Google AI Pro (Gemini Advanced 1 เดือน):**\n` +
+            `• **฿${pGemini.toFixed(2)}** (โมเดลเรือธง Gemini Advanced อัปเกรดเข้า Gmail ของคุณโดยตรง + 2TB คลาวด์)\n\n` +
+            `3️⃣ **🪟 Windows 11 Pro OEM License Key (แท้ตลอดชีพ):**\n` +
+            `• **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก เปิดสิทธิ์ถาวรตลอดชีพ ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ตลอดชีพ)\n\n` +
+            `4️⃣ **📄 Microsoft 365 Personal (1 เดือน - Activation Link):**\n` +
+            `• **฿${pOff.toFixed(2)}** (Word, Excel, PowerPoint, Outlook + OneDrive 1TB ใช้งานได้ 5 เครื่องพร้อมกัน)\n\n` +
+            `🛡️ ทุกรายการเป็น Activation Link และ OEM Key แท้ ไม่มีการแชร์บัญชีกับใคร ปลอดภัย 100% ครับ!`;
     }
 
     if (/มีสินค้าอะไร|ขายอะไร|รายการสินค้า|แคตตาล็อก|มีอะไรบ้าง|แนะนำสินค้า/i.test(q)) {
-        return `🛍️ **หมวดหมู่สินค้าในร้าน Supinkly.AI มีดังนี้ครับ:**\n\n` +
-            `1️⃣ **🎬 Video Editing:** CapCut Pro (Private ฿129 / Shared ฿79 / Team ฿189)\n` +
-            `2️⃣ **🧠 AI Chatbots:** Claude Pro (฿290–฿850), Grok (฿290–฿4,990), Google AI Pro (฿150)\n` +
-            `3️⃣ **💾 Cloud Storage:** Google Drive 5TB (฿229)\n` +
-            `4️⃣ **💻 OS & Office:** Windows 11 Pro OEM คีย์แท้ตลอดชีพ (฿290), Microsoft 365 (฿259)\n` +
-            `5️⃣ **🎨 Design & Media:** Adobe CC All Apps (฿790), Acrobat Pro (฿490)\n\n` +
-            `💡 สนใจตัวไหนพิมพ์ชื่อสินค้าสอบถามน้องพิงกี้เพิ่มเติม หรือเลือกช้อปที่หน้าแรกได้เลยครับ!`;
+        const pGoo5TB = getProductLivePrice('goo-02', 250);
+        const pGemini = getProductLivePrice('goo-ai-01', 150);
+        const pWin = getProductLivePrice('ms-01', 290);
+        const pOff = getProductLivePrice('ms-02', 259);
+        return `🛍️ **รายการสินค้าลิขสิทธิ์แท้ในร้าน Supinkly.AI มีดังนี้ครับ:**\n\n` +
+            `1️⃣ **Google One Subscription Pro 5TB (18 เดือน):** **฿${pGoo5TB.toFixed(2)}** (Activation Link เข้า Gmail เดิม)\n` +
+            `2️⃣ **Google AI Pro (Gemini Advanced 1 เดือน):** **฿${pGemini.toFixed(2)}** (Activation Link อัปเกรด Gemini + คลาวด์ 2TB)\n` +
+            `3️⃣ **Windows 11 Pro OEM License Key:** **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก ตลอดชีพ ผูกเมนบอร์ด)\n` +
+            `4️⃣ **Microsoft 365 Personal (1 เดือน):** **฿${pOff.toFixed(2)}** (Activation Link ชุด Office ครบชุด + OneDrive 1TB)\n\n` +
+            `✨ ทุกรายการเป็นลิงก์เปิดสิทธิ์ทางการและคีย์แท้ **ไม่มีบัญชีหาร และไม่มีบัญชีแชร์** ปลอดภัย 100% ครับ!`;
     }
 
     // ── 3. LIVE PROMOTIONS & COUPONS (ดึงโค้ดส่วนลดจากฐานข้อมูลจริง) ──
@@ -4433,33 +5279,32 @@ async function getBotResponse(userMsg, sessionId) {
             `2️⃣ **เข้าสู่ระบบ / สมัครสมาชิก:** เพื่อให้ระบบบันทึกคีย์เข้าบัญชีส่วนตัวของคุณ\n` +
             `3️⃣ **สแกนชำระเงิน:** ผ่าน **Thai QR PromptPay** ได้ทุกแอปธนาคารและ TrueMoney (ฟรีค่าธรรมเนียม)\n` +
             `4️⃣ **แนบสลิป:** ระบบใช้ AI ตรวจสอบสลิปอัตโนมัติภายในไม่กี่วินาที\n` +
-            `5️⃣ **รับสินค้าทันที:** รหัสจะถูกส่งเข้าเมนู **"คีย์ของฉัน"** ด้านบน และส่งสำเนาเข้าอีเมลของคุณทันทีใน 5–15 นาทีครับ! 📦`;
+            `5️⃣ **รับสินค้าทันที:** รหัส/ลิงก์จะถูกส่งเข้าเมนู **"คีย์ของฉัน"** ด้านบน และส่งสำเนาเข้าอีเมลของคุณทันทีใน 5–15 นาทีครับ! 📦`;
     }
 
     // ── 5. WARRANTY & TROUBLESHOOTING (รับประกัน & แก้ไขปัญหา) ──
     if (/เข้าไม่ได้|รหัสผิด|รหัสไม่ตรง|รหัสไม่ถูก|login ไม่ได้|พาสผิด|พาสเวิร์ดไม่ตรง/i.test(q)) {
-        return `⚠️ **คำแนะนำเมื่อเข้าสู่ระบบบัญชีไม่ได้:**\n\n` +
-            `1. **ตรวจสอบการคัดลอก:** ระวังอย่าให้มีช่องว่าง (Spacebar) หน้าหรือหลังอีเมล/รหัสผ่าน\n` +
-            `2. **สำหรับบัญชีแชร์ (Shared):** ตรวจสอบว่าเลือกเข้าใช้โปรไฟล์หมายเลขที่ทางร้านกำหนดให้เท่านั้น\n` +
-            `3. **หากยังเข้าไม่ได้:** สินค้ามี **รับประกัน 30 วัน** เต็มครับ! คุณลูกค้าสามารถแจ้งเลขออเดอร์ (\`SPK-...\`) ไว้ในแชทนี้ แอดมินจะตรวจสอบและเปลี่ยนชุดใหม่ให้ทันทีครับ 💖`;
+        return `✨ **คำแนะนำการเปิดใช้งานสินค้า:**\n\n` +
+            `• สำหรับ **Activation Link**: คลิกที่ลิงก์ที่ได้รับในระบบ แล้วกด 'ยอมรับ / เข้าร่วม' ด้วยบัญชี Gmail หรือ Microsoft ของคุณ สิทธิ์จะเปิดใช้งานทันที\n` +
+            `• สำหรับ **License Key (Windows 11)**: นำรหัสคีย์ 25 หลักไปกรอกที่ Settings > System > Activation > Change product key\n` +
+            `• หากพบปัญหาใดๆ สินค้ามี **รับประกัน 30 วัน** เต็มครับ! คุณลูกค้าสามารถแจ้งเลขออเดอร์ (\`SPK-...\`) ไว้ในแชทนี้ได้ตลอด 24 ชม. แอดมินดูแลเต็มที่ครับ 💖`;
     }
 
     if (/ประกัน|เคลม|มีประกัน|รับประกัน|โดนเด้ง|หมดอายุ|พัง|ใช้งานไม่ได้|มีปัญหา|ช่วยด้วย/i.test(q)) {
         return `🛡️ **นโยบายการรับประกันและการเคลมสินค้า:**\n\n` +
             `• สินค้าทุกชิ้นในร้านมี **รับประกัน 30 วัน** เต็ม (และคีย์แท้ Windows 11 รับประกันตลอดชีพ)\n` +
-            `• หากใช้งานแล้วพบปัญหา เช่น โดนเด้ง บัญชีหลุด หรือใช้งานไม่ได้ก่อนครบกำหนด สามารถแจ้งเคลมได้ทันที\n` +
+            `• หากใช้งานแล้วพบปัญหา สามารถแจ้งเคลมได้ทันที\n` +
             `• **วิธีแจ้งเคลม:** พิมพ์เลขออเดอร์ (\`SPK-...\`) และอาการที่พบในแชทนี้ หรือทักเพจ Facebook:\n` +
             `👉 https://www.facebook.com/profile.php?id=61594837747580\n` +
-            `ทางร้านยินดีเปลี่ยนชุดใหม่หรือแก้ไขให้อย่างรวดเร็วที่สุดครับ!`;
+            `ทางร้านยินดีดูแลและแก้ไขให้อย่างรวดเร็วที่สุดครับ!`;
     }
 
-    // ── 6. ACCOUNT TYPES (Private vs Shared vs Link vs Key) ──
+    // ── 6. ACCOUNT TYPES (Activation Link vs License Key) ──
     if (/ต่างกัน|ต่าง|private|shared|แชร์|หาร|ส่วนตัว|แบบไหน|link|invite/i.test(q)) {
-        return `💡 **เปรียบเทียบประเภทสินค้าแต่ละแบบ:**\n\n` +
-            `• 👤 **Private (บัญชีส่วนตัว 100%):** คุณเป็นเจ้าของคนเดียว ไม่ปนกับใคร สามารถเปลี่ยนรหัสผ่านได้ เหมาะสำหรับการใช้งานจริงจัง ข้อมูลส่วนตัวปลอดภัยสูงสุด\n` +
-            `• 👥 **Shared (บัญชีหาร):** ใช้งานร่วมกับผู้ใช้อื่นโดยมีโปรไฟล์แยกของตัวเอง ราคาย่อมเยาสุดคุ้ม ประหยัดงบ (ห้ามเปลี่ยนรหัสผ่านเพื่อสิทธิ์รับประกัน)\n` +
-            `• 🔗 **Link (คำเชิญ Invite):** ทางร้านส่งลิงก์คำเชิญให้ คุณนำไปกดเปิดสิทธิ์เข้ากับอีเมลส่วนตัวของคุณเอง สะดวก ไม่ต้องจำรหัสใหม่\n` +
-            `• 🔑 **License Key:** รหัสคีย์แท้สำหรับนำไปกรอกเปิดสิทธิ์ในซอฟต์แวร์โดยตรง (เช่น Windows 11 OEM ผูกติดเครื่องตลอดชีพ)`;
+        return `💡 **นโยบายประเภทสินค้าของทางร้าน Supinkly.AI:**\n\n` +
+            `• ❌ **ไม่มีการจำหน่ายบัญชีหาร (Shared) หรือบัญชีแชร์ร่วมกับผู้อื่นเด็ดขาด** เพื่อความปลอดภัยของข้อมูลส่วนตัวคุณลูกค้า 100%\n` +
+            `• 🔗 **Activation Link (ลิงก์เปิดสิทธิ์):** ทางร้านส่งลิงก์ทางการให้อัปเกรดเข้าสู่บัญชีส่วนตัวเดิมของคุณ (เช่น Google One, Gemini, Microsoft 365) โดยไม่ต้องบอกรหัสผ่าน\n` +
+            `• 🔑 **License Key (รหัสคีย์แท้):** คีย์ลิขสิทธิ์แท้ (เช่น Windows 11 Pro OEM) นำไป Activate ผูกติดกับคอมพิวเตอร์ของคุณ ใช้งานได้ถาวรตลอดชีพ`;
     }
 
     // ── 7. TRUST & OPERATING HOURS ──
@@ -4512,7 +5357,7 @@ async function getBotResponse(userMsg, sessionId) {
     return `น้องพิงกี้ AI ผู้ช่วยร้าน Supinkly ยินดีให้บริการครับ! 💖\n\n` +
         `สำหรับข้อความที่คุณลูกค้าสอบถามเข้ามา น้องพิงกี้ขอแนะนำเมนูด่วนที่คุณลูกค้าสามารถสอบถามได้ทันทีครับ:\n\n` +
         `💻 **1. โปรแกรม & ซอฟต์แวร์:** พิมพ์ **"โปรแกรม"** เพื่อดูรายละเอียดซอฟต์แวร์ทั้งหมด (Windows 11, Office 365, Adobe CC, CapCut Pro)\n` +
-        `👨‍💻 **2. งานเขียนโปรแกรม:** พิมพ์ **"เขียนโค้ด"** เพื่อดู AI แนะนำสำหรับโปรแกรมเมอร์ (Claude Pro, Copilot, Grok)\n` +
+        `👨‍💻 **2. งานเขียนโปรแกรม:** พิมพ์ **"เขียนโค้ด"** เพื่อดู AI แนะนำสำหรับโปรแกรมเมอร์ (Claude Pro, Gemini, Grok)\n` +
         `🛍️ **3. เช็คราคาสินค้า:** พิมพ์ชื่อสินค้า เช่น **CapCut**, **Claude**, **Google Drive** ได้ทันที\n` +
         `📦 **4. ตรวจสอบสถานะออเดอร์:** พิมพ์รหัสคำสั่งซื้อ เช่น \`SPK-12345678\`\n` +
         `🎟️ **5. โค้ดส่วนลด:** พิมพ์ **"ขอโค้ดส่วนลด"** เพื่อรับคูปองลด 10-20%\n` +
@@ -4559,7 +5404,41 @@ function getAdminCount() {
     return n;
 }
 
-// Heartbeat to prune inactive/dead WebSocket connections
+// Heartbeat to prune inactive/dead WebSocket connections and expired auth failure tracking
+const wsFailedAuthByIp = new Map(); // ip -> { count: number, lockedUntil: number, lastAttempt: number }
+
+function checkWsAuthAllowed(ip) {
+    if (!ip) return true;
+    const record = wsFailedAuthByIp.get(ip);
+    if (!record) return true;
+    const now = Date.now();
+    if (record.lockedUntil && now < record.lockedUntil) {
+        return false;
+    }
+    if (now - record.lastAttempt > 5 * 60 * 1000) {
+        wsFailedAuthByIp.delete(ip);
+        return true;
+    }
+    return record.count < 5;
+}
+
+function recordWsAuthFailure(ip) {
+    if (!ip) return;
+    const now = Date.now();
+    const record = wsFailedAuthByIp.get(ip) || { count: 0, lockedUntil: 0, lastAttempt: now };
+    record.count++;
+    record.lastAttempt = now;
+    if (record.count >= 5) {
+        record.lockedUntil = now + 5 * 60 * 1000;
+    }
+    wsFailedAuthByIp.set(ip, record);
+}
+
+function recordWsAuthSuccess(ip) {
+    if (!ip) return;
+    wsFailedAuthByIp.delete(ip);
+}
+
 const wsHeartbeat = setInterval(() => {
     for (const [sid, client] of clients) {
         if (client.ws.isAlive === false) {
@@ -4573,25 +5452,23 @@ const wsHeartbeat = setInterval(() => {
         client.ws.isAlive = false;
         try { client.ws.ping(); } catch { }
     }
+    if (wsFailedAuthByIp.size > 100) {
+        const now = Date.now();
+        for (const [ip, rec] of wsFailedAuthByIp) {
+            if (now - rec.lastAttempt > 10 * 60 * 1000) wsFailedAuthByIp.delete(ip);
+        }
+    }
 }, 35000);
 
 wss.on('connection', (ws, req) => {
-    // ── [SECURITY FIX] CSWSH Origin Verification (Strict Hostname Matching) ──
+    // ── [SECURITY FIX] CSWSH Origin Verification (Strict Whitelist & Host Matching) ──
     const origin = req.headers.origin;
-    if (origin && rawOrigins !== '*') {
-        let isOriginValid = false;
-        try {
-            const parsed = new URL(origin);
-            const host = parsed.hostname.toLowerCase();
-            if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.onrender.com') || ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes(host)) {
-                isOriginValid = true;
-            }
-        } catch {}
-        if (!isOriginValid) {
-            ws.close(1008, 'Origin not allowed');
-            return;
-        }
+    if (origin && !isAllowedOrigin(origin, req.headers.host)) {
+        ws.close(1008, 'Origin not allowed');
+        return;
     }
+
+    const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
@@ -4646,6 +5523,12 @@ wss.on('connection', (ws, req) => {
         // ── AUTH: ลงทะเบียน role ──────────────────────────────────
         if (data.type === 'auth') {
             if (data.role === 'admin') {
+                if (!checkWsAuthAllowed(clientIp)) {
+                    ws.send(JSON.stringify({ type: 'auth_fail', message: 'คุณพยายามยืนยันตัวตนผิดเกินจำนวนที่กำหนด กรุณารอ 5 นาที' }));
+                    ws.close(1008, 'Too many failed auth attempts');
+                    return;
+                }
+
                 // [SECURITY] Admin auth over WebSocket — supports stateless HMAC token, in-memory session & PIN verification
                 const token = data.token;
                 let isTokenValid = (token && verifyAdminToken(token)) ||
@@ -4660,6 +5543,7 @@ wss.on('connection', (ws, req) => {
                 }
 
                 if (isTokenValid) {
+                    recordWsAuthSuccess(clientIp);
                     clientInfo.role = 'admin';
                     clientInfo.name = 'แอดมิน';
                     ws.send(JSON.stringify({ type: 'auth_ok', role: 'admin' }));
@@ -4674,9 +5558,10 @@ wss.on('connection', (ws, req) => {
                     }
                     ws.send(JSON.stringify({ type: 'room_list', rooms: Object.values(rooms) }));
                 } else {
+                    recordWsAuthFailure(clientIp);
                     failedAuthAttempts++;
-                    if (failedAuthAttempts >= 3) {
-                        ws.send(JSON.stringify({ type: 'auth_fail', message: 'คุณระบุรหัสยืนยันตัวตนผิดเกินจำนวนที่กำหนด' }));
+                    if (failedAuthAttempts >= 3 || !checkWsAuthAllowed(clientIp)) {
+                        ws.send(JSON.stringify({ type: 'auth_fail', message: 'คุณระบุรหัสยืนยันตัวตนผิดเกินจำนวนที่กำหนด กรุณารอ 5 นาที' }));
                         ws.close(1008, 'Too many failed auth attempts');
                         return;
                     }

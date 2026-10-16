@@ -18,6 +18,7 @@ const CHAT = (() => {
     let reconnectTimer = null;
     let opened = false;
     let unreadCount = 0;
+    let pendingQuickQuestion = null;
 
     function escapeHTML(str) {
         if (!str && str !== 0) return '';
@@ -34,16 +35,30 @@ const CHAT = (() => {
         let escaped = escapeHTML(text);
         const boldClass = isOwn ? 'font-bold text-white underline decoration-white/30' : 'font-bold text-slate-900';
         const linkClass = isOwn ? 'text-white underline font-bold hover:text-white/80' : 'text-pink-600 underline font-semibold hover:text-pink-700';
+        const codeClass = isOwn
+            ? 'px-1.5 py-0.5 rounded bg-white/20 text-white font-mono text-xs border border-white/30'
+            : 'px-1.5 py-0.5 rounded bg-slate-100 text-pink-600 font-mono text-xs border border-slate-200';
+
         // Bold **text**
         escaped = escaped.replace(/\*\*([^*\n<>&]+)\*\*/g, `<strong class="${boldClass}">$1</strong>`);
+
+        // Backtick `code`
+        escaped = escaped.replace(/`([^`\n<>&]+)`/g, `<code class="${codeClass}">$1</code>`);
+
         // Clickable Links: Strict RFC 3986 URL character matching + escapeHTML on href to prevent DOM XSS
-        escaped = escaped.replace(/(https?:\/\/[a-zA-Z0-9\-_.~:/?#[\]@!$&*+,;=%]+)/g, (matched) => {
+        escaped = escaped.replace(/(https?:\/\/[^\s<>"']+)/g, (matched) => {
             const clean = matched.replace(/[.,;:)\]]+$/, '');
+            const rawUrl = clean
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#039;/g, "'");
             try {
-                const u = new URL(clean);
+                const u = new URL(rawUrl);
                 if (u.protocol === 'http:' || u.protocol === 'https:') {
                     const safeHref = escapeHTML(u.href);
-                    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="${linkClass} break-all">${escapeHTML(clean)}</a>`;
+                    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="${linkClass} break-all">${clean}</a>`;
                 }
             } catch {}
             return clean;
@@ -58,7 +73,7 @@ const CHAT = (() => {
         el.innerHTML = `
         <!-- Bubble Button -->
         <button id="spk-chat-btn"
-            class="fixed bottom-[72px] right-3 sm:bottom-6 sm:right-6 z-40 w-11 h-11 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active group"
+            class="fixed bottom-[76px] right-3 sm:bottom-6 sm:right-6 z-40 w-11 h-11 sm:w-14 sm:h-14 rounded-full gradient-btn shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center touch-active group"
             title="แชท Live สด กับเราได้ตลอด 24 ชม." aria-label="เปิดแชท">
             <i id="spk-chat-icon" class="fa-solid fa-comment-dots text-lg sm:text-2xl text-white"></i>
             <span id="spk-chat-badge"
@@ -257,6 +272,15 @@ const CHAT = (() => {
                 document.getElementById('spk-name-form').classList.add('hidden');
                 document.getElementById('spk-input-area').classList.remove('hidden');
                 document.getElementById('spk-quick-chips')?.classList.remove('hidden');
+                if (pendingQuickQuestion) {
+                    const q = pendingQuickQuestion;
+                    pendingQuickQuestion = null;
+                    setTimeout(() => {
+                        if (ws && ws.readyState === 1) {
+                            ws.send(JSON.stringify({ type: 'message', text: q }));
+                        }
+                    }, 400);
+                }
             }
             if (msg.type === 'admin_status') setStatus(msg.online ? 'แอดมินออนไลน์ พร้อมดูแล 🟢' : 'บอทน้องพิงกี้พร้อมช่วย 24 ชม. ✨', msg.online);
             if (msg.type === 'message')      {
@@ -299,7 +323,15 @@ const CHAT = (() => {
     }
 
     function sendQuickQuestion(questionText) {
-        if (!questionText || !ws || ws.readyState !== 1) return;
+        if (!questionText) return;
+        if (!ws || ws.readyState !== 1) {
+            pendingQuickQuestion = questionText;
+            const nameInput = document.getElementById('spk-name-input');
+            const name = (nameInput?.value || '').trim() || 'ลูกค้า';
+            if (nameInput) nameInput.dataset.savedName = name;
+            connect(name);
+            return;
+        }
         ws.send(JSON.stringify({ type: 'message', text: questionText }));
     }
 

@@ -3,3 +3,8 @@ npm-debug.log
 .git
 .gitignore
 .env
+.env.*
+secure_database.json
+secure_database.json.*
+*.bak
+*.tmp

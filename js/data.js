@@ -36,96 +36,33 @@ const STORE_CONFIG = (() => {
 // Master Product Catalog (Read-Only Public Metadata - Standard Thai Retail Profitable Prices)
 const PRODUCTS = [
     {
-        id: "cpc-01",
-        brand: "CapCut",
-        brandCode: "CPC",
-        brandBadgeColor: "from-cyan-500 to-blue-600",
-        title: "CapCut Pro (1 เดือน) - บัญชีส่วนตัว",
-        subtitle: "บัญชีส่วนตัว 1 ผู้ใช้ • ปลดล็อกเครื่องมือ Pro & เรนเดอร์ 4K ไร้ลายน้ำ",
-        badge: "⭐ แพ็คขายดีติดดาว",
+        id: "goo-02",
+        brand: "Google One",
+        brandCode: "GOO",
+        brandBadgeColor: "from-blue-500 via-green-500 to-yellow-500",
+        title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link",
+        subtitle: "เปิดสิทธิ์บนบัญชี Google ของคุณโดยตรง • คลาวด์ 5TB ยาวนาน 18 เดือน เฉลี่ยเพียง 0.46 บาท/วัน",
+        badge: "🔥 ดีลพิเศษ 18 เดือน",
         isHighlight: true,
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
+        type: "ลิงก์เปิดสิทธิ์ (Link)",
+        typeKey: "link",
+        duration: "18 เดือน (18 Months)",
         region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "iOS • Android • Windows • Mac",
-        price: 129.00,
-        originalPrice: 220.00,
-        soldCount: 482,
+        devices: "ทุกอุปกรณ์ (PC, Mac, Mobile)",
+        price: 250.00,
+        originalPrice: 690.00,
+        soldCount: 410,
         rating: 5.0,
         deliveryType: "instant",
         warranty: "30 วัน",
-        description: "• บัญชีส่วนตัวเดี่ยว 1 ผู้ใช้ ไม่แชร์ใคร ใช้งานได้เต็มสิทธิ์\n• เรนเดอร์คมชัดสูงสุด 4K 60fps ไม่มีลายน้ำ ลื่นไหลไม่สะดุด\n• ปลดล็อกเอฟเฟกต์ เสียงดนตรี เทมเพลต และเครื่องมือ AI อัจฉริยะครบทุกฟังก์ชัน"
-    },
-    {
-        id: "cpc-02",
-        brand: "CapCut",
-        brandCode: "CPC",
-        brandBadgeColor: "from-cyan-500 to-blue-600",
-        title: "CapCut Pro (1 เดือน) - สิทธิ์ประหยัด",
-        subtitle: "โปรไฟล์แยกราคาประหยัด • เรนเดอร์ไร้ลายน้ำ ปลดล็อกฟังก์ชัน Pro ครบ",
-        badge: "ราคาประหยัด",
-        type: "บัญชีหาร (Shared)",
-        typeKey: "shared",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "iOS • Android • PC",
-        price: 79.00,
-        originalPrice: 129.00,
-        soldCount: 215,
-        rating: 4.9,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• สิทธิ์โปรไฟล์แยก ใช้งานฟังก์ชัน Pro ครบถ้วนในราคาสบายกระเป๋า\n• ส่งออกวิดีโอคมชัด ไม่มีลายน้ำ พร้อมฟอนต์และเทมเพลตลิขสิทธิ์\n• เข้าใช้งานง่ายผ่านโปรไฟล์ส่วนตัว ดูแลตลอดอายุการใช้งาน 30 วัน"
-    },
-    {
-        id: "cpc-03",
-        brand: "CapCut",
-        brandCode: "CPC",
-        brandBadgeColor: "from-cyan-500 to-blue-600",
-        title: "CapCut Team (1 เดือน) - สิทธิ์เวิร์กสเปซทีม",
-        subtitle: "พื้นที่ทำงาน Cloud ร่วมกัน • แชร์โปรเจกต์และฟังก์ชัน Pro ทั้งทีม",
-        badge: "สำหรับทีมงาน",
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "iOS • Android • Windows • Mac",
-        price: 189.00,
-        originalPrice: 290.00,
-        soldCount: 94,
-        rating: 4.9,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• สิทธิ์พื้นที่ทำงานทีม (Team Workspace) เหมาะสำหรับครีเอเตอร์และสตูดิโอ\n• แชร์ไฟล์ ตัดต่อ และประสานงานโปรเจกต์บนคลาวด์กลางร่วมกันแบบเรียลไทม์\n• สมาชิกทุกคนในทีมได้รับฟังก์ชัน CapCut Pro เต็มรูปแบบ"
-    },
-    {
-        id: "cpc-04",
-        brand: "CapCut",
-        brandCode: "CPC",
-        brandBadgeColor: "from-cyan-500 to-blue-600",
-        title: "CapCut VIP / SVIP (1 เดือน) - สิทธิ์ขั้นสูง",
-        subtitle: "ระดับ VIP สูงสุด • ปลดล็อก AI Script-to-Video และคลาวด์เรนเดอร์ความเร็วสูง",
-        badge: "สิทธิ์พิเศษ VIP",
-        type: "เติมเงิน VIP (Top-up)",
-        typeKey: "topup",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "iOS • Android • PC",
-        price: 259.00,
-        originalPrice: 350.00,
-        soldCount: 68,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• สิทธิ์ระดับ VIP สูงสุด เข้าถึงเครื่องมือ AI แปลงสคริปต์ข้อความเป็นวิดีโอ\n• สร้างเสียงพากย์ AI หลายภาษา และคลังสติกเกอร์/แอนิเมชันพรีเมียม\n• เรนเดอร์ผ่าน Cloud Server ความเร็วสูงพิเศษ ประหยัดเวลาทำงาน"
+        description: "• เปิดสิทธิ์ตรงเข้า Gmail เดิมของคุณ ไม่ต้องย้ายข้อมูล ไม่ต้องเปิดเผยรหัสผ่าน\n• เพิ่มพื้นที่ Google One 5TB (5,000 GB) ยาวนาน 18 เดือน พร้อมโมเดลใหม่ Gemini 4 Argon (ดีกว่า Pro x4)\n• ครบทั้ง Google Flow (สร้างภาพและวิดีโอ AI), Google Antigravity & TTS, และ Google Workspace ครบชุด"
     },
     {
         id: "goo-ai-01",
         brand: "Google AI",
         brandCode: "GOO",
         brandBadgeColor: "from-amber-400 to-red-500",
-        title: "Google AI Pro (Gemini Advanced 1 เดือน) - ลิงก์เปิดสิทธิ์",
+        title: "Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link",
         subtitle: "อัปเกรดเข้า Gmail ของคุณโดยตรง • ปลอดภัย 100% พร้อมคลาวด์ 2TB",
         badge: "⭐ แนะนำยอดนิยม",
         isHighlight: true,
@@ -143,304 +80,48 @@ const PRODUCTS = [
         description: "• อัปเกรดตรงเข้า Gmail ส่วนตัวผ่านลิงก์ทางการ ไม่ต้องให้รหัสผ่าน ข้อมูลส่วนตัว 100%\n• เข้าถึงโมเดลเรือธง Gemini Advanced (1.5/2.0 Pro) คิดวิเคราะห์และเขียนโค้ดขั้นสูง\n• ได้รับพื้นที่คลาวด์ Google One 2TB (Drive, Gmail, Photos) พร้อม AI ช่วยงานใน Docs/Gmail"
     },
     {
-        id: "goo-ai-02",
-        brand: "Google AI",
-        brandCode: "GOO",
-        brandBadgeColor: "from-amber-400 to-red-500",
-        title: "Google AI Ultra (Gemini Ultra 1 เดือน) - บัญชีวิจัยขั้นสูง",
-        subtitle: "พลังประมวลผลสูงสุด • รองรับ 1 ล้านโทเค็น สำหรับงานวิจัยและวิเคราะห์โค้ด",
-        badge: "ประสิทธิภาพสูง",
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "ทุกอุปกรณ์ (Web & App)",
-        price: 2590.00,
-        originalPrice: 3200.00,
-        soldCount: 18,
-        rating: 4.9,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• ขุมพลังระดับองค์กร ออกแบบสำหรับงานวิจัย วิเคราะห์ข้อมูล และเดเวลอปเปอร์\n• รองรับ Context Window ขนาดใหญ่พิเศษกว่า 1 ล้านโทเค็น วิเคราะห์เอกสารหนาและซอร์สโค้ดทั้งโปรเจกต์\n• ประมวลผลรวดเร็วและแม่นยำสูงสุด พร้อมโควต้าตอบกลับระดับสูงสุด"
-    },
-    {
-        id: "goo-ai-03",
-        brand: "Google AI",
-        brandCode: "GOO",
-        brandBadgeColor: "from-amber-400 to-red-500",
-        title: "Google AI Pro (Gemini Advanced 1 เดือน) - สิทธิ์ประหยัด",
-        subtitle: "สิทธิ์ใช้งานราคาประหยัด • สัมผัสพลัง Gemini 1.5 Pro ในราคาสบายกระเป๋า",
-        badge: "ราคาประหยัด",
-        type: "บัญชีแชร์ (Shared)",
-        typeKey: "shared",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "ทุกอุปกรณ์ (Web & App)",
-        price: 99.00,
-        originalPrice: 199.00,
-        soldCount: 162,
-        rating: 4.9,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• สิทธิ์เข้าใช้งานราคาประหยัด เหมาะสำหรับนักเรียน นักศึกษา และผู้เริ่มต้น\n• ใช้งาน Gemini 1.5 Pro เขียนบทความ แปลภาษา วิเคราะห์ข้อมูล และร่างไอเดียเร็ว\n• เข้าใช้งานได้ทันที คุ้มค่าและประหยัดงบที่สุด"
-    },
-    {
-        id: "goo-01",
-        brand: "Google",
-        brandCode: "GOO",
-        brandBadgeColor: "from-blue-500 via-green-500 to-yellow-500",
-        title: "Google Drive 5TB + Gemini Advanced (1 เดือน)",
-        subtitle: "คลาวด์ขนาดใหญ่ 5,000 GB + ใช้งาน Gemini Advanced ในบัญชีเดียว",
-        badge: "⭐ พื้นที่จัดเก็บ 5TB",
-        isHighlight: true,
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "ทุกอุปกรณ์ (PC, Mac, Mobile)",
-        price: 229.00,
-        originalPrice: 450.00,
-        soldCount: 195,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• บัญชีส่วนตัวพร้อมพื้นที่คลาวด์ขนาดมหึมา 5TB (5,000 GB)\n• สำรองข้อมูล รูปภาพ และไฟล์วิดีโอ 4K/8K ได้จุใจ ปลอดภัยระดับองค์กร\n• รวมสิทธิ์เข้าใช้งาน Gemini Advanced ช่วยงานในตัวบัญชี"
-    },
-    {
-        id: "goo-02",
-        brand: "Google",
-        brandCode: "GOO",
-        brandBadgeColor: "from-blue-500 via-green-500 to-yellow-500",
-        title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link",
-        subtitle: "เปิดสิทธิ์บนบัญชี Google ของคุณโดยตรง • คลาวด์ 5TB ยาวนาน 18 เดือน",
-        badge: "🔥 ดีลพิเศษ 18 เดือน",
-        type: "ลิงก์เปิดสิทธิ์ (Link)",
-        typeKey: "link",
-        duration: "18 เดือน (18 Months)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "ทุกอุปกรณ์ (PC, Mac, Mobile)",
-        price: 99.00,
-        originalPrice: 690.00,
-        soldCount: 410,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• เปิดสิทธิ์ตรงเข้า Gmail เดิมของคุณ ไม่ต้องย้ายข้อมูล ไม่ต้องเปิดเผยรหัสผ่าน\n• เพิ่มพื้นที่ Google One 5TB (5,000 GB) ใช้กับ Drive, Gmail, Photos ยาวนาน 18 เดือน\n• ปลอดภัย 100% รับสิทธิ์ผ่านลิงก์ทางการใน 1 นาที พร้อมสิทธิ์ใช้งาน Gemini Pro"
-    },
-    {
-        id: "grk-01",
-        brand: "Grok",
-        brandCode: "GRK",
-        brandBadgeColor: "from-slate-700 to-zinc-950",
-        title: "xAI Grok / SuperGrok (7 วัน) - บัญชีส่วนตัว",
-        subtitle: "แพ็กเกจทดลอง 7 วัน • ข้อมูลเรียลไทม์บน X + เจนภาพ AI Aurora Flux",
-        badge: "⭐ แพ็กเกจทดลอง 7 วัน",
-        isHighlight: true,
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "7 วัน",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "Web & App (iOS, Android, PC)",
-        price: 290.00,
-        originalPrice: 390.00,
-        soldCount: 128,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "7 วัน",
-        description: "• แพ็กเกจทดลอง 7 วัน บัญชีส่วนตัวพร้อมสิทธิ์ X (Twitter) Premium\n• ดึงข้อมูลและประเด็นร้อนแบบเรียลไทม์จากทวิตเตอร์ ไม่มีตกเทรนด์\n• สร้างรูปภาพ AI คุณภาพสูงคมชัดด้วยโมเดล Aurora Flux"
-    },
-    {
-        id: "grk-02",
-        brand: "Grok",
-        brandCode: "GRK",
-        brandBadgeColor: "from-slate-700 to-zinc-950",
-        title: "xAI Grok / SuperGrok (1 เดือน) - บัญชีส่วนตัว",
-        subtitle: "บัญชีส่วนตัว 1 เดือน • Grok โมเดลล่าสุด ไร้โฆษณาบน X โควต้าสูง",
-        badge: "⭐ แพ็กเกจยอดนิยม 1 เดือน",
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "Web & App (iOS, Android, PC)",
-        price: 950.00,
-        originalPrice: 1290.00,
-        soldCount: 86,
-        rating: 4.9,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• บัญชีส่วนตัว X Premium+ ระดับสูงสุด ไร้โฆษณาบนหน้าฟีด X\n• เข้าถึงโมเดล Grok รุ่นล่าสุด โควต้าคำสั่งสูง วิเคราะห์ข้อมูลเจาะลึก\n• เจนรูปภาพ AI ความละเอียดสูงไม่อั้น ตอบโจทย์งานข่าวและคอนเทนต์"
-    },
-    {
-        id: "grk-03",
-        brand: "Grok",
-        brandCode: "GRK",
-        brandBadgeColor: "from-slate-700 to-zinc-950",
-        title: "xAI SuperGrok Heavy (1 เดือน) - โควต้าประมวลผลสูง",
-        subtitle: "โควต้าประมวลผลสูง (Heavy) • ขยาย Rate Limit สำหรับงานโค้ดและดาต้า",
-        badge: "โควต้าปริมาณสูง",
-        type: "เติมเงิน VIP (Top-up)",
-        typeKey: "topup",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "Web & App (iOS, Android, PC)",
-        price: 4990.00,
-        originalPrice: 5500.00,
-        soldCount: 12,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• สิทธิ์ระดับ Heavy Capacity ขยาย Rate Limit สูงสุดสำหรับงานหนัก\n• รองรับการวิเคราะห์โค้ดและข้อมูลมหาศาลได้อย่างต่อเนื่อง ไม่ติดขัด\n• เหมาะสำหรับโปรแกรมเมอร์ นักวิเคราะห์ดาต้า และทีมงานที่ต้องการความเร็วสูง"
-    },
-    {
-        id: "cld-01",
-        brand: "Claude",
-        brandCode: "CLD",
-        brandBadgeColor: "from-amber-600 to-orange-700",
-        title: "Anthropic Claude Pro (1 เดือน) - บัญชีส่วนตัว",
-        subtitle: "บัญชีส่วนตัว 1 ผู้ใช้ • Claude 3.5 Sonnet โควต้า 5 เท่า พร้อม Artifacts",
-        badge: "⭐ ยอดนิยมสำหรับเขียนโค้ด",
-        isHighlight: true,
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "Web, Mac, Windows, iOS, Android",
-        price: 850.00,
-        originalPrice: 1050.00,
-        soldCount: 275,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• บัญชีส่วนตัว 1 ผู้ใช้ แชทและโปรเจกต์เป็นส่วนตัว 100%\n• เข้าใช้งานโมเดลตัวท็อป Claude 3.5 Sonnet โควต้ามากกว่าฟรี 5 เท่า\n• ปลดล็อกฟีเจอร์พรีเมียม Artifacts (พรีวิวโค้ด/เว็บสด) และระบบ Projects"
-    },
-    {
-        id: "cld-02",
-        brand: "Claude",
-        brandCode: "CLD",
-        brandBadgeColor: "from-amber-600 to-orange-700",
-        title: "Anthropic Claude Pro (1 เดือน) - สิทธิ์ประหยัด",
-        subtitle: "สิทธิ์ใช้งานราคาประหยัด • เข้าถึง Claude 3.5 Sonnet ในราคาสบายกระเป๋า",
-        badge: "ราคาประหยัด",
-        type: "บัญชีหาร (Shared)",
-        typeKey: "shared",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "Web, Mac, Windows, iOS, Android",
-        price: 290.00,
-        originalPrice: 390.00,
-        soldCount: 180,
-        rating: 4.8,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• สิทธิ์เข้าใช้งานราคาประหยัด สัมผัสความฉลาดของ Claude 3.5 Sonnet\n• ช่วยเขียนโค้ด แปลภาษาธรรมชาติ และสรุปเนื้อหาเชิงลึกได้อย่างยอดเยี่ยม\n• เหมาะสำหรับผู้เริ่มต้นและใช้งานทั่วไปในราคาคุ้มค่าที่สุด"
-    },
-    {
-        id: "adb-01",
-        brand: "Adobe",
-        brandCode: "ADB",
-        brandBadgeColor: "from-red-600 to-rose-800",
-        title: "Adobe Acrobat Pro DC (1 เดือน) - ลิขสิทธิ์แท้",
-        subtitle: "จัดการ PDF ตัวเต็ม • แก้ไข แปลงไฟล์เป็น Word/Excel และเซ็นชื่อดิจิทัล",
-        badge: "งานเอกสาร PDF",
-        type: "เติมเงิน VIP (Top-up)",
-        typeKey: "topup",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "PC, Mac & Mobile",
-        price: 490.00,
-        originalPrice: 690.00,
-        soldCount: 72,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• ลิขสิทธิ์แท้ตัวเต็ม แก้ไขข้อความ รูปภาพ และจัดหน้า PDF ได้อย่างอิสระ\n• แปลงไฟล์ PDF เป็น Word, Excel, PowerPoint โดยคงฟอนต์และตารางแม่นยำ\n• สแกนเอกสารด้วย OCR เป็นข้อความค้นหาได้ และสร้างลายเซ็นอิเล็กทรอนิกส์ถูกกฎหมาย"
-    },
-    {
-        id: "adb-02",
-        brand: "Adobe",
-        brandCode: "ADB",
-        brandBadgeColor: "from-red-600 to-rose-800",
-        title: "Adobe Creative Cloud All Apps (1 เดือน) + 100GB",
-        subtitle: "รวม 20+ แอปสร้างสรรค์ (Photoshop, Premiere) + Firefly AI & Cloud 100GB",
-        badge: "⭐ รวมทุกแอปสร้างสรรค์",
-        isHighlight: true,
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "PC & Mac (รองรับ 2 เครื่องพร้อมกัน)",
-        price: 790.00,
-        originalPrice: 1290.00,
-        soldCount: 165,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• ลิขสิทธิ์แท้ รวมโปรแกรมสร้างสรรค์กว่า 20 แอป (Photoshop, Illustrator, Premiere Pro)\n• พื้นที่จัดเก็บ Adobe Cloud 100GB พร้อมเครดิตสร้างภาพด้วย AI Firefly\n• ติดตั้งผ่าน Creative Cloud Desktop แท้ อัปเดตล่าสุดเสมอ ใช้งานได้ 2 เครื่อง"
-    },
-    {
         id: "ms-01",
         brand: "Microsoft",
         brandCode: "MS",
-        brandBadgeColor: "from-blue-600 to-cyan-700",
-        title: "Windows 11 Pro / Home - คีย์แท้ถาวร (OEM License)",
-        subtitle: "คีย์แท้ดิจิทัล 25 หลัก • เปิดใช้งานถาวรตลอดชีพ อัปเดตทางการ Microsoft",
-        badge: "⭐ คีย์ถาวรตลอดชีพ",
+        brandBadgeColor: "from-blue-600 via-cyan-500 to-sky-400",
+        title: "Windows 11 Pro OEM License Key - แท้ตลอดชีพ",
+        subtitle: "คีย์แท้ 25 หลัก ผูกติดเมนบอร์ด • อัปเดตผ่าน Microsoft ตลอดชีพ ใช้งานได้ทันที",
+        badge: "⭐ คีย์แท้ตลอดชีพ",
         isHighlight: true,
-        type: "คีย์แท้ถาวร (Key)",
+        type: "รหัสคีย์ (License Key)",
         typeKey: "key",
         duration: "ตลอดชีพ (Lifetime)",
-        region: "Global (ใช้งานได้ทั่วโลก ทุกภาษา)",
-        devices: "1 PC (คอมพิวเตอร์ / โน้ตบุ๊ก)",
+        region: "Global (เปิดใช้งานได้ทั่วโลก)",
+        devices: "PC / Laptop (1 เครื่อง ผูกเมนบอร์ด)",
         price: 290.00,
-        originalPrice: 590.00,
-        soldCount: 390,
+        originalPrice: 1590.00,
+        soldCount: 520,
         rating: 5.0,
         deliveryType: "instant",
         warranty: "ตลอดชีพ",
-        description: "• คีย์แท้ 25 หลัก เปิดใช้งานถาวรตลอดชีพ ผูกติดกับเมนบอร์ดเครื่อง (1 PC)\n• รองรับทั้ง Clean Install และอัปเกรดจาก Home เป็น Pro ได้ทันที\n• ดาวน์โหลดและอัปเดตความปลอดภัยผ่าน Windows Update ทางการ Microsoft 100%"
+        description: "• คีย์แท้ Windows 11 Pro ลิขสิทธิ์ OEM ผูกติดเมนบอร์ดคอมพิวเตอร์ของคุณ\n• เปิดใช้งานถาวร อัปเดตผ่าน Windows Update ของ Microsoft แท้ 100% ตลอดชีพ\n• รองรับการติดตั้งใหม่ (Reinstall) บนเครื่องเดิมได้ไม่จำกัดครั้ง\n• จัดส่งคีย์ 25 หลักทันทีหลังชำระเงิน พร้อมคู่มือการ Activate ใน 1 นาที"
     },
     {
         id: "ms-02",
         brand: "Microsoft",
         brandCode: "MS",
-        brandBadgeColor: "from-blue-600 to-cyan-700",
-        title: "Microsoft 365 Personal (1 เดือน) + 1TB OneDrive Cloud",
-        subtitle: "ชุดออฟฟิศแท้ (Word, Excel, PowerPoint) + พื้นที่คลาวด์ OneDrive 1TB",
-        badge: "⭐ ออฟฟิศแท้ + คลาวด์ 1TB",
-        isHighlight: true,
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
+        brandBadgeColor: "from-blue-500 to-indigo-600",
+        title: "Microsoft 365 Personal (1 เดือน) - Activation Link",
+        subtitle: "ชุดโปรแกรม Office ครบวงจร Word, Excel, PowerPoint + คลาวด์ 1TB OneDrive",
+        badge: "💼 ชุดโปรแกรมทำงาน",
+        isHighlight: false,
+        type: "ลิงก์เปิดสิทธิ์ (Link)",
+        typeKey: "link",
         duration: "1 เดือน (30 วัน)",
         region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "สูงสุด 5 เครื่อง (PC, Mac, iPad, iPhone, Android)",
+        devices: "ใช้งานได้ 5 อุปกรณ์พร้อมกัน (PC, Mac, แท็บเล็ต, มือถือ)",
         price: 259.00,
-        originalPrice: 390.00,
-        soldCount: 210,
+        originalPrice: 490.00,
+        soldCount: 310,
         rating: 4.9,
         deliveryType: "instant",
         warranty: "30 วัน",
-        description: "• ออฟฟิศแท้เวอร์ชันล่าสุด Word, Excel, PowerPoint, Outlook ครบชุด\n• ใช้งานได้สูงสุด 5 เครื่องพร้อมกัน ทั้งคอมพิวเตอร์ แท็บเล็ต และมือถือ\n• พื้นที่คลาวด์ OneDrive 1TB (1,000 GB) พร้อมระบบความปลอดภัยป้องกัน Ransomware"
-    },
-    {
-        id: "ms-03",
-        brand: "Microsoft",
-        brandCode: "MS",
-        brandBadgeColor: "from-blue-600 to-cyan-700",
-        title: "Microsoft Copilot Pro (1 เดือน) - สิทธิ์ผู้ช่วย AI ส่วนตัว",
-        subtitle: "ผู้ช่วย AI ในโปรแกรม Office • เข้าถึง GPT-4o และสร้างภาพ DALL-E 3 รวดเร็ว",
-        badge: "AI เสริมงานออฟฟิศ",
-        type: "บัญชีส่วนตัว (Private)",
-        typeKey: "private",
-        duration: "1 เดือน (30 วัน)",
-        region: "Global (ใช้งานได้ทั่วโลก)",
-        devices: "ทุกอุปกรณ์ (PC, Mac, Web, Mobile)",
-        price: 590.00,
-        originalPrice: 790.00,
-        soldCount: 92,
-        rating: 5.0,
-        deliveryType: "instant",
-        warranty: "30 วัน",
-        description: "• ผู้ช่วย AI อัจฉริยะ เชื่อมต่อตรงใน Word, Excel, PowerPoint ช่วยร่างงานและทำสไลด์\n• เข้าถึงโมเดล GPT-4o รวดเร็วพิเศษแม้ในช่วงเวลาเร่งด่วน\n• รับโควต้าเร่งความเร็วสร้างภาพด้วย DALL-E 3 สูงถึง 100 บูสต์ต่อวัน"
+        description: "• ปลดล็อก Microsoft 365 แท้ รองรับ Word, Excel, PowerPoint, Outlook, OneNote\n• เพิ่มพื้นที่จัดเก็บข้อมูลบนคลาวด์ OneDrive สูงถึง 1TB (1,000 GB)\n• ใช้งานได้สูงสุด 5 เครื่องพร้อมกันบน PC, Mac, iPad, iPhone และ Android\n• อัปเกรดฟีเจอร์เวอร์ชันล่าสุดของ Microsoft เสมอ ปลอดภัย 100%"
     }
 ];
 
@@ -466,37 +147,90 @@ PRODUCTS.forEach(p => {
     }
 });
 
-// Auto-clean legacy broken G2G links from custom overrides in localStorage
+// Auto-clean broken G2G URLs from browser localStorage
 try {
+    const purgeKeys = ['supinkly_custom_products', 'supinkly_custom_prices'];
+    purgeKeys.forEach(k => {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            let updated = false;
+            for (const id in parsed) {
+                if (parsed[id] && parsed[id].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[id].g2gUrl)) {
+                    delete parsed[id].g2gUrl;
+                    updated = true;
+                }
+            }
+            if (updated) localStorage.setItem(k, JSON.stringify(parsed));
+        }
+    });
+
+    // Auto-correct any legacy/glitched custom prices (e.g. 69 THB) stored in client localStorage
     const rawPrices = localStorage.getItem('supinkly_custom_prices');
     if (rawPrices) {
-        const parsed = JSON.parse(rawPrices);
-        let updated = false;
-        for (const k in parsed) {
-            if (parsed[k] && parsed[k].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[k].g2gUrl)) {
-                delete parsed[k].g2gUrl;
-                updated = true;
+        try {
+            const parsedPrices = JSON.parse(rawPrices);
+            let pricesFixed = false;
+            if (parsedPrices['goo-02']) {
+                const isGlitched69 = parsedPrices['goo-02'].price === 69;
+                const isCorrupt = typeof parsedPrices['goo-02'].price !== 'number' || parsedPrices['goo-02'].price < 1;
+                const isAutoUndercut = parsedPrices['goo-02'].manualOverride !== true && parsedPrices['goo-02'].price < 250;
+                if (isGlitched69 || isCorrupt || isAutoUndercut) {
+                    parsedPrices['goo-02'].price = 250.00;
+                    parsedPrices['goo-02'].originalPrice = 690.00;
+                    parsedPrices['goo-02'].manualOverride = true;
+                    pricesFixed = true;
+                }
             }
-        }
-        if (updated) localStorage.setItem('supinkly_custom_prices', JSON.stringify(parsed));
+            if (parsedPrices['goo-ai-01']) {
+                const isCorrupt = typeof parsedPrices['goo-ai-01'].price !== 'number' || parsedPrices['goo-ai-01'].price < 1;
+                const isAutoUndercut = parsedPrices['goo-ai-01'].manualOverride !== true && parsedPrices['goo-ai-01'].price < 150;
+                if (isCorrupt || isAutoUndercut) {
+                    parsedPrices['goo-ai-01'].price = 150.00;
+                    parsedPrices['goo-ai-01'].originalPrice = 350.00;
+                    parsedPrices['goo-ai-01'].manualOverride = true;
+                    pricesFixed = true;
+                }
+            }
+            if (parsedPrices['ms-03']) {
+                delete parsedPrices['ms-03'];
+                pricesFixed = true;
+            }
+            if (pricesFixed) {
+                localStorage.setItem('supinkly_custom_prices', JSON.stringify(parsedPrices));
+            }
+        } catch (e) {}
     }
-    const rawProds = localStorage.getItem('supinkly_custom_products');
-    if (rawProds) {
-        const parsed = JSON.parse(rawProds);
-        let updated = false;
-        for (const k in parsed) {
-            if (parsed[k] && parsed[k].g2gUrl && isBrokenOrLegacyG2GUrl(parsed[k].g2gUrl)) {
-                delete parsed[k].g2gUrl;
-                updated = true;
+
+    try {
+        const rawCust = localStorage.getItem('supinkly_custom_products');
+        if (rawCust) {
+            const parsedCust = JSON.parse(rawCust);
+            if (parsedCust && parsedCust['ms-03']) {
+                delete parsedCust['ms-03'];
+                localStorage.setItem('supinkly_custom_products', JSON.stringify(parsedCust));
             }
         }
-        if (updated) localStorage.setItem('supinkly_custom_products', JSON.stringify(parsed));
+    } catch (e) {}
+
+    const rawCart = localStorage.getItem('supinkly_cart');
+    if (rawCart) {
+        const cart = JSON.parse(rawCart);
+        if (Array.isArray(cart)) {
+            const catalogIds = new Set(PRODUCTS.map(p => p.id));
+            const filteredCart = cart.filter(item => item && (catalogIds.has(item.productId) || (localStorage.getItem('supinkly_custom_products') && JSON.parse(localStorage.getItem('supinkly_custom_products'))[item.productId])));
+            if (filteredCart.length !== cart.length) {
+                localStorage.setItem('supinkly_cart', JSON.stringify(filteredCart));
+            }
+        }
     }
 } catch (e) {}
 
 function getCustomProducts() {
     try {
-        return JSON.parse(localStorage.getItem('supinkly_custom_products') || '{}');
+        const parsed = JSON.parse(localStorage.getItem('supinkly_custom_products') || '{}');
+        if (!parsed || typeof parsed !== 'object') return {};
+        return parsed;
     } catch (e) {
         return {};
     }
@@ -520,7 +254,7 @@ function getMasterProduct(productId) {
             title: customProd.title || productId,
             subtitle: customProd.subtitle || "",
             badge: customProd.badge || "",
-            type: customProd.type || "บัญชีส่วนตัว (Private)",
+            type: customProd.type || "ลิงก์เปิดสิทธิ์ (Link)",
             typeKey: "private",
             duration: customProd.duration || "1 เดือน (30 วัน)",
             region: "Global (ใช้งานได้ทั่วโลก)",
@@ -542,7 +276,7 @@ function getMasterProduct(productId) {
     let subtitle = product.subtitle || '';
     let description = product.description || '';
     let brand = product.brand || 'AI Tools';
-    let type = product.type || 'บัญชีส่วนตัว (Private)';
+    let type = product.type || 'ลิงก์เปิดสิทธิ์ (Link)';
     let duration = product.duration || '1 เดือน (30 วัน)';
     let devices = product.devices || 'iOS • Android • PC';
     let warranty = product.warranty || '30 วัน';
@@ -599,8 +333,12 @@ function getMasterProduct(productId) {
         if (custom) {
             const hasCustomProdPrice = customProd && typeof customProd.price === 'number';
             if (custom.manualOverride === true || !hasCustomProdPrice) {
-                if (typeof custom.price === 'number') price = custom.price;
-                if (typeof custom.originalPrice === 'number') originalPrice = custom.originalPrice;
+                if (typeof custom.price === 'number') {
+                    price = (custom.manualOverride === true) ? custom.price : Math.max(product.price, custom.price);
+                }
+                if (typeof custom.originalPrice === 'number') {
+                    originalPrice = Math.max(price, custom.originalPrice);
+                }
             }
             if (typeof custom.badge === 'string') badge = custom.badge;
             if (custom.isHighlight !== undefined) isHighlight = !!custom.isHighlight;
@@ -663,7 +401,7 @@ function getAllMasterProducts(includeDeleted = false) {
         }
     });
 
-    // 2. Newly added custom products
+    // 2. Newly added custom products from admin
     Object.keys(customProducts).forEach(id => {
         if (!seenIds.has(id)) {
             const master = getMasterProduct(id);
