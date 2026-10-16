@@ -1602,15 +1602,9 @@
         </div>
         <div
             class="max-w-7xl mx-auto mt-8 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-slate-500 text-xs font-medium gap-2">
-            <span>&copy; 2026 <button type="button" onclick="promptAdminLogin()" title="ระบบจัดการหลังบ้าน"
-                    class="hover:text-pink-600 transition-colors font-bold cursor-pointer select-none focus:outline-none">Supinkly.AI</button>.
-                All rights reserved.</span>
+            <span>&copy; 2026 Supinkly.AI. All rights reserved.</span>
             <span class="text-slate-400 text-[11px] flex items-center gap-2">
                 <span>แพลตฟอร์มบริการดิจิทัลแท้ 24 ชม.</span>
-                <button type="button" onclick="promptAdminLogin()" title="ระบบจัดการหลังบ้าน (Admin Console)"
-                    class="text-slate-300 hover:text-pink-500 transition-colors cursor-pointer p-0.5 inline-flex items-center">
-                    <i class="fa-solid fa-lock text-[10px]"></i>
-                </button>
             </span>
         </div>
     </footer>
@@ -3038,16 +3032,11 @@
                 <i class="fa-solid fa-shield-halved"></i>
             </div>
             <h3 class="text-base font-bold text-slate-900 mb-1">ยืนยันสิทธิ์ผู้ดูแลระบบ (Admin)</h3>
-            <p class="text-xs text-slate-500 mb-2 font-medium">กรุณากรอกรหัส PIN
-                เพื่อเข้าจัดการสต็อกและการตั้งค่าร้านค้า</p>
-            <div class="mb-3.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold">
-                <i class="fa-solid fa-key text-amber-500"></i>
-                <span>รหัสเริ่มต้นจากระบบ: <span class="font-mono text-pink-600 font-extrabold">8899</span></span>
-            </div>
+            <p class="text-xs text-slate-500 mb-4 font-medium">กรุณากรอกรหัส PIN เพื่อเข้าจัดการระบบร้านค้า</p>
 
             <form onsubmit="handleAdminPinSubmit(event)" class="space-y-3">
                 <div class="relative">
-                    <input type="password" id="admin-pin-input" maxlength="32" placeholder="กรอกรหัส PIN (เริ่มต้น: 8899)"
+                    <input type="password" id="admin-pin-input" maxlength="32" placeholder="กรอกรหัส PIN หรือรหัสผ่าน"
                         required autofocus autocomplete="off"
                         class="w-full text-center tracking-widest text-xl font-mono px-3 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-pink-600 font-bold focus:border-pink-500 outline-none pr-10">
                     <button type="button" onclick="toggleAdminPinVisibility()"

@@ -4485,16 +4485,16 @@ async function handleResetAdminPinToDefault() {
 
     const pinInput = document.getElementById('admin-pin-input');
     if (pinInput) {
-        pinInput.value = '8899';
-        pinInput.type = 'text';
-        pinInput.placeholder = 'กรอกรหัส PIN (เริ่มต้น: 8899)';
+        pinInput.value = '';
+        pinInput.type = 'password';
+        pinInput.placeholder = 'กรอกรหัส PIN หรือรหัสผ่าน';
     }
     const eyeIcon = document.getElementById('admin-pin-eye-icon');
     if (eyeIcon) {
-        eyeIcon.classList.remove('fa-eye');
-        eyeIcon.classList.add('fa-eye-slash');
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
     }
-    showToast("รีเซ็ตรหัส PIN ผู้ดูแลกลับค่าเริ่มต้น (8899) เรียบร้อยแล้ว สามารถกดเข้าสู่ระบบได้ทันที", "success");
+    showToast("รีเซ็ตสถานะการล็อกอินกลับค่าเริ่มต้นเรียบร้อยแล้ว", "success");
 }
 
 function toggleAdminPinVisibility() {
