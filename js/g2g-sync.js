@@ -7,10 +7,10 @@
 const G2G_MARKET_FEED = {
     // Master Products mapped to G2G Market Category, Direct Sourcing URL & Benchmark Cost (USD)
     benchmarks: {
-        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", baseCostUSD: 3.25, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+One+Subscription+Pro+5TB" },
-        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link", baseCostUSD: 1.95, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
+        "goo-02":    { serviceId: "G2G-GOO-5TB-LK", title: "Google One 5TB Cloud Storage 18 Months Subscription Global Activation Link", baseCostUSD: 3.25, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+One+Subscription+Pro+5TB" },
+        "goo-ai-01": { serviceId: "G2G-GOO-AI-LNK", title: "Google One 2TB with Gemini Advanced AI Pro 1 Month Global Activation Link", baseCostUSD: 1.95, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
         "ms-01":     { serviceId: "G2G-MS-WIN11-PRO", title: "Windows 11 Professional OEM CD Key Global", baseCostUSD: 3.50, g2gStock: 85, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Windows+11+Pro+OEM+Key" },
-        "ms-02":     { serviceId: "G2G-MS-365-1M", title: "Microsoft 365 Personal 1 Month Global", baseCostUSD: 2.80, g2gStock: 60, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365" }
+        "ms-02":     { serviceId: "G2G-MS-365-1M", title: "Microsoft 365 Personal 1 Month Subscription Global", baseCostUSD: 2.80, g2gStock: 60, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365" }
     }
 };
 

@@ -191,10 +191,10 @@ app.get('/api/public/exchange-rate', async (req, res) => {
 
 // ─── Public G2G Market Feed & Search Catalog (Free, No Key Required) ────────
 const G2G_PUBLIC_BENCHMARKS = {
-    "goo-02":    { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", baseCostUSD: 3.25, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+One+Subscription+Pro+5TB" },
-    "goo-ai-01": { title: "Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link", baseCostUSD: 1.95, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
+    "goo-02":    { title: "Google One 5TB Cloud Storage 18 Months Subscription Global Activation Link", baseCostUSD: 3.25, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+One+Subscription+Pro+5TB" },
+    "goo-ai-01": { title: "Google One 2TB with Gemini Advanced AI Pro 1 Month Global Activation Link", baseCostUSD: 1.95, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
     "ms-01":     { title: "Windows 11 Professional OEM CD Key Global", baseCostUSD: 3.50, g2gStock: 85, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Windows+11+Pro+OEM+Key" },
-    "ms-02":     { title: "Microsoft 365 Personal 1 Month Global", baseCostUSD: 2.80, g2gStock: 60, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365" }
+    "ms-02":     { title: "Microsoft 365 Personal 1 Month Subscription Global", baseCostUSD: 2.80, g2gStock: 60, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365" }
 };
 
 app.get('/api/public/g2g-feed', (req, res) => {

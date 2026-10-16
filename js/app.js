@@ -4583,8 +4583,52 @@ async function handleAdminPinSubmit(e) {
 }
 
 // ==========================================
-// G2G MARKET LINK HELPER (ADMIN ONLY)
+// G2G MARKET LINK & RAW ENGLISH TITLE HELPER
 // ==========================================
+function getEnglishG2GRawTitle(master, fallback = '') {
+    if (!master && !fallback) return '';
+    const raw = (master && master.g2gRawTitle) || '';
+    if (raw && !/[\u0E00-\u0E7F]/.test(raw)) {
+        return raw.trim();
+    }
+    const pid = String((master && master.id) || fallback || '').toLowerCase();
+    const brand = ((master && master.brand) || '').toLowerCase();
+    const title = ((master && master.title) || fallback || '').toLowerCase();
+
+    // Standard known mapping for G2G Global listings (100% English)
+    if (pid === 'goo-02' || title.includes('5tb') || (brand.includes('google') && title.includes('18'))) {
+        return 'Google One 5TB Cloud Storage 18 Months Subscription Global Activation Link';
+    }
+    if (pid === 'goo-ai-01' || title.includes('gemini') || brand.includes('google ai')) {
+        return 'Google One 2TB with Gemini Advanced AI Pro 1 Month Global Activation Link';
+    }
+    if (pid === 'ms-01' || title.includes('windows 11')) {
+        return 'Windows 11 Professional OEM CD Key Global';
+    }
+    if (pid === 'ms-02' || title.includes('microsoft 365') || title.includes('office 365')) {
+        return 'Microsoft 365 Personal 1 Month Subscription Global';
+    }
+    if (pid.startsWith('cpc-') || brand.includes('capcut') || title.includes('capcut')) {
+        return 'CapCut Pro 1 Month Private Account Global';
+    }
+    if (brand.includes('claude') || title.includes('claude')) {
+        return 'Claude Pro 1 Month Subscription Account Global';
+    }
+    if (title.includes('chatgpt') || title.includes('openai')) {
+        return 'ChatGPT Plus 1 Month Subscription Private Account Global';
+    }
+    if (brand.includes('canva') || title.includes('canva')) {
+        return 'Canva Pro 1 Year Subscription Global Account';
+    }
+
+    // Strip Thai characters as fallback to guarantee English-only search keyword
+    const stripped = ((master && master.title) || fallback).replace(/[\u0E00-\u0E7F]+/g, '').replace(/[\(\)\-\•]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (stripped.length >= 3) {
+        return stripped;
+    }
+    return `${(master && master.brand) || 'Digital'} Subscription Global`;
+}
+
 function getG2GMarketLink(productId) {
     const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
 
@@ -4606,8 +4650,8 @@ function getG2GMarketLink(productId) {
         return 'https://www.g2g.com/categories/capcut';
     }
 
-    // 4. Reliable Google site-search for live G2G listings (100% working, never 404)
-    const query = (master && (master.g2gRawTitle || master.title)) || (benchmark && benchmark.title) || (master && `${master.brand} ${master.type}`) || 'G2G marketplace';
+    // 4. Reliable Google site-search for live G2G listings (100% working, never 404, pure English)
+    const query = getEnglishG2GRawTitle(master) || (benchmark && benchmark.title) || 'G2G marketplace';
     return `https://www.google.com/search?q=${encodeURIComponent('site:g2g.com ' + query)}`;
 }
 
@@ -4616,7 +4660,7 @@ function handleG2GSourcingClick(event, productId, targetUrl) {
         event.stopPropagation();
     }
     const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
-    const searchKeyword = (master && (master.g2gRawTitle || master.title)) || '';
+    const searchKeyword = getEnglishG2GRawTitle(master);
 
     // Copy product search keyword to clipboard so admin can easily paste into G2G if needed
     if (searchKeyword && navigator.clipboard && navigator.clipboard.writeText) {
@@ -4637,7 +4681,7 @@ function handleG2GSourcingClick(event, productId, targetUrl) {
 function openG2GMarketLink(productId) {
     const link = getG2GMarketLink(productId);
     const master = (typeof getMasterProduct === 'function') ? getMasterProduct(productId) : null;
-    const titleToCopy = (master && (master.g2gRawTitle || master.title)) || '';
+    const titleToCopy = getEnglishG2GRawTitle(master);
     if (titleToCopy && navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(titleToCopy).catch(() => { });
     }
@@ -6969,7 +7013,7 @@ function openFulfillModal(orderId, itemIndex) {
     const master = getMasterProduct(item.productId);
     const g2gRawTitleEl = document.getElementById('fulfill-g2g-raw-title-label');
     if (g2gRawTitleEl) {
-        g2gRawTitleEl.textContent = (master && (master.g2gRawTitle || master.title)) || item.productTitle || '';
+        g2gRawTitleEl.textContent = getEnglishG2GRawTitle(master, item.productTitle);
     }
 
     const g2gBtn = document.getElementById('fulfill-g2g-btn');
@@ -7433,7 +7477,7 @@ function renderAdminStockList() {
                             `;
             })()}
                         <button type="button" 
-                                onclick="const t = '${escapeHTML(master.g2gRawTitle || master.title)}'; navigator.clipboard.writeText(t); showToast('คัดลอกชื่อภาษาอังกฤษสำหรับค้นหาใน G2G แล้ว: ' + t.slice(0, 32) + '...', 'info');"
+                                onclick="const t = '${escapeHTML(getEnglishG2GRawTitle(master))}'; navigator.clipboard.writeText(t); showToast('คัดลอกชื่อภาษาอังกฤษสำหรับค้นหาใน G2G แล้ว: ' + t.slice(0, 32) + '...', 'info');"
                                 class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 border border-slate-200 text-[10px] cursor-pointer"
                                 title="คัดลอกชื่อสินค้าภาษาอังกฤษของ G2G">
                             <i class="fa-regular fa-copy"></i>
@@ -7572,7 +7616,7 @@ function openEditPriceModal(productId, focusField = null) {
 
     // G2G Raw Title & URL
     const g2gRawTitleEl = document.getElementById('edit-price-g2g-raw-title');
-    if (g2gRawTitleEl) g2gRawTitleEl.textContent = master.g2gRawTitle || master.title;
+    if (g2gRawTitleEl) g2gRawTitleEl.textContent = getEnglishG2GRawTitle(master);
 
     const g2gUrlInput = document.getElementById('edit-price-g2g-url');
     if (g2gUrlInput) {
