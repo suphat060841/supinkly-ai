@@ -5077,8 +5077,8 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) return null;
     const cleanKey = apiKey.trim();
 
-    // Use official active models (gemini-3-flash-preview, gemini-3.5-flash, gemini-3.8-flash)
-    const modelsToTry = ['gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+    // Use official active models (gemini-3.8-flash, gemini-3.5-flash-lite, gemini-3.1-flash-lite)
+    const modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
 
     for (const model of modelsToTry) {
         try {
@@ -5137,11 +5137,15 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
                 return null;
             }
 
-            // If multi-turn fails, fallback to single-turn payload
+            // If multi-turn fails, fallback to single-turn payload (or fast-switch to next model on 503/404/429)
             if (!res.ok) {
                 const errSnippet = await res.text().catch(() => '');
                 console.warn(`[GEMINI-AI] ${model} attempt 1 failed (${res.status}): ${errSnippet.slice(0, 120)}`);
                 
+                if (res.status === 503 || res.status === 404 || res.status === 429) {
+                    continue;
+                }
+
                 const fallbackCtrl = new AbortController();
                 const fbTimeout = setTimeout(() => fallbackCtrl.abort(), 15000);
                 res = await fetch(url, {
