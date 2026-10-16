@@ -5084,8 +5084,14 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) return null;
     const cleanKey = apiKey.trim();
 
-    // Use official active models (gemini-3.8-flash, gemini-3.5-flash-lite, gemini-3.1-flash-lite)
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+    // Use high-availability models with generous quota & fast response
+    const modelsToTry = [
+        'gemini-flash-lite-latest',
+        'gemini-3.5-flash-lite',
+        'gemini-3.5-flash',
+        'gemini-3.6-flash',
+        'gemini-3.8-flash'
+    ];
 
     for (const model of modelsToTry) {
         try {
