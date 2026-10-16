@@ -3306,17 +3306,16 @@ function claimOrderWarranty(orderId, productTitle, credSnippet) {
     const ordersModal = document.getElementById('orders-modal');
     if (ordersModal) ordersModal.classList.add('hidden');
 
-    const chatInput = document.getElementById('spk-chat-input');
+    const chatInput = document.getElementById('spk-msg-input') || document.getElementById('spk-chat-input');
     if (chatInput) {
         chatInput.value = ticketText;
     }
 
-    const chatWidget = document.getElementById('spk-chat-widget');
-    const chatBtn = document.getElementById('spk-chat-btn');
-    if (chatWidget && chatWidget.classList.contains('hidden') && chatBtn) {
-        chatBtn.click();
-    } else if (typeof window.openChatWidget === 'function') {
-        window.openChatWidget();
+    if (typeof openLiveChat === 'function') {
+        openLiveChat();
+    } else {
+        const chatBtn = document.getElementById('spk-chat-btn');
+        if (chatBtn) chatBtn.click();
     }
 
     showToast('คัดลอกข้อมูลแจ้งเคลมแล้ว! นำข้อมูลนี้ส่งให้แอดมินในแชทได้ทันที 💬', 'info');
