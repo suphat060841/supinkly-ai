@@ -1435,7 +1435,7 @@ function renderHighlightProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-[13px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[34px] sm:min-h-[46px] group-hover:text-pink-600 transition-colors leading-snug sm:leading-snug">
+                    <h3 class="text-[13px] sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[34px] sm:min-h-[46px] group-hover:text-pink-600 transition-colors leading-snug sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -1596,7 +1596,7 @@ function renderProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-[13px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[34px] sm:min-h-[46px] group-hover:text-pink-600 transition-colors leading-snug sm:leading-snug">
+                    <h3 class="text-[13px] sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[34px] sm:min-h-[46px] group-hover:text-pink-600 transition-colors leading-snug sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
@@ -2013,7 +2013,7 @@ function updateCartUI() {
                             ${escapeHTML(master.brandCode)}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-xs font-semibold text-slate-900 truncate">${escapeHTML(master.title)}</h4>
+                            <h4 class="text-xs font-normal text-slate-900 truncate">${escapeHTML(master.title)}</h4>
                             <div class="flex items-baseline gap-1.5 mt-0.5">
                                 <span class="text-xs sm:text-sm font-black text-pink-600 font-['Outfit']">฿${formatProductPrice(master.price)}</span>
                                 ${item.quantity > 1 ? `<span class="text-[10px] text-slate-500 font-medium">(รวม ฿${(master.price * item.quantity).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>` : ''}
