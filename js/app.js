@@ -586,6 +586,16 @@ async function syncCatalogWithServer() {
                     updated = true;
                 }
             }
+            if (mergedPrices['goo-03']) {
+                const isCorrupt = typeof mergedPrices['goo-03'].price !== 'number' || mergedPrices['goo-03'].price < 1;
+                const isAutoUndercut = mergedPrices['goo-03'].manualOverride !== true && mergedPrices['goo-03'].price < 250;
+                if (isCorrupt || isAutoUndercut) {
+                    mergedPrices['goo-03'].price = 250.00;
+                    mergedPrices['goo-03'].originalPrice = 690.00;
+                    mergedPrices['goo-03'].manualOverride = true;
+                    updated = true;
+                }
+            }
             if (mergedPrices['goo-ai-01']) {
                 const isCorrupt = typeof mergedPrices['goo-ai-01'].price !== 'number' || mergedPrices['goo-ai-01'].price < 1;
                 const isAutoUndercut = mergedPrices['goo-ai-01'].manualOverride !== true && mergedPrices['goo-ai-01'].price < 150;
@@ -4608,6 +4618,9 @@ function getEnglishG2GRawTitle(master, fallback = '') {
     const title = ((master && master.title) || fallback || '').toLowerCase();
 
     // Standard known mapping for G2G Global listings (100% English)
+    if (pid === 'goo-03' || (title.includes('5tb') && (title.includes('1 เดือน') || title.includes('1 month')))) {
+        return 'Google One 5TB Cloud Storage 1 Month Subscription Global Activation Link';
+    }
     if (pid === 'goo-02' || title.includes('5tb') || (brand.includes('google') && title.includes('18'))) {
         return 'Google One 5TB Cloud Storage 18 Months Subscription Global Activation Link';
     }

@@ -194,6 +194,7 @@ app.get('/api/public/exchange-rate', async (req, res) => {
 // ─── Public G2G Market Feed & Search Catalog (Free, No Key Required) ────────
 const G2G_PUBLIC_BENCHMARKS = {
     "goo-02":    { title: "Google One 5TB Cloud Storage 18 Months Subscription Global Activation Link", baseCostUSD: 3.25, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+One+Subscription+Pro+5TB" },
+    "goo-03":    { title: "Google One 5TB Cloud Storage 1 Month Subscription Global Activation Link", baseCostUSD: 3.25, g2gStock: 70, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+One+Subscription+Pro+5TB" },
     "goo-ai-01": { title: "Google One 2TB with Gemini Advanced AI Pro 1 Month Global Activation Link", baseCostUSD: 1.95, g2gStock: 73, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Google+Gemini+Advanced" },
     "ms-01":     { title: "Windows 11 Professional OEM CD Key Global", baseCostUSD: 3.50, g2gStock: 85, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Windows+11+Pro+OEM+Key" },
     "ms-02":     { title: "Microsoft 365 Personal 1 Month Subscription Global", baseCostUSD: 2.80, g2gStock: 60, g2gUrl: "https://www.google.com/search?q=site:g2g.com+Microsoft+365" }
@@ -1117,6 +1118,7 @@ function computeSlipSHA256(buffer) {
 // Master catalog price list (Single source of truth on server - Activation Links & License Keys)
 const MASTER_CATALOG = {
     "goo-02":    { title: "Google One Subscription Pro 5TB (18 เดือน) - Activation Link", price: 250.00, warranty: "30 วัน" },
+    "goo-03":    { title: "Gemini Pro / Google One 5TB (1 เดือน) - Activation Link", price: 250.00, warranty: "30 วัน" },
     "goo-ai-01": { title: "Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link", price: 150.00, warranty: "30 วัน" },
     "ms-01":     { title: "Windows 11 Pro OEM License Key - แท้ตลอดชีพ", price: 290.00, warranty: "ตลอดชีพ" },
     "ms-02":     { title: "Microsoft 365 Personal (1 เดือน) - Activation Link", price: 259.00, warranty: "30 วัน" }
@@ -5114,11 +5116,12 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 บุคลิกของคุณ: สุภาพ ร่าเริง อ่อนน้อม เป็นมิตร สรรพนามแทนตัวเองว่า "น้องพิงกี้" และลงท้ายด้วย "ครับ/ผม" เสมอ
 
 ข้อมูลสำคัญของร้าน:
-- สินค้าที่วางจำหน่าย (มีเฉพาะ 4 รายการนี้เท่านั้น):
+- สินค้าที่วางจำหน่าย (มี 5 รายการ):
   1. Google One Subscription Pro 5TB (18 เดือน) - Activation Link (฿250.00) - เปิดสิทธิ์ตรงเข้า Gmail เดิม ไม่ต้องย้ายข้อมูล คลาวด์ 5TB ยาวนาน 18 เดือน เฉลี่ยเพียง 0.46 บาท/วัน
-  2. Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link (฿150.00) - อัปเกรดตรงเข้า Gmail ของคุณ ปลอดภัย 100% ได้โมเดลเรือธง Gemini Advanced + พื้นที่ 2TB
-  3. Windows 11 Pro OEM License Key (แท้ตลอดชีพ) (฿290.00) - คีย์แท้ 25 หลัก ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ตลอดชีพ
-  4. Microsoft 365 Personal (1 เดือน) - Activation Link (฿259.00) - ปลดล็อก Office ครบวงจร Word, Excel, PowerPoint + OneDrive 1TB ใช้งานได้ 5 เครื่อง
+  2. Gemini Pro / Google One 5TB (1 เดือน) - Activation Link (฿250.00) - เปิดสิทธิ์ตรงเข้า Gmail เดิม ไม่ต้องย้ายข้อมูล คลาวด์ 5TB พร้อมโมเดลใหม่ Gemini 4 Argon
+  3. Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link (฿150.00) - อัปเกรดตรงเข้า Gmail ของคุณ ปลอดภัย 100% ได้โมเดลเรือธง Gemini Advanced + พื้นที่ 2TB
+  4. Windows 11 Pro OEM License Key (แท้ตลอดชีพ) (฿290.00) - คีย์แท้ 25 หลัก ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ตลอดชีพ
+  5. Microsoft 365 Personal (1 เดือน) - Activation Link (฿259.00) - ปลดล็อก Office ครบวงจร Word, Excel, PowerPoint + OneDrive 1TB ใช้งานได้ 5 เครื่อง
 - นโยบายสินค้าสำคัญ:
   ❌ ทางร้าน "ไม่มีการจำหน่ายบัญชีส่วนตัว (Private Account)" หรือ "บัญชีหาร (Shared Account)" เด็ดขาด 100%
   ✅ สินค้าของร้านเป็น "ลิงก์เปิดสิทธิ์ทางการ (Activation Link)" เพื่อเปิดสิทธิ์บนบัญชีเดิมของลูกค้า และ "รหัสคีย์แท้ (OEM Key)" เท่านั้น ปลอดภัย 100% ไม่ต้องส่งรหัสผ่าน ไม่มีความเสี่ยงโดนดึงคืน
@@ -5373,8 +5376,9 @@ async function getBotResponse(userMsg, sessionId) {
         return `💡 **นโยบายสินค้าของร้าน Supinkly.AI:**\n\n` +
             `❌ ทางร้าน**ไม่มีการจำหน่ายบัญชีส่วนตัว (Private Account) หรือบัญชีหาร (Shared Account)** เด็ดขาดครับ!\n\n` +
             `✅ ทางร้านเน้นจำหน่ายเฉพาะ **ลิงก์เปิดสิทธิ์ทางการ (Activation Link)** และ **รหัสคีย์แท้ (OEM Key)** ที่เปิดสิทธิ์บนบัญชีเดิมของลูกค้าโดยตรง 100% ปลอดภัย ไม่ต้องบอกรหัสผ่าน หมดปัญหาบัญชีโดนดึงคืนครับ ✨\n\n` +
-            `📌 **สินค้าพร้อมส่งมอบในระบบขณะนี้ (4 รายการ):**\n` +
+            `📌 **สินค้าพร้อมส่งมอบในระบบขณะนี้ (5 รายการ):**\n` +
             `• 🔗 **Google One Pro 5TB (18 เดือน) - Activation Link:** **฿250.00**\n` +
+            `• 🔗 **Gemini Pro / Google One 5TB (1 เดือน) - Activation Link:** **฿250.00**\n` +
             `• 🔗 **Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link:** **฿150.00**\n` +
             `• 🪟 **Windows 11 Pro OEM License Key (แท้ตลอดชีพ):** **฿290.00**\n` +
             `• 📄 **Microsoft 365 Personal (1 เดือน) - Activation Link:** **฿259.00**\n\n` +
@@ -5383,9 +5387,11 @@ async function getBotResponse(userMsg, sessionId) {
 
     if (/gemini|google ai|google drive|ไดรฟ์|กูเกิล|พื้นที่/i.test(q)) {
         const p1 = getProductLivePrice('goo-02', 250);
+        const p1m = getProductLivePrice('goo-03', 250);
         const p2 = getProductLivePrice('goo-ai-01', 150);
         return `🌐 **Google One & Google AI ลิขสิทธิ์แท้ 100% (Activation Link):**\n\n` +
             `• 🔗 **Google One Subscription Pro 5TB (18 เดือน):** **฿${p1.toFixed(2)}** (เปิดสิทธิ์ตรงเข้า Gmail เดิม ไม่ต้องย้ายข้อมูล คลาวด์ 5TB ยาวนาน 18 เดือน เฉลี่ยเพียง 0.46 บาท/วัน)\n` +
+            `• 🔗 **Gemini Pro / Google One 5TB (1 เดือน):** **฿${p1m.toFixed(2)}** (เปิดสิทธิ์ตรงเข้า Gmail เดิม ไม่ต้องย้ายข้อมูล คลาวด์ 5TB พร้อมโมเดลใหม่ Gemini 4 Argon)\n` +
             `• 🔗 **Google AI Pro (Gemini Advanced 1 เดือน):** **฿${p2.toFixed(2)}** (อัปเกรดเข้า Gmail ของคุณโดยตรง ได้รับโมเดลเรือธง Gemini Advanced + พื้นที่ 2TB)\n\n` +
             `🛡️ ปลอดภัย 100% ไม่ต้องแชร์ ไม่ต้องให้รหัสผ่าน รับประกัน 30 วันเต็ม พร้อมส่งมอบตลอด 24 ชม. ครับ!`;
     }
@@ -5401,31 +5407,36 @@ async function getBotResponse(userMsg, sessionId) {
 
     if (/รายละเอียดโปรแกรม|เกี่ยวกับโปรแกรม|ข้อมูลโปรแกรม|มีโปรแกรม|โปรแกรมอะไร|แนะนำโปรแกรม|โปรแกรม|ซอฟต์แวร์|software|แอป|แอพ|app/i.test(q)) {
         const pGoo5TB = getProductLivePrice('goo-02', 250);
+        const pGoo1M = getProductLivePrice('goo-03', 250);
         const pGemini = getProductLivePrice('goo-ai-01', 150);
         const pWin = getProductLivePrice('ms-01', 290);
         const pOff = getProductLivePrice('ms-02', 259);
         return `💻 **รายละเอียดซอฟต์แวร์ลิขสิทธิ์แท้ในร้าน Supinkly.AI:**\n\n` +
             `1️⃣ **🌐 Google One Subscription Pro 5TB (18 เดือน):**\n` +
             `• **฿${pGoo5TB.toFixed(2)}** (เปิดสิทธิ์ตรงเข้า Gmail เดิม คลาวด์ 5,000 GB ยาวนาน 18 เดือน พร้อมฟีเจอร์ AI ครบชุด)\n\n` +
-            `2️⃣ **🧠 Google AI Pro (Gemini Advanced 1 เดือน):**\n` +
+            `2️⃣ **🌐 Gemini Pro / Google One 5TB (1 เดือน):**\n` +
+            `• **฿${pGoo1M.toFixed(2)}** (เปิดสิทธิ์ตรงเข้า Gmail เดิม คลาวด์ 5,000 GB 1 เดือน พร้อมโมเดลใหม่ Gemini 4 Argon)\n\n` +
+            `3️⃣ **🧠 Google AI Pro (Gemini Advanced 1 เดือน):**\n` +
             `• **฿${pGemini.toFixed(2)}** (โมเดลเรือธง Gemini Advanced อัปเกรดเข้า Gmail ของคุณโดยตรง + 2TB คลาวด์)\n\n` +
-            `3️⃣ **🪟 Windows 11 Pro OEM License Key (แท้ตลอดชีพ):**\n` +
+            `4️⃣ **🪟 Windows 11 Pro OEM License Key (แท้ตลอดชีพ):**\n` +
             `• **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก เปิดสิทธิ์ถาวรตลอดชีพ ผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ตลอดชีพ)\n\n` +
-            `4️⃣ **📄 Microsoft 365 Personal (1 เดือน - Activation Link):**\n` +
+            `5️⃣ **📄 Microsoft 365 Personal (1 เดือน - Activation Link):**\n` +
             `• **฿${pOff.toFixed(2)}** (Word, Excel, PowerPoint, Outlook + OneDrive 1TB ใช้งานได้ 5 เครื่องพร้อมกัน)\n\n` +
             `🛡️ ทุกรายการเป็น Activation Link และ OEM Key แท้ ไม่มีการแชร์บัญชีกับใคร ปลอดภัย 100% ครับ!`;
     }
 
     if (/มีสินค้าอะไร|ขายอะไร|รายการสินค้า|แคตตาล็อก|มีอะไรบ้าง|แนะนำสินค้า/i.test(q)) {
         const pGoo5TB = getProductLivePrice('goo-02', 250);
+        const pGoo1M = getProductLivePrice('goo-03', 250);
         const pGemini = getProductLivePrice('goo-ai-01', 150);
         const pWin = getProductLivePrice('ms-01', 290);
         const pOff = getProductLivePrice('ms-02', 259);
         return `🛍️ **รายการสินค้าลิขสิทธิ์แท้ในร้าน Supinkly.AI มีดังนี้ครับ:**\n\n` +
             `1️⃣ **Google One Subscription Pro 5TB (18 เดือน):** **฿${pGoo5TB.toFixed(2)}** (Activation Link เข้า Gmail เดิม)\n` +
-            `2️⃣ **Google AI Pro (Gemini Advanced 1 เดือน):** **฿${pGemini.toFixed(2)}** (Activation Link อัปเกรด Gemini + คลาวด์ 2TB)\n` +
-            `3️⃣ **Windows 11 Pro OEM License Key:** **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก ตลอดชีพ ผูกเมนบอร์ด)\n` +
-            `4️⃣ **Microsoft 365 Personal (1 เดือน):** **฿${pOff.toFixed(2)}** (Activation Link ชุด Office ครบชุด + OneDrive 1TB)\n\n` +
+            `2️⃣ **Gemini Pro / Google One 5TB (1 เดือน):** **฿${pGoo1M.toFixed(2)}** (Activation Link เข้า Gmail เดิม)\n` +
+            `3️⃣ **Google AI Pro (Gemini Advanced 1 เดือน):** **฿${pGemini.toFixed(2)}** (Activation Link อัปเกรด Gemini + คลาวด์ 2TB)\n` +
+            `4️⃣ **Windows 11 Pro OEM License Key:** **฿${pWin.toFixed(2)}** (คีย์แท้ 25 หลัก ตลอดชีพ ผูกเมนบอร์ด)\n` +
+            `5️⃣ **Microsoft 365 Personal (1 เดือน):** **฿${pOff.toFixed(2)}** (Activation Link ชุด Office ครบชุด + OneDrive 1TB)\n\n` +
             `✨ ทุกรายการเป็นลิงก์เปิดสิทธิ์ทางการและคีย์แท้ **ไม่มีบัญชีหาร และไม่มีบัญชีแชร์** ปลอดภัย 100% ครับ!`;
     }
 
@@ -5500,6 +5511,7 @@ async function getBotResponse(userMsg, sessionId) {
     return `น้องพิงกี้ AI ผู้ช่วยร้าน Supinkly ยินดีให้บริการครับ! 💖\n\n` +
         `สำหรับข้อความที่คุณลูกค้าสอบถามเข้ามา น้องพิงกี้ขอแนะนำรายการสินค้าลิขสิทธิ์แท้ของทางร้านครับ:\n\n` +
         `• 🔗 **Google One Pro 5TB (18 เดือน) - Activation Link:** ฿250.00\n` +
+        `• 🔗 **Gemini Pro / Google One 5TB (1 เดือน) - Activation Link:** ฿250.00\n` +
         `• 🔗 **Google AI Pro (Gemini Advanced 1 เดือน) - Activation Link:** ฿150.00\n` +
         `• 🪟 **Windows 11 Pro OEM License Key (แท้ตลอดชีพ):** ฿290.00\n` +
         `• 📄 **Microsoft 365 Personal (1 เดือน) - Activation Link:** ฿259.00\n\n` +

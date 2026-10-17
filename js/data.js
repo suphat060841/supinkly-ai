@@ -59,6 +59,29 @@ const PRODUCTS = [
         description: "• เปิดสิทธิ์ตรงเข้า Gmail เดิมของคุณ ไม่ต้องย้ายข้อมูล ไม่ต้องเปิดเผยรหัสผ่าน\n• เพิ่มพื้นที่ Google One 5TB (5,000 GB) ยาวนาน 18 เดือน พร้อมโมเดลใหม่ Gemini 4 Argon (ดีกว่า Pro x4)\n• ครบทั้ง Google Flow (สร้างภาพและวิดีโอ AI), Google Antigravity & TTS, และ Google Workspace ครบชุด"
     },
     {
+        id: "goo-03",
+        brand: "Google One",
+        brandCode: "GOO",
+        brandBadgeColor: "from-blue-500 via-green-500 to-yellow-500",
+        title: "Gemini Pro / Google One 5TB (1 เดือน) - Activation Link",
+        g2gRawTitle: "Google One 5TB Cloud Storage 1 Month Subscription Global Activation Link",
+        subtitle: "เปิดสิทธิ์บนบัญชี Google ของคุณโดยตรง • คลาวด์ 5TB (1 เดือน) พร้อมโมเดลใหม่ Gemini 4 Argon",
+        badge: "🔥 ดีลพิเศษ 1 เดือน",
+        isHighlight: true,
+        type: "ลิงก์เปิดสิทธิ์ (Link)",
+        typeKey: "link",
+        duration: "1 เดือน (1 Month)",
+        region: "Global (ใช้งานได้ทั่วโลก)",
+        devices: "ทุกอุปกรณ์ (PC, Mac, Mobile)",
+        price: 250.00,
+        originalPrice: 690.00,
+        soldCount: 290,
+        rating: 5.0,
+        deliveryType: "instant",
+        warranty: "30 วัน",
+        description: "• เปิดสิทธิ์ตรงเข้า Gmail เดิมของคุณ ไม่ต้องย้ายข้อมูล ไม่ต้องเปิดเผยรหัสผ่าน\n• เพิ่มพื้นที่ Google One 5TB (5,000 GB) 1 เดือน พร้อมโมเดลใหม่ Gemini 4 Argon (ดีกว่า Pro x4)\n• ครบทั้ง Google Flow (สร้างภาพและวิดีโอ AI), Google Antigravity & TTS, และ Google Workspace ครบชุด"
+    },
+    {
         id: "goo-ai-01",
         brand: "Google AI",
         brandCode: "GOO",
@@ -183,6 +206,16 @@ try {
                     parsedPrices['goo-02'].price = 250.00;
                     parsedPrices['goo-02'].originalPrice = 690.00;
                     parsedPrices['goo-02'].manualOverride = true;
+                    pricesFixed = true;
+                }
+            }
+            if (parsedPrices['goo-03']) {
+                const isCorrupt = typeof parsedPrices['goo-03'].price !== 'number' || parsedPrices['goo-03'].price < 1;
+                const isAutoUndercut = parsedPrices['goo-03'].manualOverride !== true && parsedPrices['goo-03'].price < 250;
+                if (isCorrupt || isAutoUndercut) {
+                    parsedPrices['goo-03'].price = 250.00;
+                    parsedPrices['goo-03'].originalPrice = 690.00;
+                    parsedPrices['goo-03'].manualOverride = true;
                     pricesFixed = true;
                 }
             }
