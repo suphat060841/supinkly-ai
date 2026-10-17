@@ -426,14 +426,14 @@ function getAllMasterProducts(includeDeleted = false) {
 const DEFAULT_PROMOTIONS = [
     {
         code: "SUPINKLY10",
-        title: "ส่วนลดต้อนรับสมาชิกใหม่ 10%",
-        description: "รับส่วนลด 10% ทุกรายการ เมื่อสั่งซื้อขั้นต่ำ ฿100 (ลดสูงสุด ฿100)",
+        title: "ส่วนลดต้อนรับสมาชิกใหม่ 5%",
+        description: "รับส่วนลด 5% ทุกรายการ เมื่อสั่งซื้อขั้นต่ำ ฿150 (ลดสูงสุด ฿25)",
         discountType: "percent",
         type: "percentage",
-        discountValue: 10,
-        value: 10,
-        minSpend: 100,
-        maxDiscount: 100,
+        discountValue: 5,
+        value: 5,
+        minSpend: 150,
+        maxDiscount: 25,
         expiresAt: "2026-12-31",
         active: true,
         badge: "🔥 โค้ดยอดฮิต",
@@ -441,14 +441,14 @@ const DEFAULT_PROMOTIONS = [
     },
     {
         code: "PINKLOVE50",
-        title: "ส่วนลดพิเศษ Supinkly ฿50",
-        description: "ลดทันที ฿50 เมื่อช้อปครบ ฿300 ขึ้นไป สิทธิ์คุ้มจุใจ",
+        title: "ส่วนลดพิเศษ Supinkly ฿20",
+        description: "ลดทันที ฿20 เมื่อช้อปครบ ฿350 ขึ้นไป คุ้มค่ากำลังดี",
         discountType: "fixed",
         type: "fixed",
-        discountValue: 50,
-        value: 50,
-        minSpend: 300,
-        maxDiscount: 50,
+        discountValue: 20,
+        value: 20,
+        minSpend: 350,
+        maxDiscount: 20,
         expiresAt: "2026-12-31",
         active: true,
         badge: "💖 แนะนำ",
@@ -456,14 +456,14 @@ const DEFAULT_PROMOTIONS = [
     },
     {
         code: "NEWAI20",
-        title: "ส่วนลดคีย์ AI สุดคุ้ม 20%",
-        description: "ลด 20% สำหรับคีย์และบัญชี AI ยอดขั้นต่ำ ฿250 (ลดสูงสุด ฿150)",
+        title: "ส่วนลดคีย์ AI สุดคุ้ม 7%",
+        description: "ลด 7% สำหรับคีย์และบัญชี AI ยอดขั้นต่ำ ฿300 (ลดสูงสุด ฿35)",
         discountType: "percent",
         type: "percentage",
-        discountValue: 20,
-        value: 20,
-        minSpend: 250,
-        maxDiscount: 150,
+        discountValue: 7,
+        value: 7,
+        minSpend: 300,
+        maxDiscount: 35,
         expiresAt: "2026-12-31",
         active: true,
         badge: "⚡ AI สปีด",
@@ -471,14 +471,14 @@ const DEFAULT_PROMOTIONS = [
     },
     {
         code: "VIP100",
-        title: "ส่วนลด VIP ลูกค้าคนสำคัญ ฿100",
-        description: "ลดทันที ฿100 เมื่อช้อปครบ ฿600 ขึ้นไป คุ้มที่สุดสำหรับแพ็คเกจใหญ่",
+        title: "ส่วนลด VIP ลูกค้าคนสำคัญ ฿35",
+        description: "ลดทันที ฿35 เมื่อช้อปครบ ฿700 ขึ้นไป สิทธิพิเศษสำหรับยอดสั่งซื้อใหญ่",
         discountType: "fixed",
         type: "fixed",
-        discountValue: 100,
-        value: 100,
-        minSpend: 600,
-        maxDiscount: 100,
+        discountValue: 35,
+        value: 35,
+        minSpend: 700,
+        maxDiscount: 35,
         expiresAt: "2026-12-31",
         active: true,
         badge: "👑 VIP DEAL",
@@ -520,27 +520,34 @@ function validateCouponCode(code, subtotal) {
     if (!code || typeof code !== 'string') {
         return { valid: false, message: "กรุณากรอกโค้ดส่วนลด" };
     }
-    const cleanCode = code.trim().toUpperCase();
+    const rawCode = code.trim().toUpperCase();
+    const COUPON_ALIASES = {
+        'SUPINKLY5': 'SUPINKLY10',
+        'PINKLOVE20': 'PINKLOVE50',
+        'NEWAI7': 'NEWAI20',
+        'VIP35': 'VIP100'
+    };
+    const cleanCode = COUPON_ALIASES[rawCode] || rawCode;
     const promotions = getStorePromotions();
     const coupon = promotions.find(p => (p.code || '').toUpperCase() === cleanCode);
 
     if (!coupon) {
-        return { valid: false, message: `ไม่พบโค้ดส่วนลด "${cleanCode}" หรือโค้ดหมดอายุแล้ว` };
+        return { valid: false, message: `ไม่พบโค้ดส่วนลด "${rawCode}" หรือโค้ดหมดอายุแล้ว` };
     }
 
     if (coupon.active === false) {
-        return { valid: false, message: `โค้ดส่วนลด "${cleanCode}" ถูกปิดใช้งานชั่วคราว` };
+        return { valid: false, message: `โค้ดส่วนลด "${coupon.code}" ถูกปิดใช้งานชั่วคราว` };
     }
 
     if (coupon.expiresAt) {
         const exp = new Date(coupon.expiresAt + 'T23:59:59');
         if (!isNaN(exp.getTime()) && Date.now() > exp.getTime()) {
-            return { valid: false, message: `โค้ดส่วนลด "${cleanCode}" หมดอายุการใช้งานแล้ว` };
+            return { valid: false, message: `โค้ดส่วนลด "${coupon.code}" หมดอายุการใช้งานแล้ว` };
         }
     }
 
     if (coupon.usageLimit && typeof coupon.usedCount === 'number' && coupon.usedCount >= coupon.usageLimit) {
-        return { valid: false, message: `โค้ดส่วนลด "${cleanCode}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` };
+        return { valid: false, message: `โค้ดส่วนลด "${coupon.code}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` };
     }
 
     const currentSubtotal = Math.max(0, subtotal || 0);
@@ -549,7 +556,7 @@ function validateCouponCode(code, subtotal) {
     if (currentSubtotal < minSpend) {
         return {
             valid: false,
-            message: `โค้ด "${cleanCode}" ใช้ได้เมื่อมียอดสั่งซื้อขั้นต่ำ ฿${minSpend.toFixed(2)} (ขาดอีก ฿${(minSpend - currentSubtotal).toFixed(2)})`
+            message: `โค้ด "${coupon.code}" ใช้ได้เมื่อมียอดสั่งซื้อขั้นต่ำ ฿${minSpend.toFixed(2)} (ขาดอีก ฿${(minSpend - currentSubtotal).toFixed(2)})`
         };
     }
 
@@ -558,12 +565,15 @@ function validateCouponCode(code, subtotal) {
 
     let discountAmount = 0;
     if (isPercent) {
-        discountAmount = Math.round((currentSubtotal * discountVal / 100) * 100) / 100;
-        if (coupon.maxDiscount && coupon.maxDiscount > 0) {
-            discountAmount = Math.min(discountAmount, coupon.maxDiscount);
-        }
+        // Safe percentage ceiling: max 10%
+        const safePercent = Math.min(discountVal, 10);
+        discountAmount = Math.round((currentSubtotal * safePercent / 100) * 100) / 100;
+        const maxCap = (coupon.maxDiscount && coupon.maxDiscount > 0) ? Math.min(coupon.maxDiscount, 50) : 50;
+        discountAmount = Math.min(discountAmount, maxCap);
     } else {
-        discountAmount = Math.min(currentSubtotal, discountVal);
+        // Safe fixed ceiling: max ฿50 or 10% of subtotal
+        const fixedCap = Math.min(discountVal, 50, Math.round(currentSubtotal * 0.10 * 100) / 100);
+        discountAmount = Math.min(currentSubtotal, fixedCap);
     }
 
     discountAmount = Math.max(0, Math.round(discountAmount * 100) / 100);

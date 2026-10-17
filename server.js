@@ -790,48 +790,56 @@ setInterval(createAutoDatabaseSnapshot, 6 * 60 * 60 * 1000);
 const DEFAULT_SERVER_COUPONS = [
     {
         code: "SUPINKLY10",
-        title: "ส่วนลดต้อนรับสมาชิกใหม่ 10%",
-        description: "รับส่วนลด 10% ทุกรายการ เมื่อสั่งซื้อขั้นต่ำ ฿100 (ลดสูงสุด ฿100)",
+        title: "ส่วนลดต้อนรับสมาชิกใหม่ 5%",
+        description: "รับส่วนลด 5% ทุกรายการ เมื่อสั่งซื้อขั้นต่ำ ฿150 (ลดสูงสุด ฿25)",
+        discountType: "percent",
         type: "percentage",
-        value: 10,
-        minSpend: 100,
-        maxDiscount: 100,
+        discountValue: 5,
+        value: 5,
+        minSpend: 150,
+        maxDiscount: 25,
         expiresAt: "2026-12-31",
         active: true,
         badge: "🔥 โค้ดยอดฮิต"
     },
     {
         code: "PINKLOVE50",
-        title: "ส่วนลดพิเศษ Supinkly ฿50",
-        description: "ลดทันที ฿50 เมื่อช้อปครบ ฿300 ขึ้นไป สิทธิ์คุ้มจุใจ",
+        title: "ส่วนลดพิเศษ Supinkly ฿20",
+        description: "ลดทันที ฿20 เมื่อช้อปครบ ฿350 ขึ้นไป คุ้มค่ากำลังดี",
+        discountType: "fixed",
         type: "fixed",
-        value: 50,
-        minSpend: 300,
-        maxDiscount: 50,
+        discountValue: 20,
+        value: 20,
+        minSpend: 350,
+        maxDiscount: 20,
         expiresAt: "2026-12-31",
         active: true,
         badge: "💖 แนะนำ"
     },
     {
         code: "NEWAI20",
-        title: "ส่วนลดคีย์ AI สุดคุ้ม 20%",
-        description: "ลด 20% สำหรับคีย์และบัญชี AI ยอดขั้นต่ำ ฿250 (ลดสูงสุด ฿150)",
+        title: "ส่วนลดคีย์ AI สุดคุ้ม 7%",
+        description: "ลด 7% สำหรับคีย์และบัญชี AI ยอดขั้นต่ำ ฿300 (ลดสูงสุด ฿35)",
+        discountType: "percent",
         type: "percentage",
-        value: 20,
-        minSpend: 250,
-        maxDiscount: 150,
+        discountValue: 7,
+        value: 7,
+        minSpend: 300,
+        maxDiscount: 35,
         expiresAt: "2026-12-31",
         active: true,
         badge: "⚡ AI สปีด"
     },
     {
         code: "VIP100",
-        title: "ส่วนลด VIP ลูกค้าคนสำคัญ ฿100",
-        description: "ลดทันที ฿100 เมื่อช้อปครบ ฿600 ขึ้นไป คุ้มที่สุดสำหรับแพ็คเกจใหญ่",
+        title: "ส่วนลด VIP ลูกค้าคนสำคัญ ฿35",
+        description: "ลดทันที ฿35 เมื่อช้อปครบ ฿700 ขึ้นไป สิทธิพิเศษสำหรับยอดสั่งซื้อใหญ่",
+        discountType: "fixed",
         type: "fixed",
-        value: 100,
-        minSpend: 600,
-        maxDiscount: 100,
+        discountValue: 35,
+        value: 35,
+        minSpend: 700,
+        maxDiscount: 35,
         expiresAt: "2026-12-31",
         active: true,
         badge: "👑 VIP DEAL"
@@ -1319,38 +1327,48 @@ app.post('/api/checkout/verify-slip', checkoutRateLimit, upload.single('slip'), 
         let appliedCouponInfo = null;
         let discountAmount = 0;
 
-        const promoCode = (req.body.promoCode || '').trim().toUpperCase();
-        if (promoCode) {
+        const rawPromoCode = (req.body.promoCode || '').trim().toUpperCase();
+        if (rawPromoCode) {
+            const COUPON_ALIASES = {
+                'SUPINKLY5': 'SUPINKLY10',
+                'PINKLOVE20': 'PINKLOVE50',
+                'NEWAI7': 'NEWAI20',
+                'VIP35': 'VIP100'
+            };
+            const promoCode = COUPON_ALIASES[rawPromoCode] || rawPromoCode;
             const coupons = db.coupons || DEFAULT_SERVER_COUPONS;
             const coupon = coupons.find(c => c.code && c.code.toUpperCase() === promoCode && c.active);
             if (!coupon) {
-                return res.status(400).json({ success: false, message: `ไม่พบโค้ดส่วนลด "${promoCode}" หรือโค้ดถูกปิดใช้งาน` });
+                return res.status(400).json({ success: false, message: `ไม่พบโค้ดส่วนลด "${rawPromoCode}" หรือโค้ดถูกปิดใช้งาน` });
             }
 
             if (coupon.expiresAt) {
                 const exp = new Date(coupon.expiresAt + 'T23:59:59');
                 if (!isNaN(exp.getTime()) && Date.now() > exp.getTime()) {
-                    return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${promoCode}" หมดอายุแล้ว` });
+                    return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${coupon.code}" หมดอายุแล้ว` });
                 }
             }
 
             if (coupon.usageLimit && typeof coupon.usedCount === 'number' && coupon.usedCount >= coupon.usageLimit) {
-                return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${promoCode}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` });
+                return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${coupon.code}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` });
             }
 
             if (expectedTotal < (coupon.minSpend || 0)) {
-                return res.status(400).json({ success: false, message: `ยอดสั่งซื้อไม่ถึงเกณฑ์ขั้นต่ำสำหรับโค้ดส่วนลด "${promoCode}" (ขั้นต่ำ ฿${coupon.minSpend})` });
+                return res.status(400).json({ success: false, message: `ยอดสั่งซื้อไม่ถึงเกณฑ์ขั้นต่ำสำหรับโค้ดส่วนลด "${coupon.code}" (ขั้นต่ำ ฿${coupon.minSpend})` });
             }
 
             const isPercent = (coupon.discountType === 'percent' || coupon.type === 'percentage' || coupon.type === 'percent');
             const val = typeof coupon.discountValue === 'number' ? coupon.discountValue : (typeof coupon.value === 'number' ? coupon.value : 0);
             if (isPercent) {
-                discountAmount = Math.round((expectedTotal * val / 100) * 100) / 100;
-                if (coupon.maxDiscount && coupon.maxDiscount > 0) {
-                    discountAmount = Math.min(discountAmount, coupon.maxDiscount);
-                }
+                // Safe percentage ceiling: max 10%
+                const safePercent = Math.min(val, 10);
+                discountAmount = Math.round((expectedTotal * safePercent / 100) * 100) / 100;
+                const maxCap = (coupon.maxDiscount && coupon.maxDiscount > 0) ? Math.min(coupon.maxDiscount, 50) : 50;
+                discountAmount = Math.min(discountAmount, maxCap);
             } else {
-                discountAmount = Math.min(expectedTotal, val);
+                // Safe fixed ceiling: max ฿50 or 10% of subtotal
+                const fixedCap = Math.min(val, 50, Math.round(expectedTotal * 0.10 * 100) / 100);
+                discountAmount = Math.min(expectedTotal, fixedCap);
             }
             discountAmount = Math.max(0, Math.round(discountAmount * 100) / 100);
             expectedTotal = Math.max(1, Math.round((expectedTotal - discountAmount) * 100) / 100);
@@ -1826,24 +1844,31 @@ app.post('/api/promotions/validate', couponValidateRateLimit, (req, res) => {
     if (!code || typeof code !== 'string') {
         return res.status(400).json({ success: false, message: "กรุณาระบุโค้ดส่วนลด" });
     }
-    const cleanCode = code.trim().toUpperCase();
+    const rawCode = code.trim().toUpperCase();
+    const COUPON_ALIASES = {
+        'SUPINKLY5': 'SUPINKLY10',
+        'PINKLOVE20': 'PINKLOVE50',
+        'NEWAI7': 'NEWAI20',
+        'VIP35': 'VIP100'
+    };
+    const cleanCode = COUPON_ALIASES[rawCode] || rawCode;
     const db = getDb();
     const coupons = db.coupons || DEFAULT_SERVER_COUPONS;
     const coupon = coupons.find(c => c.code && c.code.toUpperCase() === cleanCode);
 
     if (!coupon || !coupon.active) {
-        return res.status(400).json({ success: false, message: `ไม่พบโค้ดส่วนลด "${cleanCode}" หรือโค้ดถูกปิดใช้งาน` });
+        return res.status(400).json({ success: false, message: `ไม่พบโค้ดส่วนลด "${rawCode}" หรือโค้ดถูกปิดใช้งาน` });
     }
 
     if (coupon.expiresAt) {
         const exp = new Date(coupon.expiresAt + 'T23:59:59');
         if (!isNaN(exp.getTime()) && Date.now() > exp.getTime()) {
-            return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${cleanCode}" หมดอายุแล้ว` });
+            return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${coupon.code}" หมดอายุแล้ว` });
         }
     }
 
     if (coupon.usageLimit && typeof coupon.usedCount === 'number' && coupon.usedCount >= coupon.usageLimit) {
-        return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${cleanCode}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` });
+        return res.status(400).json({ success: false, message: `โค้ดส่วนลด "${coupon.code}" มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้ว` });
     }
 
     const currentSubtotal = Math.max(0, parseFloat(subtotal) || 0);
@@ -1851,7 +1876,7 @@ app.post('/api/promotions/validate', couponValidateRateLimit, (req, res) => {
     if (currentSubtotal < minSpend) {
         return res.status(400).json({
             success: false,
-            message: `โค้ด "${cleanCode}" ใช้ได้เมื่อสั่งซื้อขั้นต่ำ ฿${minSpend.toFixed(2)} (ขาดอีก ฿${(minSpend - currentSubtotal).toFixed(2)})`
+            message: `โค้ด "${coupon.code}" ใช้ได้เมื่อสั่งซื้อขั้นต่ำ ฿${minSpend.toFixed(2)} (ขาดอีก ฿${(minSpend - currentSubtotal).toFixed(2)})`
         });
     }
 
@@ -1860,12 +1885,15 @@ app.post('/api/promotions/validate', couponValidateRateLimit, (req, res) => {
 
     let discountAmount = 0;
     if (isPercent) {
-        discountAmount = Math.round((currentSubtotal * val / 100) * 100) / 100;
-        if (coupon.maxDiscount && coupon.maxDiscount > 0) {
-            discountAmount = Math.min(discountAmount, coupon.maxDiscount);
-        }
+        // Safe percentage ceiling: max 10%
+        const safePercent = Math.min(val, 10);
+        discountAmount = Math.round((currentSubtotal * safePercent / 100) * 100) / 100;
+        const maxCap = (coupon.maxDiscount && coupon.maxDiscount > 0) ? Math.min(coupon.maxDiscount, 50) : 50;
+        discountAmount = Math.min(discountAmount, maxCap);
     } else {
-        discountAmount = Math.min(currentSubtotal, val);
+        // Safe fixed ceiling: max ฿50 or 10% of subtotal
+        const fixedCap = Math.min(val, 50, Math.round(currentSubtotal * 0.10 * 100) / 100);
+        discountAmount = Math.min(currentSubtotal, fixedCap);
     }
     discountAmount = Math.max(0, Math.round(discountAmount * 100) / 100);
     const netTotal = Math.max(1, Math.round((currentSubtotal - discountAmount) * 100) / 100);
@@ -5098,7 +5126,7 @@ async function callGeminiAI(userMsg, sessionId, apiKey) {
 - ประเภทสินค้า: Activation Link (ลิงก์เปิดสิทธิ์ทางการเข้าบัญชีเดิม), License Key (รหัสคีย์แท้ OEM)
 - ระบบส่งมอบ: จัดเตรียมและส่งมอบรหัสเข้าเมนู "คีย์ของฉัน" และอีเมลภายใน 5-15 นาทีหลังชำระเงิน
 - การชำระเงิน: สแกน PromptPay QR Code ตรวจสลิปด้วย AI อัตโนมัติ ปลอดภัย 100%
-- โค้ดส่วนลดปัจจุบัน: ${activeCoupons || 'SUPINKLY10 (ลด 10%), PINKLOVE50 (ลด ฿50)'}
+- โค้ดส่วนลดปัจจุบัน: ${activeCoupons || 'SUPINKLY10 (ลด 5%), PINKLOVE50 (ลด ฿20)'}
 - เพจ Facebook: https://www.facebook.com/profile.php?id=61594837747580
 
 คำแนะนำการตอบ:
@@ -5413,7 +5441,7 @@ async function getBotResponse(userMsg, sessionId) {
         }).join('\n');
 
         if (!couponList) {
-            couponList = '• `SUPINKLY10` — ลด 10% ทุกรายการ (ขั้นต่ำ ฿100)';
+            couponList = '• `SUPINKLY10` — ลด 5% ทุกรายการ (ขั้นต่ำ ฿150)';
         }
 
         return `🎟️ **โค้ดส่วนลดโปรโมชั่นที่ใช้ได้ในระบบขณะนี้:**\n\n${couponList}\n\n` +
