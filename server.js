@@ -61,12 +61,14 @@ const upload = multer({
     limits: { fileSize: 8 * 1024 * 1024 }, // 8MB limit: high resolution for mobile slips while protecting server RAM
     fileFilter: (req, file, cb) => {
         const allowedExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic'];
+        const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/pjpeg', 'image/x-png'];
         const ext = path.extname(file.originalname || '').toLowerCase();
         const mime = (file.mimetype || '').toLowerCase();
-        if (allowedExt.includes(ext) || mime.startsWith('image/')) {
+        // Strict verification: extension MUST be in whitelist AND MIME MUST be valid image MIME
+        if (allowedExt.includes(ext) && allowedMimes.includes(mime)) {
             cb(null, true);
         } else {
-            cb(new Error("รูปแบบไฟล์ไม่ถูกต้อง กรุณาอัปโหลดรูปภาพสลิป (JPG, PNG, WEBP)"));
+            cb(new Error("รูปแบบไฟล์ไม่ถูกต้อง กรุณาอัปโหลดรูปภาพสลิปที่ถูกต้อง (JPG, PNG, WEBP)"));
         }
     }
 });

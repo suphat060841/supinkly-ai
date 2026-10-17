@@ -6271,7 +6271,7 @@ async function handleAdminTestSlipOK() {
             }
             if (data && data.success) {
                 resultEl.className = "p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 sm:col-span-2 lg:col-span-3";
-                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'เชื่อมต่อ SlipOK สำเร็จ!'}`;
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${escapeHTML(data.message || 'เชื่อมต่อ SlipOK สำเร็จ!')}`;
                 const badge = document.getElementById('admin-slipok-status-badge');
                 if (badge) {
                     badge.textContent = `🟢 เชื่อมต่อสำเร็จ (โควต้า: ${data.quota || '-'})`;
@@ -6279,13 +6279,13 @@ async function handleAdminTestSlipOK() {
                 }
             } else {
                 resultEl.className = "p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 sm:col-span-2 lg:col-span-3";
-                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'การเชื่อมต่อล้มเหลว ตรวจสอบ Branch ID และ API Key'}`;
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${escapeHTML(data.message || 'การเชื่อมต่อล้มเหลว ตรวจสอบ Branch ID และ API Key')}`;
             }
         }
     } catch (e) {
         if (resultEl) {
             resultEl.className = "p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 sm:col-span-2 lg:col-span-3";
-            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบ SlipOK ได้ในขณะนี้ (${e.message})`;
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบ SlipOK ได้ในขณะนี้ (${escapeHTML(e.message || 'Network Error')})`;
         }
     } finally {
         if (btn) btn.disabled = false;
@@ -6357,16 +6357,16 @@ async function handleAdminTestDiscord() {
         if (resultEl) {
             if (data && data.success) {
                 resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200";
-                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message || 'ส่งแจ้งเตือนเข้า Discord สำเร็จ! ตรวจสอบที่ห้องแชทของคุณ'}`;
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${escapeHTML(data.message || 'ส่งแจ้งเตือนเข้า Discord สำเร็จ! ตรวจสอบที่ห้องแชทของคุณ')}`;
             } else {
                 resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200";
-                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${data.message || 'ส่งไม่สำเร็จ ตรวจสอบ Webhook URL'}`;
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> ${escapeHTML(data.message || 'ส่งไม่สำเร็จ ตรวจสอบ Webhook URL')}`;
             }
         }
     } catch (e) {
         if (resultEl) {
             resultEl.className = "mt-2 p-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200";
-            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบได้`;
+            resultEl.innerHTML = `⚠️ ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่อทดสอบได้ (${escapeHTML(e.message || 'Network Error')})`;
         }
     } finally {
         if (btn) btn.disabled = false;
