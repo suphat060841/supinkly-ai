@@ -1,21 +1,30 @@
 /* ==========================================================
-   Supinkly.AI - Bright, Vibrant & High-Contrast Pastel Theme
-   Colors inspired by Mascot: Bright Pink, Vivid Purple, Electric Cyan, Pure White
+   Supinkly.AI - Ultra-Modern Luxury Digital Storefront
+   Vibrant Pink / Purple / Electric Cyan / Pure Slate Theme
+   Designed for High-Conversion, Fluid Animations & Visual WOW
    ========================================================== */
 
 :root {
     --bg-main: #F8FAFC;
     --bg-surface: #FFFFFF;
     --primary-pink: #FF2E7E;
+    --primary-rose: #E11D48;
     --primary-purple: #8B5CF6;
+    --primary-violet: #7C3AED;
     --primary-cyan: #06B6D4;
     --accent-yellow: #F59E0B;
+    --accent-amber: #D97706;
+    --accent-emerald: #10B981;
     --text-primary: #0F172A;
-    --text-secondary: #475569;
+    --text-secondary: #334155;
     --text-muted: #64748B;
     --border-light: #E2E8F0;
     --border-pink: #FECDD3;
     --header-height: 104px;
+    --card-radius: 24px;
+    --glow-pink: rgba(255, 46, 126, 0.25);
+    --glow-purple: rgba(139, 92, 246, 0.2);
+    --glow-cyan: rgba(6, 182, 212, 0.18);
 }
 
 @media (min-width: 768px) {
@@ -28,59 +37,102 @@ html {
     overflow-x: hidden;
     max-width: 100vw;
     scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 body {
     background-color: var(--bg-main);
     color: var(--text-primary);
-    font-family: 'Prompt', 'Outfit', sans-serif;
+    font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow-x: hidden;
     max-width: 100vw;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
     background-image: 
-        radial-gradient(circle at 5% 15%, rgba(255, 46, 126, 0.08) 0%, transparent 40%),
-        radial-gradient(circle at 95% 25%, rgba(139, 92, 246, 0.09) 0%, transparent 45%),
-        radial-gradient(circle at 50% 65%, rgba(6, 182, 212, 0.07) 0%, transparent 50%),
-        radial-gradient(circle at 15% 85%, rgba(245, 158, 11, 0.06) 0%, transparent 35%);
+        radial-gradient(circle at 10% 8%, rgba(255, 46, 126, 0.09) 0%, transparent 45%),
+        radial-gradient(circle at 92% 12%, rgba(139, 92, 246, 0.11) 0%, transparent 50%),
+        radial-gradient(circle at 50% 45%, rgba(6, 182, 212, 0.08) 0%, transparent 48%),
+        radial-gradient(circle at 85% 75%, rgba(245, 158, 11, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 12% 85%, rgba(255, 46, 126, 0.08) 0%, transparent 45%),
+        radial-gradient(circle, rgba(203, 213, 225, 0.45) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 28px 28px;
     background-attachment: fixed;
 }
 
-/* Sticky Brand Tabs Bar Offset */
+/* Custom Text Selection */
+::selection {
+    background: #FF2E7E;
+    color: #FFFFFF;
+}
+
+/* ==========================================================
+   Typography & Number Accents
+   ========================================================== */
+.font-price,
+.font-number {
+    font-family: 'Outfit', sans-serif;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+    letter-spacing: -0.02em;
+}
+
+/* Gradient Text Shimmer */
+.gradient-supinkly {
+    background: linear-gradient(135deg, #FF1361 0%, #B000B5 48%, #00B4D8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+}
+
+.gradient-gold {
+    background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ==========================================================
+   Frosted Glass Components & Header
+   ========================================================== */
+.glass-header {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom: 1px solid rgba(244, 114, 182, 0.22);
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.glass-panel {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1.5px solid rgba(244, 114, 182, 0.28);
+    box-shadow: 0 8px 30px -4px rgba(225, 29, 72, 0.06), 0 2px 8px -1px rgba(0, 0, 0, 0.02);
+    border-radius: var(--card-radius);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel:hover {
+    border-color: rgba(255, 46, 126, 0.5);
+    box-shadow: 0 16px 36px -6px rgba(255, 46, 126, 0.18), 0 6px 14px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* Sticky Brand Tabs Bar */
 #brand-tabs-sticky-bar {
     top: var(--header-height, 104px);
-    transition: top 0.15s ease-out;
+    transition: top 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.85);
 }
 
 /* Safe Area Padding for iOS Devices */
 .pb-safe {
-    padding-bottom: max(0.5rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
+    padding-bottom: max(0.75rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)));
 }
 
-/* Bright Glass Panel with High Contrast */
-.glass-panel {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(244, 114, 182, 0.25);
-    box-shadow: 0 4px 20px -2px rgba(225, 29, 72, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
-}
-
-.glass-panel:hover {
-    border-color: rgba(255, 46, 126, 0.45);
-    box-shadow: 0 12px 30px -4px rgba(255, 46, 126, 0.15), 0 4px 10px -2px rgba(0, 0, 0, 0.04);
-}
-
-.glass-header {
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(244, 114, 182, 0.22);
-    box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.04);
-}
-
-/* Navigation Search Bar Optimization (Clear & High Contrast) */
+/* ==========================================================
+   Navigation Search Bar
+   ========================================================== */
 #search-input {
     width: 100% !important;
     min-width: 0 !important;
@@ -88,47 +140,73 @@ body {
     box-sizing: border-box !important;
     font-family: inherit;
     letter-spacing: 0.01em;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 #search-input:focus {
     background-color: #FFFFFF !important;
     border-color: #FF2E7E !important;
-    box-shadow: 0 0 0 3px rgba(255, 46, 126, 0.15), inset 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+    box-shadow: 0 0 0 4px rgba(255, 46, 126, 0.14), inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
 }
 
 /* Floating Badges on Navbar Action Icons */
 #nav-notification-count-badge,
 #nav-wishlist-count-badge,
 #cart-count-badge {
-    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
     line-height: 1;
     pointer-events: none;
+    animation: badgePop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Gradient Text */
-.gradient-supinkly {
-    background: linear-gradient(135deg, #FF1361 0%, #B000B5 50%, #00B4D8 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+@keyframes badgePop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
-/* Chunky Clickable Buttons */
+/* ==========================================================
+   Chunky & Tactile Gradient Buttons
+   ========================================================== */
 .gradient-btn {
-    background: linear-gradient(135deg, #FF2E7E 0%, #9333EA 100%);
+    background: linear-gradient(135deg, #FF2E7E 0%, #A855F7 100%);
     color: #FFFFFF !important;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 14px rgba(255, 46, 126, 0.35);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 15px rgba(255, 46, 126, 0.35);
+}
+
+.gradient-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.6s ease;
+}
+
+.gradient-btn:hover::before {
+    left: 100%;
 }
 
 .gradient-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 22px rgba(255, 46, 126, 0.5);
-    filter: brightness(1.05);
+    box-shadow: 0 8px 25px rgba(255, 46, 126, 0.5);
+    filter: brightness(1.04);
+}
+
+.gradient-btn:active {
+    transform: translateY(0) scale(0.97);
 }
 
 .gradient-btn-cyan {
     background: linear-gradient(135deg, #0284C7 0%, #06B6D4 100%);
     color: #FFFFFF !important;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
 }
 
@@ -137,61 +215,49 @@ body {
     box-shadow: 0 8px 22px rgba(2, 132, 199, 0.45);
 }
 
-/* Mascot Floating effect */
-@keyframes floatAnimation {
-    0%, 100% {
-        transform: translateY(0px) rotate(0deg);
-    }
-    50% {
-        transform: translateY(-8px) rotate(1.5deg);
-    }
+.gradient-btn-cyan:active {
+    transform: translateY(0) scale(0.97);
 }
 
-.mascot-float {
-    animation: floatAnimation 4s ease-in-out infinite;
+.gradient-btn-amber {
+    background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
+    color: #FFFFFF !important;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+.gradient-btn-amber:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(245, 158, 11, 0.5);
 }
 
-::-webkit-scrollbar-track {
-    background: #F1F5F9;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #CBD5E1;
-    border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #FF2E7E;
-}
-
-/* Tab active style */
+/* ==========================================================
+   Brand Filter Tabs (Sticky Navigation Bar)
+   ========================================================== */
 .brand-tab {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1.5px solid #E2E8F0;
     color: #334155;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
-    transition: all 0.2s ease;
+    border-radius: 16px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
 }
 
 .brand-tab:hover {
     border-color: #F43F5E;
     color: #E11D48;
     background: #FFF1F2;
-    transform: translateY(-1px);
+    transform: translateY(-1.5px);
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.15);
 }
 
 .brand-tab.active {
-    background: linear-gradient(135deg, #FF2E7E 0%, #A855F7 100%) !important;
+    background: linear-gradient(135deg, #FF2E7E 0%, #9333EA 100%) !important;
     border-color: transparent !important;
     color: #FFFFFF !important;
-    box-shadow: 0 4px 15px rgba(255, 46, 126, 0.35) !important;
-    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(255, 46, 126, 0.42) !important;
+    transform: translateY(-2px);
 }
 
 .brand-tab.active span,
@@ -199,135 +265,112 @@ body {
     color: #FFFFFF !important;
 }
 
-/* Toast container */
-#toast-container {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+/* ==========================================================
+   Product Cards - Modern Luxury Redesign
+   ========================================================== */
+.product-card-modern,
+[data-action="card"] {
+    background: #FFFFFF;
+    border-radius: 22px;
+    border: 1.5px solid rgba(226, 232, 240, 0.85);
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.3s ease,
+                box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
 }
 
-@media (max-width: 640px) {
-    #toast-container {
-        left: 12px;
-        right: 12px;
-        bottom: 84px;
-        align-items: center;
-    }
-    .toast {
-        width: 100%;
-        max-width: 360px;
-    }
+.product-card-modern::before,
+[data-action="card"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #FF2E7E, #A855F7, #06B6D4);
+    opacity: 0;
+    transition: opacity 0.3s ease;
 }
 
-.scrollbar-none::-webkit-scrollbar {
-    display: none;
-}
-.scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-.toast {
-    animation: slideIn 0.3s ease-out forwards;
+.product-card-modern:hover,
+[data-action="card"]:hover {
+    transform: translateY(-6px);
+    border-color: rgba(255, 46, 126, 0.4);
+    box-shadow: 0 20px 35px -8px rgba(255, 46, 126, 0.18), 0 8px 16px -4px rgba(15, 23, 42, 0.05);
 }
 
-@keyframes slideIn {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+.product-card-modern:hover::before,
+[data-action="card"]:hover::before {
+    opacity: 1;
+}
+
+/* Live Pulse Stock Indicator */
+.status-dot-live {
+    position: relative;
+    display: inline-flex;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #10B981;
+    shrink: 0;
+}
+
+.status-dot-live::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid #10B981;
+    animation: pulseRipple 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes pulseRipple {
+    0% { transform: scale(0.8); opacity: 0.9; }
+    100% { transform: scale(2.2); opacity: 0; }
 }
 
 /* ==========================================================
-   Mobile Optimization & Touch Ergonomics
+   Hero Showcase Slider & Banners
    ========================================================== */
-* {
-    -webkit-tap-highlight-color: transparent;
+#hero-showcase-slider,
+#banner-slideshow-container {
+    box-shadow: 0 16px 45px -8px rgba(255, 46, 126, 0.25), 0 0 35px rgba(139, 92, 246, 0.18);
+    background-color: #0F172A;
+    border-radius: 24px;
+    border: 2px solid rgba(244, 114, 182, 0.35);
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
 }
 
-/* Prevent iOS Safari auto-zoom when focusing inputs */
-@media (max-width: 640px) {
-    input:not([type="checkbox"]):not([type="radio"]), 
-    select, 
-    textarea {
-        font-size: 16px !important;
-    }
+#hero-showcase-slider:hover,
+#banner-slideshow-container:hover {
+    box-shadow: 0 24px 60px -10px rgba(255, 46, 126, 0.35), 0 0 45px rgba(139, 92, 246, 0.25);
+    border-color: rgba(255, 46, 126, 0.6);
+    transform: translateY(-2px);
 }
 
-/* Smooth Touch Momentum Scrolling */
-.scroll-touch {
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
+#hero-slider-track,
+#banner-slides-track {
+    transition: transform 0.65s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* iPhone Home Indicator Safe Area Bottom */
-.pb-safe {
-    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+.slider-dot,
+.banner-dot {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Tactile Active Feedback for Mobile Buttons */
-.touch-active {
-    transition: transform 0.12s ease, opacity 0.12s ease;
-}
-.touch-active:active {
-    transform: scale(0.96);
-    opacity: 0.9;
-}
-
-/* Auth Modal Animation & Glow */
-@keyframes authModalPop {
-    0% {
-        opacity: 0;
-        transform: scale(0.95) translateY(10px);
-    }
-    100% {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
-}
-
-.auth-modal-card {
-    animation: authModalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Hide native browser search cancel button to favor custom styled clear icon */
-input[type="search"]::-webkit-search-cancel-button,
-input[type="search"]::-webkit-search-decoration,
-input[type="search"]::-webkit-search-results-button,
-input[type="search"]::-webkit-search-results-decoration {
-    -webkit-appearance: none;
-    appearance: none;
-    display: none;
-}
-
-/* Hide scrollbar utility for smooth chips scrolling */
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-.no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-/* Mascot Float Animation for Popup */
-@keyframes mascotFloat {
-    0%, 100% {
-        transform: translateY(0px) scale(1);
-    }
-    50% {
-        transform: translateY(-8px) scale(1.02);
-    }
-}
-.mascot-float {
-    animation: mascotFloat 3.6s ease-in-out infinite;
+#hero-showcase-slider img,
+#banner-slideshow-container img {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 480px;
+    object-fit: cover !important;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    border-radius: 22px;
 }
 
 /* ==========================================================
@@ -336,14 +379,16 @@ input[type="search"]::-webkit-search-results-decoration {
 .voucher-ticket {
     position: relative;
     background: #FFFFFF;
+    border-radius: 20px;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     border: 2px solid rgba(244, 114, 182, 0.35);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
 }
 
 .voucher-ticket:hover {
-    transform: translateY(-5px);
-    border-color: rgba(255, 46, 126, 0.7);
-    box-shadow: 0 16px 36px -6px rgba(255, 46, 126, 0.22), 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+    transform: translateY(-4px);
+    border-color: rgba(255, 46, 126, 0.65);
+    box-shadow: 0 16px 36px -6px rgba(255, 46, 126, 0.22), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
 }
 
 .ticket-notch-l,
@@ -385,66 +430,176 @@ input[type="search"]::-webkit-search-results-decoration {
     left: 0;
     width: 60%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
     animation: promoShimmer 3.5s infinite;
 }
 
-/* Mobile smooth horizontal scrolling utilities */
+/* ==========================================================
+   Mascot & Floating Micro-Animations
+   ========================================================== */
+@keyframes floatAnimation {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-7px) rotate(1.2deg);
+    }
+}
+
+.mascot-float {
+    animation: floatAnimation 4s ease-in-out infinite;
+}
+
+/* ==========================================================
+   Custom Modern Scrollbars
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+::-webkit-scrollbar-track {
+    background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+    transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #FF2E7E;
+}
+
+.scrollbar-none::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar {
     display: none;
 }
+.scrollbar-none,
 .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+}
+
+/* ==========================================================
+   Toast Notifications
+   ========================================================== */
+#toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+@media (max-width: 640px) {
+    #toast-container {
+        left: 12px;
+        right: 12px;
+        bottom: 84px;
+        align-items: center;
+    }
+    .toast {
+        width: 100%;
+        max-width: 360px;
+    }
+}
+
+.toast {
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    border-radius: 18px;
+    box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* ==========================================================
+   Mobile Optimization & Ergonomics
+   ========================================================== */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 640px) {
+    input:not([type="checkbox"]):not([type="radio"]), 
+    select, 
+    textarea {
+        font-size: 16px !important;
+    }
+}
+
+.scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+.touch-active {
+    transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.touch-active:active {
+    transform: scale(0.96);
+    opacity: 0.9;
+}
+
+/* Auth Modal Animation & Glow */
+@keyframes authModalPop {
+    0% {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.auth-modal-card {
+    animation: authModalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    border-radius: 28px;
+}
+
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
 }
 
 .shadow-2xs {
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
 }
 
-/* Mobile Product Card Enhancements */
-@media (max-width: 640px) {
-    [data-action="card"] {
-        -webkit-user-select: none;
-        user-select: none;
-        touch-action: manipulation;
-    }
-    [data-action="detail"],
-    [data-action="add-cart"] {
-        touch-action: manipulation;
-    }
+/* Live Chat Widget Floating Launcher Pulse */
+#spk-chat-btn {
+    box-shadow: 0 8px 30px rgba(255, 46, 126, 0.45);
+    position: relative;
 }
 
-
-
-/* Featured Hero Showcase Slider Enhancements (Adblock-Safe) */
-#hero-showcase-slider,
-#banner-slideshow-container {
-    box-shadow: 0 15px 35px -5px rgba(255, 46, 126, 0.22), 0 0 25px rgba(139, 92, 246, 0.15);
-    background-color: #0f172a;
-}
-#hero-showcase-slider:hover,
-#banner-slideshow-container:hover {
-    box-shadow: 0 20px 45px -5px rgba(255, 46, 126, 0.32), 0 0 35px rgba(139, 92, 246, 0.25);
-}
-#hero-slider-track,
-#banner-slides-track {
-    transition: transform 0.65s cubic-bezier(0.25, 1, 0.5, 1);
-}
-.slider-dot,
-.banner-dot {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+#spk-chat-btn::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 46, 126, 0.6);
+    animation: chatPulse 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+    pointer-events: none;
 }
 
-/* Hero Banner Image - clean responsive scaling */
-#hero-showcase-slider img,
-#banner-slideshow-container img {
-    width: 100% !important;
-    height: auto !important;
-    max-height: 480px;
-    object-fit: cover !important;
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
+@keyframes chatPulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.4); opacity: 0; }
 }
-

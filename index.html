@@ -40,7 +40,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=3.6">
+    <link rel="stylesheet" href="css/style.css?v=4.5">
 
     <!-- Safe Global Function Pre-declarations to prevent ReferenceError during page load -->
     <script>
@@ -227,7 +227,7 @@
                 <!-- Notification Center Bell -->
                 <div class="relative">
                     <button id="nav-notification-btn" onclick="toggleNotificationCenter()" title="ศูนย์การแจ้งเตือน"
-                        class="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white hover:bg-amber-50 border-2 border-amber-200/80 hover:border-amber-400 text-slate-700 hover:text-amber-600 transition-all shadow-xs flex items-center justify-center cursor-pointer touch-active active:scale-95">
+                        class="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white hover:bg-amber-50 border-2 border-amber-200/80 hover:border-amber-400 text-slate-700 hover:text-amber-600 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center cursor-pointer touch-active active:scale-95">
                         <i class="fa-solid fa-bell text-sm sm:text-base text-amber-500"></i>
                         <span id="nav-notification-count-badge"
                             class="hidden absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md animate-pulse">
@@ -258,7 +258,7 @@
 
                 <!-- Wishlist Button -->
                 <button onclick="openOrdersModal('wishlist')" title="รายการสินค้าที่ชอบ"
-                    class="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white hover:bg-rose-50 border-2 border-rose-200/80 hover:border-rose-400 text-slate-700 hover:text-rose-600 transition-all shadow-xs flex items-center justify-center cursor-pointer touch-active active:scale-95">
+                    class="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white hover:bg-rose-50 border-2 border-rose-200/80 hover:border-rose-400 text-slate-700 hover:text-rose-600 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center cursor-pointer touch-active active:scale-95">
                     <i class="fa-solid fa-heart text-sm sm:text-base text-rose-500"></i>
                     <span id="nav-wishlist-count-badge"
                         class="hidden absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md">
@@ -268,7 +268,7 @@
 
                 <!-- Cart Button -->
                 <button onclick="openCartDrawer()" title="ตะกร้าสินค้า"
-                    class="relative h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-white hover:bg-pink-50 border-2 border-pink-200/90 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer touch-active active:scale-95">
+                    class="relative h-10 sm:h-11 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-white hover:bg-pink-50 border-2 border-pink-200/90 hover:border-pink-400 text-slate-700 hover:text-pink-600 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-1.5 cursor-pointer touch-active active:scale-95">
                     <div class="relative">
                         <i class="fa-solid fa-cart-shopping text-sm sm:text-base text-pink-500"></i>
                         <span id="cart-count-badge"
@@ -284,14 +284,14 @@
                     <div class="flex items-center gap-1.5 sm:gap-2">
                         <!-- My Keys / Orders -->
                         <button onclick="openOrdersModal('orders')" title="ประวัติการสั่งซื้อ & คีย์ของฉัน"
-                            class="h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 hover:bg-purple-100 border-2 border-purple-200/90 hover:border-purple-300 text-purple-700 transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95">
+                            class="h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-purple-50 hover:bg-purple-100 border-2 border-purple-200/90 hover:border-purple-300 text-purple-700 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95">
                             <i class="fa-solid fa-box-open text-sm sm:text-base text-purple-600"></i>
                             <span class="hidden xl:inline font-bold">คีย์ของฉัน</span>
                             <span class="px-1.5 py-0.2 rounded-full bg-purple-200/80 text-purple-900 text-[10px] sm:text-xs font-black leading-none">(<span id="nav-orders-count">0</span>)</span>
                         </button>
                         <!-- Login Button (Gradient CTA) -->
                         <button onclick="openAuthModal('login')" title="เข้าสู่ระบบบัญชี"
-                            class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white transition-all shadow-sm hover:shadow-pink-500/25 flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer active:scale-95">
+                            class="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white transition-all shadow-sm hover:shadow-lg hover:shadow-pink-500/30 hover:-translate-y-0.5 flex items-center justify-center gap-1.5 shrink-0 touch-active cursor-pointer active:scale-95">
                             <i class="fa-solid fa-right-to-bracket text-xs sm:text-sm"></i>
                             <span class="inline font-bold">เข้าสู่ระบบ</span>
                         </button>
@@ -359,58 +359,50 @@
                     พร้อมระบบตรวจสอบและจัดส่งอัตโนมัติ มาตรฐานการให้บริการ พร้อมรับประกันทุกคำสั่งซื้อ
                 </h1>
 
-                <!-- Value Props Badges (Bright Cards) -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-1.5 sm:pt-3">
+                <!-- Value Props Badges (Elevated Glass Cards) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5 pt-2 sm:pt-4">
                     <div
-                        class="bg-white p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-pink-100 shadow-sm flex items-center gap-2 sm:gap-3">
+                        class="bg-white/95 hover:bg-white p-3 sm:p-3.5 rounded-2xl border-2 border-pink-100/90 hover:border-pink-400 shadow-xs hover:shadow-lg hover:shadow-pink-500/15 hover:-translate-y-1 transition-all duration-300 flex items-center gap-2.5 sm:gap-3 group cursor-pointer">
                         <div
-                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-sm sm:text-lg shrink-0">
+                            class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 text-white flex items-center justify-center text-sm sm:text-base shrink-0 shadow-md shadow-pink-500/25 group-hover:scale-105 transition-transform">
                             <i class="fa-solid fa-clock-rotate-left"></i>
                         </div>
                         <div class="min-w-0">
-                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight">พร้อมส่งมอบ 24
-                                ชม.</div>
-                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5">ระบบส่งอัตโนมัติ
-                            </div>
+                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-pink-600 transition-colors">พร้อมส่งมอบ 24 ชม.</div>
+                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5 font-medium">ระบบส่งอัตโนมัติ</div>
                         </div>
                     </div>
                     <div
-                        class="bg-white p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-cyan-100 shadow-sm flex items-center gap-2 sm:gap-3">
+                        class="bg-white/95 hover:bg-white p-3 sm:p-3.5 rounded-2xl border-2 border-cyan-100/90 hover:border-cyan-400 shadow-xs hover:shadow-lg hover:shadow-cyan-500/15 hover:-translate-y-1 transition-all duration-300 flex items-center gap-2.5 sm:gap-3 group cursor-pointer">
                         <div
-                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center text-sm sm:text-lg shrink-0">
+                            class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-cyan-500 to-sky-400 text-white flex items-center justify-center text-sm sm:text-base shrink-0 shadow-md shadow-cyan-500/25 group-hover:scale-105 transition-transform">
                             <i class="fa-solid fa-shield-halved"></i>
                         </div>
                         <div class="min-w-0">
-                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight">
-                                รับประกันทุกคำสั่ง</div>
-                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5">เคลมง่าย คืนเงินไว
-                            </div>
+                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-cyan-600 transition-colors">รับประกันทุกคำสั่ง</div>
+                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5 font-medium">เคลมง่าย คืนเงินไว</div>
                         </div>
                     </div>
                     <div
-                        class="bg-white p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-purple-100 shadow-sm flex items-center gap-2 sm:gap-3">
+                        class="bg-white/95 hover:bg-white p-3 sm:p-3.5 rounded-2xl border-2 border-purple-100/90 hover:border-purple-400 shadow-xs hover:shadow-lg hover:shadow-purple-500/15 hover:-translate-y-1 transition-all duration-300 flex items-center gap-2.5 sm:gap-3 group cursor-pointer">
                         <div
-                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-sm sm:text-lg shrink-0">
+                            class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center text-sm sm:text-base shrink-0 shadow-md shadow-purple-500/25 group-hover:scale-105 transition-transform">
                             <i class="fa-solid fa-qrcode"></i>
                         </div>
                         <div class="min-w-0">
-                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight">Thai QR Code
-                            </div>
-                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5">สแกนจ่ายได้ทุกแอป
-                            </div>
+                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-purple-600 transition-colors">Thai QR Code</div>
+                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5 font-medium">สแกนจ่ายได้ทุกแอป</div>
                         </div>
                     </div>
                     <div
-                        class="bg-white p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-emerald-100 shadow-sm flex items-center gap-2 sm:gap-3">
+                        class="bg-white/95 hover:bg-white p-3 sm:p-3.5 rounded-2xl border-2 border-emerald-100/90 hover:border-emerald-400 shadow-xs hover:shadow-lg hover:shadow-emerald-500/15 hover:-translate-y-1 transition-all duration-300 flex items-center gap-2.5 sm:gap-3 group cursor-pointer">
                         <div
-                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm sm:text-lg shrink-0">
+                            class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-sm sm:text-base shrink-0 shadow-md shadow-emerald-500/25 group-hover:scale-105 transition-transform">
                             <i class="fa-solid fa-receipt"></i>
                         </div>
                         <div class="min-w-0">
-                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight">ตรวจสลิปอัตโนมัติ
-                            </div>
-                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5">
-                                ตรวจสอบและส่งมอบทันที</div>
+                            <div class="text-[11px] sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-emerald-600 transition-colors">ตรวจสลิปอัตโนมัติ</div>
+                            <div class="text-[10px] sm:text-xs text-slate-500 leading-tight mt-0.5 font-medium">ตรวจสอบและส่งทันที</div>
                         </div>
                     </div>
                 </div>
@@ -1248,50 +1240,50 @@
                 </p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <!-- Card 1 -->
-                <div class="p-6 rounded-3xl bg-pink-50/50 border border-pink-200 space-y-3">
+                <div class="p-6 rounded-3xl bg-white/95 hover:bg-white border-2 border-pink-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 hover:-translate-y-1.5 transition-all duration-300 space-y-3.5 group cursor-pointer">
                     <div
-                        class="w-12 h-12 rounded-2xl bg-pink-500 text-white flex items-center justify-center text-xl shadow-md shadow-pink-500/30">
+                        class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 text-white flex items-center justify-center text-xl shadow-md shadow-pink-500/30 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-medal"></i>
                     </div>
-                    <h3 class="text-base font-bold text-slate-900">รับประกันเต็มอายุการใช้งาน</h3>
+                    <h3 class="text-base font-bold text-slate-900 group-hover:text-pink-600 transition-colors">รับประกันเต็มอายุการใช้งาน</h3>
                     <p class="text-slate-600 text-xs leading-relaxed font-medium">
                         สินค้าทุกรายการรับประกันตลอดอายุแพ็กเกจที่คุณเลือกซื้อ หากเกิดปัญหาสามารถเคลมรหัสใหม่ได้ทันที
                     </p>
                 </div>
 
                 <!-- Card 2 -->
-                <div class="p-6 rounded-3xl bg-cyan-50/50 border border-cyan-200 space-y-3">
+                <div class="p-6 rounded-3xl bg-white/95 hover:bg-white border-2 border-cyan-100 hover:border-cyan-300 shadow-xs hover:shadow-xl hover:shadow-cyan-500/10 hover:-translate-y-1.5 transition-all duration-300 space-y-3.5 group cursor-pointer">
                     <div
-                        class="w-12 h-12 rounded-2xl bg-cyan-500 text-white flex items-center justify-center text-xl shadow-md shadow-cyan-500/30">
+                        class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-sky-400 text-white flex items-center justify-center text-xl shadow-md shadow-cyan-500/30 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-rotate-left"></i>
                     </div>
-                    <h3 class="text-base font-bold text-slate-900">ยินดีคืนเงิน 100%</h3>
+                    <h3 class="text-base font-bold text-slate-900 group-hover:text-cyan-600 transition-colors">ยินดีคืนเงิน 100%</h3>
                     <p class="text-slate-600 text-xs leading-relaxed font-medium">
                         หากไม่สามารถเข้าใช้งานได้ตามที่ระบุ และระบบไม่สามารถเปลี่ยนทดแทนได้ เรายินดีคืนเงินเต็มจำนวน
                     </p>
                 </div>
 
                 <!-- Card 3 -->
-                <div class="p-6 rounded-3xl bg-purple-50/50 border border-purple-200 space-y-3">
+                <div class="p-6 rounded-3xl bg-white/95 hover:bg-white border-2 border-purple-100 hover:border-purple-300 shadow-xs hover:shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1.5 transition-all duration-300 space-y-3.5 group cursor-pointer">
                     <div
-                        class="w-12 h-12 rounded-2xl bg-purple-500 text-white flex items-center justify-center text-xl shadow-md shadow-purple-500/30">
+                        class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center text-xl shadow-md shadow-purple-500/30 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-lock"></i>
                     </div>
-                    <h3 class="text-base font-bold text-slate-900">บัญชีแท้ สะอาด ปลอดภัย</h3>
+                    <h3 class="text-base font-bold text-slate-900 group-hover:text-purple-600 transition-colors">บัญชีแท้ สะอาด ปลอดภัย</h3>
                     <p class="text-slate-600 text-xs leading-relaxed font-medium">
                         สินค้าทุกบัญชีผ่านการตรวจสอบมาตรฐานความปลอดภัย ไม่มีประวัติถูกระงับ ไม่เสี่ยงต่อข้อมูลส่วนตัว
                     </p>
                 </div>
 
                 <!-- Card 4 -->
-                <div class="p-6 rounded-3xl bg-emerald-50/50 border border-emerald-200 space-y-3">
+                <div class="p-6 rounded-3xl bg-white/95 hover:bg-white border-2 border-emerald-100 hover:border-emerald-300 shadow-xs hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1.5 transition-all duration-300 space-y-3.5 group cursor-pointer">
                     <div
-                        class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/30">
+                        class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/30 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-headset"></i>
                     </div>
-                    <h3 class="text-base font-bold text-slate-900">ทีมงานดูแล 24 ชั่วโมง</h3>
+                    <h3 class="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">ทีมงานดูแล 24 ชั่วโมง</h3>
                     <p class="text-slate-600 text-xs leading-relaxed font-medium">
                         มีเจ้าหน้าที่สแตนด์บายคอยช่วยเหลือ ตอบคำถาม และแก้ไขปัญหาให้คุณผ่าน Facebook และ Live Chat
                         ตลอดเวลา
@@ -1324,19 +1316,19 @@
             <div class="space-y-3.5">
                 <!-- FAQ Item 1 -->
                 <details
-                    class="group bg-slate-50 border border-slate-200 rounded-2xl p-4 transition-all [&_summary::-webkit-details-marker]:hidden">
+                    class="group bg-slate-50 hover:bg-white border-2 border-slate-200/80 hover:border-pink-300 rounded-2xl p-4 sm:p-5 transition-all shadow-xs hover:shadow-md [&_summary::-webkit-details-marker]:hidden">
                     <summary
                         class="flex items-center justify-between cursor-pointer font-bold text-slate-900 text-sm sm:text-base list-none">
                         <span class="flex items-center gap-3">
                             <span
-                                class="w-7 h-7 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-xs shrink-0">Q1</span>
+                                class="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-black shrink-0">Q1</span>
                             <span>หลังชำระเงินแล้ว จะได้รับสินค้าอย่างไรและนานไหม?</span>
                         </span>
                         <i
                             class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition-transform text-xs"></i>
                     </summary>
                     <div
-                        class="mt-3.5 pt-3 border-t border-slate-200 text-xs sm:text-sm text-slate-600 leading-relaxed pl-10">
+                        class="mt-3.5 pt-3 border-t border-slate-200/80 text-xs sm:text-sm text-slate-600 leading-relaxed pl-11">
                         สินค้าทุกรายการส่งมอบผ่านระบบอัตโนมัติทันทีหลังยืนยันการชำระเงินเรียบร้อย
                         โดยรหัสผ่านหรือลิงก์เข้าใช้งานจะปรากฏบนหน้าจอ พร้อมบันทึกไว้ในเมนู "คีย์ของฉัน"
                         และจัดส่งสำเนาไปยังอีเมลของคุณทันที
@@ -1345,19 +1337,19 @@
 
                 <!-- FAQ Item 2 -->
                 <details
-                    class="group bg-slate-50 border border-slate-200 rounded-2xl p-4 transition-all [&_summary::-webkit-details-marker]:hidden">
+                    class="group bg-slate-50 hover:bg-white border-2 border-slate-200/80 hover:border-purple-300 rounded-2xl p-4 sm:p-5 transition-all shadow-xs hover:shadow-md [&_summary::-webkit-details-marker]:hidden">
                     <summary
                         class="flex items-center justify-between cursor-pointer font-bold text-slate-900 text-sm sm:text-base list-none">
                         <span class="flex items-center gap-3">
                             <span
-                                class="w-7 h-7 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xs shrink-0">Q2</span>
+                                class="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-black shrink-0">Q2</span>
                             <span>รองรับการชำระเงินผ่านแอปพลิเคชันใดบ้าง มีค่าธรรมเนียมไหม?</span>
                         </span>
                         <i
                             class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition-transform text-xs"></i>
                     </summary>
                     <div
-                        class="mt-3.5 pt-3 border-t border-slate-200 text-xs sm:text-sm text-slate-600 leading-relaxed pl-10">
+                        class="mt-3.5 pt-3 border-t border-slate-200/80 text-xs sm:text-sm text-slate-600 leading-relaxed pl-11">
                         รองรับ Thai QR PromptPay สแกนจ่ายได้ทุกแอปธนาคารไทย (K PLUS, SCB, Krungthai, KMA, BBL, ttb,
                         MyMo) และ TrueMoney Wallet ฟรีค่าธรรมเนียม 100% ไม่มีบวกเพิ่ม
                     </div>
@@ -1365,19 +1357,19 @@
 
                 <!-- FAQ Item 3 -->
                 <details
-                    class="group bg-slate-50 border border-slate-200 rounded-2xl p-4 transition-all [&_summary::-webkit-details-marker]:hidden">
+                    class="group bg-slate-50 hover:bg-white border-2 border-slate-200/80 hover:border-cyan-300 rounded-2xl p-4 sm:p-5 transition-all shadow-xs hover:shadow-md [&_summary::-webkit-details-marker]:hidden">
                     <summary
                         class="flex items-center justify-between cursor-pointer font-bold text-slate-900 text-sm sm:text-base list-none">
                         <span class="flex items-center gap-3">
                             <span
-                                class="w-7 h-7 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center text-xs shrink-0">Q3</span>
+                                class="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center text-xs font-black shrink-0">Q3</span>
                             <span>หากบัญชีหรือคีย์มีปัญหา สามารถเคลมได้อย่างไร?</span>
                         </span>
                         <i
                             class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition-transform text-xs"></i>
                     </summary>
                     <div
-                        class="mt-3.5 pt-3 border-t border-slate-200 text-xs sm:text-sm text-slate-600 leading-relaxed pl-10">
+                        class="mt-3.5 pt-3 border-t border-slate-200/80 text-xs sm:text-sm text-slate-600 leading-relaxed pl-11">
                         สามารถแจ้งเคลมได้ตลอด 24 ชม. ผ่านทาง Facebook แชทเพจ หรือ Live Chat โดยแจ้งเลขออเดอร์ (Ref Code)
                         หรืออีเมลที่ใช้สั่งซื้อ แอดมินจะตรวจสอบและเปลี่ยนคีย์ใหม่ให้ทันทีตามนโยบายรับประกัน
                     </div>
@@ -1385,19 +1377,19 @@
 
                 <!-- FAQ Item 4 -->
                 <details
-                    class="group bg-slate-50 border border-slate-200 rounded-2xl p-4 transition-all [&_summary::-webkit-details-marker]:hidden">
+                    class="group bg-slate-50 hover:bg-white border-2 border-slate-200/80 hover:border-emerald-300 rounded-2xl p-4 sm:p-5 transition-all shadow-xs hover:shadow-md [&_summary::-webkit-details-marker]:hidden">
                     <summary
                         class="flex items-center justify-between cursor-pointer font-bold text-slate-900 text-sm sm:text-base list-none">
                         <span class="flex items-center gap-3">
                             <span
-                                class="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs shrink-0">Q4</span>
+                                class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-black shrink-0">Q4</span>
                             <span>ลิงก์เปิดสิทธิ์ (Activation Link) และรหัสคีย์ (License Key) ปลอดภัยอย่างไร?</span>
                         </span>
                         <i
                             class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition-transform text-xs"></i>
                     </summary>
                     <div
-                        class="mt-3.5 pt-3 border-t border-slate-200 text-xs sm:text-sm text-slate-600 leading-relaxed pl-10">
+                        class="mt-3.5 pt-3 border-t border-slate-200/80 text-xs sm:text-sm text-slate-600 leading-relaxed pl-11">
                         • <b>ไม่มีการขายบัญชีหาร (Shared) หรือบัญชีแชร์ร่วม:</b> เพื่อความปลอดภัยสูงสุดของข้อมูลลูกค้า 100%<br>
                         • <b>Activation Link (ลิงก์เปิดสิทธิ์):</b> อัปเกรดเข้าสู่บัญชีเดิมของคุณโดยตรง (เช่น Google One, Gemini, Microsoft 365) ไม่ต้องแจ้งรหัสผ่าน<br>
                         • <b>OEM License Key (รหัสคีย์แท้):</b> คีย์ลิขสิทธิ์แท้ 25 หลัก นำไปเปิดใช้งานถาวรผูกติดเมนบอร์ด อัปเดตผ่าน Microsoft ได้ตลอดชีพ
@@ -5734,7 +5726,7 @@
     <script src="js/promptpay.js?v=4.0"></script>
     <script src="js/user-auth.js?v=4.0"></script>
     <script src="js/banner-slideshow.js?v=4.0"></script>
-    <script src="js/app.js?v=4.0"></script>
+    <script src="js/app.js?v=4.5"></script>
     <!-- Live Chat Widget (Customer) — only loads when server is available -->
     <script src="js/chat-widget.js?v=3.5"></script>
 </body>

@@ -1400,7 +1400,7 @@ function renderHighlightProducts() {
         const isAlerted = !!(cardUser && Array.isArray(cardUser.stockAlerts) && cardUser.stockAlerts.includes(product.id));
 
         return `
-            <div class="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
+            <div class="product-card-modern bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-3 sm:p-5 border-2 border-amber-200/90 hover:border-pink-400 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" 
                  data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
                 <!-- Glow accent -->
@@ -1408,14 +1408,14 @@ function renderHighlightProducts() {
 
                 <div>
                     <!-- Header of Card -->
-                    <div class="flex items-center justify-between gap-1 mb-1.5 sm:mb-3">
+                    <div class="flex items-center justify-between gap-1 mb-2 sm:mb-3">
                         <div class="flex items-center gap-1 sm:gap-2 min-w-0">
-                            <span title="${escapeHTML(product.brand || '')}" class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
+                            <span title="${escapeHTML(product.brand || '')}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-amber-50 to-pink-50 border border-amber-200 flex items-center justify-center text-[10px] sm:text-xs font-black text-pink-600 shadow-2xs shrink-0">
                                 ${escapeHTML(product.brandCode || 'AI')}
                             </span>
                         </div>
                         <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                            <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
+                            <span class="px-2 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap shadow-2xs">
                                 <span class="sm:hidden">${escapeHTML(shortType)}</span>
                                 <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
                             </span>
@@ -1427,38 +1427,38 @@ function renderHighlightProducts() {
                     </div>
 
                     <!-- Highlight Ribbon/Badge -->
-                    <div class="mb-1.5 sm:mb-2">
-                        <span class="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[9px] sm:text-[10px] shadow-2xs">
+                    <div class="mb-1.5 sm:mb-2.5">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 via-rose-500 to-pink-500 text-white font-black text-[9px] sm:text-[10px] shadow-2xs tracking-wide">
                             <i class="fa-solid fa-crown text-[8px] sm:text-[9px]"></i>
-                            <span class="truncate max-w-[120px] sm:max-w-none">${escapeHTML(product.badge || '⭐ สินค้าไฮไลท์')}</span>
+                            <span class="truncate max-w-[130px] sm:max-w-none">${escapeHTML(product.badge || '⭐ สินค้าไฮไลท์')}</span>
                         </span>
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-[12px] sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
+                    <h3 class="text-[13px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[34px] sm:min-h-[46px] group-hover:text-pink-600 transition-colors leading-snug sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
                     <!-- Specs (Compact on mobile) -->
                     <div class="flex flex-wrap items-center gap-1 sm:gap-2 mt-1.5 sm:mt-3 text-[9px] sm:text-xs text-slate-600 font-medium">
-                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-amber-50/90 px-1.5 py-0.5 rounded-md border border-amber-200/80 text-amber-900 font-bold">
+                        <span class="inline-flex items-center gap-1 bg-amber-50/90 px-2 py-0.5 rounded-lg border border-amber-200/80 text-amber-900 font-bold shadow-2xs">
                             <i class="fa-solid fa-bolt text-amber-500 text-[8px] sm:text-[10px]"></i> ส่งทันที
                         </span>
-                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                        <span class="inline-flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 shadow-2xs">
                             <i class="fa-solid fa-shield-halved text-cyan-600 text-[8px] sm:text-[10px]"></i> ประกัน ${escapeHTML(product.warranty || '30 วัน')}
                         </span>
-                        <span class="hidden sm:inline-flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                        <span class="hidden sm:inline-flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 shadow-2xs">
                             <i class="fa-solid fa-globe text-purple-600 text-[10px]"></i> ${escapeHTML(product.region || 'Global')}
                         </span>
                     </div>
 
                     <!-- Stock Counter (Collision-free) -->
-                    <div class="flex items-center justify-between mt-2 sm:mt-3 text-[9px] sm:text-xs font-semibold border-t border-slate-100 pt-1.5 sm:pt-2 gap-1">
-                        <span class="inline-flex items-center gap-1 ${inStock ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200' : 'text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200'} shrink-0 font-bold">
-                            <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-                            ${inStock ? `สต็อก ${product.stock}` : 'หมด'}
+                    <div class="flex items-center justify-between mt-2.5 sm:mt-3 text-[10px] sm:text-xs font-semibold border-t border-slate-100 pt-2 sm:pt-2.5 gap-1">
+                        <span class="inline-flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'} shrink-0 font-bold">
+                            <span class="${inStock ? 'status-dot-live' : 'w-2 h-2 rounded-full bg-rose-500'}"></span>
+                            <span>${inStock ? `สต็อก ${product.stock}` : 'หมด'}</span>
                         </span>
-                        <span class="text-slate-400 truncate text-right">ขายแล้ว ${(product.soldCount || 0).toLocaleString()}<span class="hidden sm:inline"> ชิ้น</span></span>
+                        <span class="text-slate-400 truncate text-right font-medium">ขายแล้ว ${(product.soldCount || 0).toLocaleString()}<span class="hidden sm:inline"> ชิ้น</span></span>
                     </div>
                 </div>
 
@@ -1480,11 +1480,11 @@ function renderHighlightProducts() {
                         </div>
 
                         ${discountPercent > 0 ? `
-                            <div class="text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded-lg border border-emerald-200/70 shrink-0 mb-0.5">
+                            <div class="text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200/70 shrink-0 mb-0.5">
                                 ประหยัด ฿${savings}
                             </div>
                         ` : `
-                            <div class="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-50 px-1.5 sm:px-2 py-0.5 rounded-lg border border-slate-200 shrink-0 mb-0.5">
+                            <div class="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 shrink-0 mb-0.5">
                                 ราคาพิเศษ
                             </div>
                         `}
@@ -1573,18 +1573,18 @@ function renderProducts() {
         const isAlerted = !!(cardUser && Array.isArray(cardUser.stockAlerts) && cardUser.stockAlerts.includes(product.id));
 
         return `
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
+            <div class="product-card-modern bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-5 border-2 border-slate-100 hover:border-pink-300 shadow-xs hover:shadow-xl hover:shadow-pink-500/10 flex flex-col justify-between transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden cursor-pointer" data-action="card" data-product-id="${escapeHTML(product.id)}">
                 
                 <div>
                     <!-- Header of Card -->
-                    <div class="flex items-center justify-between gap-1 mb-1.5 sm:mb-3">
+                    <div class="flex items-center justify-between gap-1 mb-2 sm:mb-3">
                         <div class="flex items-center gap-1 sm:gap-2 min-w-0">
-                            <span title="${escapeHTML(product.brand || '')}" class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[9px] sm:text-xs font-black text-pink-600 shadow-inner shrink-0">
+                            <span title="${escapeHTML(product.brand || '')}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-200/90 flex items-center justify-center text-[10px] sm:text-xs font-black text-pink-600 shadow-2xs shrink-0">
                                 ${escapeHTML(product.brandCode || 'AI')}
                             </span>
                         </div>
                         <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                            <span class="px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap">
+                            <span class="px-2 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs font-bold border ${typeBadgeClass} whitespace-nowrap shadow-2xs">
                                 <span class="sm:hidden">${escapeHTML(shortType)}</span>
                                 <span class="hidden sm:inline">${escapeHTML(product.type)}</span>
                             </span>
@@ -1596,30 +1596,30 @@ function renderProducts() {
                     </div>
 
                     <!-- Title -->
-                    <h3 class="text-[12px] sm:text-base font-normal text-slate-900 line-clamp-2 min-h-[32px] sm:min-h-[44px] group-hover:text-pink-600 transition-colors leading-tight sm:leading-snug">
+                    <h3 class="text-[13px] sm:text-base font-bold text-slate-900 line-clamp-2 min-h-[34px] sm:min-h-[46px] group-hover:text-pink-600 transition-colors leading-snug sm:leading-snug">
                         ${escapeHTML(product.title)}
                     </h3>
 
                     <!-- Specs -->
                     <div class="flex flex-wrap items-center gap-1 sm:gap-2 mt-1.5 sm:mt-3 text-[9px] sm:text-xs text-slate-600 font-medium">
-                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200 text-slate-700 font-bold">
+                        <span class="inline-flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 text-slate-700 font-bold shadow-2xs">
                             <i class="fa-solid fa-bolt text-amber-500 text-[8px] sm:text-[10px]"></i> ส่งทันที
                         </span>
-                        <span class="inline-flex items-center gap-0.5 sm:gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                        <span class="inline-flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 shadow-2xs">
                             <i class="fa-solid fa-shield-halved text-cyan-600 text-[8px] sm:text-[10px]"></i> ประกัน ${escapeHTML(product.warranty || '30 วัน')}
                         </span>
-                        <span class="hidden sm:inline-flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200">
+                        <span class="hidden sm:inline-flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 shadow-2xs">
                             <i class="fa-solid fa-globe text-purple-600 text-[10px]"></i> ${escapeHTML(product.region || 'Global')}
                         </span>
                     </div>
 
                     <!-- Stock Counter -->
-                    <div class="flex items-center justify-between mt-2 sm:mt-3 text-[9px] sm:text-xs font-semibold border-t border-slate-100 pt-1.5 sm:pt-2.5 gap-1">
-                        <span class="inline-flex items-center gap-1 ${inStock ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200' : 'text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200'} shrink-0 font-bold">
-                            <span class="w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-                            ${inStock ? `สต็อก ${product.stock}` : 'หมด'}
+                    <div class="flex items-center justify-between mt-2.5 sm:mt-3 text-[10px] sm:text-xs font-semibold border-t border-slate-100 pt-2 sm:pt-2.5 gap-1">
+                        <span class="inline-flex items-center gap-1.5 ${inStock ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200' : 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200'} shrink-0 font-bold">
+                            <span class="${inStock ? 'status-dot-live' : 'w-2 h-2 rounded-full bg-rose-500'}"></span>
+                            <span>${inStock ? `สต็อก ${product.stock}` : 'หมด'}</span>
                         </span>
-                        <span class="text-slate-400 truncate text-right">ขายแล้ว ${(product.soldCount || 0).toLocaleString()}<span class="hidden sm:inline"> ชิ้น</span></span>
+                        <span class="text-slate-400 truncate text-right font-medium">ขายแล้ว ${(product.soldCount || 0).toLocaleString()}<span class="hidden sm:inline"> ชิ้น</span></span>
                     </div>
                 </div>
 
