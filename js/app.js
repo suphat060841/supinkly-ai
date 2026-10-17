@@ -161,7 +161,7 @@ const ADMIN_AUTH = {
             sessionStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
             localStorage.setItem('supinkly_admin_session', JSON.stringify(sessionData));
             sessionStorage.setItem('supinkly_admin_pin', cleanPin);
-            localStorage.removeItem('supinkly_admin_pin');
+            localStorage.setItem('supinkly_admin_pin', cleanPin);
 
             if (serverToken) {
                 sessionStorage.setItem('supinkly_admin_server_token', serverToken);
@@ -170,6 +170,10 @@ const ADMIN_AUTH = {
 
             const newHash = await this.hashPin(cleanPin);
             localStorage.setItem('supinkly_admin_pin_hash', newHash);
+
+            if (typeof fetchAdminAllStock === 'function') {
+                fetchAdminAllStock();
+            }
 
             return true;
         }
@@ -206,7 +210,10 @@ const ADMIN_AUTH = {
                 localStorage.setItem('supinkly_admin_session', JSON.stringify(session));
 
                 // Silent token refresh if server token is missing
-                const savedPin = sessionStorage.getItem('supinkly_admin_pin');
+                const savedPin = sessionStorage.getItem('supinkly_admin_pin') || localStorage.getItem('supinkly_admin_pin');
+                if (savedPin) {
+                    sessionStorage.setItem('supinkly_admin_pin', savedPin);
+                }
                 if (savedPin && (!sessionStorage.getItem('supinkly_admin_server_token') && !localStorage.getItem('supinkly_admin_server_token'))) {
                     fetch('/api/admin/login', {
                         method: 'POST',
@@ -414,6 +421,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Synchronize custom prices and products with server
     syncCatalogWithServer();
+
+    // Synchronize admin stock if admin session active
+    if (typeof ADMIN_AUTH !== 'undefined' && ADMIN_AUTH.checkSession() && typeof fetchAdminAllStock === 'function') {
+        fetchAdminAllStock();
+    }
 
     // User session & isolated keys initialization (Preserve orders safely)
     try {
@@ -4419,6 +4431,7 @@ function openAdminModal() {
     modal.classList.remove('hidden');
     updateAdminNavBadges();
     renderAdminOrdersList();
+    if (typeof fetchAdminAllStock === 'function') fetchAdminAllStock();
     renderAdminStockList();
     renderAdminUsersList();
     loadAdminSettingsIntoForm();
@@ -5143,7 +5156,10 @@ function switchAdminTab(tabName) {
     updateAdminNavBadges();
 
     if (tabName === 'orders') renderAdminOrdersList();
-    if (tabName === 'stock') renderAdminStockList();
+    if (tabName === 'stock') {
+        if (typeof fetchAdminAllStock === 'function') fetchAdminAllStock();
+        renderAdminStockList();
+    }
     if (tabName === 'coupons') renderAdminCouponsList();
     if (tabName === 'users') renderAdminUsersList();
     if (tabName === 'analytics') {
@@ -6515,7 +6531,7 @@ async function handleDatabaseRestore(fileInput) {
                 const res = await fetch('/api/admin/restore-db', {
                     method: 'POST',
                     headers: getAdminHeaders(),
-                    body: JSON.stringify({ backupJson: parsed })
+                    body: JSON.stringify({ backupData: parsed, backupJson: parsed })
                 });
                 const data = await res.json();
                 if (data && data.success) {
@@ -8258,12 +8274,40 @@ async function syncProductStockFromServer(productId) {
             if (data && data.success && Array.isArray(data.items)) {
                 state.inventory[productId] = data.items;
                 saveSecureInventory(state.inventory);
+                syncStockCount();
             }
         }
     } catch (e) {
         console.warn("[STOCK] Sync error:", e.message);
     }
     updateStockModalVaultBadges(productId);
+}
+
+async function fetchAdminAllStock() {
+    if (typeof ADMIN_AUTH !== 'undefined' && !ADMIN_AUTH.checkSession()) return;
+    try {
+        const res = await fetch('/api/admin/stock', {
+            method: 'GET',
+            headers: getAdminHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && data.inventory && typeof data.inventory === 'object') {
+                if (!state.inventory) state.inventory = {};
+                for (const pid in data.inventory) {
+                    if (Array.isArray(data.inventory[pid])) {
+                        state.inventory[pid] = data.inventory[pid];
+                    }
+                }
+                saveSecureInventory(state.inventory);
+                syncStockCount();
+                renderProducts();
+                renderAdminStockList();
+            }
+        }
+    } catch (e) {
+        console.warn("[STOCK] All stock sync error:", e.message);
+    }
 }
 
 function updateStockModalVaultBadges(productId) {
@@ -8584,24 +8628,50 @@ async function handleSaveAddedStock() {
     }
 
     const productId = document.getElementById('add-stock-product-id').value;
-    const text = document.getElementById('add-stock-textarea').value.trim();
+    const textarea = document.getElementById('add-stock-textarea');
+    const text = textarea ? textarea.value.trim() : '';
     if (!text) {
         showToast("กรุณากรอกข้อมูลสินค้าอย่างน้อย 1 รายการ", "warning");
         return;
     }
 
     const customInstructions = (document.getElementById('add-stock-instructions')?.value || '').trim();
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const newItems = [];
 
-    lines.forEach(line => {
-        if (line.startsWith('http://') || line.startsWith('https://')) {
+    rawLines.forEach(rawLine => {
+        // Strip numbering or list prefixes like "1. ", "- ", "• ", "* "
+        let line = rawLine.replace(/^(\d+[\.\)]\s*|[-*•]\s*)/, '').trim();
+        // Strip wrapping quotes
+        if ((line.startsWith('"') && line.endsWith('"')) || (line.startsWith("'") && line.endsWith("'"))) {
+            line = line.slice(1, -1).trim();
+        }
+        if (!line) return;
+
+        const isUrl = /^https?:\/\//i.test(line) || (!line.includes(':') && !line.includes('@') && /^(www\.|[a-z0-9\-]+\.(com|net|org|io|ai|me|co|app)\/)/i.test(line));
+
+        if (currentStockInputMode === 'link' || isUrl) {
+            let linkUrl = line;
+            if (!/^https?:\/\//i.test(linkUrl)) {
+                linkUrl = 'https://' + linkUrl;
+            }
             newItems.push({
-                link: line,
+                link: linkUrl,
                 instructions: customInstructions || "คลิกเปิดลิงก์เพื่อรับสิทธิ์เข้าใช้งานบนบัญชีเดิมทันที"
             });
-        } else if (line.includes(':') && (currentStockInputMode === 'account' || line.includes('@'))) {
-            const parts = line.split(':');
+        } else if (currentStockInputMode === 'account' || line.includes('@') || (line.includes(':') && !line.startsWith('http'))) {
+            let parts;
+            if (line.includes(':')) {
+                parts = line.split(':');
+            } else if (line.includes('|')) {
+                parts = line.split('|');
+            } else if (line.includes('\t')) {
+                parts = line.split('\t');
+            } else if (line.includes(',')) {
+                parts = line.split(',');
+            } else {
+                parts = line.split(/\s+/);
+            }
             newItems.push({
                 email: parts[0].trim(),
                 password: parts.slice(1).join(':').trim(),
@@ -8616,7 +8686,7 @@ async function handleSaveAddedStock() {
     });
 
     if (newItems.length === 0) {
-        showToast("ไม่พบข้อมูลสินค้าที่ถูกต้อง", "warning");
+        showToast("ไม่พบข้อมูลสินค้าที่ถูกต้อง กรุณาตรวจสอบข้อมูล", "warning");
         return;
     }
 
@@ -8637,42 +8707,36 @@ async function handleSaveAddedStock() {
             })
         });
 
-        if (res.ok) {
-            const data = await res.json();
-            if (data && data.success) {
-                if (!state.inventory[productId]) state.inventory[productId] = [];
-                state.inventory[productId] = data.items || [...state.inventory[productId], ...newItems];
-                saveSecureInventory(state.inventory);
-            }
-        } else {
-            // Local fallback
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data && data.success) {
             if (!state.inventory[productId]) state.inventory[productId] = [];
-            state.inventory[productId].push(...newItems);
+            state.inventory[productId] = data.items || [...state.inventory[productId], ...newItems];
             saveSecureInventory(state.inventory);
+
+            // Clean input
+            if (textarea) textarea.value = '';
+            updateStockTextCounter();
+            syncStockCount();
+            renderProducts();
+            renderAdminStockList();
+
+            showToast(`🎉 เติมสต็อกสำเร็จ +${newItems.length} ชิ้น! บันทึกเข้าคลังเซิร์ฟเวอร์เรียบร้อย`, "success");
+
+            // Switch to Vault tab so admin can immediately see the added items
+            switchStockModalTab('vault');
+        } else {
+            if (res.status === 401 || res.status === 403) {
+                showToast("เซสชันผู้ดูแลหมดอายุ กรุณาเข้าสู่ระบบใหม่เพื่อบันทึกสต็อก", "error");
+                promptAdminLogin();
+                return;
+            }
+            const msg = (data && data.message) ? data.message : `เซิร์ฟเวอร์ปฏิเสธการบันทึก (HTTP ${res.status})`;
+            showToast(`❌ บันทึกสต็อกไม่สำเร็จ: ${msg}`, "error");
         }
-
-        // Clean input
-        document.getElementById('add-stock-textarea').value = '';
-        updateStockTextCounter();
-        syncStockCount();
-        renderProducts();
-        renderAdminStockList();
-
-        showToast(`🎉 เติมสต็อกสำเร็จ +${newItems.length} ชิ้น! ระบบพร้อมจัดส่งอัตโนมัติทันที`, "success");
-
-        // Switch to Vault tab so admin can immediately see the added items
-        switchStockModalTab('vault');
     } catch (err) {
-        console.error("Save stock error:", err);
-        // Fallback local save
-        if (!state.inventory[productId]) state.inventory[productId] = [];
-        state.inventory[productId].push(...newItems);
-        saveSecureInventory(state.inventory);
-        syncStockCount();
-        renderProducts();
-        renderAdminStockList();
-        showToast(`เติมสต็อกในเครื่องสำเร็จ +${newItems.length} ชิ้น`, "info");
-        switchStockModalTab('vault');
+        console.error("Save stock network error:", err);
+        showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์: ${err.message}`, "error");
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -10137,6 +10201,7 @@ window.refreshVaultItemList = refreshVaultItemList;
 window.toggleStockVaultMask = toggleStockVaultMask;
 window.copyStockVaultItem = copyStockVaultItem;
 window.handleStockFileUpload = handleStockFileUpload;
+window.fetchAdminAllStock = fetchAdminAllStock;
 
 // Admin Navigation & Orders Management Controllers
 window.switchAdminTab = switchAdminTab;

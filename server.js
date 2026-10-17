@@ -2008,32 +2008,54 @@ app.post('/api/admin/stock', adminRateLimit, (req, res) => {
     const db = getDb();
     if (!db.inventory) db.inventory = {};
 
-    const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
+    const VALID_ID_REGEX = /^[a-zA-Z0-9_\-]{1,64}$/;
     if (!productId || !VALID_ID_REGEX.test(productId) || productId === '__proto__' || productId === 'constructor' || productId === 'prototype') {
         return res.status(400).json({ success: false, message: "productId ไม่ถูกต้อง" });
     }
 
     if (!db.inventory[productId]) db.inventory[productId] = [];
     const credsToAdd = Array.isArray(newCredentials) ? newCredentials : (Array.isArray(items) ? items : []);
-    if (credsToAdd.length > 0) {
-        // [SECURITY] Sanitize credentials — allow only known safe string fields, limit batch size
-        const MAX_BATCH = 500;
-        const sanitized = credsToAdd.slice(0, MAX_BATCH).map(cred => {
-            if (!cred || typeof cred !== 'object' || Array.isArray(cred)) return null;
-            return {
-                ...(cred.email ? { email: String(cred.email).slice(0, 254) } : {}),
-                ...(cred.password ? { password: String(cred.password).slice(0, 512) } : {}),
-                ...(cred.key ? { key: String(cred.key).slice(0, 512) } : {}),
-                ...(cred.link ? { link: sanitizeWebUrl(cred.link) } : {}),
-                instructions: String(cred.instructions || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที มีการรับประกันดูแลตลอดอายุการใช้งาน 30 วัน').slice(0, 1000)
-            };
-        }).filter(c => c !== null && (c.email || c.key || c.link));
-
-        db.inventory[productId].push(...sanitized);
+    if (credsToAdd.length === 0) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุข้อมูลสินค้าที่ต้องการเติมอย่างน้อย 1 รายการ" });
     }
+
+    // [SECURITY] Sanitize credentials — allow only known safe string fields, limit batch size
+    const MAX_BATCH = 500;
+    const sanitized = credsToAdd.slice(0, MAX_BATCH).map(cred => {
+        if (!cred || typeof cred !== 'object' || Array.isArray(cred)) return null;
+
+        let link = cred.link ? String(cred.link).trim() : '';
+        if (link && !/^https?:\/\//i.test(link)) {
+            link = 'https://' + link;
+        }
+        const cleanLink = link ? sanitizeWebUrl(link) : '';
+        const email = cred.email || cred.account || cred.user;
+        const key = cred.key || cred.code || cred.license;
+        const password = cred.password || cred.pass;
+
+        return {
+            ...(email ? { email: String(email).slice(0, 254).trim() } : {}),
+            ...(password ? { password: String(password).slice(0, 512).trim() } : {}),
+            ...(key ? { key: String(key).slice(0, 512).trim() } : {}),
+            ...(cleanLink ? { link: cleanLink } : {}),
+            instructions: String(cred.instructions || 'เข้าสู่ระบบและเริ่มใช้งานได้ทันที มีการรับประกันดูแลตลอดอายุการใช้งาน 30 วัน').slice(0, 1000).trim()
+        };
+    }).filter(c => c !== null && (c.email || c.key || c.link));
+
+    if (sanitized.length === 0) {
+        return res.status(400).json({ success: false, message: "ไม่พบข้อมูลสินค้าที่ถูกต้อง (ต้องมี Email, Key หรือ Link)" });
+    }
+
+    db.inventory[productId].push(...sanitized);
     saveDb(db);
 
-    res.json({ success: true, stockCount: db.inventory[productId].length, items: db.inventory[productId] });
+    res.json({
+        success: true,
+        message: `เติมสต็อกสำเร็จ +${sanitized.length} รายการ`,
+        addedCount: sanitized.length,
+        stockCount: db.inventory[productId].length,
+        items: db.inventory[productId]
+    });
 });
 
 app.post('/api/admin/stock/delete-item', adminRateLimit, (req, res) => {
@@ -2044,7 +2066,7 @@ app.post('/api/admin/stock/delete-item', adminRateLimit, (req, res) => {
     const db = getDb();
     if (!db.inventory) db.inventory = {};
 
-    const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
+    const VALID_ID_REGEX = /^[a-zA-Z0-9_\-]{1,64}$/;
     if (!productId || !VALID_ID_REGEX.test(productId) || !Array.isArray(db.inventory[productId])) {
         return res.status(404).json({ success: false, message: "ไม่พบสต็อกสินค้านี้ในระบบ" });
     }
@@ -2074,7 +2096,7 @@ app.post('/api/admin/stock/clear', adminRateLimit, (req, res) => {
     const db = getDb();
     if (!db.inventory) db.inventory = {};
 
-    const VALID_ID_REGEX = /^[a-z0-9\-]{1,32}$/;
+    const VALID_ID_REGEX = /^[a-zA-Z0-9_\-]{1,64}$/;
     if (!productId || !VALID_ID_REGEX.test(productId)) {
         return res.status(400).json({ success: false, message: "productId ไม่ถูกต้อง" });
     }
@@ -3266,16 +3288,17 @@ app.post('/api/admin/restore-db', adminRateLimit, (req, res) => {
         return res.status(403).json({ success: false, message: "สิทธิ์การเข้าถึงถูกปฏิเสธ" });
     }
     try {
-        const { backupData } = req.body;
+        const { backupData, backupJson } = req.body;
+        const incomingData = (backupData !== undefined) ? backupData : backupJson;
         let restored;
-        if (typeof backupData === 'string') {
+        if (typeof incomingData === 'string') {
             try {
-                restored = JSON.parse(backupData);
+                restored = JSON.parse(incomingData);
             } catch (parseErr) {
                 return res.status(400).json({ success: false, message: "ไฟล์ JSON มีไวยากรณ์ผิดพลาด ไม่สามารถประมวลผลได้" });
             }
-        } else if (typeof backupData === 'object' && backupData !== null) {
-            restored = backupData;
+        } else if (typeof incomingData === 'object' && incomingData !== null) {
+            restored = incomingData;
         } else {
             return res.status(400).json({ success: false, message: "รูปแบบข้อมูลไฟล์สำรองไม่ถูกต้อง" });
         }
